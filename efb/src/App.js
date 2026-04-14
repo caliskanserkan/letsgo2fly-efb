@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './App.css';
 import Layout from './components/Layout';
-
+import FlightCrew from './components/FlightCrew';
 function Login({ onLogin }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
@@ -109,7 +109,8 @@ function App() {
 
   return (
     <Layout activePage={activePage} onNavigate={navigate} title="GO2TCREC · LTAC-LTBA · 11 APR 09:00 Z">
-      <PlaceholderPage />
+{activePage === 'flt-crew' && <FlightCrew />}
+{activePage !== 'flt-crew' && <PlaceholderPage />}
     </Layout>
   );
 }
