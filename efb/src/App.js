@@ -10,6 +10,7 @@ import TakeoffData from './components/TakeoffData';
 import NavLog from './components/NavLog';
 import LandingData from './components/LandingData';
 import EndFlight from './components/EndFlight';
+import DocUpload from './components/DocUpload';
 
 function Login({ onLogin }) {
   const [user, setUser] = useState('');
@@ -170,7 +171,8 @@ function App() {
       {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} />}
       {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} />}
       {activePage === 'endflt' && <EndFlight flightData={flightData} divertData={divertData} />}
-      {activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && activePage !== 'accept' && activePage !== 'takeoff' && activePage !== 'navlog' && activePage !== 'landing' && activePage !== 'endflt' && <PlaceholderPage />}
+      {activePage === 'docupload' && <DocUpload />}
+      {activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && activePage !== 'accept' && activePage !== 'takeoff' && activePage !== 'navlog' && activePage !== 'landing' && activePage !== 'endflt' && activePage !== 'docupload' && <PlaceholderPage />}
     </Layout>
   );
 }
