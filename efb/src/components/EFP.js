@@ -1,13 +1,5 @@
 import React, { useState } from 'react';
-import { parseWeatherText, getNotamBadgeColor, COLORS } from '../config/weatherRules';
-
-const subTabs = [
-  { id: 'fl-plan',    label: 'FL Plan' },
-  { id: 'atc-plan',  label: 'ATC Flight Plan' },
-  { id: 'wxr',       label: 'WXR' },
-  { id: 'notam',     label: 'NOTAM' },
-  { id: 'wxr-charts',label: 'WXR Charts' },
-];
+import { parseWeatherText, COLORS } from '../config/weatherRules';
 
 function FLPlan() {
   return (
@@ -280,18 +272,20 @@ function WXRCharts() {
 }
 
 function EFP() {
-  const [activeTab, setActiveTab] = useState('fl-plan');
+  const [activeTab] = useState('fl-plan');
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-      {/* Sub-tab bar */}
-      <div style={{ display:'flex', background:'#1a1a1a', borderBottom:'1px solid #383838', flexShrink:0, overflowX:'auto' }}>
-        {subTabs.map(t => (
-          <div key={t.id} onClick={() => setActiveTab(t.id)} style={{ padding:'9px 14px', whiteSpace:'nowrap', fontSize:11, fontWeight:600, cursor:'pointer', color: activeTab===t.id ? '#1a9bc4' : '#555', borderBottom: activeTab===t.id ? '2px solid #1a9bc4' : '2px solid transparent' }}>
-            {t.label}
-          </div>
-        ))}
+      
+      {/* Refresh bar */}
+      <div style={{ background:'#1a2a1a', borderBottom:'1px solid rgba(45,158,95,0.3)', padding:'8px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+        <span style={{ fontSize:11, color:'#555' }}>Last updated: 11 APR 2026 · 05:24 Z</span>
+        <button onClick={() => alert('Refreshing...')} style={{ background:'#2d9e5f', border:'none', borderRadius:7, padding:'7px 18px', fontSize:12, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit', letterSpacing:0.3 }}>
+          ↻ Refresh Plan
+        </button>
       </div>
+
+      {/* Sub-tab bar */}
 
       {/* Content */}
       {activeTab === 'fl-plan'    && <FLPlan />}
