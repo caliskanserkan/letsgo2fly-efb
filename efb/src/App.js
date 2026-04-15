@@ -1,3 +1,4 @@
+import AcceptSign from './components/AcceptSign';
 import React, { useState } from 'react';
 import './App.css';
 import Layout from './components/Layout';
@@ -117,7 +118,8 @@ function App() {
 {activePage === 'mandatory' && <Mandatory />}
 {activePage === 'efp' && <EFP />}
 {activePage === 'fuel' && <Fuel />}
-{activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && <PlaceholderPage />}
+{activePage === 'accept' && <AcceptSign />}
+{activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && activePage !== 'accept' && <PlaceholderPage />}
 
     </Layout>
   );
