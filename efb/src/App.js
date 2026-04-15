@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import FlightCrew from './components/FlightCrew';
 import Mandatory from './components/Mandatory';
 import EFP from './components/EFP';
+import Fuel from './components/Fuel';
 function Login({ onLogin }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
@@ -111,10 +112,12 @@ function App() {
 
   return (
     <Layout activePage={activePage} onNavigate={navigate} title="GO2TCREC · LTAC-LTBA · 11 APR 09:00 Z">
+
 {activePage === 'flt-crew' && <FlightCrew />}
 {activePage === 'mandatory' && <Mandatory />}
 {activePage === 'efp' && <EFP />}
-{activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && <PlaceholderPage />}
+{activePage === 'fuel' && <Fuel />}
+{activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && <PlaceholderPage />}
 
     </Layout>
   );
