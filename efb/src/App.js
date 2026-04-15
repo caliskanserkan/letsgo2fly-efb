@@ -1,4 +1,3 @@
-import AcceptSign from './components/AcceptSign';
 import React, { useState } from 'react';
 import './App.css';
 import Layout from './components/Layout';
@@ -6,7 +5,10 @@ import FlightCrew from './components/FlightCrew';
 import Mandatory from './components/Mandatory';
 import EFP from './components/EFP';
 import Fuel from './components/Fuel';
+import AcceptSign from './components/AcceptSign';
 import TakeoffData from './components/TakeoffData';
+import NavLog from './components/NavLog';
+
 function Login({ onLogin }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
@@ -91,7 +93,7 @@ function Dashboard({ onOpen }) {
 function PlaceholderPage() {
   return (
     <div style={{ padding:24, color:'var(--t3)', fontSize:13 }}>
-      Bu sayfa yapım aşamasında...
+      Page under construction...
     </div>
   );
 }
@@ -99,6 +101,18 @@ function PlaceholderPage() {
 function App() {
   const [page, setPage] = useState('login');
   const [activePage, setActivePage] = useState('flt-crew');
+  const [flightData, setFlightData] = useState({
+    offBlock: '',
+    takeoffTime: '',
+    takeoffFuel: '',
+    landingTime: '',
+    onBlock: '',
+    remainingFuel: '',
+  });
+
+  const updateFlight = (key, value) => {
+    setFlightData(prev => ({ ...prev, [key]: value }));
+  };
 
   const navigate = (target) => {
     if (target === 'dashboard') {
@@ -114,15 +128,14 @@ function App() {
 
   return (
     <Layout activePage={activePage} onNavigate={navigate} title="GO2TCREC · LTAC-LTBA · 11 APR 09:00 Z">
-
-{activePage === 'flt-crew' && <FlightCrew />}
-{activePage === 'mandatory' && <Mandatory />}
-{activePage === 'efp' && <EFP />}
-{activePage === 'fuel' && <Fuel />}
-{activePage === 'accept' && <AcceptSign />}
-{activePage === 'takeoff' && <TakeoffData />}
-{activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && activePage !== 'accept' && activePage !== 'takeoff' && <PlaceholderPage />}
-
+      {activePage === 'flt-crew'  && <FlightCrew />}
+      {activePage === 'mandatory' && <Mandatory />}
+      {activePage === 'efp'       && <EFP />}
+      {activePage === 'fuel'      && <Fuel />}
+      {activePage === 'accept'    && <AcceptSign />}
+      {activePage === 'takeoff'   && <TakeoffData />}
+      {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} />}
+      {activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && activePage !== 'accept' && activePage !== 'takeoff' && activePage !== 'navlog' && <PlaceholderPage />}
     </Layout>
   );
 }

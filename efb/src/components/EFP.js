@@ -272,7 +272,7 @@ function WXRCharts() {
 }
 
 function EFP() {
-  const [activeTab] = useState('fl-plan');
+const [activeTab, setActiveTab] = useState('fl-plan');
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
@@ -286,6 +286,19 @@ function EFP() {
       </div>
 
       {/* Sub-tab bar */}
+      <div style={{ display:'flex', background:'#1a1a1a', borderBottom:'1px solid #383838', flexShrink:0, overflowX:'auto' }}>
+  {[
+    { id:'fl-plan',     label:'FL Plan' },
+    { id:'atc-plan',    label:'ATC Flight Plan' },
+    { id:'wxr',         label:'WXR' },
+    { id:'notam',       label:'NOTAM' },
+    { id:'wxr-charts',  label:'WXR Charts' },
+  ].map(t => (
+    <div key={t.id} onClick={() => setActiveTab(t.id)} style={{ padding:'9px 14px', whiteSpace:'nowrap', fontSize:11, fontWeight:600, cursor:'pointer', color: activeTab===t.id ? '#1a9bc4' : '#555', borderBottom: activeTab===t.id ? '2px solid #1a9bc4' : '2px solid transparent' }}>
+      {t.label}
+    </div>
+  ))}
+</div>
 
       {/* Content */}
       {activeTab === 'fl-plan'    && <FLPlan />}
