@@ -8,6 +8,7 @@ import Fuel from './components/Fuel';
 import AcceptSign from './components/AcceptSign';
 import TakeoffData from './components/TakeoffData';
 import NavLog from './components/NavLog';
+import LandingData from './components/LandingData';
 
 function Login({ onLogin }) {
   return (
@@ -135,7 +136,8 @@ function App() {
       {activePage === 'accept'    && <AcceptSign />}
       {activePage === 'takeoff'   && <TakeoffData />}
       {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} />}
-      {activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && activePage !== 'accept' && activePage !== 'takeoff' && activePage !== 'navlog' && <PlaceholderPage />}
+      {activePage === 'landing' && <LandingData flightData={flightData} />}
+      {activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && activePage !== 'accept' && activePage !== 'takeoff' && activePage !== 'navlog' && activePage !== 'landing' && <PlaceholderPage />}
     </Layout>
   );
 }
