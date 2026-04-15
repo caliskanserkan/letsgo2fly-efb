@@ -1,23 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-function CheckItem({ label, done: initialDone, badge, badgeColor }) {
-  const [done, setDone] = useState(initialDone);
-  return (
-    <div onClick={() => setDone(!done)} style={{ display:'flex', alignItems:'center', padding:'12px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838', gap:12, cursor:'pointer' }}>
-      <div style={{ width:20, height:20, borderRadius:4, border: done ? 'none' : '1px solid #444', background: done ? '#2d9e5f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:11, color:'#fff' }}>
-        {done ? '✓' : ''}
-      </div>
-      <span style={{ fontSize:12.5, color: done ? '#4a4a4a' : '#999', flex:1, textDecoration: done ? 'line-through' : 'none' }}>
-        {label}
-      </span>
-      {badge && (
-        <span style={{ fontSize:11, fontWeight:600, color: badgeColor || (done ? '#2d9e5f' : '#ff9500') }}>
-          {badge}
-        </span>
-      )}
-    </div>
-  );
-}
+const INITIAL_CHECKS = [
+  { id:1, label:'General remarks & photos',    done:true,  badge:'✓',        badgeColor:'#2d9e5f' },
+  { id:2, label:'Tech log remarks',            done:true,  badge:'1071',     badgeColor:'#2d9e5f' },
+  { id:3, label:'Pre-flight acceptance',       done:true,  badge:'Offline ✓',badgeColor:'#2d9e5f' },
+  { id:4, label:'AIRCRAFT SECURITY CHECKLIST', done:true,  badge:'✓',        badgeColor:'#2d9e5f', section:'Aircraft Checklists' },
+  { id:5, label:'EFB CHECKLIST',              done:true,  badge:'✓',        badgeColor:'#2d9e5f' },
+  { id:6, label:'MEL-HIL',                    done:false, badge:'Pending',  badgeColor:'#ff9500' },
+];
 
 function SectionHeader({ title }) {
   return (
@@ -27,27 +17,59 @@ function SectionHeader({ title }) {
   );
 }
 
-function Mandatory() {
+function Mandatory({ setStatus }) {
+  const [checks, setChecks] = useState(INITIAL_CHECKS);
+
+  const toggle = (id) => {
+    setChecks(prev => prev.map(c => c.id === id ? { ...c, done: !c.done } : c));
+  };
+
+  useEffect(() => {
+    const allDone = checks.every(c => c.done);
+    const anyDone = checks.some(c => c.done);
+    if (allDone) setStatus('green');
+    else if (anyDone) setStatus('amber');
+    else setStatus('pending');
+  }, [checks, setStatus]);
+
+  const allDone = checks.every(c => c.done);
+
   return (
     <div>
       <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>
         Checks & Remarks
       </div>
 
-      <CheckItem label="General remarks & photos" done={true} badge="✓" badgeColor="#2d9e5f" />
-      <CheckItem label="Tech log remarks" done={true} badge="1071" badgeColor="#2d9e5f" />
-      <CheckItem label="Pre-flight acceptance" done={true} badge="Offline ✓" badgeColor="#2d9e5f" />
+      {checks.map((c, idx) => (
+        <React.Fragment key={c.id}>
+          {c.section && <SectionHeader title={c.section} />}
+          <div onClick={() => toggle(c.id)}
+            style={{ display:'flex', alignItems:'center', padding:'12px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838', gap:12, cursor:'pointer' }}>
+            <div style={{ width:20, height:20, borderRadius:4, border: c.done ? 'none' : '1px solid #444', background: c.done ? '#2d9e5f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:11, color:'#fff' }}>
+              {c.done ? '✓' : ''}
+            </div>
+            <span style={{ fontSize:12.5, color: c.done ? '#4a4a4a' : '#999', flex:1, textDecoration: c.done ? 'line-through' : 'none' }}>
+              {c.label}
+            </span>
+            {c.badge && (
+              <span style={{ fontSize:11, fontWeight:600, color: c.badgeColor || (c.done ? '#2d9e5f' : '#ff9500') }}>
+                {c.done ? c.badge : 'Pending'}
+              </span>
+            )}
+          </div>
+        </React.Fragment>
+      ))}
 
-      <SectionHeader title="Aircraft Checklists" />
-
-      <CheckItem label="AIRCRAFT SECURITY CHECKLIST" done={true} badge="✓" badgeColor="#2d9e5f" />
-      <CheckItem label="EFB CHECKLIST" done={true} badge="✓" badgeColor="#2d9e5f" />
-      <CheckItem label="MEL-HIL" done={false} badge="Pending" badgeColor="#ff9500" />
-
-
-      <div style={{ margin:'12px 16px', padding:'10px 12px', borderRadius:6, background:'rgba(255,149,0,0.08)', borderLeft:'3px solid #ff9500', fontSize:11, color:'#c4882a', lineHeight:1.6 }}>
-        ⚠ Tüm kontroller tamamlanmadan Accept & Sign sayfasına geçilemez.
-      </div>
+      {!allDone && (
+        <div style={{ margin:'12px 16px', padding:'10px 12px', borderRadius:6, background:'rgba(255,149,0,0.08)', borderLeft:'3px solid #ff9500', fontSize:11, color:'#c4882a', lineHeight:1.6 }}>
+          ⚠ Complete all checks before proceeding to Accept & Sign.
+        </div>
+      )}
+      {allDone && (
+        <div style={{ margin:'12px 16px', padding:'10px 12px', borderRadius:6, background:'rgba(45,158,95,0.08)', borderLeft:'3px solid #2d9e5f', fontSize:11, color:'#6db890', lineHeight:1.6 }}>
+          ✓ All checks complete.
+        </div>
+      )}
     </div>
   );
 }

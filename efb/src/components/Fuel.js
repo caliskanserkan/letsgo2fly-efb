@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const iStyle = {
   background: '#1a1a1a', border: '1.5px solid #1a9bc4', borderRadius: 7,
   padding: '8px 12px', fontSize: 15, fontWeight: 700, color: '#1a9bc4',
   textAlign: 'right', fontFamily: 'monospace', outline: 'none', width: 110,
 };
-
 
 function Row({ label, hint, value, onChange, display, unit }) {
   return (
@@ -15,12 +14,7 @@ function Row({ label, hint, value, onChange, display, unit }) {
         {hint && <div style={{ fontSize:10, color: display ? '#1a9bc4' : '#555', marginTop:2 }}>{hint}</div>}
       </div>
       <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-        <input
-          style={{ ...iStyle, color: value ? '#1a9bc4' : '#444', borderColor: display && !value ? '#1a9bc4' : '#1a9bc4' }}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder={display || '—'}
-        />
+        <input style={{ ...iStyle, color: value ? '#1a9bc4' : '#444' }} value={value} onChange={e => onChange(e.target.value)} placeholder={display || '—'} />
         <span style={{ fontSize:11, color:'#555', minWidth:24 }}>{unit}</span>
       </div>
     </div>
@@ -47,35 +41,36 @@ function Title({ t }) {
 const n = v => v ? parseInt(v.toString().replace(/,/g,'')) : null;
 const fmt = v => v !== null ? v.toLocaleString() : null;
 
-function Fuel() {
-  const [upliftLt, setUpliftLt]   = useState('');
-  const [density, setDensity]     = useState('0.78');
+function Fuel({ setStatus }) {
+  const [upliftLt, setUpliftLt] = useState('');
+  const [density, setDensity]   = useState('0.78');
   const [remaining, setRemaining] = useState('');
-  const [ramp, setRamp]           = useState('');
+  const [ramp, setRamp]         = useState('');
 
   const ofp = { trip:2713, cont:250, alt:533, fin:1447, minTO:4943, taxi:400, disc:7657, max:25120 };
 
-  // Parse inputs
   const upliftLb   = upliftLt && density ? Math.round(parseFloat(upliftLt) * parseFloat(density) * 2.20462) : null;
   const remainingN = n(remaining);
   const rampN      = n(ramp);
+  const has        = { u: upliftLb !== null, r: remainingN !== null, p: rampN !== null };
+  const autoRamp      = has.u && has.r && !has.p ? upliftLb + remainingN : null;
+  const autoRemaining = has.u && has.p && !has.r ? rampN - upliftLb      : null;
+  const autoUplift    = has.r && has.p && !has.u ? rampN - remainingN    : null;
+  const finalRamp  = has.p ? rampN : autoRamp;
+  const takeoff    = finalRamp ? finalRamp - ofp.taxi : null;
 
-  // Cross-talk: which two are filled → calculate third
-  const has = { u: upliftLb !== null, r: remainingN !== null, p: rampN !== null };
-
-  const autoRamp      = has.u && has.r && !has.p  ? upliftLb + remainingN : null;
-  const autoRemaining = has.u && has.p && !has.r  ? rampN - upliftLb      : null;
-  const autoUplift    = has.r && has.p && !has.u  ? rampN - remainingN    : null;
-
-  const finalRamp = has.p ? rampN : autoRamp;
-  const takeoff   = finalRamp ? finalRamp - ofp.taxi : null;
+  useEffect(() => {
+    if (takeoff && takeoff >= ofp.minTO) setStatus('green');
+    else if (ramp || upliftLt) setStatus('amber');
+    else setStatus('pending');
+  }); // no dep array — runs every render, avoids eslint warning
 
   return (
     <div>
       <Title t="Uplift" />
       <Row label="Uplift quantity" hint="From fuel receipt" value={upliftLt} onChange={v => { setUpliftLt(v); setRamp(''); }} unit="Lt" />
       <Row label="Density" hint="Default 0.78" value={density} onChange={setDensity} unit="kg/L" />
-      <Row label="Uplift" hint={autoUplift ? "Auto calculated" : "Auto calculated"} display={fmt(upliftLb || autoUplift)} unit="lb" />
+      <Row label="Uplift" hint="Auto calculated" display={fmt(upliftLb || autoUplift)} unit="lb" />
 
       <Sep />
 
@@ -86,14 +81,14 @@ function Fuel() {
       <Sep />
 
       <Title t="OFP — Planned Fuel" />
-      <Info label="Trip"              value={`${ofp.trip.toLocaleString()} lb`} />
-      <Info label="Contingency"       value={`${ofp.cont.toLocaleString()} lb`} />
-      <Info label="Alternate (LTFM)"  value={`${ofp.alt.toLocaleString()} lb`} />
-      <Info label="Final Reserve"     value={`${ofp.fin.toLocaleString()} lb`} />
-      <Info label="Taxi"              value={`${ofp.taxi.toLocaleString()} lb`} />
-      <Info label="Discretionary"     value={`${ofp.disc.toLocaleString()} lb`} />
-      <Info label="MIN T/O FUEL"      value={`${ofp.minTO.toLocaleString()} lb`} color="#e8731a" />
-      <Info label="Max Fuel (Tank)"   value={`${ofp.max.toLocaleString()} lb`} />
+      <Info label="Trip"             value={`${ofp.trip.toLocaleString()} lb`} />
+      <Info label="Contingency"      value={`${ofp.cont.toLocaleString()} lb`} />
+      <Info label="Alternate (LTFM)" value={`${ofp.alt.toLocaleString()} lb`} />
+      <Info label="Final Reserve"    value={`${ofp.fin.toLocaleString()} lb`} />
+      <Info label="Taxi"             value={`${ofp.taxi.toLocaleString()} lb`} />
+      <Info label="Discretionary"    value={`${ofp.disc.toLocaleString()} lb`} />
+      <Info label="MIN T/O FUEL"     value={`${ofp.minTO.toLocaleString()} lb`} color="#e8731a" />
+      <Info label="Max Fuel (Tank)"  value={`${ofp.max.toLocaleString()} lb`} />
 
       <Sep />
 

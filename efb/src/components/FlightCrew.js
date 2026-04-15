@@ -29,7 +29,7 @@ function PilotRow({ pilot, role, onSelect }) {
   );
 }
 
-function FlightCrew() {
+function FlightCrew({ setStatus }) {
   const [pf, setPF] = useState('AAK');
   const [pm, setPM] = useState('SEL');
 
@@ -42,7 +42,7 @@ function FlightCrew() {
       setPF(code);
     } else {
       setPF(code);
-    }
+    }setStatus('green');
   };
 
   return (

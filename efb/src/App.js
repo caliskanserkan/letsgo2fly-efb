@@ -11,6 +11,7 @@ import NavLog from './components/NavLog';
 import LandingData from './components/LandingData';
 import EndFlight from './components/EndFlight';
 import DocUpload from './components/DocUpload';
+import FreeNote from './components/FreeNote';
 
 function Login({ onLogin }) {
   const [user, setUser] = useState('');
@@ -111,14 +112,6 @@ function Dashboard({ onOpen }) {
   );
 }
 
-function PlaceholderPage() {
-  return (
-    <div style={{ padding:24, color:'var(--t3)', fontSize:13 }}>
-      Page under construction...
-    </div>
-  );
-}
-
 function App() {
   const [page, setPage] = useState('login');
   const [activePage, setActivePage] = useState('flt-crew');
@@ -134,6 +127,23 @@ function App() {
 
   const updateFlight = (key, value) => {
     setFlightData(prev => ({ ...prev, [key]: value }));
+  };
+
+  const [pageStatus, setPageStatus] = useState({
+    'flt-crew':  'pending',
+    'mandatory': 'pending',
+    'efp':       'pending',
+    'fuel':      'pending',
+    'accept':    'pending',
+    'takeoff':   'pending',
+    'navlog':    'pending',
+    'landing':   'pending',
+    'endflt':    'pending',
+    'docupload': 'pending',
+  });
+
+  const setStatus = (pageId, status) => {
+    setPageStatus(prev => ({ ...prev, [pageId]: status }));
   };
 
   const [divertData, setDivertData] = useState({
@@ -161,18 +171,21 @@ function App() {
   if (page === 'dashboard') return <Dashboard onOpen={() => navigate('flt-crew')} />;
 
   return (
-    <Layout activePage={activePage} onNavigate={navigate} title="GO2TCREC · LTAC-LTBA · 11 APR 09:00 Z">
-      {activePage === 'flt-crew'  && <FlightCrew />}
-      {activePage === 'mandatory' && <Mandatory />}
-      {activePage === 'efp'       && <EFP />}
-      {activePage === 'fuel'      && <Fuel />}
-      {activePage === 'accept'    && <AcceptSign />}
-      {activePage === 'takeoff'   && <TakeoffData />}
-      {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} />}
-      {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} />}
-      {activePage === 'endflt' && <EndFlight flightData={flightData} divertData={divertData} />}
-      {activePage === 'docupload' && <DocUpload />}
-      {activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && activePage !== 'accept' && activePage !== 'takeoff' && activePage !== 'navlog' && activePage !== 'landing' && activePage !== 'endflt' && activePage !== 'docupload' && <PlaceholderPage />}
+    <Layout activePage={activePage} onNavigate={navigate} title="GO2TCREC · LTAC-LTBA · 11 APR 09:00 Z" pageStatus={pageStatus}>
+      {activePage === 'flt-crew'  && <FlightCrew  setStatus={(s) => setStatus('flt-crew', s)} />}
+      {activePage === 'mandatory' && <Mandatory   setStatus={(s) => setStatus('mandatory', s)} />}
+      {activePage === 'efp'       && <EFP         setStatus={(s) => setStatus('efp', s)} />}
+      {activePage === 'fuel'      && <Fuel        setStatus={(s) => setStatus('fuel', s)} />}
+      {activePage === 'accept'    && <AcceptSign  setStatus={(s) => setStatus('accept', s)} />}
+      {activePage === 'takeoff'   && <TakeoffData setStatus={(s) => setStatus('takeoff', s)} />}
+      {activePage === 'navlog'    && <NavLog      flightData={flightData} updateFlight={updateFlight} setStatus={(s) => setStatus('navlog', s)} />}
+      {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} setStatus={(s) => setStatus('landing', s)} />}
+      {activePage === 'endflt'    && <EndFlight   flightData={flightData} divertData={divertData} setStatus={(s) => setStatus('endflt', s)} />}
+      {activePage === 'docupload' && <DocUpload   setStatus={(s) => setStatus('docupload', s)} />}
+      {activePage === 'freenote'  && <FreeNote />}
+      {activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && activePage !== 'accept' && activePage !== 'takeoff' && activePage !== 'navlog' && activePage !== 'landing' && activePage !== 'endflt' && activePage !== 'docupload' && activePage !== 'freenote' && (
+        <div style={{ padding:24, color:'var(--t3)', fontSize:13 }}>Page under construction...</div>
+      )}
     </Layout>
   );
 }
