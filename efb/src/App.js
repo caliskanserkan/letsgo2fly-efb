@@ -9,6 +9,7 @@ import AcceptSign from './components/AcceptSign';
 import TakeoffData from './components/TakeoffData';
 import NavLog from './components/NavLog';
 import LandingData from './components/LandingData';
+import EndFlight from './components/EndFlight';
 
 function Login({ onLogin }) {
   const [user, setUser] = useState('');
@@ -120,6 +121,7 @@ function PlaceholderPage() {
 function App() {
   const [page, setPage] = useState('login');
   const [activePage, setActivePage] = useState('flt-crew');
+
   const [flightData, setFlightData] = useState({
     offBlock: '',
     takeoffTime: '',
@@ -131,6 +133,18 @@ function App() {
 
   const updateFlight = (key, value) => {
     setFlightData(prev => ({ ...prev, [key]: value }));
+  };
+
+  const [divertData, setDivertData] = useState({
+    active: false,
+    icao: '',
+    rwy: '',
+    len: '',
+    reason: '',
+  });
+
+  const updateDivert = (key, value) => {
+    setDivertData(prev => ({ ...prev, [key]: value }));
   };
 
   const navigate = (target) => {
@@ -154,8 +168,9 @@ function App() {
       {activePage === 'accept'    && <AcceptSign />}
       {activePage === 'takeoff'   && <TakeoffData />}
       {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} />}
-      {activePage === 'landing' && <LandingData flightData={flightData} />}
-      {activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && activePage !== 'accept' && activePage !== 'takeoff' && activePage !== 'navlog' && activePage !== 'landing' && <PlaceholderPage />}
+      {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} />}
+      {activePage === 'endflt' && <EndFlight flightData={flightData} divertData={divertData} />}
+      {activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && activePage !== 'accept' && activePage !== 'takeoff' && activePage !== 'navlog' && activePage !== 'landing' && activePage !== 'endflt' && <PlaceholderPage />}
     </Layout>
   );
 }

@@ -53,7 +53,7 @@ function AtisRow({ label, value, onChange, photo, onPhoto }) {
   );
 }
 
-function LandingData({ flightData }) {
+function LandingData({ flightData, divertData, updateDivert }) {
   const [icao, setIcao]           = useState('LTBA');
   const [runways, setRunways]     = useState([]);
   const [selRwy, setSelRwy]       = useState(null);
@@ -64,10 +64,8 @@ function LandingData({ flightData }) {
   const [arrAtis, setArrAtis]     = useState('');
   const [arrPhoto, setArrPhoto]   = useState(false);
   const [reqLnd, setReqLnd]       = useState('');
-  const [divert, setDivert]       = useState(false);
-  const [divIcao, setDivIcao]     = useState('');
-  const [divRwy, setDivRwy]       = useState('');
-  const [divLen, setDivLen]       = useState('');
+
+  const divert = divertData.active;
 
   const fetchRunways = async (code) => {
     setLoading(true);
@@ -102,7 +100,7 @@ function LandingData({ flightData }) {
   }, [icao]);
 
   const selectedRwy = runways.find(r => r.id === selRwy);
-  const divLenNum   = divLen ? parseInt(divLen.replace(/[^0-9]/g,'')) : null;
+  const divLenNum   = divertData.len ? parseInt(divertData.len.replace(/[^0-9]/g,'')) : null;
   const activeLenFt = divert && divLenNum ? divLenNum
                     : selectedRwy ? selectedRwy.length
                     : (manualLen ? parseInt(manualLen.replace(/[^0-9]/g,'')) : null);
@@ -121,8 +119,6 @@ function LandingData({ flightData }) {
       {/* Landing Aerodrome — disabled when divert active */}
       <div style={{ opacity: divert ? 0.3 : 1, pointerEvents: divert ? 'none' : 'auto' }}>
         <Title t="Landing Aerodrome & Runway" />
-
-        {/* ICAO */}
         <div style={{ background:'#2e2e2e', borderBottom:'1px solid #383838', padding:'10px 16px', display:'flex', alignItems:'center', gap:10 }}>
           <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600, width:80 }}>ICAO</span>
           <input value={icao} onChange={e => setIcao(e.target.value.toUpperCase())} maxLength={4} placeholder="LTBA"
@@ -130,7 +126,6 @@ function LandingData({ flightData }) {
           {loading && <span style={{ fontSize:10, color:'#555' }}>Loading...</span>}
         </div>
 
-        {/* Runway list */}
         {runways.length > 0 && (
           <div style={{ background:'#2a2a2a', borderBottom:'1px solid #383838', padding:'10px 16px' }}>
             <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', marginBottom:8 }}>Select Runway</div>
@@ -145,7 +140,6 @@ function LandingData({ flightData }) {
           </div>
         )}
 
-        {/* No data — manual */}
         {noData && (
           <div style={{ background:'#2a2a2a', borderBottom:'1px solid #383838', padding:'10px 16px' }}>
             <div style={{ marginBottom:8, padding:'8px 10px', borderRadius:5, background:'rgba(255,149,0,0.08)', borderLeft:'3px solid #ff9500', fontSize:11, color:'#c4882a' }}>
@@ -184,7 +178,7 @@ function LandingData({ flightData }) {
       {/* Stop Margin */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
         <span style={{ fontSize:12.5, color:'#666' }}>
-          Stop Margin {divert && divRwy ? `(DIVERT RWY ${divRwy})`
+          Stop Margin {divert && divertData.rwy ? `(DIVERT RWY ${divertData.rwy})`
                      : selectedRwy ? `(RWY ${selectedRwy.id})`
                      : manualRwy ? `(RWY ${manualRwy})` : ''}
         </span>
@@ -195,9 +189,9 @@ function LandingData({ flightData }) {
 
       <Sep />
 
-      {/* Divert */}
+      {/* DIVERT — controlled by App.js state */}
       <div style={{ margin:'10px 16px', border:`1px solid ${divert ? 'rgba(255,149,0,0.3)' : '#333'}`, borderRadius:8, overflow:'hidden' }}>
-        <div onClick={() => setDivert(!divert)}
+        <div onClick={() => updateDivert('active', !divert)}
           style={{ background: divert ? 'rgba(255,149,0,0.1)' : '#1f1f1f', padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', borderBottom: divert ? '1px solid rgba(255,149,0,0.2)' : 'none' }}>
           <span style={{ fontSize:12, fontWeight:700, color: divert ? '#e8731a' : '#555' }}>⚠ DIVERT</span>
           <div style={{ width:38, height:22, background: divert ? '#e8731a' : '#333', borderRadius:11, position:'relative', transition:'background 0.2s' }}>
@@ -213,17 +207,17 @@ function LandingData({ flightData }) {
             <div style={{ display:'flex', gap:8 }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:9, color:'#555', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>ICAO</div>
-                <input value={divIcao} onChange={e => setDivIcao(e.target.value.toUpperCase())} placeholder="ICAO" maxLength={4}
+                <input value={divertData.icao} onChange={e => updateDivert('icao', e.target.value.toUpperCase())} placeholder="ICAO" maxLength={4}
                   style={{ ...iAmber, width:'100%', textAlign:'center', letterSpacing:2 }} />
               </div>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:9, color:'#555', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>Runway</div>
-                <input value={divRwy} onChange={e => setDivRwy(e.target.value.toUpperCase())} placeholder="RWY"
+                <input value={divertData.rwy} onChange={e => updateDivert('rwy', e.target.value.toUpperCase())} placeholder="RWY"
                   style={{ ...iAmber, width:'100%', textAlign:'center' }} />
               </div>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:9, color:'#555', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>Length</div>
-                <input value={divLen} onChange={e => setDivLen(e.target.value)} placeholder="ft"
+                <input value={divertData.len} onChange={e => updateDivert('len', e.target.value)} placeholder="ft"
                   style={{ ...iAmber, width:'100%', textAlign:'center' }} />
               </div>
             </div>
