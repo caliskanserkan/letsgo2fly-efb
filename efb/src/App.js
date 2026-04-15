@@ -6,6 +6,7 @@ import FlightCrew from './components/FlightCrew';
 import Mandatory from './components/Mandatory';
 import EFP from './components/EFP';
 import Fuel from './components/Fuel';
+import TakeoffData from './components/TakeoffData';
 function Login({ onLogin }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
@@ -119,7 +120,8 @@ function App() {
 {activePage === 'efp' && <EFP />}
 {activePage === 'fuel' && <Fuel />}
 {activePage === 'accept' && <AcceptSign />}
-{activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && activePage !== 'accept' && <PlaceholderPage />}
+{activePage === 'takeoff' && <TakeoffData />}
+{activePage !== 'flt-crew' && activePage !== 'mandatory' && activePage !== 'efp' && activePage !== 'fuel' && activePage !== 'accept' && activePage !== 'takeoff' && <PlaceholderPage />}
 
     </Layout>
   );

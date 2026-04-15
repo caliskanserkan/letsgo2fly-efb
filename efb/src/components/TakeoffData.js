@@ -1,0 +1,166 @@
+import React, { useState, } from 'react';
+import SyncButton from './SyncButton';
+
+const iStyle = {
+  background: '#1a1a1a', border: '1.5px solid #1a9bc4', borderRadius: 6,
+  padding: '7px 10px', fontSize: 14, fontWeight: 700, color: '#1a9bc4',
+  fontFamily: 'monospace', outline: 'none', width: '100%',
+};
+
+const iSmall = {
+  ...({background: '#1a1a1a', border: '1.5px solid #1a9bc4', borderRadius: 6,
+  padding: '6px 8px', fontSize: 13, fontWeight: 700, color: '#1a9bc4',
+  fontFamily: 'monospace', outline: 'none', textAlign: 'center', width: 70}),
+};
+
+function Sep() {
+  return <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />;
+}
+
+function Title({ t }) {
+  return <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>{t}</div>;
+}
+
+function AutoRow({ label, value }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
+      <span style={{ fontSize:12.5, color:'#666' }}>{label}</span>
+      <span style={{ fontSize:12.5, color:'#999', fontFamily:'monospace' }}>{value}</span>
+    </div>
+  );
+}
+
+function AtisRow({ label, value, onChange, photo, onPhoto }) {
+  return (
+    <div style={{ background:'#2e2e2e', borderBottom:'1px solid #383838', padding:'10px 16px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+        <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600 }}>{label}</span>
+        <button onClick={onPhoto}
+          style={{ background: photo ? 'rgba(45,158,95,0.15)' : '#2a2a2a', border:`1px solid ${photo ? '#2d9e5f' : '#444'}`, borderRadius:6, padding:'4px 10px', fontSize:10, fontWeight:700, color: photo ? '#2d9e5f' : '#777', cursor:'pointer', fontFamily:'inherit' }}>
+          {photo ? '✓ Photo' : '📷 ATIS Photo'}
+        </button>
+      </div>
+      <input style={iStyle} value={value} onChange={e => onChange(e.target.value)} placeholder="Enter ATIS information..." />
+    </div>
+  );
+}
+
+function SpeedRow({ label, value, onChange, unit }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838' }}>
+      <span style={{ fontSize:14, fontWeight:700, color:'#e8e8e8' }}>{label}</span>
+      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+        <input style={{ ...iSmall, width:80 }} value={value} onChange={e => onChange(e.target.value)} placeholder="—" />
+        <span style={{ fontSize:11, color:'#555', width:20 }}>{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+function RvsmRow({ label, value, onChange }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 12px', borderBottom:'1px solid rgba(45,158,95,0.1)' }}>
+      <span style={{ fontSize:11.5, color:'#777' }}>{label}</span>
+      <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+        <input style={{ background:'#1a1a1a', border:'1.5px solid rgba(45,158,95,0.5)', borderRadius:5, padding:'5px 8px', fontSize:13, fontWeight:700, color:'#2d9e5f', fontFamily:'monospace', outline:'none', textAlign:'center', width:80 }}
+          value={value} onChange={e => onChange(e.target.value)} placeholder="——" />
+        <span style={{ fontSize:10, color:'#555' }}>ft</span>
+      </div>
+    </div>
+  );
+}
+
+function TakeoffData() {
+  const [depAtis, setDepAtis]   = useState('');
+  const [depPhoto, setDepPhoto] = useState(false);
+
+  const [sid, setSid]   = useState('');
+  const [fl, setFl]     = useState('');
+  const [sq, setSq]     = useState('');
+  const [oth, setOth]   = useState('');
+  const [dclPhoto, setDclPhoto] = useState(false);
+
+  const [v1, setV1]     = useState('');
+  const [vr, setVr]     = useState('');
+  const [v2, setV2]     = useState('');
+  const [vse, setVse]   = useState('');
+  const [reqRw, setReqRw] = useState('');
+  const [trim, setTrim] = useState('');
+
+  const [rvsm1, setRvsm1] = useState('');
+  const [rvsmSby, setRvsmSby] = useState('');
+  const [rvsm2, setRvsm2] = useState('');
+
+  return (
+    <div>
+      {/* ATIS */}
+      <Title t="ATIS" />
+      <AtisRow label="Departure ATIS" value={depAtis} onChange={setDepAtis} photo={depPhoto} onPhoto={() => setDepPhoto(!depPhoto)} />
+
+      <Sep />
+
+      {/* ATC CLR / DCL */}
+      <div style={{ margin:'10px 16px', border:'1px solid #383838', borderRadius:8, overflow:'hidden' }}>
+        <div style={{ background:'#1f1f1f', borderBottom:'1px solid #383838', padding:'8px 12px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontSize:10, color:'#777', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase' }}>ATC CLR / DCL</span>
+          <button onClick={() => setDclPhoto(!dclPhoto)}
+            style={{ background: dclPhoto ? 'rgba(45,158,95,0.15)' : '#2a2a2a', border:`1px solid ${dclPhoto ? '#2d9e5f' : '#444'}`, borderRadius:6, padding:'4px 10px', fontSize:10, fontWeight:700, color: dclPhoto ? '#2d9e5f' : '#777', cursor:'pointer', fontFamily:'inherit' }}>
+            {dclPhoto ? '✓ Uploaded' : '📷 DCL Upload'}
+          </button>
+        </div>
+        <div style={{ padding:'10px 12px', background:'#2a2a2a', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+          {[
+            { label:'SID', value:sid, onChange:setSid },
+            { label:'FL',  value:fl,  onChange:setFl  },
+            { label:'SQ',  value:sq,  onChange:setSq  },
+            { label:'OTH', value:oth, onChange:setOth },
+          ].map(f => (
+            <div key={f.label}>
+              <div style={{ fontSize:9, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:4 }}>{f.label}</div>
+              <input style={{ ...iSmall, width:'100%', textAlign:'left' }} value={f.value} onChange={e => f.onChange(e.target.value)} placeholder="——" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <Sep />
+
+      {/* OFP data */}
+      <Title t="OFP — Weight & Performance" />
+      <AutoRow label="TOW" value="56,593 lb" />
+      <AutoRow label="ZFW" value="43,993 lb" />
+      <AutoRow label="LWT" value="53,880 lb" />
+      <AutoRow label="MZFW" value="49,000 lb" />
+      <AutoRow label="MTOW" value="74,600 lb" />
+      <AutoRow label="MLWT" value="66,000 lb" />
+
+      <Sep />
+
+      {/* Performance speeds */}
+      <Title t="Performance Speeds — Pilot Entry" />
+      <SpeedRow label="V1"    value={v1}    onChange={setV1}    unit="kt" />
+      <SpeedRow label="VR"    value={vr}    onChange={setVr}    unit="kt" />
+      <SpeedRow label="V2"    value={v2}    onChange={setV2}    unit="kt" />
+      <SpeedRow label="VSE"   value={vse}   onChange={setVse}   unit="kt" />
+      <SpeedRow label="Req RW" value={reqRw} onChange={setReqRw} unit="m" />
+      <SpeedRow label="Trim"  value={trim}  onChange={setTrim}  unit="°" />
+
+      <Sep />
+
+      {/* RVSM Ground Check */}
+      <div style={{ margin:'10px 16px', background:'rgba(45,158,95,0.06)', border:'1px solid rgba(45,158,95,0.2)', borderRadius:8, overflow:'hidden' }}>
+        <div style={{ background:'rgba(45,158,95,0.15)', color:'#2d9e5f', padding:'7px 12px', fontSize:10, fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', borderBottom:'1px solid rgba(45,158,95,0.2)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <span>RVSM — Ground Altimeter Check</span>
+          <span style={{ fontSize:9, color:'#555' }}>LTAC ELEV 3158 ft</span>
+        </div>
+        <RvsmRow label="PRI 1 (ALT)"  value={rvsm1}   onChange={setRvsm1} />
+        <RvsmRow label="SBY ALT"      value={rvsmSby} onChange={setRvsmSby} />
+        <RvsmRow label="PRI 2 (ALT)"  value={rvsm2}   onChange={setRvsm2} />
+      </div>
+
+      <SyncButton />
+    </div>
+  );
+}
+
+export default TakeoffData;
