@@ -132,7 +132,7 @@ function WXR() {
       {/* Refresh bar */}
       <div style={{ background:'#1a2a1a', borderBottom:'1px solid rgba(45,158,95,0.3)', padding:'7px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
         <span style={{ fontSize:10, color: error ? '#e02020' : '#555' }}>
-          {error ? '⚠ Bağlantı hatası — eski veri gösteriliyor' : `Updated: ${updatedAt}`}
+          {error ? '⚠ Connection error — showing cached data' : `Updated: ${updatedAt}`}
         </span>
         <button onClick={doFetch} disabled={loading}
           style={{ background: loading ? '#333' : '#2d9e5f', border:'none', borderRadius:6, padding:'5px 14px', fontSize:11, fontWeight:700, color: loading ? '#555' : '#fff', cursor: loading ? 'default' : 'pointer', fontFamily:'inherit' }}>
@@ -155,9 +155,9 @@ function WXR() {
         <div style={{ display:'flex', gap:12, marginBottom:10, flexWrap:'wrap' }}>
           {[
             { color: COLORS.green,  label:'Normal' },
-            { color: COLORS.yellow, label:'Dikkat' },
-            { color: COLORS.orange, label:'Uyarı'  },
-            { color: COLORS.red,    label:'Kritik'  },
+            { color: COLORS.yellow, label:'Caution' },
+            { color: COLORS.orange, label:'Warning'  },
+            { color: COLORS.red,    label:'Critical'  },
           ].map((c, i) => (
             <div key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
               <div style={{ width:8, height:8, borderRadius:4, background: c.color }} />

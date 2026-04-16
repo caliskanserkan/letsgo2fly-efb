@@ -1,4 +1,4 @@
-// ─── RENK TANIMLARI ───────────────────────────────────────────
+// ─── COLOR DEFINITIONS ────────────────────────────────────────
 export const COLORS = {
   red:    '#e02020',
   orange: '#e8731a',
@@ -8,7 +8,7 @@ export const COLORS = {
   dim:    '#999999',
 };
 
-// ─── GÖRÜŞ MESAFESİ (Visibility) ──────────────────────────────
+// ─── VISIBILITY ───────────────────────────────────────────────
 export function getVisibilityColor(meters) {
   if (meters === 9999)    return COLORS.green;
   if (meters >= 2000)     return COLORS.white;
@@ -17,7 +17,7 @@ export function getVisibilityColor(meters) {
   return COLORS.red;
 }
 
-// ─── VERTİKAL VİSİBİLİTY (VV) ────────────────────────────────
+// ─── VERTICAL VISIBILITY (VV) ─────────────────────────────────
 export function getVVColor(feet) {
   if (feet > 400)         return COLORS.white;
   if (feet >= 200)        return COLORS.yellow;
@@ -25,7 +25,7 @@ export function getVVColor(feet) {
   return COLORS.red;
 }
 
-// ─── TAVAN (Ceiling - BKN/OVC) ────────────────────────────────
+// ─── CEILING (BKN/OVC) ───────────────────────────────────────
 export function getCeilingColor(feet) {
   if (feet >= 3000)       return COLORS.white;
   if (feet >= 1500)       return COLORS.yellow;
@@ -33,43 +33,42 @@ export function getCeilingColor(feet) {
   return COLORS.red;
 }
 
-// ─── HAVA FENOMENLERİ ─────────────────────────────────────────
+// ─── WEATHER PHENOMENA ────────────────────────────────────────
 export const PHENOMENA_RULES = [
-  // Kırmızı - Kritik
+  // Red - Critical
   { pattern: /\bTS\b|\bTSRA\b|\bTSGR\b|\bTSPE\b/g,     color: COLORS.red    },
   { pattern: /\bFG\b|\bFZFG\b/g,                         color: COLORS.red    },
   { pattern: /\bFZRA\b|\bFZDZ\b|\bFZSN\b/g,             color: COLORS.red    },
   { pattern: /\bSQ\b|\bFC\b|\bSS\b|\bDS\b/g,            color: COLORS.red    },
-  // Turuncu - Dikkat
+  // Orange - Caution
   { pattern: /\bRA\b|\bSN\b|\bPL\b|\bGR\b/g,            color: COLORS.orange },
-  { pattern: /\-SHRA\b|\-RASN\b|\-SHSN\b/g,             color: COLORS.orange },
+  { pattern: /-SHRA\b|-RASN\b|-SHSN\b/g,                color: COLORS.orange },
   { pattern: /\bBR\b/g,                                   color: COLORS.orange },
-  // Sarı - Bilgi
+  // Yellow - Info
   { pattern: /\bSCT\b/g,                                  color: COLORS.yellow },
   { pattern: /\bBECMG\b|\bTEMPO\b/g,                     color: COLORS.yellow },
-  // Yeşil - Normal
+  // Green - Normal
   { pattern: /\bCAVOK\b|\bNOSIG\b/g,                     color: COLORS.green  },
 ];
 
-// ─── NOTAM ANAHTAR KELİMELER ──────────────────────────────────
+// ─── NOTAM KEYWORDS ───────────────────────────────────────────
 export const NOTAM_RULES = [
-  // Kırmızı
+  // Red
   { keywords: ['CLSD', 'CLOSED', 'U/S', 'UNSERVICEABLE', 'PROHIBITED'], color: COLORS.red    },
-  // Turuncu
+  // Orange
   { keywords: ['INOP', 'LIMITED', 'RESTRICTED', 'SUSPEND', 'NOT AVBL'], color: COLORS.orange },
-  // Sarı
+  // Yellow
   { keywords: ['WORK IN PROGRESS', 'WIP', 'CONSTRUCTION', 'CONST'],      color: COLORS.yellow },
 ];
 
-// ─── METAR/TAF METNİNİ PARSE ET ───────────────────────────────
+// ─── PARSE METAR/TAF TEXT ─────────────────────────────────────
 export function parseWeatherText(text) {
-  // Her token'ı kontrol et ve renklendir
   const tokens = text.split(/(\s+)/);
-  return tokens.map((token, i) => {
+  return tokens.map((token) => {
     const trimmed = token.trim();
     if (!trimmed) return { text: token, color: null };
 
-    // Visibility kontrolü (4 haneli sayı veya 9999)
+    // Visibility check (4-digit number or 9999)
     const visMatch = trimmed.match(/^(\d{4})$/);
     if (visMatch) {
       const meters = parseInt(visMatch[1]);
@@ -78,21 +77,21 @@ export function parseWeatherText(text) {
       }
     }
 
-    // VV kontrolü (VV010 gibi)
+    // VV check (e.g. VV010)
     const vvMatch = trimmed.match(/^VV(\d{3})$/);
     if (vvMatch) {
       const feet = parseInt(vvMatch[1]) * 100;
       return { text: token, color: getVVColor(feet) };
     }
 
-    // BKN/OVC kontrolü (BKN030 gibi)
+    // BKN/OVC check (e.g. BKN030)
     const ceilMatch = trimmed.match(/^(BKN|OVC)(\d{3})$/);
     if (ceilMatch) {
       const feet = parseInt(ceilMatch[2]) * 100;
       return { text: token, color: getCeilingColor(feet) };
     }
 
-    // Fenomen kontrolü
+    // Phenomena check
     for (const rule of PHENOMENA_RULES) {
       if (rule.pattern.test(trimmed)) {
         rule.pattern.lastIndex = 0;
@@ -104,7 +103,7 @@ export function parseWeatherText(text) {
   });
 }
 
-// ─── NOTAM METNİNİ PARSE ET ───────────────────────────────────
+// ─── PARSE NOTAM TEXT ─────────────────────────────────────────
 export function parseNotamText(text) {
   let result = text;
   let highestColor = null;
@@ -120,7 +119,7 @@ export function parseNotamText(text) {
   return { text: result, highlightColor: highestColor };
 }
 
-// ─── NOTAM BADGE RENGİ ────────────────────────────────────────
+// ─── NOTAM BADGE COLOR ────────────────────────────────────────
 export function getNotamBadgeColor(text) {
   const upper = text.toUpperCase();
   for (const rule of NOTAM_RULES) {

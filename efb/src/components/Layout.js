@@ -38,7 +38,33 @@ function Sidebar({ activePage, onNavigate, flightInfo, pageStatus }) {
       {/* Menu */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {menuItems.map(item => {
-          const isActive = activePage === item.id;
+          const isActive  = activePage === item.id;
+          const status    = pageStatus && pageStatus[item.id];
+          const isGreen   = status === 'green';
+          const isAmber   = status === 'amber';
+
+          // Metin rengi: active → teal, green → yeşil ton, amber → turuncu ton, diğer → gri
+          const textColor = isActive ? '#1a9bc4'
+                          : isGreen  ? '#4a9e72'
+                          : isAmber  ? '#c47a2a'
+                          : '#777';
+
+          // Sol border: active → teal, green → yeşil, amber → turuncu, diğer → şeffaf
+          const leftBorder = isActive ? '2px solid #1a9bc4'
+                           : isGreen  ? '2px solid #2d9e5f'
+                           : isAmber  ? '2px solid #ff9500'
+                           : '2px solid transparent';
+
+          // Arka plan: active → teal tint, green → çok hafif yeşil, amber → çok hafif turuncu
+          const bg = isActive ? 'rgba(26,155,196,0.12)'
+                   : isGreen  ? 'rgba(45,158,95,0.06)'
+                   : isAmber  ? 'rgba(255,149,0,0.05)'
+                   : 'transparent';
+
+          // Dot boyutu: green/amber → 8px, pending → 6px
+          const dotSize   = isGreen || isAmber ? 8 : 6;
+          const dotColor  = isGreen ? '#2d9e5f' : isAmber ? '#ff9500' : '#383838';
+
           return (
             <div key={item.id} onClick={() => onNavigate(item.id)}
               style={{
@@ -46,20 +72,23 @@ function Sidebar({ activePage, onNavigate, flightInfo, pageStatus }) {
                 padding: '11px 14px', gap: 10,
                 borderBottom: '1px solid rgba(255,255,255,0.04)',
                 cursor: 'pointer',
-                background: isActive ? 'rgba(26,155,196,0.12)' : 'transparent',
-                borderLeft: isActive ? '2px solid #1a9bc4' : '2px solid transparent',
+                background: bg,
+                borderLeft: leftBorder,
               }}>
               <span style={{ fontSize: 10, color: isActive ? '#1a9bc4' : '#555', width: 16, textAlign: 'center', fontWeight: 700 }}>
                 {item.num}
               </span>
-              <span style={{ fontSize: 12.5, color: isActive ? '#1a9bc4' : '#999', fontWeight: isActive ? 600 : 400, flex: 1 }}>
+              <span style={{ fontSize: 12.5, color: textColor, fontWeight: isActive || isGreen ? 600 : 400, flex: 1 }}>
                 {item.label}
               </span>
               <span style={{
-                width: 6, height: 6, borderRadius: 3, flexShrink: 0,
-                background: pageStatus && pageStatus[item.id] === 'green' ? '#2d9e5f'
-                          : pageStatus && pageStatus[item.id] === 'amber' ? '#ff9500'
-                          : '#444444',
+                width: dotSize, height: dotSize,
+                borderRadius: dotSize / 2,
+                flexShrink: 0,
+                background: dotColor,
+                boxShadow: isGreen ? '0 0 5px rgba(45,158,95,0.6)'
+                          : isAmber ? '0 0 5px rgba(255,149,0,0.5)'
+                          : 'none',
               }} />
             </div>
           );
