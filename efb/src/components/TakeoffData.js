@@ -72,16 +72,15 @@ function RvsmRow({ label, value, onChange }) {
   );
 }
 
-function TakeoffData() {
+function TakeoffData({ setStatus }) {
   const [icao, setIcao]         = useState('LTAC');
   const [runways, setRunways]   = useState([]);
   const [selRwy, setSelRwy]     = useState(null);
   const [loading, setLoading]   = useState(false);
   const [noData, setNoData]     = useState(false);
 
-  // Manual runway entry (when no internet)
-  const [manualRwy, setManualRwy]   = useState('');
-  const [manualLen, setManualLen]   = useState('');
+  const [manualRwy, setManualRwy] = useState('');
+  const [manualLen, setManualLen] = useState('');
 
   const [depAtis, setDepAtis]   = useState('');
   const [depPhoto, setDepPhoto] = useState(false);
@@ -141,7 +140,18 @@ function TakeoffData() {
     if (icao.length === 4) fetchRunways(icao.toUpperCase());
   }, [icao]);
 
-  // Determine selected runway length
+  // setStatus logic
+  const runwayOk = !!(selRwy || manualRwy);
+  const speedsOk = !!(v1 && vr && v2);
+  const atisOk   = !!depAtis;
+
+  useEffect(() => {
+    if (!setStatus) return;
+    if (runwayOk && speedsOk && atisOk) setStatus('green');
+    else if (runwayOk || speedsOk || atisOk) setStatus('amber');
+    else setStatus('pending');
+  }, [runwayOk, speedsOk, atisOk]);
+
   const selectedRwy = runways.find(r => r.id === selRwy);
   const activeLenFt = selectedRwy ? selectedRwy.length
                     : (manualLen ? parseInt(manualLen.replace(/[^0-9]/g,'')) : null);
@@ -160,7 +170,6 @@ function TakeoffData() {
       {/* Departure Runway */}
       <Title t="Departure Aerodrome & Runway" />
 
-      {/* ICAO */}
       <div style={{ background:'#2e2e2e', borderBottom:'1px solid #383838', padding:'10px 16px', display:'flex', alignItems:'center', gap:10 }}>
         <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600, width:80 }}>ICAO</span>
         <input value={icao} onChange={e => setIcao(e.target.value.toUpperCase())} maxLength={4} placeholder="LTAC"
@@ -168,7 +177,6 @@ function TakeoffData() {
         {loading && <span style={{ fontSize:10, color:'#555' }}>Loading...</span>}
       </div>
 
-      {/* Runway list from API */}
       {runways.length > 0 && (
         <div style={{ background:'#2a2a2a', borderBottom:'1px solid #383838', padding:'10px 16px' }}>
           <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', marginBottom:8 }}>Select Runway</div>
@@ -183,7 +191,6 @@ function TakeoffData() {
         </div>
       )}
 
-      {/* No data — manual entry */}
       {noData && (
         <div style={{ background:'#2a2a2a', borderBottom:'1px solid #383838', padding:'10px 16px' }}>
           <div style={{ margin:'0 0 8px', padding:'8px 10px', borderRadius:5, background:'rgba(255,149,0,0.08)', borderLeft:'3px solid #ff9500', fontSize:11, color:'#c4882a' }}>
@@ -200,7 +207,6 @@ function TakeoffData() {
 
       <Sep />
 
-      {/* OFP Weights */}
       <Title t="OFP — Weight & Performance" />
       <AutoRow label="TOW"  value="56,593 lb" />
       <AutoRow label="ZFW"  value="43,993 lb" />
@@ -211,7 +217,6 @@ function TakeoffData() {
 
       <Sep />
 
-      {/* Performance Speeds */}
       <Title t="Performance Speeds — Pilot Entry" />
       <SpeedRow label="V1"   value={v1}   onChange={setV1}   unit="kt" />
       <SpeedRow label="VR"   value={vr}   onChange={setVr}   unit="kt" />
@@ -219,7 +224,6 @@ function TakeoffData() {
       <SpeedRow label="VSE"  value={vse}  onChange={setVse}  unit="kt" />
       <SpeedRow label="Trim" value={trim} onChange={setTrim} unit="°"  />
 
-      {/* Req RWY Length */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838' }}>
         <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600 }}>Req RWY Length</span>
         <div style={{ display:'flex', alignItems:'center', gap:6 }}>
@@ -228,7 +232,6 @@ function TakeoffData() {
         </div>
       </div>
 
-      {/* Stop Margin */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
         <span style={{ fontSize:12.5, color:'#666' }}>
           Stop Margin {selectedRwy ? `(RWY ${selectedRwy.id})` : manualRwy ? `(RWY ${manualRwy})` : ''}
@@ -240,7 +243,6 @@ function TakeoffData() {
 
       <Sep />
 
-      {/* ATC CLR / DCL */}
       <div style={{ margin:'10px 16px', border:'1px solid #383838', borderRadius:8, overflow:'hidden' }}>
         <div style={{ background:'#1f1f1f', borderBottom:'1px solid #383838', padding:'8px 12px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <span style={{ fontSize:10, color:'#777', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase' }}>ATC CLR / DCL</span>
@@ -266,7 +268,6 @@ function TakeoffData() {
 
       <Sep />
 
-      {/* RVSM */}
       <div style={{ margin:'10px 16px', background:'rgba(45,158,95,0.06)', border:'1px solid rgba(45,158,95,0.2)', borderRadius:8, overflow:'hidden' }}>
         <div style={{ background:'rgba(45,158,95,0.15)', color:'#2d9e5f', padding:'7px 12px', fontSize:10, fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', borderBottom:'1px solid rgba(45,158,95,0.2)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <span>RVSM — Ground Altimeter Check</span>
