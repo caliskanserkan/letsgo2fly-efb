@@ -20,7 +20,6 @@ function getFuelDestColor(fuel) {
   return '#2d9e5f';
 }
 
-// ── Auto-format time input: "0928" → "09:28" ──────────
 function TimeBox({ value, onChange, placeholder }) {
   const handleChange = (e) => {
     let v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
@@ -38,7 +37,6 @@ function TimeBox({ value, onChange, placeholder }) {
   );
 }
 
-// ── Fuel input box ────────────────────────────────────
 function FuelBox({ value, onChange, placeholder }) {
   return (
     <input
@@ -50,9 +48,7 @@ function FuelBox({ value, onChange, placeholder }) {
   );
 }
 
-// ── RVSM 3-box auto-advance: 5 digits each ───────────
 function RvsmBoxes({ value, onChange }) {
-  // value stored as "29000/29010/29000"
   const parts = (value || '//').split('/');
   const pri1 = parts[0] || '';
   const sby  = parts[1] || '';
@@ -97,7 +93,6 @@ function RvsmBoxes({ value, onChange }) {
   );
 }
 
-// ── DEP Modal ────────────────────────────────────────
 function DepModal({ onClose, onSave, initial }) {
   const [offBlock, setOffBlock] = useState(initial.offBlock || '');
   const [toTime,   setToTime]   = useState(initial.toTime   || '');
@@ -134,7 +129,6 @@ function DepModal({ onClose, onSave, initial }) {
   );
 }
 
-// ── DEST Modal ───────────────────────────────────────
 function DestModal({ onClose, onSave, initial }) {
   const [lndTime, setLndTime] = useState(initial.lndTime || '');
   const [onBlock, setOnBlock] = useState(initial.onBlock  || '');
@@ -171,7 +165,6 @@ function DestModal({ onClose, onSave, initial }) {
   );
 }
 
-// ── WPT Modal ────────────────────────────────────────
 function WptModal({ wpt, onClose, onSave, onDirectTo, initial, wptList }) {
   const [ata,    setAta]    = useState(initial.ata  || '');
   const [fuel,   setFuel]   = useState(initial.fuel || '');
@@ -226,8 +219,7 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, initial, wptList }) {
   );
 }
 
-// ── NavLog Main ──────────────────────────────────────
-function NavLog({ flightData, updateFlight }) {
+function NavLog({ flightData, updateFlight, setStatus }) {
   const [entries, setEntries]             = useState({});
   const [modal, setModal]                 = useState(null);
   const [directTo, setDirectTo]           = useState(null);
@@ -243,6 +235,18 @@ function NavLog({ flightData, updateFlight }) {
     }, 10000);
     return () => clearInterval(interval);
   }, [lastCheckTime]);
+
+  // setStatus logic
+  const depDone  = !!(entries['LTAC'] && (entries['LTAC'].offBlock || entries['LTAC'].toTime));
+  const destDone = !!(entries['LTBA'] && (entries['LTBA'].lndTime  || entries['LTBA'].onBlock));
+
+  useEffect(() => {
+    if (!setStatus) return;
+    if (depDone && destDone) setStatus('green');
+    else if (depDone)        setStatus('amber');
+    else                     setStatus('pending');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [depDone, destDone]);
 
   const updateEntry = (id, data) => {
     setEntries(prev => ({ ...prev, [id]: { ...(prev[id] || {}), ...data } }));
@@ -303,7 +307,6 @@ function NavLog({ flightData, updateFlight }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
 
-      {/* 50min alert */}
       {alert50 && (
         <div style={{ background:'rgba(224,32,32,0.12)', borderBottom:'1px solid rgba(224,32,32,0.3)', padding:'10px 16px', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
           <span style={{ fontSize:18 }}>⚠️</span>
@@ -315,7 +318,6 @@ function NavLog({ flightData, updateFlight }) {
         </div>
       )}
 
-      {/* Summary bar */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:1, background:'#383838', borderBottom:'1px solid #383838', flexShrink:0 }}>
         {[
           { label:'T/O Fuel',   value: toFuel ? `${toFuel.toLocaleString()} lb` : '—', color:'#e8e8e8' },
@@ -329,14 +331,12 @@ function NavLog({ flightData, updateFlight }) {
         ))}
       </div>
 
-      {/* Table header */}
       <div style={{ display:'grid', gridTemplateColumns:'70px 50px 50px 45px 60px 70px 65px 1fr', background:'#1a1a1a', borderBottom:'1px solid #383838', padding:'6px 10px', flexShrink:0 }}>
         {['WPT','ETA','ATA','FL','FUEL REM','RVSM','FUEL@DEST','STATUS'].map(h => (
           <div key={h} style={{ fontSize:9, color:'#555', fontWeight:700, letterSpacing:0.5 }}>{h}</div>
         ))}
       </div>
 
-      {/* Waypoints */}
       <div style={{ flex:1, overflowY:'auto' }}>
         {WAYPOINTS.map((wpt, idx) => {
           const e       = entries[wpt.id] || {};
@@ -355,15 +355,12 @@ function NavLog({ flightData, updateFlight }) {
           const fuelColor  = getFuelDestColor(fuelAtDest);
           const bgColor    = skipped ? '#1e1e1e' : isDone ? '#1f2a1f' : isActive ? 'rgba(26,155,196,0.06)' : '#242424';
           const borderLeft = isActive ? '3px solid #1a9bc4' : isDone ? '3px solid #2d9e5f' : '3px solid transparent';
-
-          // RVSM display — show first part
-          const rvsmParts = (e.rvsm || '').split('/');
+          const rvsmParts  = (e.rvsm || '').split('/');
           const rvsmDisplay = e.rvsm ? rvsmParts[0] + '…' : (isDep || isDest ? 'N/A' : '—');
 
           return (
             <div key={wpt.id} onClick={() => !skipped && setModal(wpt.id)}
               style={{ display:'grid', gridTemplateColumns:'70px 50px 50px 45px 60px 70px 65px 1fr', padding:'10px', borderBottom:'1px solid #383838', background:bgColor, borderLeft, cursor: skipped ? 'default' : 'pointer', opacity: skipped ? 0.3 : 1, alignItems:'center' }}>
-
               <div>
                 <div style={{ fontSize:12, fontWeight:700, fontFamily:'monospace', color: isDep||isDest ? '#1a9bc4' : isDone ? '#2d9e5f' : isActive ? '#1a9bc4' : '#666' }}>{wpt.name}</div>
                 {directTo && directTo.from === wpt.id && <div style={{ fontSize:9, color:'#ff9500', marginTop:1 }}>→ {directTo.to}</div>}
@@ -378,9 +375,7 @@ function NavLog({ flightData, updateFlight }) {
                 : isDest ? (e.remFuel ? `${parseInt(e.remFuel.replace(/,/g,'')).toLocaleString()}` : '—')
                 :           (e.fuel   ? `${parseInt(e.fuel.replace(/,/g,'')).toLocaleString()}`   : '—')}
               </div>
-              <div style={{ fontSize:10, color: e.rvsm ? '#2d9e5f' : '#444', fontFamily:'monospace' }}>
-                {rvsmDisplay}
-              </div>
+              <div style={{ fontSize:10, color: e.rvsm ? '#2d9e5f' : '#444', fontFamily:'monospace' }}>{rvsmDisplay}</div>
               <div style={{ fontSize:11, fontWeight: fuelAtDest ? 700 : 400, color: fuelAtDest ? fuelColor : '#333', fontFamily:'monospace' }}>
                 {fuelAtDest ? `${fuelAtDest.toLocaleString()}` : '—'}
               </div>

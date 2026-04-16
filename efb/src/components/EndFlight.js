@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SyncButton from './SyncButton';
 
 const FINAL_RESERVE = 1447; // lb — 30min fuel from OFP
@@ -55,14 +55,12 @@ function InputRow({ label, hint, value, onChange, unit, suffix }) {
   );
 }
 
-// Parse HH:MM and return minutes
 function toMins(t) {
   if (!t || !t.includes(':')) return null;
   const [h, m] = t.split(':').map(Number);
   return h * 60 + m;
 }
 
-// Format minutes to HH:MM
 function fromMins(m) {
   if (m === null || m < 0) return '—';
   const h = Math.floor(m / 60);
@@ -70,35 +68,42 @@ function fromMins(m) {
   return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
 }
 
-function EndFlight({ flightData, divertData }) {
+function EndFlight({ flightData, divertData, setStatus }) {
   const [pax, setPax]       = useState('');
   const [cycles, setCycles] = useState('1');
 
   const { offBlock, takeoffTime, landingTime, onBlock, takeoffFuel, remainingFuel } = flightData;
   const divert = divertData.active;
 
-  // Calculated times
   const flightMins = toMins(landingTime) !== null && toMins(takeoffTime) !== null
     ? toMins(landingTime) - toMins(takeoffTime) : null;
   const blockMins  = toMins(onBlock) !== null && toMins(offBlock) !== null
     ? toMins(onBlock) - toMins(offBlock) : null;
 
-  // Fuel
   const toFuelNum  = takeoffFuel  ? parseInt(takeoffFuel.replace(/,/g,''))  : null;
   const remFuelNum = remainingFuel ? parseInt(remainingFuel.replace(/,/g,'')) : null;
   const burnoff    = toFuelNum && remFuelNum ? toFuelNum - remFuelNum : null;
 
-  // Remaining fuel color
   const remColor = remFuelNum === null ? '#999'
                  : remFuelNum < FINAL_RESERVE ? '#e02020'
                  : '#2d9e5f';
 
-  // Destination shown
   const destIcao = divert && divertData.icao ? divertData.icao : 'LTBA';
+
+  // setStatus logic
+  const timesOk = !!(landingTime && onBlock && takeoffTime && offBlock);
+  const fuelOk  = !!remainingFuel;
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!setStatus) return;
+    if (timesOk && fuelOk && pax) setStatus('green');
+    else if (timesOk || fuelOk)   setStatus('amber');
+    else                           setStatus('pending');
+  }, [timesOk, fuelOk, pax]);
 
   return (
     <div>
-      {/* Divert banner if active */}
       {divert && (
         <div style={{ background:'rgba(255,149,0,0.1)', borderBottom:'1px solid rgba(255,149,0,0.3)', padding:'10px 16px', display:'flex', alignItems:'center', gap:10 }}>
           <span style={{ fontSize:16 }}>⚠</span>
@@ -109,7 +114,6 @@ function EndFlight({ flightData, divertData }) {
         </div>
       )}
 
-      {/* Block & Flight Times — from NavLog */}
       <Title t="Block & Flight Times" />
       <TimeRow label="Off Block"    value={offBlock}    auto />
       <TimeRow label="T/O Time"     value={takeoffTime}  auto />
@@ -118,7 +122,6 @@ function EndFlight({ flightData, divertData }) {
 
       <Sep />
 
-      {/* Calculated */}
       <Title t="Calculated" />
       <AutoRow label="Flight Time"  value={fromMins(flightMins)} valueColor={flightMins ? '#e8e8e8' : '#444'} big />
       <AutoRow label="Block Time"   value={fromMins(blockMins)}  valueColor={blockMins  ? '#e8e8e8' : '#444'} big />
@@ -127,9 +130,8 @@ function EndFlight({ flightData, divertData }) {
 
       <Sep />
 
-      {/* Fuel */}
       <Title t="Fuel Summary" />
-      <AutoRow label="T/O Fuel"        value={toFuelNum  ? `${toFuelNum.toLocaleString()} lb`  : '—'} />
+      <AutoRow label="T/O Fuel" value={toFuelNum ? `${toFuelNum.toLocaleString()} lb` : '—'} />
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
         <div>
           <div style={{ fontSize:12.5, color:'#666' }}>Remaining Fuel</div>
@@ -145,14 +147,12 @@ function EndFlight({ flightData, divertData }) {
 
       <Sep />
 
-      {/* Tech Data */}
       <Title t="Tech Data" />
       <InputRow label="PAX" value={pax} onChange={setPax} unit="pax" />
       <InputRow label="Cycles" hint="+1 auto added" value={cycles} onChange={setCycles} suffix="cycle(s)" />
 
       <Sep />
 
-      {/* DIVERT reason — only shown if divert active */}
       {divert && (
         <div style={{ margin:'10px 16px', border:'1px solid rgba(255,149,0,0.3)', borderRadius:8, overflow:'hidden' }}>
           <div style={{ background:'rgba(255,149,0,0.12)', padding:'8px 14px', borderBottom:'1px solid rgba(255,149,0,0.2)' }}>

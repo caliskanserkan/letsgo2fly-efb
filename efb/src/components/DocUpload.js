@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import SyncButton from './SyncButton';
 
 const SECTIONS = [
@@ -92,7 +92,7 @@ function StatusBadge({ docs, required }) {
   );
 }
 
-function DocUpload() {
+function DocUpload({ setStatus }) {
   const [active, setActive] = useState('fuel');
   const [docs, setDocs] = useState({
     fuel:[], handling:[], crs:[], catering:[], security:[], misc:[]
@@ -106,12 +106,23 @@ function DocUpload() {
     setDocs(prev => ({ ...prev, [section]: prev[section].filter((_,i) => i !== idx) }));
   };
 
+  // setStatus logic — fuel + security zorunlu
+  const requiredDone = docs.fuel.length > 0 && docs.security.length > 0;
+  const anyUploaded  = Object.values(docs).some(d => d.length > 0);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!setStatus) return;
+    if (requiredDone)     setStatus('green');
+    else if (anyUploaded) setStatus('amber');
+    else                  setStatus('pending');
+  }, [docs]);
+
   const activeSection = SECTIONS.find(s => s.id === active);
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
 
-      {/* Section tabs */}
       <div style={{ display:'flex', background:'#1a1a1a', borderBottom:'1px solid #383838', flexShrink:0, overflowX:'auto' }}>
         {SECTIONS.map(s => (
           <div key={s.id} onClick={() => setActive(s.id)}
@@ -132,10 +143,8 @@ function DocUpload() {
         ))}
       </div>
 
-      {/* Content area */}
       <div style={{ flex:1, overflowY:'auto' }}>
 
-        {/* Section header */}
         <div style={{ background:'#1f1f1f', borderBottom:'1px solid #383838', padding:'10px 16px', display:'flex', alignItems:'center', gap:8 }}>
           <span style={{ fontSize:18 }}>{activeSection?.icon}</span>
           <span style={{ fontSize:13, fontWeight:700, color:'#e8e8e8' }}>{activeSection?.label}</span>
@@ -143,7 +152,6 @@ function DocUpload() {
 
         <StatusBadge docs={docs[active]} required={activeSection?.required} />
 
-        {/* Fuel section: show linked fuel data */}
         {active === 'fuel' && (
           <div style={{ margin:'8px 16px', borderRadius:8, overflow:'hidden', border:'1px solid rgba(26,155,196,0.15)' }}>
             <div style={{ background:'rgba(26,155,196,0.08)', color:'#1a9bc4', padding:'7px 12px', fontSize:10, fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>
@@ -160,14 +168,12 @@ function DocUpload() {
           </div>
         )}
 
-        {/* Misc section: note */}
         {active === 'misc' && (
           <div style={{ margin:'8px 16px', padding:'10px 12px', borderRadius:6, background:'rgba(26,155,196,0.06)', borderLeft:'3px solid #1a9bc4', fontSize:11, color:'#7bbdd4', lineHeight:1.6 }}>
             Upload any additional documents here — cargo manifests, EIC forms, permits, or any other relevant paperwork.
           </div>
         )}
 
-        {/* Uploaded docs list */}
         {docs[active].length > 0 && (
           <div style={{ marginTop:8 }}>
             {docs[active].map((doc, idx) => (
@@ -177,14 +183,12 @@ function DocUpload() {
           </div>
         )}
 
-        {/* Upload area when empty */}
         {docs[active].length === 0 && (
           <UploadArea onUpload={doc => addDoc(active, doc)} />
         )}
 
         <Sep />
 
-        {/* Overall summary */}
         <div style={{ padding:'10px 16px', fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>
           All Documents
         </div>

@@ -53,7 +53,7 @@ function AtisRow({ label, value, onChange, photo, onPhoto }) {
   );
 }
 
-function LandingData({ flightData, divertData, updateDivert }) {
+function LandingData({ flightData, divertData, updateDivert, setStatus }) {
   const [icao, setIcao]           = useState('LTBA');
   const [runways, setRunways]     = useState([]);
   const [selRwy, setSelRwy]       = useState(null);
@@ -99,6 +99,18 @@ function LandingData({ flightData, divertData, updateDivert }) {
     if (icao.length === 4) fetchRunways(icao.toUpperCase());
   }, [icao]);
 
+  // setStatus logic
+  const runwayOk = divert ? !!(divertData.icao && divertData.rwy) : !!(selRwy || manualRwy);
+  const atisOk   = !!arrAtis;
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!setStatus) return;
+    if (runwayOk && atisOk) setStatus('green');
+    else if (runwayOk || atisOk) setStatus('amber');
+    else setStatus('pending');
+  }, [runwayOk, atisOk]);
+
   const selectedRwy = runways.find(r => r.id === selRwy);
   const divLenNum   = divertData.len ? parseInt(divertData.len.replace(/[^0-9]/g,'')) : null;
   const activeLenFt = divert && divLenNum ? divLenNum
@@ -110,13 +122,11 @@ function LandingData({ flightData, divertData, updateDivert }) {
 
   return (
     <div>
-      {/* Arrival ATIS */}
       <Title t="ATIS" />
       <AtisRow label="Arrival ATIS" value={arrAtis} onChange={setArrAtis} photo={arrPhoto} onPhoto={() => setArrPhoto(!arrPhoto)} />
 
       <Sep />
 
-      {/* Landing Aerodrome — disabled when divert active */}
       <div style={{ opacity: divert ? 0.3 : 1, pointerEvents: divert ? 'none' : 'auto' }}>
         <Title t="Landing Aerodrome & Runway" />
         <div style={{ background:'#2e2e2e', borderBottom:'1px solid #383838', padding:'10px 16px', display:'flex', alignItems:'center', gap:10 }}>
@@ -157,7 +167,6 @@ function LandingData({ flightData, divertData, updateDivert }) {
 
       <Sep />
 
-      {/* OFP Weights */}
       <Title t="OFP — Landing Weights" />
       <AutoRow label="Landing Weight" value="53,880 lb" />
       <AutoRow label="Max LWT"        value="66,000 lb" />
@@ -165,7 +174,6 @@ function LandingData({ flightData, divertData, updateDivert }) {
 
       <Sep />
 
-      {/* Performance */}
       <Title t="Performance" />
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838' }}>
         <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600 }}>Req Landing Distance</span>
@@ -175,7 +183,6 @@ function LandingData({ flightData, divertData, updateDivert }) {
         </div>
       </div>
 
-      {/* Stop Margin */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
         <span style={{ fontSize:12.5, color:'#666' }}>
           Stop Margin {divert && divertData.rwy ? `(DIVERT RWY ${divertData.rwy})`
@@ -189,7 +196,6 @@ function LandingData({ flightData, divertData, updateDivert }) {
 
       <Sep />
 
-      {/* DIVERT — controlled by App.js state */}
       <div style={{ margin:'10px 16px', border:`1px solid ${divert ? 'rgba(255,149,0,0.3)' : '#333'}`, borderRadius:8, overflow:'hidden' }}>
         <div onClick={() => updateDivert('active', !divert)}
           style={{ background: divert ? 'rgba(255,149,0,0.1)' : '#1f1f1f', padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', borderBottom: divert ? '1px solid rgba(255,149,0,0.2)' : 'none' }}>

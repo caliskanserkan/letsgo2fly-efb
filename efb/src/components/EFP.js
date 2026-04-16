@@ -285,8 +285,9 @@ function EFP({ setStatus }) {
     if (seenTabs.has(activeTab)) return;
     const timer = setTimeout(() => {
       setSeenTabs(prev => new Set([...prev, activeTab]));
-    }, 5000);
+    }, 1000);
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   useEffect(() => {
@@ -294,6 +295,7 @@ function EFP({ setStatus }) {
     if (seenTabs.size === ALL_TABS.length) setStatus('green');
     else if (seenTabs.size > 0)           setStatus('amber');
     else                                  setStatus('pending');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seenTabs]);
 
   return (
