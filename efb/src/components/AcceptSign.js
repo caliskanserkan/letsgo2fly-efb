@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 const pilots = [
   { code: 'AAK', name: 'Capt. Ahmet Akpinar' },
@@ -6,12 +6,14 @@ const pilots = [
   { code: 'SCL', name: 'Capt. Serkan Caliskan' },
 ];
 
-function StatusRow({ label, ok, value }) {
+function StatusRow({ label, ok, inProgress, value }) {
+  const color = ok ? '#2d9e5f' : inProgress ? '#ff9500' : '#555';
+  const icon  = ok ? '✓' : inProgress ? '◐' : '○';
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
       <span style={{ fontSize:12.5, color:'#999' }}>{label}</span>
-      <span style={{ fontSize:11, fontWeight:600, color: ok ? '#2d9e5f' : '#ff9500' }}>
-        {ok ? `✓ ${value}` : `○ ${value}`}
+      <span style={{ fontSize:11, fontWeight:600, color }}>
+        {icon} {value}
       </span>
     </div>
   );
@@ -30,24 +32,52 @@ const now = () => {
   return `${d.getUTCHours().toString().padStart(2,'0')}:${d.getUTCMinutes().toString().padStart(2,'0')} Z`;
 };
 
-function AcceptSign() {
+function AcceptSign({ setStatus, pageStatus }) {
   const [preflightPilot, setPreflightPilot] = useState('AAK');
-  const [signed, setSigned] = useState(false);
+ const [signed, setSigned] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [acceptedAt, setAcceptedAt] = useState('');
   const [synced, setSynced] = useState(false);
   const [syncedAt, setSyncedAt] = useState('');
   const [drawing, setDrawing] = useState(false);
   const canvasRef = useRef(null);
+  const ps = pageStatus || {};
 
   const statuses = [
-    { label: 'Flight & crew assigned',  ok: true,  value: 'Complete' },
-    { label: 'Mandatory / Preflight',   ok: true,  value: 'Complete' },
-    { label: 'eFP documents loaded',    ok: true,  value: 'Updated 05:24 Z' },
-    { label: 'FUEL uplift entered',     ok: true,  value: '7,657 lb' },
+    {
+      label      : 'Flight & crew assigned',
+      ok         : ps['flt-crew']  === 'green',
+      inProgress : ps['flt-crew']  === 'amber',
+      value      : ps['flt-crew']  === 'green' ? 'Complete' : ps['flt-crew'] === 'amber' ? 'In Progress…' : 'Pending',
+    },
+    {
+      label      : 'Mandatory / Preflight',
+      ok         : ps['mandatory'] === 'green',
+      inProgress : ps['mandatory'] === 'amber',
+      value      : ps['mandatory'] === 'green' ? 'Complete' : ps['mandatory'] === 'amber' ? 'In Progress…' : 'Pending',
+    },
+    {
+      label      : 'eFP documents loaded',
+      ok         : ps['efp']       === 'green',
+      inProgress : ps['efp']       === 'amber',
+      value      : ps['efp']       === 'green' ? 'Loaded ✓' : ps['efp'] === 'amber' ? 'In Progress…' : 'Not viewed',
+    },
+    {
+      label      : 'FUEL uplift entered',
+      ok         : ps['fuel']      === 'green',
+      inProgress : ps['fuel']      === 'amber',
+      value      : ps['fuel']      === 'green' ? 'Complete' : ps['fuel'] === 'amber' ? 'In Progress…' : 'Pending',
+    },
   ];
 
   const allOk = statuses.every(s => s.ok);
+
+  useEffect(() => {
+    if (!setStatus) return;
+    if (accepted)    setStatus('green');
+    else if (signed) setStatus('amber');
+    else             setStatus('pending');
+  }, [accepted, signed]);
 
   const getPos = (e) => {
     const canvas = canvasRef.current;
@@ -120,8 +150,8 @@ function AcceptSign() {
     <div>
       <Title t="Pre-flight Status" />
       {statuses.map((s, i) => (
-        <StatusRow key={i} label={s.label} ok={s.ok} value={s.value} />
-      ))}
+        <StatusRow key={i} label={s.label} ok={s.ok} inProgress={s.inProgress} value={s.value} />
+))}
 
       <Sep />
 

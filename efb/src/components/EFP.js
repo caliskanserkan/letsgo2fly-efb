@@ -271,8 +271,24 @@ function WXRCharts() {
   );
 }
 
-function EFP() {
-const [activeTab, setActiveTab] = useState('fl-plan');
+function EFP({ setStatus }) {
+  const [activeTab, setActiveTab] = useState('fl-plan');
+  const [seenTabs, setSeenTabs]   = useState(new Set());
+
+  useEffect(() => {
+    if (seenTabs.has(activeTab)) return;
+    const timer = setTimeout(() => {
+      setSeenTabs(prev => new Set([...prev, activeTab]));
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!setStatus) return;
+    if (seenTabs.size === ALL_TABS.length) setStatus('green');
+    else if (seenTabs.size > 0)           setStatus('amber');
+    else                                  setStatus('pending');
+  }, [seenTabs]);
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>

@@ -176,7 +176,7 @@ function App() {
       {activePage === 'mandatory' && <Mandatory   setStatus={(s) => setStatus('mandatory', s)} />}
       {activePage === 'efp'       && <EFP         setStatus={(s) => setStatus('efp', s)} />}
       {activePage === 'fuel'      && <Fuel        setStatus={(s) => setStatus('fuel', s)} />}
-      {activePage === 'accept'    && <AcceptSign  setStatus={(s) => setStatus('accept', s)} />}
+      {activePage === 'accept' && <AcceptSign  pageStatus={pageStatus} setStatus={(s) => setStatus('accept', s)} />}
       {activePage === 'takeoff'   && <TakeoffData setStatus={(s) => setStatus('takeoff', s)} />}
       {activePage === 'navlog'    && <NavLog      flightData={flightData} updateFlight={updateFlight} setStatus={(s) => setStatus('navlog', s)} />}
       {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} setStatus={(s) => setStatus('landing', s)} />}
