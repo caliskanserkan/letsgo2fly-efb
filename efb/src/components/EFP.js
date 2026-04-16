@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { parseWeatherText, COLORS } from '../config/weatherRules';
+import { fetchWeatherData } from '../config/weatherService';
+
+const ALL_TABS = ['fl-plan', 'atc-plan', 'wxr', 'notam', 'wxr-charts'];
 
 function FLPlan() {
   return (
@@ -84,53 +87,60 @@ function ColoredWeather({ text }) {
   );
 }
 
+const STATIC_WXR = {
+  dep:  { name:'LTAC — ANKARA / ESENBOGA',  metar:['110450Z 02004KT 9999 SCT040 SCT180 00/M01 Q1016 NOSIG=','110420Z 06004KT 010V070 9999 FEW040 SCT180 M01/M02 Q1015 NOSIG='], taf:['110440Z 1106/1206 VRB02KT 9999 SCT040 SCT100','TEMPO 1112/1116 35012KT -SHRA BKN030 BKN080','PROB30 1202/1206 4000 BR BKN010='] },
+  dest: { name:'LTBA — ISTANBUL / ATATURK', metar:['110450Z 07003KT CAVOK 08/05 Q1020=','110420Z 00000KT CAVOK 07/05 Q1020='],                                                   taf:['110440Z 1106/1206 VRB02KT CAVOK','BECMG 1107/1110 SCT035 BKN080','BECMG 1110/1113 06012KT='] },
+  alt:  { name:'LTFM — ISTANBUL',           metar:['110450Z VRB02KT 9999 SCT025 BKN180 06/02 Q1020 NOSIG='],                                                                     taf:['110440Z 1106/1212 VRB02KT 9999 SCT028 BKN080','BECMG 1106/1109 06012KT','BECMG 1115/1118 12006KT CAVOK='] },
+};
+
 function WXR() {
-  const [tab, setTab] = useState('dep');
-  const tabs = [
-    { id:'dep',  label:'Departure' },
-    { id:'dest', label:'Destination' },
-    { id:'alt',  label:'Alternate' },
-  ];
-  const data = {
-    dep: {
-      name: 'LTAC — ANKARA / ESENBOGA',
-      metar: [
-        '110450Z 02004KT 9999 SCT040 SCT180 00/M01 Q1016 NOSIG=',
-        '110420Z 06004KT 010V070 9999 FEW040 SCT180 M01/M02 Q1015 NOSIG=',
-      ],
-      taf: [
-        '110440Z 1106/1206 VRB02KT 9999 SCT040 SCT100',
-        'TEMPO 1112/1116 35012KT -SHRA BKN030 BKN080',
-        'PROB30 1202/1206 4000 BR BKN010=',
-      ]
-    },
-    dest: {
-      name: 'LTBA — ISTANBUL / ATATURK',
-      metar: [
-        '110450Z 07003KT CAVOK 08/05 Q1020=',
-        '110420Z 00000KT CAVOK 07/05 Q1020=',
-      ],
-      taf: [
-        '110440Z 1106/1206 VRB02KT CAVOK',
-        'BECMG 1107/1110 SCT035 BKN080',
-        'BECMG 1110/1113 06012KT=',
-      ]
-    },
-    alt: {
-      name: 'LTFM — ISTANBUL',
-      metar: [
-        '110450Z VRB02KT 9999 SCT025 BKN180 06/02 Q1020 NOSIG=',
-      ],
-      taf: [
-        '110440Z 1106/1212 VRB02KT 9999 SCT028 BKN080',
-        'BECMG 1106/1109 06012KT',
-        'BECMG 1115/1118 12006KT CAVOK=',
-      ]
-    },
+  const [tab, setTab]             = useState('dep');
+  const [wxData, setWxData]       = useState(STATIC_WXR);
+  const [updatedAt, setUpdatedAt] = useState('11 APR 2026 · 05:24 Z');
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState(false);
+
+  const doFetch = async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const { metars, tafs, updatedAt: ua } = await fetchWeatherData();
+      setWxData({
+        dep:  { name: STATIC_WXR.dep.name,  metar: metars['LTAC'] || STATIC_WXR.dep.metar,  taf: tafs['LTAC'] || STATIC_WXR.dep.taf  },
+        dest: { name: STATIC_WXR.dest.name, metar: metars['LTBA'] || STATIC_WXR.dest.metar, taf: tafs['LTBA'] || STATIC_WXR.dest.taf },
+        alt:  { name: STATIC_WXR.alt.name,  metar: metars['LTFM'] || STATIC_WXR.alt.metar,  taf: tafs['LTFM'] || STATIC_WXR.alt.taf  },
+      });
+      setUpdatedAt(ua);
+    } catch {
+      setError(true);
+    }
+    setLoading(false);
   };
-  const d = data[tab];
+
+  useEffect(() => { doFetch(); }, []);
+
+  const tabs = [
+    { id:'dep',  label:'Departure'   },
+    { id:'dest', label:'Destination' },
+    { id:'alt',  label:'Alternate'   },
+  ];
+  const d = wxData[tab];
+
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+
+      {/* Refresh bar */}
+      <div style={{ background:'#1a2a1a', borderBottom:'1px solid rgba(45,158,95,0.3)', padding:'7px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+        <span style={{ fontSize:10, color: error ? '#e02020' : '#555' }}>
+          {error ? '⚠ Bağlantı hatası — eski veri gösteriliyor' : `Updated: ${updatedAt}`}
+        </span>
+        <button onClick={doFetch} disabled={loading}
+          style={{ background: loading ? '#333' : '#2d9e5f', border:'none', borderRadius:6, padding:'5px 14px', fontSize:11, fontWeight:700, color: loading ? '#555' : '#fff', cursor: loading ? 'default' : 'pointer', fontFamily:'inherit' }}>
+          {loading ? '…' : '↻ Refresh WXR'}
+        </button>
+      </div>
+
+      {/* Tab bar */}
       <div style={{ display:'flex', background:'#1a1a1a', borderBottom:'1px solid #383838', flexShrink:0 }}>
         {tabs.map(t => (
           <div key={t.id} onClick={() => setTab(t.id)} style={{ flex:1, padding:9, textAlign:'center', fontSize:11, fontWeight:600, cursor:'pointer', color: tab===t.id ? '#1a9bc4' : '#555', borderBottom: tab===t.id ? '2px solid #1a9bc4' : '2px solid transparent' }}>
@@ -138,16 +148,16 @@ function WXR() {
           </div>
         ))}
       </div>
+
       <div style={{ flex:1, overflowY:'auto', padding:'14px 16px' }}>
         <div style={{ fontSize:11, fontWeight:700, color:'#1a9bc4', marginBottom:8 }}>{d.name}</div>
 
-        {/* Renk rehberi */}
         <div style={{ display:'flex', gap:12, marginBottom:10, flexWrap:'wrap' }}>
           {[
-            { color: COLORS.green,  label: 'Normal' },
-            { color: COLORS.yellow, label: 'Dikkat' },
-            { color: COLORS.orange, label: 'Uyarı' },
-            { color: COLORS.red,    label: 'Kritik' },
+            { color: COLORS.green,  label:'Normal' },
+            { color: COLORS.yellow, label:'Dikkat' },
+            { color: COLORS.orange, label:'Uyarı'  },
+            { color: COLORS.red,    label:'Kritik'  },
           ].map((c, i) => (
             <div key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
               <div style={{ width:8, height:8, borderRadius:4, background: c.color }} />
@@ -158,16 +168,12 @@ function WXR() {
 
         <div style={{ fontSize:9, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:5 }}>METAR</div>
         <div style={{ background:'#1e1e1e', borderRadius:5, padding:'9px 11px', fontFamily:'monospace', fontSize:11, lineHeight:1.9, marginBottom:10 }}>
-          {d.metar.map((m, i) => (
-            <div key={i}><ColoredWeather text={m} /></div>
-          ))}
+          {d.metar.map((m, i) => <div key={i}><ColoredWeather text={m} /></div>)}
         </div>
 
         <div style={{ fontSize:9, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:5 }}>TAF</div>
         <div style={{ background:'#1e1e1e', borderRadius:5, padding:'9px 11px', fontFamily:'monospace', fontSize:11, lineHeight:1.9 }}>
-          {d.taf.map((l, i) => (
-            <div key={i}><ColoredWeather text={l} /></div>
-          ))}
+          {d.taf.map((l, i) => <div key={i}><ColoredWeather text={l} /></div>)}
         </div>
       </div>
     </div>
@@ -177,25 +183,25 @@ function WXR() {
 function NOTAM() {
   const [tab, setTab] = useState('dep');
   const tabs = [
-    { id:'dep',  label:'Departure' },
+    { id:'dep',  label:'Departure'   },
     { id:'dest', label:'Destination' },
-    { id:'alt',  label:'Alternate' },
-    { id:'fir',  label:'FIR' },
+    { id:'alt',  label:'Alternate'   },
+    { id:'fir',  label:'FIR'         },
   ];
   const notams = {
     dep: {
       ap: 'LTAC — Ankara Esenboga', count: 10,
       items: [
-        { id:'J1545/26', cat:'twy · 2', color:'#ff9500', text:'TWYS H1, J1, L AND K CLSD. DUE TO MAINT.' },
-        { id:'J1485/26', cat:'rwy · 7', color:'#ff9500', text:'RWY 03R/21L CLSD TO TFC DUE TO CONST WORKS.' },
-        { id:'A1070/26', cat:'de-ice · 24', color:'#666', text:'ESENBOGA AD DE-ICING 3 AREA ON SIDE OF THR 21C.' },
+        { id:'J1545/26', cat:'twy · 2',    color:'#ff9500', text:'TWYS H1, J1, L AND K CLSD. DUE TO MAINT.' },
+        { id:'J1485/26', cat:'rwy · 7',    color:'#ff9500', text:'RWY 03R/21L CLSD TO TFC DUE TO CONST WORKS.' },
+        { id:'A1070/26', cat:'de-ice · 24',color:'#666',    text:'ESENBOGA AD DE-ICING 3 AREA ON SIDE OF THR 21C.' },
       ]
     },
     dest: {
       ap: 'LTBA — Istanbul Ataturk', count: 14,
       items: [
-        { id:'B1020/26', cat:'obst · 28', color:'#ff9500', text:'MOBILE CRANE PENETRATING INNER HORIZONTAL AREA OF RWY 05/23. PILOTS MUST BE CAUTIOUS.' },
-        { id:'B0797/26', cat:'thr lgt · 42', color:'#666', text:'THR IDENTIFICATION LIGHTS RWY 23 U/S.' },
+        { id:'B1020/26', cat:'obst · 28',   color:'#ff9500', text:'MOBILE CRANE PENETRATING INNER HORIZONTAL AREA OF RWY 05/23. PILOTS MUST BE CAUTIOUS.' },
+        { id:'B0797/26', cat:'thr lgt · 42',color:'#666',    text:'THR IDENTIFICATION LIGHTS RWY 23 U/S.' },
       ]
     },
     alt: { ap: 'LTFM — Istanbul', count: 0, items: [] },
@@ -231,21 +237,21 @@ function NOTAM() {
               <span style={{ fontSize:10, fontWeight:700, color: n.color }}>{n.id}</span>
               {n.cat && <span style={{ fontSize:10, color:'#555', background:'#2a2a2a', padding:'1px 6px', borderRadius:3 }}>{n.cat}</span>}
             </div>
-<div style={{ fontFamily:'monospace', fontSize:10, lineHeight:1.55 }}>
-  {(() => {
-    const allKeywords = [
-      { words: ['CLSD','CLOSED','U/S','UNSERVICEABLE','PROHIBITED','MUST BE','SHALL BE','MUST NOT','SHALL NOT'], color: '#e02020', bold: true },
-      { words: ['INOP','LIMITED','RESTRICTED','SUSPEND','NOT AVBL'], color: '#e8731a', bold: false },
-      { words: ['WIP','CONST','CONSTRUCTION','WORK IN PROGRESS','MAY BE'], color: '#f0c040', bold: false },
-    ];
-    const regex = new RegExp('\\b(' + allKeywords.flatMap(r => r.words).map(w => w.replace(/[/]/g,'\\/')).join('|') + ')\\b', 'gi');
-    return n.text.split(regex).map((part, i) => {
-      const upper = part.toUpperCase();
-      const rule = allKeywords.find(r => r.words.includes(upper));
-      return <span key={i} style={{ color: rule ? rule.color : '#777', fontWeight: rule && rule.bold ? 700 : 400 }}>{part}</span>;
-    });
-  })()}
-</div>
+            <div style={{ fontFamily:'monospace', fontSize:10, lineHeight:1.55 }}>
+              {(() => {
+                const allKeywords = [
+                  { words: ['CLSD','CLOSED','U/S','UNSERVICEABLE','PROHIBITED','MUST BE','SHALL BE','MUST NOT','SHALL NOT'], color:'#e02020', bold:true  },
+                  { words: ['INOP','LIMITED','RESTRICTED','SUSPEND','NOT AVBL'],                                             color:'#e8731a', bold:false },
+                  { words: ['WIP','CONST','CONSTRUCTION','WORK IN PROGRESS','MAY BE'],                                      color:'#f0c040', bold:false },
+                ];
+                const regex = new RegExp('\\b(' + allKeywords.flatMap(r => r.words).map(w => w.replace(/[/]/g,'\\/')).join('|') + ')\\b', 'gi');
+                return n.text.split(regex).map((part, i) => {
+                  const upper = part.toUpperCase();
+                  const rule  = allKeywords.find(r => r.words.includes(upper));
+                  return <span key={i} style={{ color: rule ? rule.color : '#777', fontWeight: rule && rule.bold ? 700 : 400 }}>{part}</span>;
+                });
+              })()}
+            </div>
           </div>
         ))}
       </div>
@@ -292,7 +298,7 @@ function EFP({ setStatus }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-      
+
       {/* Refresh bar */}
       <div style={{ background:'#1a2a1a', borderBottom:'1px solid rgba(45,158,95,0.3)', padding:'8px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
         <span style={{ fontSize:11, color:'#555' }}>Last updated: 11 APR 2026 · 05:24 Z</span>
@@ -303,18 +309,18 @@ function EFP({ setStatus }) {
 
       {/* Sub-tab bar */}
       <div style={{ display:'flex', background:'#1a1a1a', borderBottom:'1px solid #383838', flexShrink:0, overflowX:'auto' }}>
-  {[
-    { id:'fl-plan',     label:'FL Plan' },
-    { id:'atc-plan',    label:'ATC Flight Plan' },
-    { id:'wxr',         label:'WXR' },
-    { id:'notam',       label:'NOTAM' },
-    { id:'wxr-charts',  label:'WXR Charts' },
-  ].map(t => (
-    <div key={t.id} onClick={() => setActiveTab(t.id)} style={{ padding:'9px 14px', whiteSpace:'nowrap', fontSize:11, fontWeight:600, cursor:'pointer', color: activeTab===t.id ? '#1a9bc4' : '#555', borderBottom: activeTab===t.id ? '2px solid #1a9bc4' : '2px solid transparent' }}>
-      {t.label}
-    </div>
-  ))}
-</div>
+        {[
+          { id:'fl-plan',    label:'FL Plan'         },
+          { id:'atc-plan',   label:'ATC Flight Plan'  },
+          { id:'wxr',        label:'WXR'              },
+          { id:'notam',      label:'NOTAM'            },
+          { id:'wxr-charts', label:'WXR Charts'       },
+        ].map(t => (
+          <div key={t.id} onClick={() => setActiveTab(t.id)} style={{ padding:'9px 14px', whiteSpace:'nowrap', fontSize:11, fontWeight:600, cursor:'pointer', color: activeTab===t.id ? '#1a9bc4' : '#555', borderBottom: activeTab===t.id ? '2px solid #1a9bc4' : '2px solid transparent' }}>
+            {t.label}
+          </div>
+        ))}
+      </div>
 
       {/* Content */}
       {activeTab === 'fl-plan'    && <FLPlan />}
@@ -325,4 +331,5 @@ function EFP({ setStatus }) {
     </div>
   );
 }
+
 export default EFP;
