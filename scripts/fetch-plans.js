@@ -72,12 +72,12 @@ async function processEmail(subject, text) {
 
 async function main() {
   const client = new ImapFlow({
-    host: 'imap.gmail.com',
+    host:'imap-mail.outlook.com',
     port: 993,
     secure: true,
     auth: {
-      user: 'raporturetildi@gmail.com',
-      pass: process.env.GMAIL_APP_PASSWORD,
+      user: user: 'musluksuyu@live.com',
+      pass: process.env.MAIL_PASSWORD,
     },
     logger: false,
   });
