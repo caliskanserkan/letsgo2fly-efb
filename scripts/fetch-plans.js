@@ -76,7 +76,7 @@ async function main() {
     port: 993,
     secure: true,
     auth: {
-      user: user: 'musluksuyu@live.com',
+      user: 'musluksuyu@live.com',
       pass: process.env.MAIL_PASSWORD,
     },
     logger: false,
