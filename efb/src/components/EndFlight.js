@@ -100,7 +100,6 @@ function EndFlight({ flightData, divertData, setStatus }) {
     if (timesOk && fuelOk && pax) setStatus('green');
     else if (timesOk || fuelOk)   setStatus('amber');
     else                           setStatus('pending');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timesOk, fuelOk, pax]);
 
   return (
