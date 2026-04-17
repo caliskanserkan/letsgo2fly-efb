@@ -1,5 +1,20 @@
 import React from 'react';
 
+// ── PHASE COLOR SYSTEM ────────────────────────────────────────
+const PHASE = {
+  'flt-crew':  { color: '#8B6F4E', type: 'tile'   }, // Ground — warm brown
+  'mandatory': { color: '#8B6F4E', type: 'tile'   },
+  'efp':       { color: '#8B6F4E', type: 'tile'   },
+  'fuel':      { color: '#8B6F4E', type: 'tile'   },
+  'accept':    { color: '#8B1A1A', type: 'border' }, // Accept — bordo border
+  'takeoff':   { color: '#1a7fc4', type: 'tile'   }, // Air — light blue
+  'navlog':    { color: '#1a7fc4', type: 'tile'   },
+  'landing':   { color: '#1a7fc4', type: 'tile'   },
+  'endflt':    { color: '#2d9e5f', type: 'border' }, // End Flt — green border
+  'docupload': { color: '#666666', type: 'tile'   }, // Gray
+  'freenote':  { color: '#666666', type: 'tile'   }, // Gray
+};
+
 const menuItems = [
   { id: 'flt-crew',  num: '1',  label: 'Flight & Crew'        },
   { id: 'mandatory', num: '2',  label: 'Mandatory / Preflight' },
@@ -27,43 +42,48 @@ function Sidebar({ activePage, onNavigate, flightInfo, pageStatus }) {
         borderBottom: '1px solid #383838',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between'
       }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: '#1a9bc4', letterSpacing: 1 }}>
-          GO2 eFB
-        </span>
-        <span style={{ fontSize: 10, color: '#555' }}>
-          {flightInfo || 'LTAC → LTBA'}
-        </span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#1a9bc4', letterSpacing: 1 }}>GO2 eFB</span>
+        <span style={{ fontSize: 10, color: '#555' }}>{flightInfo || 'LTAC → LTBA'}</span>
       </div>
 
       {/* Menu */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {menuItems.map(item => {
-          const isActive  = activePage === item.id;
-          const status    = pageStatus && pageStatus[item.id];
-          const isGreen   = status === 'green';
-          const isAmber   = status === 'amber';
+          const isActive   = activePage === item.id;
+          const status     = pageStatus && pageStatus[item.id];
+          const isGreen    = status === 'green';
+          const isAmber    = status === 'amber';
+          const phase      = PHASE[item.id] || { color: '#666', type: 'tile' };
+          const isTile     = phase.type === 'tile';
+          const phaseColor = phase.color;
 
-          // Metin rengi: active → teal, green → yeşil ton, amber → turuncu ton, diğer → gri
-          const textColor = isActive ? '#1a9bc4'
-                          : isGreen  ? '#4a9e72'
-                          : isAmber  ? '#c47a2a'
-                          : '#777';
+          // Background
+          const bg = isActive
+            ? isTile ? phaseColor : `${phaseColor}15`
+            : isGreen ? `${phaseColor}18`
+            : isAmber ? `${phaseColor}12`
+            : 'transparent';
 
-          // Sol border: active → teal, green → yeşil, amber → turuncu, diğer → şeffaf
-          const leftBorder = isActive ? '2px solid #1a9bc4'
-                           : isGreen  ? '2px solid #2d9e5f'
-                           : isAmber  ? '2px solid #ff9500'
-                           : '2px solid transparent';
+          // Left border
+          const borderLeft = isActive
+            ? isTile ? `2px solid ${phaseColor}` : `3px solid ${phaseColor}`
+            : isGreen ? '2px solid #2d9e5f'
+            : isAmber ? '2px solid #ff9500'
+            : '2px solid transparent';
 
-          // Arka plan: active → teal tint, green → çok hafif yeşil, amber → çok hafif turuncu
-          const bg = isActive ? 'rgba(26,155,196,0.12)'
-                   : isGreen  ? 'rgba(45,158,95,0.06)'
-                   : isAmber  ? 'rgba(255,149,0,0.05)'
-                   : 'transparent';
+          // Text color
+          const textColor = isActive
+            ? isTile ? '#fff' : phaseColor
+            : isGreen ? '#4a9e72'
+            : isAmber ? '#c47a2a'
+            : '#777';
 
-          // Dot boyutu: green/amber → 8px, pending → 6px
-          const dotSize   = isGreen || isAmber ? 8 : 6;
-          const dotColor  = isGreen ? '#2d9e5f' : isAmber ? '#ff9500' : '#383838';
+          const numColor = isActive
+            ? isTile ? 'rgba(255,255,255,0.7)' : phaseColor
+            : '#555';
+
+          const dotSize  = isGreen || isAmber ? 8 : 6;
+          const dotColor = isGreen ? '#2d9e5f' : isAmber ? '#ff9500' : '#383838';
 
           return (
             <div key={item.id} onClick={() => onNavigate(item.id)}
@@ -73,9 +93,10 @@ function Sidebar({ activePage, onNavigate, flightInfo, pageStatus }) {
                 borderBottom: '1px solid rgba(255,255,255,0.04)',
                 cursor: 'pointer',
                 background: bg,
-                borderLeft: leftBorder,
+                borderLeft,
+                transition: 'background 0.15s',
               }}>
-              <span style={{ fontSize: 10, color: isActive ? '#1a9bc4' : '#555', width: 16, textAlign: 'center', fontWeight: 700 }}>
+              <span style={{ fontSize: 10, color: numColor, width: 16, textAlign: 'center', fontWeight: 700 }}>
                 {item.num}
               </span>
               <span style={{ fontSize: 12.5, color: textColor, fontWeight: isActive || isGreen ? 600 : 400, flex: 1 }}>
@@ -94,7 +115,7 @@ function Sidebar({ activePage, onNavigate, flightInfo, pageStatus }) {
           );
         })}
 
-        {/* Free Note — separated */}
+        {/* Free Note */}
         <div style={{ height: 1, background: '#333', margin: '8px 14px' }} />
         <div onClick={() => onNavigate('freenote')}
           style={{
@@ -102,11 +123,11 @@ function Sidebar({ activePage, onNavigate, flightInfo, pageStatus }) {
             padding: '11px 14px', gap: 10,
             borderBottom: '1px solid rgba(255,255,255,0.04)',
             cursor: 'pointer',
-            background: activePage === 'freenote' ? 'rgba(26,155,196,0.12)' : 'transparent',
-            borderLeft: activePage === 'freenote' ? '2px solid #1a9bc4' : '2px solid transparent',
+            background: activePage === 'freenote' ? '#666666' : 'transparent',
+            borderLeft: activePage === 'freenote' ? '2px solid #666666' : '2px solid transparent',
           }}>
           <span style={{ fontSize: 13, width: 16, textAlign: 'center' }}>✏</span>
-          <span style={{ fontSize: 12.5, color: activePage === 'freenote' ? '#1a9bc4' : '#666', fontWeight: activePage === 'freenote' ? 600 : 400, flex: 1 }}>
+          <span style={{ fontSize: 12.5, color: activePage === 'freenote' ? '#fff' : '#666', fontWeight: activePage === 'freenote' ? 600 : 400, flex: 1 }}>
             Free Note
           </span>
         </div>
@@ -126,6 +147,8 @@ function Sidebar({ activePage, onNavigate, flightInfo, pageStatus }) {
 }
 
 function Layout({ activePage, onNavigate, title, children, flightInfo, pageStatus }) {
+  const phase = PHASE[activePage] || { color: '#666', type: 'tile' };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#1e1e1e' }}>
       {/* Top bar */}
@@ -146,7 +169,16 @@ function Layout({ activePage, onNavigate, title, children, flightInfo, pageStatu
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar activePage={activePage} onNavigate={onNavigate} flightInfo={flightInfo} pageStatus={pageStatus} />
         <div style={{ flex: 1, background: '#242424', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ background: '#1f1f1f', borderBottom: '1px solid #383838', padding: '10px 16px', fontSize: 12, fontWeight: 600, color: '#999', letterSpacing: 0.5, textTransform: 'uppercase', flexShrink: 0 }}>
+          {/* Page header — phase rengiyle */}
+          <div style={{
+            background: phase.type === 'tile' ? `${phase.color}22` : 'transparent',
+            borderBottom: `2px solid ${phase.color}`,
+            borderLeft: phase.type === 'border' ? `4px solid ${phase.color}` : 'none',
+            padding: '10px 16px',
+            fontSize: 12, fontWeight: 700,
+            color: phase.color,
+            letterSpacing: 0.5, textTransform: 'uppercase', flexShrink: 0
+          }}>
             {activePage === 'freenote' ? 'FREE NOTE' : activePage.replace(/-/g, ' ').toUpperCase()}
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
