@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import SyncButton from './SyncButton';
+import { createClient } from '@supabase/supabase-js';
 
-const FINAL_RESERVE = 1447; // lb — 30min fuel from OFP
+const supabase = createClient(
+  process.env.REACT_APP_SUPABASE_URL,
+  process.env.REACT_APP_SUPABASE_ANON_KEY
+);
+
+const FINAL_RESERVE = 1447;
 
 function Sep() {
   return <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />;
@@ -42,12 +48,8 @@ function InputRow({ label, hint, value, onChange, unit, suffix }) {
         {hint && <div style={{ fontSize:10, color:'#555', marginTop:2 }}>{hint}</div>}
       </div>
       <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-        <input
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder="—"
-          style={{ background:'#1a1a1a', border:'1.5px solid #1a9bc4', borderRadius:6, padding:'7px 10px', fontSize:14, fontWeight:700, color:'#1a9bc4', fontFamily:'monospace', outline:'none', textAlign:'right', width:90 }}
-        />
+        <input value={value} onChange={e => onChange(e.target.value)} placeholder="—"
+          style={{ background:'#1a1a1a', border:'1.5px solid #1a9bc4', borderRadius:6, padding:'7px 10px', fontSize:14, fontWeight:700, color:'#1a9bc4', fontFamily:'monospace', outline:'none', textAlign:'right', width:90 }} />
         {unit && <span style={{ fontSize:11, color:'#555', minWidth:20 }}>{unit}</span>}
         {suffix && <span style={{ fontSize:11, color:'#2d9e5f', fontWeight:600 }}>{suffix}</span>}
       </div>
@@ -65,42 +67,48 @@ function fromMins(m) {
   if (m === null || m < 0) return '—';
   const h = Math.floor(m / 60);
   const min = m % 60;
-  return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+  return String(h).padStart(2,'0') + ':' + String(min).padStart(2,'0');
 }
 
 function EndFlight({ flightData, divertData, setStatus }) {
-  const [pax, setPax]       = useState('');
-  const [cycles, setCycles] = useState('1');
+  const [pax, setPax]             = useState('');
+  const [cycles, setCycles]       = useState('1');
+  const [archived, setArchived]   = useState(false);
+  const [archiving, setArchiving] = useState(false);
 
   const { offBlock, takeoffTime, landingTime, onBlock, takeoffFuel, remainingFuel } = flightData;
   const divert = divertData.active;
 
-  const flightMins = toMins(landingTime) !== null && toMins(takeoffTime) !== null
-    ? toMins(landingTime) - toMins(takeoffTime) : null;
-  const blockMins  = toMins(onBlock) !== null && toMins(offBlock) !== null
-    ? toMins(onBlock) - toMins(offBlock) : null;
-
+  const flightMins = toMins(landingTime) !== null && toMins(takeoffTime) !== null ? toMins(landingTime) - toMins(takeoffTime) : null;
+  const blockMins  = toMins(onBlock) !== null && toMins(offBlock) !== null ? toMins(onBlock) - toMins(offBlock) : null;
   const toFuelNum  = takeoffFuel  ? parseInt(takeoffFuel.replace(/,/g,''))  : null;
   const remFuelNum = remainingFuel ? parseInt(remainingFuel.replace(/,/g,'')) : null;
   const burnoff    = toFuelNum && remFuelNum ? toFuelNum - remFuelNum : null;
-
-  const remColor = remFuelNum === null ? '#999'
-                 : remFuelNum < FINAL_RESERVE ? '#e02020'
-                 : '#2d9e5f';
-
-  const destIcao = divert && divertData.icao ? divertData.icao : 'LTBA';
-
-  // setStatus logic
-  const timesOk = !!(landingTime && onBlock && takeoffTime && offBlock);
-  const fuelOk  = !!remainingFuel;
+  const remColor   = remFuelNum === null ? '#999' : remFuelNum < FINAL_RESERVE ? '#e02020' : '#2d9e5f';
+  const destIcao   = divert && divertData.icao ? divertData.icao : 'LTBA';
+  const timesOk    = !!(landingTime && onBlock && takeoffTime && offBlock);
+  const fuelOk     = !!remainingFuel;
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!setStatus) return;
-    if (timesOk && fuelOk && pax) setStatus('green');
-    else if (timesOk || fuelOk)   setStatus('amber');
-    else                           setStatus('pending');
-  }, [timesOk, fuelOk, pax]);
+    if (archived)                      setStatus('green');
+    else if (timesOk && fuelOk && pax) setStatus('green');
+    else if (timesOk || fuelOk)        setStatus('amber');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+    else                               setStatus('pending');
+  }, [timesOk, fuelOk, pax, archived]);
+
+  const handleArchive = async () => {
+    setArchiving(true);
+    try {
+      await supabase.from('plans').update({ status: 'archived', archived_at: new Date().toISOString() }).eq('status', 'active');
+      setArchived(true);
+    } catch (err) {
+      console.error('Archive error:', err);
+    }
+    setArchiving(false);
+  };
 
   return (
     <div>
@@ -116,22 +124,20 @@ function EndFlight({ flightData, divertData, setStatus }) {
 
       <Title t="Block & Flight Times" />
       <TimeRow label="Off Block"    value={offBlock}    auto />
-      <TimeRow label="T/O Time"     value={takeoffTime}  auto />
-      <TimeRow label="Landing Time" value={landingTime}  auto />
-      <TimeRow label="On Block"     value={onBlock}      auto />
-
+      <TimeRow label="T/O Time"     value={takeoffTime} auto />
+      <TimeRow label="Landing Time" value={landingTime} auto />
+      <TimeRow label="On Block"     value={onBlock}     auto />
       <Sep />
 
       <Title t="Calculated" />
-      <AutoRow label="Flight Time"  value={fromMins(flightMins)} valueColor={flightMins ? '#e8e8e8' : '#444'} big />
-      <AutoRow label="Block Time"   value={fromMins(blockMins)}  valueColor={blockMins  ? '#e8e8e8' : '#444'} big />
-      <AutoRow label="Landings"     value="1" valueColor="#e8e8e8" />
-      <AutoRow label="Destination"  value={destIcao} valueColor={divert ? '#e8731a' : '#1a9bc4'} />
-
+      <AutoRow label="Flight Time" value={fromMins(flightMins)} valueColor={flightMins ? '#e8e8e8' : '#444'} big />
+      <AutoRow label="Block Time"  value={fromMins(blockMins)}  valueColor={blockMins  ? '#e8e8e8' : '#444'} big />
+      <AutoRow label="Landings"    value="1" valueColor="#e8e8e8" />
+      <AutoRow label="Destination" value={destIcao} valueColor={divert ? '#e8731a' : '#1a9bc4'} />
       <Sep />
 
       <Title t="Fuel Summary" />
-      <AutoRow label="T/O Fuel" value={toFuelNum ? `${toFuelNum.toLocaleString()} lb` : '—'} />
+      <AutoRow label="T/O Fuel" value={toFuelNum ? toFuelNum.toLocaleString() + ' lb' : '—'} />
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
         <div>
           <div style={{ fontSize:12.5, color:'#666' }}>Remaining Fuel</div>
@@ -140,17 +146,15 @@ function EndFlight({ flightData, divertData, setStatus }) {
           )}
         </div>
         <span style={{ fontSize:16, fontWeight:700, color: remColor, fontFamily:'monospace' }}>
-          {remFuelNum ? `${remFuelNum.toLocaleString()} lb` : '—'}
+          {remFuelNum ? remFuelNum.toLocaleString() + ' lb' : '—'}
         </span>
       </div>
-      <AutoRow label="Fuel Used (Burnoff)" value={burnoff ? `${burnoff.toLocaleString()} lb` : '—'} valueColor={burnoff ? '#e8e8e8' : '#444'} big />
-
+      <AutoRow label="Fuel Used (Burnoff)" value={burnoff ? burnoff.toLocaleString() + ' lb' : '—'} valueColor={burnoff ? '#e8e8e8' : '#444'} big />
       <Sep />
 
       <Title t="Tech Data" />
       <InputRow label="PAX" value={pax} onChange={setPax} unit="pax" />
       <InputRow label="Cycles" hint="+1 auto added" value={cycles} onChange={setCycles} suffix="cycle(s)" />
-
       <Sep />
 
       {divert && (
@@ -159,19 +163,34 @@ function EndFlight({ flightData, divertData, setStatus }) {
             <span style={{ fontSize:10, color:'#e8731a', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase' }}>Reason for Divert</span>
           </div>
           <div style={{ padding:'12px 14px', background:'#1e1e1e' }}>
-            <textarea
-              value={divertData.reason}
-              onChange={e => {}}
-              placeholder="Enter reason for divert..."
-              rows={4}
-              style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #e8731a', borderRadius:6, padding:'10px 12px', fontSize:13, color:'#e8e8e8', fontFamily:'inherit', outline:'none', resize:'vertical', lineHeight:1.6 }}
-            />
-            <div style={{ fontSize:10, color:'#555', marginTop:6 }}>
-              This information may be required by aviation authorities.
-            </div>
+            <textarea value={divertData.reason} onChange={e => {}} placeholder="Enter reason for divert..." rows={4}
+              style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #e8731a', borderRadius:6, padding:'10px 12px', fontSize:13, color:'#e8e8e8', fontFamily:'inherit', outline:'none', resize:'vertical', lineHeight:1.6 }} />
+            <div style={{ fontSize:10, color:'#555', marginTop:6 }}>This information may be required by aviation authorities.</div>
           </div>
         </div>
       )}
+
+      <Sep />
+
+      <div style={{ margin:'12px 16px 4px' }}>
+        {!archived ? (
+          <>
+            <button onClick={handleArchive} disabled={archiving || !timesOk}
+              style={{ width:'100%', background: timesOk ? 'rgba(45,158,95,0.12)' : '#1e1e1e', border: '1px solid ' + (timesOk ? '#2d9e5f' : '#333'), borderRadius:10, padding:14, fontSize:14, fontWeight:700, color: timesOk ? '#2d9e5f' : '#444', cursor: timesOk ? 'pointer' : 'not-allowed', fontFamily:'inherit' }}>
+              {archiving ? '⏳ Archiving...' : '📁 Archive Flight'}
+            </button>
+            {!timesOk && <div style={{ fontSize:10, color:'#555', textAlign:'center', marginTop:6 }}>Complete flight times to archive</div>}
+          </>
+        ) : (
+          <div style={{ padding:'12px 14px', borderRadius:8, background:'rgba(45,158,95,0.1)', border:'1px solid rgba(45,158,95,0.3)', display:'flex', alignItems:'center', gap:10 }}>
+            <span style={{ fontSize:20 }}>✅</span>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#2d9e5f' }}>Flight Archived</div>
+              <div style={{ fontSize:10, color:'#555', marginTop:2 }}>Plan moved to archive — read only</div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <SyncButton />
     </div>
