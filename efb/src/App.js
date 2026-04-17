@@ -92,9 +92,9 @@ function Login({ onLogin }) {
   );
 }
 
-function PlanCard({ plan, active, onOpen, onDelete, onDeactivate }) {
+function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate }) {
   return (
-    <div style={{ background: active ? 'rgba(26,155,196,0.05)' : 'var(--bg3)', border:`1px solid ${active ? 'var(--accent)' : 'var(--border)'}`, borderRadius:10, overflow:'hidden', marginBottom:8 }}>
+    <div style={{ background: archived ? '#1e1e1e' : active ? 'rgba(26,155,196,0.05)' : 'var(--bg3)', border:`1px solid ${archived ? '#2a2a2a' : active ? 'var(--accent)' : 'var(--border)'}`, borderRadius:10, overflow:'hidden', marginBottom:8, opacity: archived ? 0.85 : 1 }}>
       <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', gap:12, borderBottom:'1px solid var(--border)' }}>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:16, fontWeight:700, color:'var(--t1)', fontFamily:'monospace', letterSpacing:1 }}>
@@ -103,7 +103,7 @@ function PlanCard({ plan, active, onOpen, onDelete, onDeactivate }) {
           <div style={{ fontSize:11, color:'var(--t3)', marginTop:2 }}>{plan.date} · STD {plan.std} Z · {plan.ac} / {plan.reg}</div>
         </div>
         <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:4, letterSpacing:0.5, background: active ? 'rgba(26,155,196,0.15)' : 'rgba(45,158,95,0.15)', color: active ? 'var(--accent)' : 'var(--green)' }}>
-          {active ? 'IN PROGRESS' : 'AVAILABLE'}
+          {archived ? 'ARCHIVED' : active ? 'IN PROGRESS' : 'AVAILABLE'}
         </span>
       </div>
       <div style={{ padding:'9px 14px', display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
@@ -113,7 +113,7 @@ function PlanCard({ plan, active, onOpen, onDelete, onDeactivate }) {
         {active && <div style={{ fontSize:11, color:'var(--t3)' }}>Step <b style={{ color:'var(--accent)', marginLeft:3 }}>{plan.step}/10</b></div>}
 
         {/* Available plan buttons */}
-        {!active && onDelete && (
+        {!active && !archived && onDelete && (
           <button onClick={onDelete} style={{ background:'transparent', border:'1px solid #e02020', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#e02020', cursor:'pointer', fontFamily:'inherit' }}>
             ✕ Delete
           </button>
@@ -126,9 +126,19 @@ function PlanCard({ plan, active, onOpen, onDelete, onDeactivate }) {
           </button>
         )}
 
-        <button onClick={onOpen} style={{ marginLeft:'auto', background: active ? 'rgba(26,155,196,0.12)' : 'var(--accent)', border: active ? '1px solid var(--accent)' : 'none', borderRadius:6, padding:'5px 13px', fontSize:11, fontWeight:700, color: active ? 'var(--accent)' : '#fff', cursor:'pointer', fontFamily:'inherit' }}>
-          {active ? 'Open →' : '+ Activate'}
-        </button>
+        {!archived && (
+          <button onClick={onOpen} style={{ marginLeft:'auto', background: active ? 'rgba(26,155,196,0.12)' : 'var(--accent)', border: active ? '1px solid var(--accent)' : 'none', borderRadius:6, padding:'5px 13px', fontSize:11, fontWeight:700, color: active ? 'var(--accent)' : '#fff', cursor:'pointer', fontFamily:'inherit' }}>
+            {active ? 'Open →' : '+ Activate'}
+          </button>
+        )}
+        {archived && (
+          <span style={{ marginLeft:'auto', fontSize:10, color:'#444', fontWeight:700 }}>🔒 Read Only</span>
+        )}
+        {plan.archived_at && archived && (
+          <div style={{ fontSize:10, color:'#555', width:'100%', marginTop:4 }}>
+            Archived: {new Date(plan.archived_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -195,17 +205,21 @@ function Dashboard({ onOpen }) {
   const [tab, setTab]                       = useState('active');
   const [availablePlans, setAvailablePlans] = useState([]);
   const [activePlans, setActivePlans]       = useState([]);
+  const [archivedPlans, setArchivedPlans]   = useState([]);
   const [showUpload, setShowUpload]         = useState(false);
   const [loading, setLoading]               = useState(false);
 
   const loadPlans = async () => {
     setLoading(true);
-    const [avail, active] = await Promise.all([
+    const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+    const [avail, active, archived] = await Promise.all([
       supabase.from('plans').select('*').eq('status', 'available').order('created_at', { ascending: false }),
       supabase.from('plans').select('*').eq('status', 'active').order('created_at', { ascending: false }),
+      supabase.from('plans').select('*').eq('status', 'archived').gte('archived_at', fifteenDaysAgo).order('archived_at', { ascending: false }),
     ]);
     setAvailablePlans(avail.data || []);
     setActivePlans(active.data || []);
+    setArchivedPlans(archived.data || []);
     setLoading(false);
   };
 
@@ -234,6 +248,7 @@ function Dashboard({ onOpen }) {
     std: p.std || '—', eta: p.eta || '—',
     ac: p.ac_type || p.ac || 'GLF4',
     reg: p.reg || 'TC-REC', fob: p.fob || '—',
+    archived_at: p.archived_at,
   });
 
   useEffect(() => { loadPlans(); }, []);
@@ -246,11 +261,18 @@ function Dashboard({ onOpen }) {
       </div>
 
       <div style={{ display:'flex', background:'#1e1e1e', borderBottom:'1px solid var(--border)' }}>
-        {['available','active'].map(t => (
-          <div key={t} onClick={() => setTab(t)} style={{ flex:1, padding:11, textAlign:'center', fontSize:12, fontWeight:600, cursor:'pointer', color: tab===t ? 'var(--accent)' : 'var(--t3)', borderBottom: tab===t ? '2px solid var(--accent)' : '2px solid transparent', position:'relative' }}>
-            {t === 'available' ? 'Available Plans' : 'Active Plans'}
-            {t === 'active' && activePlans.length > 0 && (
+        {[
+          { id:'available', label:'Available' },
+          { id:'active',    label:'Active'    },
+          { id:'archive',   label:'Archive'   },
+        ].map(t => (
+          <div key={t.id} onClick={() => setTab(t.id)} style={{ flex:1, padding:11, textAlign:'center', fontSize:12, fontWeight:600, cursor:'pointer', color: tab===t.id ? 'var(--accent)' : 'var(--t3)', borderBottom: tab===t.id ? '2px solid var(--accent)' : '2px solid transparent', position:'relative' }}>
+            {t.label}
+            {t.id === 'active' && activePlans.length > 0 && (
               <span style={{ marginLeft:6, background:'#1a9bc4', color:'#fff', borderRadius:8, padding:'1px 6px', fontSize:9, fontWeight:700 }}>{activePlans.length}</span>
+            )}
+            {t.id === 'archive' && archivedPlans.length > 0 && (
+              <span style={{ marginLeft:6, background:'#555', color:'#fff', borderRadius:8, padding:'1px 6px', fontSize:9, fontWeight:700 }}>{archivedPlans.length}</span>
             )}
           </div>
         ))}
@@ -290,6 +312,21 @@ function Dashboard({ onOpen }) {
           </>
         )}
       </div>
+
+        {tab === 'archive' && (
+          <>
+            <div style={{ padding:'8px 4px 10px', fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>
+              Last 15 days · Read Only
+            </div>
+            {loading && <div style={{ textAlign:'center', color:'#555', fontSize:12, padding:20 }}>Loading...</div>}
+            {!loading && archivedPlans.length === 0 && (
+              <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No archived flights in the last 15 days.</div>
+            )}
+            {archivedPlans.map((p, i) => (
+              <PlanCard key={i} plan={planCard(p)} active={false} archived={true} />
+            ))}
+          </>
+        )}
 
       {showUpload && <UploadPlanModal onClose={() => setShowUpload(false)} onUploaded={loadPlans} />}
     </div>
