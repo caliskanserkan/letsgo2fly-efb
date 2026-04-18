@@ -51,7 +51,6 @@ function parseWaypoints(rawText, dep, dest, std) {
     rows.forEach(r => {
       const wpt  = r[1];
       const mins = parseInt(r[2]) || 0; // cumulative minutes from departure
-      const fuelBurn = parseInt(r[4]) || 0;
       const fuelRem  = parseInt(r[5]) || 0;
       etaMap[wpt]  = mins;
       fuelMap[wpt] = fuelRem;
@@ -256,7 +255,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan }) {
   const [alert50, setAlert50]             = useState(false);
   const [lastCheckTime, setLastCheckTime] = useState(null);
   const [waypoints, setWaypoints]         = useState([]);
-  const [rawText, setRawText]             = useState('');
 
   const dep  = activePlan?.dep  || 'DEP';
   const dest = activePlan?.dest || 'DEST';
@@ -281,7 +279,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan }) {
         .limit(1)
         .single();
       if (data?.raw_text) {
-        setRawText(data.raw_text);
+       // raw_text stored but not directly used in render
         const wpts = parseWaypoints(data.raw_text, dep, dest, std);
         setWaypoints(wpts.length >= 2 ? wpts : [
           { id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null },

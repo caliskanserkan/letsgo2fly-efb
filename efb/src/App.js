@@ -66,18 +66,23 @@ function parseAllSectors(text) {
         std:  `${stdRaw.slice(0,2)}:${stdRaw.slice(2)}`,
         dest: m[4],
         ete:  `${eteRaw.slice(0,2)}:${eteRaw.slice(2)}`,
-        reg,
-        date: '',
-        pax:  '',
-        eta:  '',
+        reg, date: '', pax: '', eta: '',
       });
     }
   }
 
-  // 3. Her sektör için OFP bloğundan detay çek
+  // 3. OFP bloklarını parse et
+  // Her sektörün başlangıcı: "FMS IDENT=S9470 Log Nr.: 1853 Page   1        LTAC-LTAS   TCREC"
+  // Capture groups: [1]=dep-dest ("LTAC-LTAS"), [2]=callsign, [3]=block content
   const ofpBlocks = [...text.matchAll(
-    /Page 1\s+([A-Z]{4})-([A-Z]{4})\s+([A-Z0-9]+)([\s\S]*?)(?=Page 1\s+[A-Z]{4}-[A-Z]{4}|$)/g
+    /FMS IDENT=\S+\s+Log Nr\.?:?\s*\d+\s+Page\s+1\s+([A-Z]{4}-[A-Z]{4})\s+([A-Z0-9]+)([\s\S]*?)(?=FMS IDENT=|$)/g
   )];
+
+  // dep-dest → block content map
+  const blockMap = {};
+  for (const b of ofpBlocks) {
+    blockMap[b[1]] = b[3]; // e.g. "LTAC-LTAS" → block content
+  }
 
   // Genel bilgiler
   const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -93,35 +98,38 @@ function parseAllSectors(text) {
   })();
   const globalCallsign = text.match(/\(FPL-([A-Z0-9]+)-/)?.[1] || '';
 
-  sectors.forEach((sector, i) => {
-    const block = ofpBlocks[i]?.[4] || '';
+  sectors.forEach((sector) => {
+    // Sektöre ait OFP bloğunu dep-dest ile bul
+    const routeKey = `${sector.dep}-${sector.dest}`;
+    const block = blockMap[routeKey] || '';
 
-    // Fuel
-    sector.trip_fuel      = block.match(/TRIP\s+(\d+)\s/)?.[1] || '';
-    sector.total_fob      = block.match(/TOTAL FOB\s+(\d+)/)?.[1] || '';
-    sector.alternate_fuel = block.match(/ALTERNATE\s+(\d+)/)?.[1] || '';
-    sector.reserve_fuel   = block.match(/FINAL RESERVE\s+(\d+)/)?.[1] || '';
+    // Fuel — sektöre özgü block'tan parse et
+    sector.trip_fuel      = block.match(/\bTRIP\s+([\d]+)/)?.[1] || '';
+    sector.alternate_fuel = block.match(/\bALTERNATE\s+([\d]+)/)?.[1] || '';
+    sector.reserve_fuel   = block.match(/\bFINAL RESERVE\s+([\d]+)/)?.[1] || '';
+    sector.total_fob      = block.match(/\bTOTAL FOB\s+([\d]+)/)?.[1] || '';
     sector.fob            = sector.total_fob ? `${parseInt(sector.total_fob).toLocaleString()} lb` : '';
 
     // Weights
-    sector.tow = block.match(/TOW\s+([\d]+)Lbs/)?.[1] || '';
-    sector.zfw = block.match(/ZFW\s+([\d]+)Lbs/)?.[1] || '';
+    sector.tow = block.match(/\bTOW\s+([\d]+)\s*Lbs/i)?.[1] || '';
+    sector.zfw = block.match(/\bZFW\s+([\d]+)\s*Lbs/i)?.[1] || '';
 
     // Route
-    sector.route = block.match(/ROUTE:([^\n]+)/)?.[1]?.trim() || '';
+    sector.route = block.match(/ROUTE:\s*([^\n]+)/)?.[1]?.trim() || '';
 
-// Alternate: birden fazla yöntemle dene
-const alt1 = block.match(/1\s*ST\s+ALT\s+([A-Z]{4})/)?.[1];
-const alt2 = text.match(new RegExp(`-${sector.dest}\\s*\\d{4}\\s+([A-Z]{4})`))?.[1];
-const alt3 = text.match(new RegExp(`${sector.dep}\\s*\\d{4}\\s+([A-Z]{4})`))?.[1];
-sector.alternate = alt1 || alt2 || alt3 || '';
+    // Alternate
+    const alt1 = block.match(/1\s*ST\s+ALT\s+([A-Z]{4})/)?.[1];
+    const alt2 = text.match(new RegExp(`-${sector.dest}\\s*\\d{4}\\s+([A-Z]{4})`))?.[1];
+    const alt3 = text.match(new RegExp(`${sector.dep}\\s*\\d{4}\\s+([A-Z]{4})`))?.[1];
+    sector.alternate = alt1 || alt2 || alt3 || '';
 
     // Cruise FL
     const flMatch = block.match(/CRUISE:[^\d]*(\d{3})/);
     sector.cruise_fl = flMatch ? `FL${flMatch[1]}` : '';
 
     // Log Nr
-    sector.log_nr = text.match(new RegExp(`Log Nr\\.:\\s*(\\d+)\\s+Page 1\\s+${sector.dep}-${sector.dest}`))?.[1] || '';
+    const logMatch = text.match(new RegExp(`Log Nr\\.?:?\\s*(\\d+)\\s+Page\\s+1\\s+${sector.dep}-${sector.dest}`));
+    sector.log_nr = logMatch?.[1] || '';
 
     // Global alanlar
     sector.ac_type  = sector.ac_type  || globalAcType;
@@ -149,7 +157,18 @@ async function extractPdfText(file) {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    text += content.items.map(item => item.str).join(' ') + '\n';
+    let lastY = null;
+    let pageText = '';
+    for (const item of content.items) {
+      if (lastY !== null && Math.abs(item.transform[5] - lastY) > 2) {
+        pageText += '\n';
+      }
+      pageText += item.str;
+      if (item.hasEOL) pageText += '\n';
+      else pageText += ' ';
+      lastY = item.transform[5];
+    }
+    text += pageText + '\n';
   }
   return text;
 }
@@ -274,7 +293,6 @@ function UploadPlanModal({ onClose, onUploaded }) {
           || `${sector.reg || 'MANUAL'}-${(sector.date || '').replace(/\s/g, '')}`;
         const dispatchNo = sectors.length > 1 ? `${baseDispatch}-S${i + 1}` : baseDispatch;
 
-        // Duplicate kontrolü
         const { data: existing } = await supabase.from('plans').select('id')
           .eq('dep',  sector.dep)
           .eq('dest', sector.dest)
@@ -415,7 +433,36 @@ function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate }) {
       .eq('id', planId)
       .select()
       .single();
-    if (plan) onActivate(plan);
+
+    if (plan) {
+      // raw_text'den bu sektörün yakıtlarını parse et
+      const { data: version } = await supabase
+        .from('plan_versions')
+        .select('raw_text')
+        .eq('plan_id', planId)
+        .order('version_no', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (version?.raw_text) {
+        const raw = version.raw_text;
+        const routeKey = `${plan.dep}-${plan.dest}`;
+        // Bu sektöre ait OFP bloğunu bul
+        const blockMatch = raw.match(
+          new RegExp(`FMS IDENT=\\S+\\s+Log Nr\\.?:?\\s*\\d+\\s+Page\\s+1\\s+${routeKey}\\s+[A-Z0-9]+([\\s\\S]*?)(?=FMS IDENT=|$)`)
+        );
+        const block = blockMatch?.[1] || '';
+        // Yakıtları parse et ve plana ekle
+        plan.trip_fuel      = block.match(/\bTRIP\s+([\d]+)/)?.[1]      || plan.trip_fuel      || '';
+        plan.alternate_fuel = block.match(/\bALTERNATE\s+([\d]+)/)?.[1] || plan.alternate_fuel || '';
+        plan.reserve_fuel   = block.match(/\bFINAL RESERVE\s+([\d]+)/)?.[1] || plan.reserve_fuel || '';
+        plan.total_fob      = block.match(/\bTOTAL FOB\s+([\d]+)/)?.[1] || '';
+        plan.fob            = plan.total_fob ? `${parseInt(plan.total_fob).toLocaleString()} lb` : plan.fob || '';
+        plan.tow            = block.match(/\bTOW\s+([\d]+)\s*Lbs/i)?.[1] || plan.tow || '';
+        plan.zfw            = block.match(/\bZFW\s+([\d]+)\s*Lbs/i)?.[1] || plan.zfw || '';
+      }
+      onActivate(plan);
+    }
     loadPlans();
     setTab('active');
   };
@@ -443,12 +490,8 @@ function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate }) {
         <span style={{ fontSize:13, fontWeight:700, color:'var(--accent)', letterSpacing:1 }}>GO2 eFB</span>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           <span style={{ fontSize:11, color:'var(--t3)' }}>{user?.email || ''}</span>
-          <button onClick={onAdmin} style={{ background:'transparent', border:'1px solid #1a9bc4', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#1a9bc4', cursor:'pointer', fontFamily:'inherit' }}>
-            Admin
-          </button>
-          <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #383838', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>
-            Logout
-          </button>
+          <button onClick={onAdmin} style={{ background:'transparent', border:'1px solid #1a9bc4', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#1a9bc4', cursor:'pointer', fontFamily:'inherit' }}>Admin</button>
+          <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #383838', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>Logout</button>
         </div>
       </div>
 
@@ -504,9 +547,7 @@ function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate }) {
         )}
         {tab === 'archive' && (
           <>
-            <div style={{ padding:'8px 4px 10px', fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>
-              Last 15 days · Read Only
-            </div>
+            <div style={{ padding:'8px 4px 10px', fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>Last 15 days · Read Only</div>
             {loading && <div style={{ textAlign:'center', color:'#555', fontSize:12, padding:20 }}>Loading...</div>}
             {!loading && archivedPlans.length === 0 && (
               <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No archived flights in the last 15 days.</div>
@@ -586,30 +627,21 @@ function App() {
   if (showAdminAuth) return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
       <div style={{ width:300, background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-        <div style={{ background:'#1f1f1f', borderBottom:'1px solid var(--border)', padding:'10px 18px', fontSize:10, color:'#e8a020', fontWeight:700, letterSpacing:2 }}>
-          ADMIN ACCESS
-        </div>
+        <div style={{ background:'#1f1f1f', borderBottom:'1px solid var(--border)', padding:'10px 18px', fontSize:10, color:'#e8a020', fontWeight:700, letterSpacing:2 }}>ADMIN ACCESS</div>
         <div style={{ padding:'20px 18px' }}>
           <label style={{ display:'block', fontSize:10, color:'#ffffff', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Admin Password</label>
           <input type="password" value={adminPin} onChange={e => { setAdminPin(e.target.value); setAdminPinError(''); }}
-            onKeyDown={e => e.key === 'Enter' && handleAdminAuth()}
-            placeholder="Enter password"
+            onKeyDown={e => e.key === 'Enter' && handleAdminAuth()} placeholder="Enter password"
             style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} />
           {adminPinError && (
-            <div style={{ marginTop:8, padding:'7px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>
-              {adminPinError}
-            </div>
+            <div style={{ marginTop:8, padding:'7px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>{adminPinError}</div>
           )}
         </div>
         <div style={{ padding:'0 18px 18px', display:'flex', gap:8 }}>
           <button onClick={() => { setShowAdminAuth(false); setAdminPin(''); setAdminPinError(''); }}
-            style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>
-            Cancel
-          </button>
+            style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
           <button onClick={handleAdminAuth}
-            style={{ flex:1, background:'#e8a020', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#000', cursor:'pointer', fontFamily:'inherit' }}>
-            Enter
-          </button>
+            style={{ flex:1, background:'#e8a020', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#000', cursor:'pointer', fontFamily:'inherit' }}>Enter</button>
         </div>
       </div>
     </div>
