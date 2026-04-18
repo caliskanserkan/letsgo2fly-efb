@@ -1,16 +1,103 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import SyncButton from './SyncButton';
+
+const supabase = createClient(
+  process.env.REACT_APP_SUPABASE_URL,
+  process.env.REACT_APP_SUPABASE_ANON_KEY
+);
 
 const FIFTY_MIN = 50 * 60 * 1000;
 
-const WAYPOINTS = [
-  { id:'LTAC',  name:'LTAC',  type:'dep',  eta:'09:05', fl:'—',   planFuel:12600 },
-  { id:'UMRUN', name:'UMRUN', type:'wpt',  eta:'09:15', fl:'280', planFuel:11266 },
-  { id:'TOKER', name:'TOKER', type:'wpt',  eta:'09:22', fl:'280', planFuel:10792 },
-  { id:'BA997', name:'BA997', type:'wpt',  eta:'09:33', fl:'280', planFuel:10334 },
-  { id:'VAZZO', name:'VAZZO', type:'wpt',  eta:'09:44', fl:'280', planFuel:10003 },
-  { id:'LTBA',  name:'LTBA',  type:'dest', eta:'09:48', fl:'—',   planFuel:9887  },
-];
+// ─── Waypoint parser from raw_text ───────────────────────────────────────────
+function parseWaypoints(rawText, dep, dest, std) {
+  if (!rawText || !dep || !dest) return [];
+
+  // Parse coordinate list section: "DEP LTAC/... \n 1 WPT ... \n DEST LTAS/..."
+  // Look for the section between DEP and DEST for this sector
+  const depPattern = new RegExp(`DEP\\s+${dep}\\/[^\\n]+\\n([\\s\\S]*?)DEST\\s+${dest}\\/`, 'i');
+  const section = rawText.match(depPattern)?.[1] || '';
+
+  // Extract waypoint names from numbered list
+  const wptNames = [];
+  if (section) {
+    const lines = section.split('\n');
+    lines.forEach(line => {
+      const match = line.match(/^\s*\d+\s+([A-Z0-9]{2,6})\s+(?:SID|STAR|AWY|FIR)?\s+WAYPOINT/i)
+        || line.match(/^\s*\d+\s+(-TOC-|-TOD-)\s/);
+      if (match) {
+        const name = match[1];
+        if (name && !name.startsWith('-')) wptNames.push(name);
+      }
+    });
+  }
+
+  // Parse NavLog table for ETAs and fuel remaining
+  // Format: AWY WPT ... STM CORR TFREM
+  const navLogSection = rawText.match(
+    new RegExp(`Page 1\\s+${dep}-${dest}[\\s\\S]*?(?=Page 1\\s+[A-Z]{4}-[A-Z]{4}|$)`)
+  )?.[0] || '';
+
+  const etaMap = {};
+  const fuelMap = {};
+  const flMap = {};
+
+  if (navLogSection) {
+    // Match waypoint rows - format varies but we look for WPT name followed by cumulative time
+    const rows = [...navLogSection.matchAll(
+      /\b([A-Z0-9]{3,6})\s+(?:LTAA|LTBB|EBBU|EDMM|EDGG|EGTT|LHCC|LOVV|LBSR|EHAA)\s+\S+\s+\d+\s+\S+\s+\S+\s+\S+\s+\d+\s+(\d+)\s+(\d+)\s+___\/_+\s+(\d+)\s+(\d+)/g
+    )];
+
+    rows.forEach(r => {
+      const wpt  = r[1];
+      const mins = parseInt(r[2]) || 0; // cumulative minutes from departure
+      const fuelBurn = parseInt(r[4]) || 0;
+      const fuelRem  = parseInt(r[5]) || 0;
+      etaMap[wpt]  = mins;
+      fuelMap[wpt] = fuelRem;
+    });
+
+    // Parse FL from rows
+    const flRows = [...navLogSection.matchAll(/\b([A-Z0-9]{3,6})\b[\s\S]{5,30}?(\d{3})\s+(?:CLB|DSC|\d{3})/g)];
+    flRows.forEach(r => { flMap[r[1]] = r[2]; });
+  }
+
+  // Calculate ETA from STD + cumulative minutes
+  const calcEta = (cumMins) => {
+    if (!std || !cumMins) return '—';
+    const [h, m] = std.split(':').map(Number);
+    const total = h * 60 + m + cumMins;
+    return `${String(Math.floor(total / 60) % 24).padStart(2,'0')}:${String(total % 60).padStart(2,'0')}`;
+  };
+
+  // Build waypoints array
+  const waypoints = [];
+
+  // Departure
+  waypoints.push({
+    id: dep, name: dep, type: 'dep',
+    eta: std || '—', fl: '—', planFuel: null,
+  });
+
+  // Intermediate waypoints
+  wptNames.forEach(name => {
+    const cumMins = etaMap[name];
+    waypoints.push({
+      id: name, name,  type: 'wpt',
+      eta: calcEta(cumMins),
+      fl: flMap[name] ? flMap[name] : '—',
+      planFuel: fuelMap[name] || null,
+    });
+  });
+
+  // Destination
+  waypoints.push({
+    id: dest, name: dest, type: 'dest',
+    eta: '—', fl: '—', planFuel: null,
+  });
+
+  return waypoints;
+}
 
 function getFuelDestColor(fuel) {
   if (!fuel) return '#999';
@@ -27,24 +114,15 @@ function TimeBox({ value, onChange, placeholder }) {
     onChange(v);
   };
   return (
-    <input
-      value={value}
-      onChange={handleChange}
-      placeholder={placeholder || 'HH:MM'}
-      maxLength={5}
-      style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #1a9bc4', borderRadius:6, padding:'9px 12px', fontSize:16, fontWeight:700, color:'#1a9bc4', fontFamily:'monospace', outline:'none', textAlign:'center' }}
-    />
+    <input value={value} onChange={handleChange} placeholder={placeholder || 'HH:MM'} maxLength={5}
+      style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #1a9bc4', borderRadius:6, padding:'9px 12px', fontSize:16, fontWeight:700, color:'#1a9bc4', fontFamily:'monospace', outline:'none', textAlign:'center' }} />
   );
 }
 
 function FuelBox({ value, onChange, placeholder }) {
   return (
-    <input
-      value={value}
-      onChange={e => onChange(e.target.value.replace(/[^0-9,]/g, ''))}
-      placeholder={placeholder || 'lb'}
-      style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #1a9bc4', borderRadius:6, padding:'9px 12px', fontSize:16, fontWeight:700, color:'#1a9bc4', fontFamily:'monospace', outline:'none', textAlign:'center' }}
-    />
+    <input value={value} onChange={e => onChange(e.target.value.replace(/[^0-9,]/g, ''))} placeholder={placeholder || 'lb'}
+      style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #1a9bc4', borderRadius:6, padding:'9px 12px', fontSize:16, fontWeight:700, color:'#1a9bc4', fontFamily:'monospace', outline:'none', textAlign:'center' }} />
   );
 }
 
@@ -53,34 +131,15 @@ function RvsmBoxes({ value, onChange }) {
   const pri1 = parts[0] || '';
   const sby  = parts[1] || '';
   const pri2 = parts[2] || '';
-
-  const ref1 = useRef(null);
   const ref2 = useRef(null);
   const ref3 = useRef(null);
-
   const update = (p1, p2, p3) => onChange(`${p1}/${p2}/${p3}`);
-
-  const handleP1 = (e) => {
-    const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 5);
-    update(v, sby, pri2);
-    if (v.length === 5) ref2.current && ref2.current.focus();
-  };
-  const handleSby = (e) => {
-    const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 5);
-    update(pri1, v, pri2);
-    if (v.length === 5) ref3.current && ref3.current.focus();
-  };
-  const handleP2 = (e) => {
-    const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 5);
-    update(pri1, sby, v);
-  };
-
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
       {[
-        { label:'PRI 1', ref:ref1, value:pri1, onChange:handleP1 },
-        { label:'SBY',   ref:ref2, value:sby,  onChange:handleSby },
-        { label:'PRI 2', ref:ref3, value:pri2, onChange:handleP2 },
+        { label:'PRI 1', ref:null, value:pri1, onChange:(e) => { const v=e.target.value.replace(/[^0-9]/g,'').slice(0,5); update(v,sby,pri2); if(v.length===5) ref2.current?.focus(); } },
+        { label:'SBY',   ref:ref2, value:sby,  onChange:(e) => { const v=e.target.value.replace(/[^0-9]/g,'').slice(0,5); update(pri1,v,pri2); if(v.length===5) ref3.current?.focus(); } },
+        { label:'PRI 2', ref:ref3, value:pri2, onChange:(e) => { const v=e.target.value.replace(/[^0-9]/g,'').slice(0,5); update(pri1,sby,v); } },
       ].map(f => (
         <div key={f.label} style={{ display:'flex', alignItems:'center', gap:10 }}>
           <div style={{ fontSize:10, color:'#555', fontWeight:700, textTransform:'uppercase', width:40, flexShrink:0 }}>{f.label}</div>
@@ -93,72 +152,50 @@ function RvsmBoxes({ value, onChange }) {
   );
 }
 
-function DepModal({ onClose, onSave, initial }) {
+function DepModal({ dep, onClose, onSave, initial }) {
   const [offBlock, setOffBlock] = useState(initial.offBlock || '');
   const [toTime,   setToTime]   = useState(initial.toTime   || '');
   const [toFuel,   setToFuel]   = useState(initial.toFuel   || '');
-
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }}>
       <div style={{ background:'#252525', border:'1px solid #383838', borderRadius:12, width:320, overflow:'hidden' }}>
         <div style={{ background:'#1f1f1f', padding:'10px 16px', borderBottom:'1px solid #383838', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <span style={{ fontSize:12, fontWeight:700, color:'#1a9bc4' }}>LTAC — Departure Data</span>
+          <span style={{ fontSize:12, fontWeight:700, color:'#1a9bc4' }}>{dep} — Departure Data</span>
           <span onClick={onClose} style={{ color:'#555', cursor:'pointer', fontSize:20, lineHeight:1 }}>×</span>
         </div>
         <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:14 }}>
-          <div>
-            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Off Block</div>
-            <TimeBox value={offBlock} onChange={setOffBlock} />
-          </div>
-          <div>
-            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>T/O Time</div>
-            <TimeBox value={toTime} onChange={setToTime} />
-          </div>
-          <div>
-            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>T/O Fuel</div>
-            <FuelBox value={toFuel} onChange={setToFuel} placeholder="lb" />
-          </div>
+          <div><div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Off Block</div><TimeBox value={offBlock} onChange={setOffBlock} /></div>
+          <div><div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>T/O Time</div><TimeBox value={toTime} onChange={setToTime} /></div>
+          <div><div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>T/O Fuel</div><FuelBox value={toFuel} onChange={setToFuel} placeholder="lb" /></div>
         </div>
         <div style={{ padding:'0 16px 16px', display:'flex', gap:8 }}>
           <button onClick={onClose} style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
-          <button onClick={() => onSave({ offBlock, toTime, toFuel })}
-            style={{ flex:2, background:'#1a9bc4', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>Save</button>
+          <button onClick={() => onSave({ offBlock, toTime, toFuel })} style={{ flex:2, background:'#1a9bc4', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>Save</button>
         </div>
       </div>
     </div>
   );
 }
 
-function DestModal({ onClose, onSave, initial }) {
+function DestModal({ dest, onClose, onSave, initial }) {
   const [lndTime, setLndTime] = useState(initial.lndTime || '');
   const [onBlock, setOnBlock] = useState(initial.onBlock  || '');
   const [remFuel, setRemFuel] = useState(initial.remFuel  || '');
-
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }}>
       <div style={{ background:'#252525', border:'1px solid #383838', borderRadius:12, width:320, overflow:'hidden' }}>
         <div style={{ background:'#1f1f1f', padding:'10px 16px', borderBottom:'1px solid #383838', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <span style={{ fontSize:12, fontWeight:700, color:'#1a9bc4' }}>LTBA — Arrival Data</span>
+          <span style={{ fontSize:12, fontWeight:700, color:'#1a9bc4' }}>{dest} — Arrival Data</span>
           <span onClick={onClose} style={{ color:'#555', cursor:'pointer', fontSize:20, lineHeight:1 }}>×</span>
         </div>
         <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:14 }}>
-          <div>
-            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Landing Time</div>
-            <TimeBox value={lndTime} onChange={setLndTime} />
-          </div>
-          <div>
-            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>On Block</div>
-            <TimeBox value={onBlock} onChange={setOnBlock} />
-          </div>
-          <div>
-            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Remaining Fuel</div>
-            <FuelBox value={remFuel} onChange={setRemFuel} />
-          </div>
+          <div><div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Landing Time</div><TimeBox value={lndTime} onChange={setLndTime} /></div>
+          <div><div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>On Block</div><TimeBox value={onBlock} onChange={setOnBlock} /></div>
+          <div><div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Remaining Fuel</div><FuelBox value={remFuel} onChange={setRemFuel} /></div>
         </div>
         <div style={{ padding:'0 16px 16px', display:'flex', gap:8 }}>
           <button onClick={onClose} style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
-          <button onClick={() => onSave({ lndTime, onBlock, remFuel })}
-            style={{ flex:2, background:'#1a9bc4', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>Save</button>
+          <button onClick={() => onSave({ lndTime, onBlock, remFuel })} style={{ flex:2, background:'#1a9bc4', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>Save</button>
         </div>
       </div>
     </div>
@@ -170,7 +207,6 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, initial, wptList }) {
   const [fuel,   setFuel]   = useState(initial.fuel || '');
   const [rvsm,   setRvsm]   = useState(initial.rvsm || '');
   const [showDT, setShowDT] = useState(false);
-
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }}>
       <div style={{ background:'#252525', border:'1px solid #383838', borderRadius:12, width:320, overflow:'hidden', maxHeight:'85vh', overflowY:'auto' }}>
@@ -179,14 +215,8 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, initial, wptList }) {
           <span onClick={onClose} style={{ color:'#555', cursor:'pointer', fontSize:20, lineHeight:1 }}>×</span>
         </div>
         <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:14 }}>
-          <div>
-            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>ATA</div>
-            <TimeBox value={ata} onChange={setAta} />
-          </div>
-          <div>
-            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Fuel Remaining</div>
-            <FuelBox value={fuel} onChange={setFuel} />
-          </div>
+          <div><div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>ATA</div><TimeBox value={ata} onChange={setAta} /></div>
+          <div><div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Fuel Remaining</div><FuelBox value={fuel} onChange={setFuel} /></div>
           <div>
             <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>RVSM Altimeter Check</div>
             <RvsmBoxes value={rvsm} onChange={setRvsm} />
@@ -211,49 +241,89 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, initial, wptList }) {
         </div>
         <div style={{ padding:'0 16px 16px', display:'flex', gap:8 }}>
           <button onClick={onClose} style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
-          <button onClick={() => onSave({ ata, fuel, rvsm })}
-            style={{ flex:2, background:'#1a9bc4', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>Save</button>
+          <button onClick={() => onSave({ ata, fuel, rvsm })} style={{ flex:2, background:'#1a9bc4', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>Save</button>
         </div>
       </div>
     </div>
   );
 }
 
-function NavLog({ flightData, updateFlight, setStatus }) {
+// ─── NavLog Main ──────────────────────────────────────────────────────────────
+function NavLog({ flightData, updateFlight, setStatus, activePlan }) {
   const [entries, setEntries]             = useState({});
   const [modal, setModal]                 = useState(null);
   const [directTo, setDirectTo]           = useState(null);
   const [alert50, setAlert50]             = useState(false);
   const [lastCheckTime, setLastCheckTime] = useState(null);
+  const [waypoints, setWaypoints]         = useState([]);
+  const [rawText, setRawText]             = useState('');
+
+  const dep  = activePlan?.dep  || 'DEP';
+  const dest = activePlan?.dest || 'DEST';
+  const std  = activePlan?.std  || '';
+
+  // Fetch raw_text and parse waypoints
+  useEffect(() => {
+    if (!activePlan?.id) {
+      // Fallback: just dep and dest
+      setWaypoints([
+        { id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null },
+        { id: dest, name: dest, type: 'dest', eta: '—',        fl: '—', planFuel: null },
+      ]);
+      return;
+    }
+    const fetchRaw = async () => {
+      const { data } = await supabase
+        .from('plan_versions')
+        .select('raw_text')
+        .eq('plan_id', activePlan.id)
+        .order('version_no', { ascending: false })
+        .limit(1)
+        .single();
+      if (data?.raw_text) {
+        setRawText(data.raw_text);
+        const wpts = parseWaypoints(data.raw_text, dep, dest, std);
+        setWaypoints(wpts.length >= 2 ? wpts : [
+          { id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null },
+          { id: dest, name: dest, type: 'dest', eta: '—',        fl: '—', planFuel: null },
+        ]);
+      }
+    };
+    fetchRaw();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePlan?.id]);
+
+  // Reset entries when plan changes
+  useEffect(() => {
+    setEntries({});
+    setDirectTo(null);
+    setAlert50(false);
+    setLastCheckTime(null);
+  }, [activePlan?.id]);
 
   useEffect(() => {
     if (!lastCheckTime) return;
     const interval = setInterval(() => {
-      if (Date.now() - lastCheckTime >= FIFTY_MIN) {
-        setAlert50(true);
-      }
+      if (Date.now() - lastCheckTime >= FIFTY_MIN) setAlert50(true);
     }, 10000);
     return () => clearInterval(interval);
   }, [lastCheckTime]);
 
-  // setStatus logic
-  const depDone  = !!(entries['LTAC'] && (entries['LTAC'].offBlock || entries['LTAC'].toTime));
-  const destDone = !!(entries['LTBA'] && (entries['LTBA'].lndTime  || entries['LTBA'].onBlock));
+  const depDone  = !!(entries[dep]  && (entries[dep].offBlock  || entries[dep].toTime));
+  const destDone = !!(entries[dest] && (entries[dest].lndTime  || entries[dest].onBlock));
 
   useEffect(() => {
     if (!setStatus) return;
     if (depDone && destDone) setStatus('green');
     else if (depDone)        setStatus('amber');
     else                     setStatus('pending');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [depDone, destDone]);
+  }, [depDone, destDone, setStatus]);
 
-  const updateEntry = (id, data) => {
+  const updateEntry = (id, data) =>
     setEntries(prev => ({ ...prev, [id]: { ...(prev[id] || {}), ...data } }));
-  };
 
   const handleDepSave = (data) => {
-    updateEntry('LTAC', data);
+    updateEntry(dep, data);
     updateFlight('offBlock',    data.offBlock);
     updateFlight('takeoffTime', data.toTime);
     updateFlight('takeoffFuel', data.toFuel);
@@ -262,7 +332,7 @@ function NavLog({ flightData, updateFlight, setStatus }) {
   };
 
   const handleDestSave = (data) => {
-    updateEntry('LTBA', data);
+    updateEntry(dest, data);
     updateFlight('landingTime',   data.lndTime);
     updateFlight('onBlock',       data.onBlock);
     updateFlight('remainingFuel', data.remFuel);
@@ -282,20 +352,20 @@ function NavLog({ flightData, updateFlight, setStatus }) {
   };
 
   const getToFuel = () => {
-    const dep = entries['LTAC'];
-    return dep && dep.toFuel ? parseInt(dep.toFuel.replace(/,/g,'')) : null;
+    const d = entries[dep];
+    return d?.toFuel ? parseInt(d.toFuel.replace(/,/g,'')) : null;
   };
 
   const getFuelAtDest = (wpt) => {
     const e = entries[wpt.id];
-    if (!e || !e.fuel) return null;
+    if (!e?.fuel) return null;
     return parseInt(e.fuel.replace(/,/g,''));
   };
 
   const isSkipped = (wpt, idx) => {
     if (!directTo) return false;
-    const fromIdx = WAYPOINTS.findIndex(w => w.id === directTo.from);
-    const toIdx   = WAYPOINTS.findIndex(w => w.id === directTo.to);
+    const fromIdx = waypoints.findIndex(w => w.id === directTo.from);
+    const toIdx   = waypoints.findIndex(w => w.id === directTo.to);
     return idx > fromIdx && idx < toIdx;
   };
 
@@ -303,6 +373,8 @@ function NavLog({ flightData, updateFlight, setStatus }) {
   const lastCheckStr = lastCheckTime
     ? new Date(lastCheckTime).toTimeString().slice(0,5) + ' Z'
     : '—';
+
+  const modalWpt = waypoints.find(w => w.id === modal);
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
@@ -321,7 +393,7 @@ function NavLog({ flightData, updateFlight, setStatus }) {
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:1, background:'#383838', borderBottom:'1px solid #383838', flexShrink:0 }}>
         {[
           { label:'T/O Fuel',   value: toFuel ? `${toFuel.toLocaleString()} lb` : '—', color:'#e8e8e8' },
-          { label:'T/O Time',   value: entries['LTAC'] ? (entries['LTAC'].toTime || '—') : '—', color:'#1a9bc4' },
+          { label:'T/O Time',   value: entries[dep]?.toTime || '—', color:'#1a9bc4' },
           { label:'Last Check', value: lastCheckStr, color: alert50 ? '#e02020' : '#1a9bc4' },
         ].map((s, i) => (
           <div key={i} style={{ background:'#2a2a2a', padding:'9px 12px' }}>
@@ -338,7 +410,9 @@ function NavLog({ flightData, updateFlight, setStatus }) {
       </div>
 
       <div style={{ flex:1, overflowY:'auto' }}>
-        {WAYPOINTS.map((wpt, idx) => {
+        {waypoints.length === 0 ? (
+          <div style={{ padding:20, textAlign:'center', color:'#444', fontSize:12 }}>Loading waypoints...</div>
+        ) : waypoints.map((wpt, idx) => {
           const e       = entries[wpt.id] || {};
           const skipped = isSkipped(wpt, idx);
           const isDep   = wpt.type === 'dep';
@@ -346,7 +420,7 @@ function NavLog({ flightData, updateFlight, setStatus }) {
           const isDone  = isDep  ? !!(e.offBlock || e.toTime)
                         : isDest ? !!(e.lndTime  || e.onBlock)
                         : !!(e.ata || e.fuel);
-          const isActive = !isDone && !skipped && (idx === 0 || WAYPOINTS.slice(0, idx).every((w, wi) => {
+          const isActive = !isDone && !skipped && (idx === 0 || waypoints.slice(0, idx).every((w, wi) => {
             const pe = entries[w.id] || {};
             return w.type === 'dep' ? !!(pe.offBlock || pe.toTime)
                                     : !!(pe.ata || pe.fuel) || isSkipped(w, wi);
@@ -359,7 +433,7 @@ function NavLog({ flightData, updateFlight, setStatus }) {
           const rvsmDisplay = e.rvsm ? rvsmParts[0] + '…' : (isDep || isDest ? 'N/A' : '—');
 
           return (
-            <div key={wpt.id} onClick={() => !skipped && setModal(wpt.id)}
+            <div key={wpt.id + idx} onClick={() => !skipped && setModal(wpt.id)}
               style={{ display:'grid', gridTemplateColumns:'70px 50px 50px 45px 60px 70px 65px 1fr', padding:'10px', borderBottom:'1px solid #383838', background:bgColor, borderLeft, cursor: skipped ? 'default' : 'pointer', opacity: skipped ? 0.3 : 1, alignItems:'center' }}>
               <div>
                 <div style={{ fontSize:12, fontWeight:700, fontFamily:'monospace', color: isDep||isDest ? '#1a9bc4' : isDone ? '#2d9e5f' : isActive ? '#1a9bc4' : '#666' }}>{wpt.name}</div>
@@ -392,15 +466,19 @@ function NavLog({ flightData, updateFlight, setStatus }) {
 
       <SyncButton />
 
-      {modal === 'LTAC' && <DepModal onClose={() => setModal(null)} onSave={handleDepSave} initial={entries['LTAC'] || {}} />}
-      {modal === 'LTBA' && <DestModal onClose={() => setModal(null)} onSave={handleDestSave} initial={entries['LTBA'] || {}} />}
-      {modal && modal !== 'LTAC' && modal !== 'LTBA' && (() => {
-        const wpt      = WAYPOINTS.find(w => w.id === modal);
-        const wptIdx   = WAYPOINTS.indexOf(wpt);
-        const afterWpt = WAYPOINTS.filter((w, i) => i > wptIdx && w.type !== 'dest');
+      {/* Modals */}
+      {modal === dep && (
+        <DepModal dep={dep} onClose={() => setModal(null)} onSave={handleDepSave} initial={entries[dep] || {}} />
+      )}
+      {modal === dest && (
+        <DestModal dest={dest} onClose={() => setModal(null)} onSave={handleDestSave} initial={entries[dest] || {}} />
+      )}
+      {modal && modal !== dep && modal !== dest && modalWpt && (() => {
+        const wptIdx   = waypoints.indexOf(modalWpt);
+        const afterWpt = waypoints.filter((w, i) => i > wptIdx && w.type !== 'dest');
         return (
           <WptModal
-            wpt={wpt}
+            wpt={modalWpt}
             onClose={() => setModal(null)}
             onSave={(data) => handleWptSave(modal, data)}
             onDirectTo={(toId) => handleDirectTo(modal, toId)}

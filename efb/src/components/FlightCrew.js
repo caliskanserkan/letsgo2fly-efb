@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const pilots = [
+const ALL_PILOTS = [
   { code: 'AAK', name: 'Capt. Ahmet Akpinar' },
   { code: 'SEL', name: 'Capt. Selcuk Ekinci' },
   { code: 'SCL', name: 'Capt. Serkan Caliskan' },
@@ -29,57 +29,55 @@ function PilotRow({ pilot, role, onSelect }) {
   );
 }
 
-function FlightCrew({ setStatus }) {
+function FlightCrew({ setStatus, activePlan }) {
   const [pf, setPF] = useState('AAK');
   const [pm, setPM] = useState('SEL');
 
   const handleSelect = (code) => {
-    if (pf === code) {
-      setPF(pm);
-      setPM(code);
-    } else if (pm === code) {
-      setPM(pf);
-      setPF(code);
-    } else {
-      setPF(code);
-    }setStatus('green');
+    if (pf === code) { setPF(pm); setPM(code); }
+    else if (pm === code) { setPM(pf); setPF(code); }
+    else { setPF(code); }
+    setStatus('green');
   };
+
+  // Aktif plandan veri çek, yoksa varsayılan göster
+  const flightId  = activePlan?.callsign || activePlan?.dispatch_no || '—';
+  const logNr     = activePlan?.log_nr   || '—';
+  const dof       = activePlan?.date     || '—';
+  const std       = activePlan?.std      || '—';
+  const aircraft  = activePlan ? `${activePlan.reg || '—'} / ${activePlan.ac_type || '—'}` : '—';
+  const dep       = activePlan?.dep      || '—';
+  const dest      = activePlan?.dest     || '—';
+  const alternate = activePlan?.alternate|| '—';
 
   return (
     <div>
-      {/* Flight Info */}
       <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>Flight Information</div>
-      <Row label="Flight ID / Log no." value="GO2TCREC / 5359 / FMS S3791" />
-      <Row label="DOF / STD" value="11 APR 2026 · 09:00 Z" />
-      <Row label="Aircraft" value="TC-REC / GLF4" />
-      <Row label="Departure" value="LTAC / ESB / ANKARA ESENBOGA" />
-      <Row label="Destination" value="LTBA / ISL / ISTANBUL ATATURK" />
-      <Row label="Alternate 1" value="LTFM / IST / ISTANBUL" />
+      <Row label="Flight ID / Log no." value={`${flightId} / FMS ${logNr}`} />
+      <Row label="DOF / STD"           value={`${dof} · ${std} Z`} />
+      <Row label="Aircraft"            value={aircraft} />
+      <Row label="Departure"           value={dep} />
+      <Row label="Destination"         value={dest} />
+      <Row label="Alternate 1"         value={alternate} />
 
-      {/* Divider */}
       <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />
 
-      {/* Crew */}
       <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>Crew Assignment</div>
-
       <div style={{ margin:'8px 16px', background:'#2e2e2e', border:'1px solid #383838', borderRadius:8, overflow:'hidden' }}>
         <div style={{ background:'#1f1f1f', color:'#555', padding:'7px 12px', fontSize:10, fontWeight:700, letterSpacing:0.8, borderBottom:'1px solid #383838', textTransform:'uppercase' }}>
           Tap to rotate PF / PM
         </div>
-        {pilots.map(p => (
-          <PilotRow
-            key={p.code}
-            pilot={p}
+        {ALL_PILOTS.map(p => (
+          <PilotRow key={p.code} pilot={p}
             role={pf === p.code ? 'PF' : pm === p.code ? 'PM' : null}
             onSelect={() => handleSelect(p.code)}
           />
         ))}
       </div>
 
-      {/* PF/PM summary */}
       <div style={{ margin:'8px 16px', padding:'10px 12px', borderRadius:6, background:'rgba(26,155,196,0.08)', borderLeft:'3px solid #1a9bc4', fontSize:11, color:'#7bbdd4', lineHeight:1.6 }}>
-        PF: <b>{pilots.find(p => p.code === pf)?.name}</b><br />
-        PM: <b>{pilots.find(p => p.code === pm)?.name}</b>
+        PF: <b>{ALL_PILOTS.find(p => p.code === pf)?.name}</b><br />
+        PM: <b>{ALL_PILOTS.find(p => p.code === pm)?.name}</b>
       </div>
     </div>
   );

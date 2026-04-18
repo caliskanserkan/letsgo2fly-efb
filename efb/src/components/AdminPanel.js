@@ -9,13 +9,22 @@ const supabase = createClient(
   process.env.REACT_APP_SUPABASE_ANON_KEY
 );
 
+// ─── Aircraft List ────────────────────────────────────────────────────────────
+const AIRCRAFT_LIST = {
+  "Gulfstream":     ["GIV","GIV-SP","GV","G200","G280","G450","G500","G550","G600","G650","G700"],
+  "Bombardier":     ["Challenger 300","Challenger 350","Challenger 604","Challenger 605","Challenger 650","Global 5000","Global 6000","Global 7500"],
+  "Embraer":        ["Phenom 100","Phenom 300","Legacy 450","Legacy 500","Legacy 600","Legacy 650"],
+  "Dassault Falcon":["Falcon 900","Falcon 900LX","Falcon 2000","Falcon 2000LX","Falcon 7X","Falcon 8X"],
+};
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const S = {
   root: {
     minHeight: "100vh",
     background: "#0a0c10",
-    color: "#c8cdd8",
+    color: "#ffffff",
     fontFamily: "'Courier New', Courier, monospace",
+    fontWeight: "bold",
   },
   topBar: {
     background: "#0d1117",
@@ -56,7 +65,7 @@ const S = {
   backBtn: {
     background: "none",
     border: "1px solid #2a3040",
-    color: "#7a8494",
+    color: "#ffffff",
     padding: "6px 14px",
     cursor: "pointer",
     fontSize: "11px",
@@ -78,12 +87,12 @@ const S = {
     background: "none",
     border: "none",
     borderBottom: active ? "2px solid #e8a020" : "2px solid transparent",
-    color: active ? "#e8a020" : "#5a6474",
+    color: active ? "#e8a020" : "#ffffff",
     cursor: "pointer",
     fontSize: "11px",
     letterSpacing: "2px",
     fontFamily: "inherit",
-    fontWeight: active ? "bold" : "normal",
+    fontWeight: "bold",
     marginBottom: "-1px",
   }),
   card: {
@@ -110,11 +119,11 @@ const S = {
   th: {
     textAlign: "left",
     padding: "8px 10px",
-    color: "#4a5464",
+    color: "#ffffff",
     fontSize: "10px",
     letterSpacing: "2px",
     borderBottom: "1px solid #1a2030",
-    fontWeight: "normal",
+    fontWeight: "bold",
   },
   td: {
     padding: "10px 10px",
@@ -127,14 +136,14 @@ const S = {
     fontSize: "9px",
     letterSpacing: "1px",
     background: color === "green" ? "#0a1a10" : color === "amber" ? "#1a1000" : "#141820",
-    color: color === "green" ? "#30c060" : color === "amber" ? "#e8a020" : "#4a5464",
+    color: color === "green" ? "#30c060" : color === "amber" ? "#e8a020" : "#ffffff",
     border: `1px solid ${color === "green" ? "#1a4030" : color === "amber" ? "#4a3010" : "#2a3040"}`,
   }),
   input: {
     width: "100%",
     background: "#080c12",
     border: "1px solid #1e2530",
-    color: "#c8cdd8",
+    color: "#ffffff",
     padding: "8px 12px",
     fontSize: "12px",
     fontFamily: "inherit",
@@ -145,7 +154,7 @@ const S = {
     width: "100%",
     background: "#080c12",
     border: "1px solid #1e2530",
-    color: "#c8cdd8",
+    color: "#ffffff",
     padding: "8px 12px",
     fontSize: "12px",
     fontFamily: "inherit",
@@ -156,7 +165,7 @@ const S = {
   label: {
     display: "block",
     fontSize: "10px",
-    color: "#4a5464",
+    color: "#ffffff",
     letterSpacing: "2px",
     marginBottom: "6px",
   },
@@ -184,7 +193,7 @@ const S = {
   },
   btnSecondary: {
     background: "none",
-    color: "#7a8494",
+    color: "#ffffff",
     border: "1px solid #2a3040",
     padding: "5px 12px",
     fontSize: "10px",
@@ -220,13 +229,13 @@ const S = {
     border: "1px solid #2a3040",
     padding: "28px",
     minWidth: "380px",
-    maxWidth: "480px",
+    maxWidth: "500px",
     width: "90%",
   },
   empty: {
     textAlign: "center",
     padding: "40px 20px",
-    color: "#3a4454",
+    color: "#ffffff",
     fontSize: "11px",
     letterSpacing: "2px",
   },
@@ -249,7 +258,7 @@ function Modal({ title, children, onClose }) {
       <div style={S.modalBox}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", paddingBottom: "10px", borderBottom: "1px solid #1a2030" }}>
           <span style={{ fontSize: "11px", color: "#e8a020", letterSpacing: "3px", fontWeight: "bold" }}>{title}</span>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#4a5464", cursor: "pointer", fontSize: "16px", fontFamily: "inherit" }}>✕</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#ffffff", cursor: "pointer", fontSize: "16px", fontFamily: "inherit" }}>✕</button>
         </div>
         {children}
       </div>
@@ -257,32 +266,179 @@ function Modal({ title, children, onClose }) {
   );
 }
 
-// ─── TAB 1: User Management ───────────────────────────────────────────────────
+// ─── Aircraft Select Component ────────────────────────────────────────────────
+function AircraftSelect({ value, onChange }) {
+  const [manufacturer, setManufacturer] = useState(() => {
+    for (const [mfr, models] of Object.entries(AIRCRAFT_LIST)) {
+      if (models.includes(value)) return mfr;
+    }
+    return "";
+  });
+
+  const models = manufacturer ? AIRCRAFT_LIST[manufacturer] : [];
+
+  return (
+    <div style={S.grid2}>
+      <div>
+        <label style={S.label}>MANUFACTURER</label>
+        <select style={S.select} value={manufacturer} onChange={(e) => { setManufacturer(e.target.value); onChange(""); }}>
+          <option value="">— Select —</option>
+          {Object.keys(AIRCRAFT_LIST).map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </div>
+      <div>
+        <label style={S.label}>MODEL</label>
+        <select style={S.select} value={value} onChange={(e) => onChange(e.target.value)} disabled={!manufacturer}>
+          <option value="">— Select —</option>
+          {models.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+// ─── TAB 1: Customers ────────────────────────────────────────────────────────
+function Customers({ toast }) {
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ company_name: "", icao_code: "", contact_email: "", phone: "" });
+
+  const fetchCustomers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from("customers").select("*").order("company_name", { ascending: true });
+      if (error) throw error;
+      setCustomers(data || []);
+    } catch { setCustomers([]); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
+
+  const handleAdd = async () => {
+    if (!form.company_name) { toast("Company name is required.", "error"); return; }
+    try {
+      const { error } = await supabase.from("customers").insert(form);
+      if (error) throw error;
+      toast("Customer added.", "success");
+      setShowAdd(false);
+      setForm({ company_name: "", icao_code: "", contact_email: "", phone: "" });
+      fetchCustomers();
+    } catch (e) { toast(e.message, "error"); }
+  };
+
+  const handleDelete = async (id, name) => {
+    if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return;
+    try {
+      await supabase.from("customers").delete().eq("id", id);
+      toast("Customer deleted.", "success");
+      fetchCustomers();
+    } catch (e) { toast(e.message, "error"); }
+  };
+
+  return (
+    <div>
+      <div style={S.card}>
+        <div style={S.cardHeader}>
+          <span style={S.cardTitle}>CUSTOMER LIST</span>
+          <button style={S.btnPrimary} onClick={() => setShowAdd(true)}>+ ADD CUSTOMER</button>
+        </div>
+        {loading ? <div style={S.empty}>LOADING...</div> : customers.length === 0 ? (
+          <div style={S.empty}>NO CUSTOMERS FOUND</div>
+        ) : (
+          <table style={S.table}>
+            <thead>
+              <tr>
+                <th style={S.th}>COMPANY</th>
+                <th style={S.th}>ICAO</th>
+                <th style={S.th}>EMAIL</th>
+                <th style={S.th}>PHONE</th>
+                <th style={S.th}>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map((c) => (
+                <tr key={c.id}>
+                  <td style={{ ...S.td, color: "#e8a020", fontWeight: "bold" }}>{c.company_name}</td>
+                  <td style={S.td}>{c.icao_code || "—"}</td>
+                  <td style={{ ...S.td, color: "#ffffff" }}>{c.contact_email || "—"}</td>
+                  <td style={{ ...S.td, color: "#ffffff" }}>{c.phone || "—"}</td>
+                  <td style={S.td}>
+                    <button style={S.btnDanger} onClick={() => handleDelete(c.id, c.company_name)}>DELETE</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {showAdd && (
+        <Modal title="ADD CUSTOMER" onClose={() => setShowAdd(false)}>
+          <div style={S.formGroup}>
+            <label style={S.label}>COMPANY NAME *</label>
+            <input style={S.input} placeholder="Acme Aviation Ltd." value={form.company_name}
+              onChange={(e) => setForm({ ...form, company_name: e.target.value })} />
+          </div>
+          <div style={S.formGroup}>
+            <label style={S.label}>ICAO / OPERATOR CODE</label>
+            <input style={S.input} placeholder="ACM" maxLength={4} value={form.icao_code}
+              onChange={(e) => setForm({ ...form, icao_code: e.target.value.toUpperCase() })} />
+          </div>
+          <div style={S.formGroup}>
+            <label style={S.label}>CONTACT EMAIL</label>
+            <input style={S.input} type="email" placeholder="ops@company.com" value={form.contact_email}
+              onChange={(e) => setForm({ ...form, contact_email: e.target.value })} />
+          </div>
+          <div style={S.formGroup}>
+            <label style={S.label}>PHONE</label>
+            <input style={S.input} placeholder="+90 555 000 0000" value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "20px" }}>
+            <button style={S.btnSecondary} onClick={() => setShowAdd(false)}>CANCEL</button>
+            <button style={S.btnPrimary} onClick={handleAdd}>SAVE</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── TAB 2: User Management ───────────────────────────────────────────────────
 function UserManagement({ toast }) {
   const [users, setUsers] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [showPw, setShowPw] = useState(null);
-  const [form, setForm] = useState({ email: "", password: "", full_name: "", code: "", role: "pilot" });
+  const [form, setForm] = useState({
+    email: "", password: "", full_name: "", code: "",
+    role: "pilot", customer_id: "", aircraft_type: "",
+  });
   const [newPw, setNewPw] = useState("");
 
-  const fetchUsers = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      setUsers(data || []);
+      const [{ data: u }, { data: c }] = await Promise.all([
+        supabase.from("profiles").select("*, customers(company_name)").order("created_at", { ascending: false }),
+        supabase.from("customers").select("id, company_name").order("company_name"),
+      ]);
+      setUsers(u || []);
+      setCustomers(c || []);
     } catch {
       setUsers([
         { id: "1", email: "ahmet.akpinar@go2fly.com", full_name: "Capt. Ahmet Akpinar", code: "AAK", role: "pilot", created_at: new Date().toISOString() },
-        { id: "2", email: "selcuk.ekinci@go2fly.com", full_name: "Capt. Selcuk Ekinci", code: "SEL", role: "pilot", created_at: new Date().toISOString() },
+        { id: "2", email: "selcuk.ekinci@go2fly.com", full_name: "Capt. Selcuk Ekinci",  code: "SEL", role: "pilot", created_at: new Date().toISOString() },
         { id: "3", email: "serkan.caliskan@go2fly.com", full_name: "Capt. Serkan Caliskan", code: "SCL", role: "admin", created_at: new Date().toISOString() },
       ]);
     }
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const handleAdd = async () => {
     if (!form.email || !form.password || !form.full_name) {
@@ -297,14 +453,19 @@ function UserManagement({ toast }) {
       if (error) throw error;
       if (data.user) {
         await supabase.from("profiles").upsert({
-          id: data.user.id, email: form.email,
-          full_name: form.full_name, code: form.code, role: form.role,
+          id: data.user.id,
+          email: form.email,
+          full_name: form.full_name,
+          code: form.code,
+          role: form.role,
+          customer_id: form.customer_id || null,
+          aircraft_type: form.aircraft_type || null,
         });
       }
       toast("User created. Awaiting email confirmation.", "success");
       setShowAdd(false);
-      setForm({ email: "", password: "", full_name: "", code: "", role: "pilot" });
-      fetchUsers();
+      setForm({ email: "", password: "", full_name: "", code: "", role: "pilot", customer_id: "", aircraft_type: "" });
+      fetchAll();
     } catch (e) { toast(e.message, "error"); }
   };
 
@@ -313,7 +474,7 @@ function UserManagement({ toast }) {
     try {
       await supabase.from("profiles").delete().eq("id", id);
       toast("User deleted.", "success");
-      fetchUsers();
+      fetchAll();
     } catch (e) { toast(e.message, "error"); }
   };
 
@@ -342,7 +503,8 @@ function UserManagement({ toast }) {
                 <th style={S.th}>FULL NAME</th>
                 <th style={S.th}>EMAIL</th>
                 <th style={S.th}>ROLE</th>
-                <th style={S.th}>CREATED</th>
+                <th style={S.th}>COMPANY</th>
+                <th style={S.th}>AIRCRAFT</th>
                 <th style={S.th}>ACTIONS</th>
               </tr>
             </thead>
@@ -351,11 +513,10 @@ function UserManagement({ toast }) {
                 <tr key={u.id}>
                   <td style={S.td}><span style={{ color: "#e8a020", fontWeight: "bold", fontSize: "13px" }}>{u.code || "—"}</span></td>
                   <td style={S.td}>{u.full_name}</td>
-                  <td style={{ ...S.td, color: "#7a8494" }}>{u.email}</td>
+                  <td style={{ ...S.td, color: "#ffffff" }}>{u.email}</td>
                   <td style={S.td}><span style={S.badge(u.role === "admin" ? "amber" : "green")}>{u.role?.toUpperCase()}</span></td>
-                  <td style={{ ...S.td, color: "#4a5464", fontSize: "10px" }}>
-                    {u.created_at ? new Date(u.created_at).toLocaleDateString("en-GB") : "—"}
-                  </td>
+                  <td style={{ ...S.td, color: "#ffffff" }}>{u.customers?.company_name || "—"}</td>
+                  <td style={{ ...S.td, color: "#ffffff" }}>{u.aircraft_type || "—"}</td>
                   <td style={S.td}>
                     <div style={{ display: "flex", gap: "8px" }}>
                       <button style={S.btnSecondary} onClick={() => { setShowPw(u); setNewPw(""); }}>PASSWORD</button>
@@ -391,8 +552,18 @@ function UserManagement({ toast }) {
             </div>
           </div>
           <div style={S.formGroup}>
+            <label style={S.label}>COMPANY</label>
+            <select style={S.select} value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })}>
+              <option value="">— Select —</option>
+              {customers.map((c) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+            </select>
+          </div>
+          <div style={{ ...S.formGroup }}>
+            <AircraftSelect value={form.aircraft_type} onChange={(v) => setForm({ ...form, aircraft_type: v })} />
+          </div>
+          <div style={S.formGroup}>
             <label style={S.label}>EMAIL *</label>
-            <input style={S.input} type="email" placeholder="pilot@go2fly.com" value={form.email}
+            <input style={S.input} type="email" placeholder="pilot@company.com" value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </div>
           <div style={S.formGroup}>
@@ -409,7 +580,7 @@ function UserManagement({ toast }) {
 
       {showPw && (
         <Modal title="CHANGE PASSWORD" onClose={() => setShowPw(null)}>
-          <div style={{ color: "#7a8494", fontSize: "11px", marginBottom: "16px" }}>
+          <div style={{ color: "#ffffff", fontSize: "11px", marginBottom: "16px" }}>
             {showPw.full_name} — {showPw.email}
           </div>
           <div style={S.formGroup}>
@@ -427,30 +598,28 @@ function UserManagement({ toast }) {
   );
 }
 
-// ─── TAB 2: OFP Management ────────────────────────────────────────────────────
+// ─── TAB 3: OFP Management ────────────────────────────────────────────────────
 function OFPManagement({ toast }) {
   const [plans, setPlans] = useState([]);
+  const [pilots, setPilots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [assignModal, setAssignModal] = useState(null);
   const [assignForm, setAssignForm] = useState({ pic: "", fo: "" });
 
-  const PILOTS = [
-    { code: "AAK", name: "Capt. Ahmet Akpinar" },
-    { code: "SEL", name: "Capt. Selcuk Ekinci" },
-    { code: "SCL", name: "Capt. Serkan Caliskan" },
-  ];
-
   useEffect(() => {
-    const fetchPlans = async () => {
+    const fetchAll = async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase.from("plans").select("*").order("created_at", { ascending: false }).limit(50);
-        if (error) throw error;
-        setPlans(data || []);
+        const [{ data: p }, { data: u }] = await Promise.all([
+          supabase.from("plans").select("*, customers(company_name)").order("created_at", { ascending: false }).limit(50),
+          supabase.from("profiles").select("code, full_name").eq("role", "pilot").order("full_name"),
+        ]);
+        setPlans(p || []);
+        setPilots(u || []);
       } catch { setPlans([]); }
       setLoading(false);
     };
-    fetchPlans();
+    fetchAll();
   }, []);
 
   const handleAssign = async () => {
@@ -474,7 +643,7 @@ function OFPManagement({ toast }) {
       <div style={S.card}>
         <div style={S.cardHeader}>
           <span style={S.cardTitle}>OFP / PLAN MANAGEMENT</span>
-          <span style={{ fontSize: "10px", color: "#4a5464" }}>PDF upload via Dashboard</span>
+          <span style={{ fontSize: "10px", color: "#ffffff" }}>PDF upload via Dashboard</span>
         </div>
         {loading ? <div style={S.empty}>LOADING...</div> : plans.length === 0 ? (
           <div style={S.empty}>NO PLANS FOUND</div>
@@ -484,6 +653,7 @@ function OFPManagement({ toast }) {
               <tr>
                 <th style={S.th}>FLIGHT NO</th>
                 <th style={S.th}>ROUTE</th>
+                <th style={S.th}>CUSTOMER</th>
                 <th style={S.th}>STATUS</th>
                 <th style={S.th}>PIC</th>
                 <th style={S.th}>F/O</th>
@@ -494,12 +664,13 @@ function OFPManagement({ toast }) {
             <tbody>
               {plans.map((p) => (
                 <tr key={p.id}>
-                  <td style={{ ...S.td, color: "#e8a020", fontWeight: "bold" }}>{p.flight_number || p.callsign || p.dispatch_no || "—"}</td>
+                  <td style={{ ...S.td, color: "#e8a020", fontWeight: "bold" }}>{p.dispatch_no || p.flight_number || "—"}</td>
                   <td style={S.td}>{p.dep || "—"} → {p.dest || "—"}</td>
+                  <td style={{ ...S.td, color: "#ffffff" }}>{p.customers?.company_name || "—"}</td>
                   <td style={S.td}><span style={S.badge(statusColor(p.status))}>{(p.status || "—").toUpperCase()}</span></td>
-                  <td style={S.td}>{p.assigned_pic || <span style={{ color: "#3a4454" }}>UNASSIGNED</span>}</td>
-                  <td style={S.td}>{p.assigned_fo || <span style={{ color: "#3a4454" }}>UNASSIGNED</span>}</td>
-                  <td style={{ ...S.td, color: "#4a5464", fontSize: "10px" }}>
+                  <td style={S.td}>{p.assigned_pic || <span style={{ color: "#ffffff" }}>UNASSIGNED</span>}</td>
+                  <td style={S.td}>{p.assigned_fo || <span style={{ color: "#ffffff" }}>UNASSIGNED</span>}</td>
+                  <td style={{ ...S.td, color: "#ffffff", fontSize: "10px" }}>
                     {p.created_at ? new Date(p.created_at).toLocaleString("en-GB") : "—"}
                   </td>
                   <td style={S.td}>
@@ -516,21 +687,21 @@ function OFPManagement({ toast }) {
 
       {assignModal && (
         <Modal title="ASSIGN CREW" onClose={() => setAssignModal(null)}>
-          <div style={{ color: "#7a8494", fontSize: "11px", marginBottom: "16px" }}>
+          <div style={{ color: "#ffffff", fontSize: "11px", marginBottom: "16px" }}>
             {assignModal.dispatch_no} — {assignModal.dep} → {assignModal.dest}
           </div>
           <div style={S.formGroup}>
             <label style={S.label}>PIC (CAPTAIN)</label>
             <select style={S.select} value={assignForm.pic} onChange={(e) => setAssignForm({ ...assignForm, pic: e.target.value })}>
               <option value="">— Select —</option>
-              {PILOTS.map((p) => <option key={p.code} value={p.code}>{p.code} — {p.name}</option>)}
+              {pilots.map((p) => <option key={p.code} value={p.code}>{p.code} — {p.full_name}</option>)}
             </select>
           </div>
           <div style={S.formGroup}>
             <label style={S.label}>F/O (FIRST OFFICER)</label>
             <select style={S.select} value={assignForm.fo} onChange={(e) => setAssignForm({ ...assignForm, fo: e.target.value })}>
               <option value="">— Select —</option>
-              {PILOTS.map((p) => <option key={p.code} value={p.code}>{p.code} — {p.name}</option>)}
+              {pilots.map((p) => <option key={p.code} value={p.code}>{p.code} — {p.full_name}</option>)}
             </select>
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "20px" }}>
@@ -543,7 +714,7 @@ function OFPManagement({ toast }) {
   );
 }
 
-// ─── TAB 3: Flight Archive ────────────────────────────────────────────────────
+// ─── TAB 4: Flight Archive ────────────────────────────────────────────────────
 function FlightArchive() {
   const [versions, setVersions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -556,16 +727,15 @@ function FlightArchive() {
       try {
         const { data, error } = await supabase
           .from("plan_versions")
-          .select("*, plans(*)")
+          .select("*, plans(*, customers(company_name))")
           .not("archived_at", "is", null)
           .order("archived_at", { ascending: false })
           .limit(100);
         if (error) throw error;
         setVersions(data || []);
       } catch {
-        // fallback: fetch archived plans directly
         try {
-          const { data } = await supabase.from("plans").select("*").eq("status", "archived").order("archived_at", { ascending: false });
+          const { data } = await supabase.from("plans").select("*, customers(company_name)").eq("status", "archived").order("archived_at", { ascending: false });
           setVersions((data || []).map(p => ({ id: p.id, archived_at: p.archived_at, version_number: 1, plans: p })));
         } catch { setVersions([]); }
       }
@@ -604,7 +774,7 @@ function FlightArchive() {
       <div style={S.card}>
         <div style={S.cardHeader}>
           <span style={S.cardTitle}>FLIGHT ARCHIVE</span>
-          <span style={{ fontSize: "10px", color: "#4a5464" }}>{filtered.length} RECORDS</span>
+          <span style={{ fontSize: "10px", color: "#ffffff" }}>{filtered.length} RECORDS</span>
         </div>
         {loading ? <div style={S.empty}>LOADING...</div> : filtered.length === 0 ? (
           <div style={S.empty}>NO ARCHIVE RECORDS FOUND</div>
@@ -615,9 +785,9 @@ function FlightArchive() {
                 <th style={S.th}>ARCHIVED</th>
                 <th style={S.th}>FLIGHT NO</th>
                 <th style={S.th}>ROUTE</th>
+                <th style={S.th}>CUSTOMER</th>
                 <th style={S.th}>PIC</th>
                 <th style={S.th}>F/O</th>
-                <th style={S.th}>VERSION</th>
                 <th style={S.th}>ACTIONS</th>
               </tr>
             </thead>
@@ -626,14 +796,14 @@ function FlightArchive() {
                 const plan = v.plans || {};
                 return (
                   <tr key={v.id}>
-                    <td style={{ ...S.td, color: "#4a5464", fontSize: "10px" }}>
+                    <td style={{ ...S.td, color: "#ffffff", fontSize: "10px" }}>
                       {v.archived_at ? new Date(v.archived_at).toLocaleString("en-GB") : "—"}
                     </td>
                     <td style={{ ...S.td, color: "#e8a020" }}>{plan.dispatch_no || plan.flight_number || "—"}</td>
                     <td style={S.td}>{plan.dep || "—"} → {plan.dest || "—"}</td>
+                    <td style={{ ...S.td, color: "#ffffff" }}>{plan.customers?.company_name || "—"}</td>
                     <td style={S.td}>{plan.assigned_pic || "—"}</td>
                     <td style={S.td}>{plan.assigned_fo || "—"}</td>
-                    <td style={{ ...S.td, color: "#4a5464", fontSize: "10px" }}>v{v.version_number || "1"}</td>
                     <td style={S.td}>
                       <button style={S.btnSecondary} onClick={() => setDetail(v)}>VIEW</button>
                     </td>
@@ -649,23 +819,24 @@ function FlightArchive() {
         <Modal title="ARCHIVE DETAIL" onClose={() => setDetail(null)}>
           <div style={{ fontSize: "11px", lineHeight: "1.8" }}>
             {[
-              ["Archived",   detail.archived_at ? new Date(detail.archived_at).toLocaleString("en-GB") : "—"],
+              ["Archived",    detail.archived_at ? new Date(detail.archived_at).toLocaleString("en-GB") : "—"],
               ["Dispatch No", detail.plans?.dispatch_no || "—"],
-              ["From",       detail.plans?.dep  || "—"],
-              ["To",         detail.plans?.dest || "—"],
-              ["Date",       detail.plans?.date || "—"],
-              ["STD",        detail.plans?.std  || "—"],
-              ["ETA",        detail.plans?.eta  || "—"],
-              ["FOB",        detail.plans?.fob  || "—"],
-              ["Aircraft",   detail.plans?.ac_type || "—"],
-              ["Reg",        detail.plans?.reg  || "—"],
-              ["PIC",        detail.plans?.assigned_pic || "—"],
-              ["F/O",        detail.plans?.assigned_fo  || "—"],
-              ["Version",    `v${detail.version_number || 1}`],
+              ["From",        detail.plans?.dep  || "—"],
+              ["To",          detail.plans?.dest || "—"],
+              ["Date",        detail.plans?.date || "—"],
+              ["STD",         detail.plans?.std  || "—"],
+              ["ETA",         detail.plans?.eta  || "—"],
+              ["FOB",         detail.plans?.fob  || "—"],
+              ["Aircraft",    detail.plans?.ac_type || "—"],
+              ["Reg",         detail.plans?.reg  || "—"],
+              ["Customer",    detail.plans?.customers?.company_name || "—"],
+              ["PIC",         detail.plans?.assigned_pic || "—"],
+              ["F/O",         detail.plans?.assigned_fo  || "—"],
+              ["Version",     `v${detail.version_number || 1}`],
             ].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #111820" }}>
-                <span style={{ color: "#4a5464", letterSpacing: "1px" }}>{k}</span>
-                <span style={{ color: "#c8cdd8" }}>{v || "—"}</span>
+                <span style={{ color: "#ffffff", letterSpacing: "1px" }}>{k}</span>
+                <span style={{ color: "#ffffff" }}>{v || "—"}</span>
               </div>
             ))}
           </div>
@@ -678,9 +849,9 @@ function FlightArchive() {
   );
 }
 
-// ─── TAB 4: System Settings ───────────────────────────────────────────────────
+// ─── TAB 5: System Settings ───────────────────────────────────────────────────
 function SystemSettings({ toast }) {
- const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState({
     company_name: "GO2 FLY",
     company_icao: "GO2",
     aircraft_reg: "TC-GO2",
@@ -713,10 +884,10 @@ function SystemSettings({ toast }) {
     setSaving(false);
   };
 
-  const field = (key, label, placeholder) => (
+  const field = (key, label, placeholder, type = "text") => (
     <div style={S.formGroup}>
       <label style={S.label}>{label}</label>
-      <input style={S.input} placeholder={placeholder} value={settings[key] || ""}
+      <input style={S.input} type={type} placeholder={placeholder} value={settings[key] || ""}
         onChange={(e) => setSettings({ ...settings, [key]: e.target.value })} />
     </div>
   );
@@ -732,13 +903,16 @@ function SystemSettings({ toast }) {
         </div>
         <div style={S.card}>
           <div style={S.cardHeader}><span style={S.cardTitle}>AIRCRAFT</span></div>
-          {field("aircraft_reg",        "REGISTRATION",       "TC-GO2"  )}
-          {field("aircraft_type",       "TYPE",               "B737-800")}
-          {field("max_fuel_kg",         "MAX FUEL (KG)",      "20900"   )}
-          {field("min_fuel_kg",         "MIN FUEL (KG)",      "2000"    )}
-          {field("fuel_density_default","DEFAULT FUEL DENSITY","0.800"  )}
-          {field("admin_password", "ADMIN PASSWORD", "Enter new password")}
+          {field("aircraft_reg",         "REGISTRATION",        "TC-GO2"  )}
+          {field("aircraft_type",        "TYPE",                "B737-800")}
+          {field("max_fuel_kg",          "MAX FUEL (KG)",       "20900"   )}
+          {field("min_fuel_kg",          "MIN FUEL (KG)",       "2000"    )}
+          {field("fuel_density_default", "DEFAULT FUEL DENSITY","0.800"   )}
         </div>
+      </div>
+      <div style={S.card}>
+        <div style={S.cardHeader}><span style={S.cardTitle}>SECURITY</span></div>
+        {field("admin_password", "ADMIN PASSWORD", "Enter new password", "password")}
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
         <button style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={handleSave} disabled={saving}>
@@ -751,13 +925,13 @@ function SystemSettings({ toast }) {
 
 // ─── Main: AdminPanel ─────────────────────────────────────────────────────────
 export default function AdminPanel({ onBack }) {
-  const [tab, setTab] = useState("users");
+  const [tab, setTab] = useState("customers");
   const [ready, setReady] = useState(false);
   const [toast, setToast] = useState({ msg: "", type: "success" });
 
   const showToast = useCallback((msg, type = "success") => setToast({ msg, type }), []);
 
- useEffect(() => {
+  useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { onBack(); return; }
@@ -765,6 +939,7 @@ export default function AdminPanel({ onBack }) {
     };
     checkAuth();
   }, [onBack]);
+
   if (!ready) {
     return (
       <div style={{ ...S.root, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -776,10 +951,11 @@ export default function AdminPanel({ onBack }) {
   }
 
   const TABS = [
-    { id: "users",    label: "USERS"    },
-    { id: "ofp",      label: "OFP"      },
-    { id: "archive",  label: "ARCHIVE"  },
-    { id: "settings", label: "SETTINGS" },
+    { id: "customers", label: "CUSTOMERS" },
+    { id: "users",     label: "USERS"     },
+    { id: "ofp",       label: "OFP"       },
+    { id: "archive",   label: "ARCHIVE"   },
+    { id: "settings",  label: "SETTINGS"  },
   ];
 
   return (
@@ -802,10 +978,11 @@ export default function AdminPanel({ onBack }) {
           ))}
         </div>
 
-        {tab === "users"    && <UserManagement toast={showToast} />}
-        {tab === "ofp"      && <OFPManagement  toast={showToast} />}
-        {tab === "archive"  && <FlightArchive  toast={showToast} />}
-        {tab === "settings" && <SystemSettings toast={showToast} />}
+        {tab === "customers" && <Customers      toast={showToast} />}
+        {tab === "users"     && <UserManagement toast={showToast} />}
+        {tab === "ofp"       && <OFPManagement  toast={showToast} />}
+        {tab === "archive"   && <FlightArchive  toast={showToast} />}
+        {tab === "settings"  && <SystemSettings toast={showToast} />}
       </div>
 
       {toast.msg && (

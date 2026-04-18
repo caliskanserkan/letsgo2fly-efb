@@ -73,14 +73,33 @@ function Info({ label, value, color, big }) {
   );
 }
 
-function Fuel({ setStatus }) {
+function Fuel({ setStatus, activePlan }) {
   const [density, setDensity]     = useState('0.78');
   const [upliftLt, setUpliftLt]   = useState('');
   const [upliftLb, setUpliftLb]   = useState('');
   const [remaining, setRemaining] = useState('');
   const [totalFuel, setTotalFuel] = useState('');
 
-  const ofp = { trip:2713, cont:250, alt:533, fin:1447, minTO:4943, taxi:400, disc:7657, max:25120 };
+  // OFP fuel values from activePlan
+  const ofp = {
+    trip:  n(activePlan?.trip_fuel)      || 0,
+    alt:   n(activePlan?.alternate_fuel) || 0,
+    fin:   n(activePlan?.reserve_fuel)   || 0,
+    cont:  0,   // parsed from raw_text in EFP, not stored separately
+    taxi:  400, // standard
+    disc:  0,
+    minTO: 0,
+    max:   0,
+  };
+
+  // Calculate minTO = trip + cont + alt + fin + taxi
+  ofp.minTO = ofp.trip + ofp.cont + ofp.alt + ofp.fin + ofp.taxi;
+
+  // FOB from activePlan
+  const planFob = n(activePlan?.fob?.replace(/[^\d]/g,'')) || null;
+
+  // Alternate ICAO
+  const altIcao = activePlan?.alternate || 'ALTN';
 
   const handleUpliftLt = (val) => {
     setUpliftLt(val);
@@ -128,7 +147,7 @@ function Fuel({ setStatus }) {
   return (
     <div>
       <Title t="Uplift" />
-      <EntryRow label="Density" hint="kg/lt — sicakliga gore ayarla" value={density} onChange={handleDensity} unit="kg/lt" />
+      <EntryRow label="Density" hint="kg/lt — adjust for temperature" value={density} onChange={handleDensity} unit="kg/lt" />
       <EntryRow label="Uplift" hint="Litres (from fuel receipt)" value={upliftLt} onChange={handleUpliftLt} unit="Lt" />
       <EntryRow label="Uplift" hint="Pounds" value={upliftLb} onChange={handleUpliftLb} unit="lb" />
       {autoUplift !== null && <AutoRow label="Uplift" hint="Auto calculated" value={fmt(autoUplift)} unit="lb" />}
@@ -146,28 +165,27 @@ function Fuel({ setStatus }) {
       <Title t="Calculated" />
       <Info label="Take-off Fuel (Ramp - Taxi)" value={takeoff !== null ? `${fmt(takeoff)} lb` : '--- lb'} color={takeoff !== null ? '#1a9bc4' : '#444'} big />
 
-      {takeoff !== null && takeoff < ofp.minTO && (
+      {takeoff !== null && ofp.minTO > 0 && takeoff < ofp.minTO && (
         <div style={{ margin:'10px 16px', padding:'10px 12px', borderRadius:6, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020', fontWeight:700 }}>
           WARNING: T/O fuel below minimum! Min: {fmt(ofp.minTO)} lb
         </div>
       )}
-      {takeoff !== null && takeoff >= ofp.minTO && (
+      {takeoff !== null && ofp.minTO > 0 && takeoff >= ofp.minTO && (
         <div style={{ margin:'10px 16px', padding:'10px 12px', borderRadius:6, background:'rgba(45,158,95,0.08)', borderLeft:'3px solid #2d9e5f', fontSize:11, color:'#6db890' }}>
-          T/O fuel OK - Extra: {fmt(takeoff - ofp.minTO)} lb
+          T/O fuel OK — Extra: {fmt(takeoff - ofp.minTO)} lb
         </div>
       )}
 
       <Sep />
 
       <Title t="OFP - Planned Fuel" />
-      <Info label="Trip"             value={`${fmt(ofp.trip)} lb`} />
-      <Info label="Contingency"      value={`${fmt(ofp.cont)} lb`} />
-      <Info label="Alternate (LTFM)" value={`${fmt(ofp.alt)} lb`} />
-      <Info label="Final Reserve"    value={`${fmt(ofp.fin)} lb`} />
-      <Info label="Taxi"             value={`${fmt(ofp.taxi)} lb`} />
-      <Info label="Discretionary"    value={`${fmt(ofp.disc)} lb`} />
-      <Info label="MIN T/O FUEL"     value={`${fmt(ofp.minTO)} lb`} color="#e8731a" />
-      <Info label="Max Fuel (Tank)"  value={`${fmt(ofp.max)} lb`} />
+      <Info label="Trip"                         value={ofp.trip  ? `${fmt(ofp.trip)} lb`  : '— lb'} />
+      <Info label="Contingency"                  value={ofp.cont  ? `${fmt(ofp.cont)} lb`  : '— lb'} />
+      <Info label={`Alternate (${altIcao})`}     value={ofp.alt   ? `${fmt(ofp.alt)} lb`   : '— lb'} />
+      <Info label="Final Reserve"                value={ofp.fin   ? `${fmt(ofp.fin)} lb`   : '— lb'} />
+      <Info label="Taxi"                         value={`${fmt(ofp.taxi)} lb`} />
+      <Info label="MIN T/O FUEL"                 value={ofp.minTO ? `${fmt(ofp.minTO)} lb` : '— lb'} color="#e8731a" />
+      {planFob && <Info label="Total FOB (OFP)"  value={`${fmt(planFob)} lb`} color="#1a9bc4" />}
     </div>
   );
 }

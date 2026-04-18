@@ -16,7 +16,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
 import AdminPanel from './components/AdminPanel';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,
@@ -28,21 +28,118 @@ function parseDispatchNo(text) {
   return match ? match[1] : null;
 }
 
-function parseFlightInfo(text) {
-  const dep   = text.match(/DEP[:\s]+([A-Z]{4})/)?.[1] || text.match(/LTAC|LTBA|LTFM|LTFE/)?.[0] || '';
-  const dest  = text.match(/DEST[:\s]+([A-Z]{4})/)?.[1] || '';
-  const date  = text.match(/(\d{2}\s+\w{3}\s+\d{4})/)?.[1] || text.match(/(\d{2}[A-Z]{3}\d{2})/)?.[0] || '';
-  const std   = text.match(/(?:STD|ETD)[:\s]+([\d:]+)/)?.[1] || '';
-  const eta   = text.match(/ETA[:\s]+([\d:]+)/)?.[1] || '';
-  const fob   = text.match(/(?:FOB|TOTAL FOB)[:\s]+([\d,]+)/)?.[1] || text.match(/TOTAL FOB\s+(\d+)/)?.[1] || '';
-  const ac    = text.match(/GLF4|GLF5|C550|C560|C680/)?.[0] || 'GLF4';
-  const reg   = text.match(/TC-[A-Z]{3}/)?.[0] || 'TC-REC';
-  const route = text.match(/ROUTE[:\s]+(.+)/)?.[1] || '';
-  return {
-    dep, dest, date, std, eta,
-    fob: fob ? `${parseInt(fob.replace(/,/g,'')).toLocaleString()} lb` : '',
-    ac_type: ac, reg, route
-  };
+// ─── Multi-sector parser ──────────────────────────────────────────────────────
+function parseAllSectors(text) {
+  const sectors = [];
+
+  // 1. Kapak tablosundan sektörleri bul
+  const tableRows = [...text.matchAll(
+    /TC-([A-Z]{3})\s+(\d{1,2}\s+\w{3}\s+\d{4})\s+([A-Z]{4})\s+(\d{2}:\d{2})\s+\d{2}:\d{2}\s+(\d{1,2}\s+\w{3}\s+\d{4})\s+([A-Z]{4})\s+(\d{2}:\d{2})\s+\d{2}:\d{2}\s+(\d{2}:\d{2})\s+(\d+)/g
+  )];
+
+  for (const row of tableRows) {
+    sectors.push({
+      reg:  `TC-${row[1]}`,
+      date: row[2],
+      dep:  row[3],
+      std:  row[4],
+      dest: row[6],
+      eta:  row[7],
+      ete:  row[8],
+      pax:  row[9],
+    });
+  }
+
+  // 2. Kapak tablosu bulunamazsa ATC FPL'den çek
+  if (sectors.length === 0) {
+    const fplMatches = [...text.matchAll(
+      /\(FPL-([A-Z0-9]+)-[A-Z]{2}[\s\S]*?-([A-Z]{4})(\d{4})[\s\S]*?-([A-Z]{4})(\d{4})/g
+    )];
+    for (const m of fplMatches) {
+      const stdRaw = m[3];
+      const eteRaw = m[5];
+      const regRaw = text.match(/REG\/([A-Z0-9]{4,6})/)?.[1] || '';
+      const reg = regRaw ? `TC-${regRaw.slice(2)}` : '';
+      sectors.push({
+        callsign: m[1],
+        dep:  m[2],
+        std:  `${stdRaw.slice(0,2)}:${stdRaw.slice(2)}`,
+        dest: m[4],
+        ete:  `${eteRaw.slice(0,2)}:${eteRaw.slice(2)}`,
+        reg,
+        date: '',
+        pax:  '',
+        eta:  '',
+      });
+    }
+  }
+
+  // 3. Her sektör için OFP bloğundan detay çek
+  const ofpBlocks = [...text.matchAll(
+    /Page 1\s+([A-Z]{4})-([A-Z]{4})\s+([A-Z0-9]+)([\s\S]*?)(?=Page 1\s+[A-Z]{4}-[A-Z]{4}|$)/g
+  )];
+
+  // Genel bilgiler
+  const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const dof = text.match(/DOF\/(\d{2})(\d{2})(\d{2})/);
+  const globalDate     = dof ? `${dof[1]} ${months[parseInt(dof[2])-1]} 20${dof[3]}` : '';
+  const globalOperator = text.match(/OPR\/([A-Z][A-Z\s]+?)(?:\s+RMK|\s+SEL|\s+PBN|\n)/)?.[1]?.trim() || '';
+  const globalAcType   = text.match(/GLF4|GLF5|GIV|GIV-SP|GV|CL60|CL35|GL5T|GL6T|GLEX|C550|C560|C680|F900|FA7X|FA8X/)?.[0] || '';
+  const globalReg = (() => {
+    const raw = text.match(/REG\/([A-Z0-9]{4,6})/)?.[1] || text.match(/REGISTRATION:\s*TC-([A-Z]{3})/)?.[1] || '';
+    if (!raw) return '';
+    if (raw.startsWith('TC')) return raw;
+    return `TC-${raw.slice(2)}`;
+  })();
+  const globalCallsign = text.match(/\(FPL-([A-Z0-9]+)-/)?.[1] || '';
+
+  sectors.forEach((sector, i) => {
+    const block = ofpBlocks[i]?.[4] || '';
+
+    // Fuel
+    sector.trip_fuel      = block.match(/TRIP\s+(\d+)\s/)?.[1] || '';
+    sector.total_fob      = block.match(/TOTAL FOB\s+(\d+)/)?.[1] || '';
+    sector.alternate_fuel = block.match(/ALTERNATE\s+(\d+)/)?.[1] || '';
+    sector.reserve_fuel   = block.match(/FINAL RESERVE\s+(\d+)/)?.[1] || '';
+    sector.fob            = sector.total_fob ? `${parseInt(sector.total_fob).toLocaleString()} lb` : '';
+
+    // Weights
+    sector.tow = block.match(/TOW\s+([\d]+)Lbs/)?.[1] || '';
+    sector.zfw = block.match(/ZFW\s+([\d]+)Lbs/)?.[1] || '';
+
+    // Route
+    sector.route = block.match(/ROUTE:([^\n]+)/)?.[1]?.trim() || '';
+
+// Alternate: birden fazla yöntemle dene
+const alt1 = block.match(/1\s*ST\s+ALT\s+([A-Z]{4})/)?.[1];
+const alt2 = text.match(new RegExp(`-${sector.dest}\\s*\\d{4}\\s+([A-Z]{4})`))?.[1];
+const alt3 = text.match(new RegExp(`${sector.dep}\\s*\\d{4}\\s+([A-Z]{4})`))?.[1];
+sector.alternate = alt1 || alt2 || alt3 || '';
+
+    // Cruise FL
+    const flMatch = block.match(/CRUISE:[^\d]*(\d{3})/);
+    sector.cruise_fl = flMatch ? `FL${flMatch[1]}` : '';
+
+    // Log Nr
+    sector.log_nr = text.match(new RegExp(`Log Nr\\.:\\s*(\\d+)\\s+Page 1\\s+${sector.dep}-${sector.dest}`))?.[1] || '';
+
+    // Global alanlar
+    sector.ac_type  = sector.ac_type  || globalAcType;
+    sector.reg      = sector.reg      || globalReg;
+    sector.date     = sector.date     || globalDate;
+    sector.operator = sector.operator || globalOperator;
+    sector.callsign = sector.callsign || globalCallsign;
+
+    // ETA hesapla (yoksa)
+    if (!sector.eta && sector.std && sector.ete) {
+      const [sh, sm] = sector.std.split(':').map(Number);
+      const [eh, em] = sector.ete.split(':').map(Number);
+      const total = sh * 60 + sm + eh * 60 + em;
+      sector.eta = `${String(Math.floor(total / 60) % 24).padStart(2,'0')}:${String(total % 60).padStart(2,'0')}`;
+    }
+  });
+
+  return sectors;
 }
 
 async function extractPdfText(file) {
@@ -57,6 +154,7 @@ async function extractPdfText(file) {
   return text;
 }
 
+// ─── Login ────────────────────────────────────────────────────────────────────
 function Login({ onLogin }) {
   const [email, setEmail]     = useState('');
   const [pass, setPass]       = useState('');
@@ -102,6 +200,7 @@ function Login({ onLogin }) {
   );
 }
 
+// ─── PlanCard ─────────────────────────────────────────────────────────────────
 function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate }) {
   return (
     <div style={{ background: archived ? '#1e1e1e' : active ? 'rgba(26,155,196,0.05)' : 'var(--bg3)', border:`1px solid ${archived ? '#2a2a2a' : active ? 'var(--accent)' : 'var(--border)'}`, borderRadius:10, overflow:'hidden', marginBottom:8, opacity: archived ? 0.85 : 1 }}>
@@ -148,6 +247,7 @@ function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate }) {
   );
 }
 
+// ─── Upload Modal ─────────────────────────────────────────────────────────────
 function UploadPlanModal({ onClose, onUploaded }) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
@@ -160,19 +260,91 @@ function UploadPlanModal({ onClose, onUploaded }) {
     setLoading(true); setError(''); setSuccess('');
     try {
       const pdfText = await extractPdfText(file);
-      const dispatchNo = parseDispatchNo(pdfText) || parseDispatchNo(file.name) || `MANUAL${Date.now()}`;
-      const flightInfo = parseFlightInfo(pdfText);
-      const { data: existing } = await supabase.from('plans').select('id').eq('dispatch_no', dispatchNo).maybeSingle();
-      if (!existing) {
-        const { data: plan, error: insertError } = await supabase.from('plans').insert({ dispatch_no: dispatchNo, subject: file.name, ...flightInfo, status: 'available' }).select().single();
-        if (insertError) throw insertError;
-        await supabase.from('plan_versions').insert({ plan_id: plan.id, dispatch_no: dispatchNo, version_no: 1, raw_text: pdfText.slice(0, 5000) });
-        setSuccess(`Plan added: ${dispatchNo} · ${flightInfo.dep || '?'} → ${flightInfo.dest || '?'}`);
-      } else {
-        const { count } = await supabase.from('plan_versions').select('*', { count: 'exact' }).eq('dispatch_no', dispatchNo);
-        await supabase.from('plan_versions').insert({ plan_id: existing.id, dispatch_no: dispatchNo, version_no: (count || 0) + 1, raw_text: pdfText.slice(0, 5000) });
-        setSuccess(`Plan updated: ${dispatchNo} v${(count || 0) + 1}`);
+      const sectors = parseAllSectors(pdfText);
+
+      if (sectors.length === 0) throw new Error('No flight sectors found in PDF.');
+
+      const results = [];
+
+      for (let i = 0; i < sectors.length; i++) {
+        const sector = sectors[i];
+
+        const baseDispatch = parseDispatchNo(pdfText)
+          || parseDispatchNo(file.name)
+          || `${sector.reg || 'MANUAL'}-${(sector.date || '').replace(/\s/g, '')}`;
+        const dispatchNo = sectors.length > 1 ? `${baseDispatch}-S${i + 1}` : baseDispatch;
+
+        // Duplicate kontrolü
+        const { data: existing } = await supabase.from('plans').select('id')
+          .eq('dep',  sector.dep)
+          .eq('dest', sector.dest)
+          .eq('std',  sector.std)
+          .eq('date', sector.date)
+          .maybeSingle();
+
+        if (!existing) {
+          const { data: plan, error: insertError } = await supabase.from('plans').insert({
+            dispatch_no:    dispatchNo,
+            subject:        file.name,
+            dep:            sector.dep,
+            dest:           sector.dest,
+            date:           sector.date,
+            std:            sector.std,
+            eta:            sector.eta,
+            ete:            sector.ete,
+            fob:            sector.fob,
+            ac_type:        sector.ac_type,
+            reg:            sector.reg,
+            route:          sector.route,
+            operator:       sector.operator,
+            callsign:       sector.callsign,
+            alternate:      sector.alternate,
+            trip_fuel:      sector.trip_fuel,
+            alternate_fuel: sector.alternate_fuel,
+            reserve_fuel:   sector.reserve_fuel,
+            tow:            sector.tow,
+            zfw:            sector.zfw,
+            pax:            sector.pax,
+            cruise_fl:      sector.cruise_fl,
+            log_nr:         sector.log_nr,
+            status:         'available',
+          }).select().single();
+
+          if (insertError) throw insertError;
+
+          await supabase.from('plan_versions').insert({
+            plan_id:     plan.id,
+            dispatch_no: dispatchNo,
+            version_no:  1,
+            raw_text:    pdfText,
+          });
+
+          if (sector.ac_type) {
+            const { data: profiles } = await supabase
+              .from('profiles')
+              .select('customer_id')
+              .eq('aircraft_type', sector.ac_type)
+              .not('customer_id', 'is', null)
+              .limit(1);
+            if (profiles?.[0]?.customer_id) {
+              await supabase.from('plans').update({ customer_id: profiles[0].customer_id }).eq('id', plan.id);
+            }
+          }
+
+          results.push(`${sector.dep} → ${sector.dest}`);
+        } else {
+          const { count } = await supabase.from('plan_versions').select('*', { count: 'exact' }).eq('plan_id', existing.id);
+          await supabase.from('plan_versions').insert({
+            plan_id:     existing.id,
+            dispatch_no: dispatchNo,
+            version_no:  (count || 0) + 1,
+            raw_text:    pdfText,
+          });
+          results.push(`${sector.dep} → ${sector.dest} (updated v${(count || 0) + 1})`);
+        }
       }
+
+      setSuccess(`${results.length} sector(s): ${results.join(', ')}`);
       onUploaded();
     } catch (err) { setError('Upload failed: ' + err.message); }
     setLoading(false);
@@ -198,14 +370,17 @@ function UploadPlanModal({ onClose, onUploaded }) {
           {success && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(45,158,95,0.08)', borderLeft:'3px solid #2d9e5f', fontSize:11, color:'#6db890' }}>✓ {success}</div>}
         </div>
         <div style={{ padding:'0 16px 16px' }}>
-          <button onClick={onClose} style={{ width:'100%', background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>{success ? 'Close' : 'Cancel'}</button>
+          <button onClick={onClose} style={{ width:'100%', background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>
+            {success ? 'Close' : 'Cancel'}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function Dashboard({ onOpen, user, onLogout, onAdmin }) {
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate }) {
   const [tab, setTab]                       = useState('active');
   const [availablePlans, setAvailablePlans] = useState([]);
   const [activePlans, setActivePlans]       = useState([]);
@@ -235,13 +410,19 @@ function Dashboard({ onOpen, user, onLogout, onAdmin }) {
 
   const activatePlan = async (planId) => {
     await supabase.from('plans').update({ status: 'available' }).eq('status', 'active');
-    await supabase.from('plans').update({ status: 'active' }).eq('id', planId);
+    const { data: plan } = await supabase.from('plans')
+      .update({ status: 'active' })
+      .eq('id', planId)
+      .select()
+      .single();
+    if (plan) onActivate(plan);
     loadPlans();
     setTab('active');
   };
 
   const deactivatePlan = async (planId) => {
     await supabase.from('plans').update({ status: 'available' }).eq('id', planId);
+    onActivate(null);
     loadPlans();
     setTab('available');
   };
@@ -249,7 +430,7 @@ function Dashboard({ onOpen, user, onLogout, onAdmin }) {
   const planCard = (p) => ({
     dep: p.dep || '—', dest: p.dest || '—', date: p.date || '—',
     std: p.std || '—', eta: p.eta || '—',
-    ac: p.ac_type || p.ac || 'GLF4',
+    ac:  p.ac_type || p.ac || 'GLF4',
     reg: p.reg || 'TC-REC', fob: p.fob || '—',
     archived_at: p.archived_at,
   });
@@ -263,9 +444,9 @@ function Dashboard({ onOpen, user, onLogout, onAdmin }) {
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           <span style={{ fontSize:11, color:'var(--t3)' }}>{user?.email || ''}</span>
           <button onClick={onAdmin} style={{ background:'transparent', border:'1px solid #1a9bc4', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#1a9bc4', cursor:'pointer', fontFamily:'inherit' }}>
-           Admin
-           </button>
-          <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #383838', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>
+            Admin
+          </button>
+          <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #383838', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>
             Logout
           </button>
         </div>
@@ -342,19 +523,21 @@ function Dashboard({ onOpen, user, onLogout, onAdmin }) {
   );
 }
 
+// ─── App ──────────────────────────────────────────────────────────────────────
 function App() {
   const [page, setPage]             = useState('loading');
   const [user, setUser]             = useState(null);
   const [activePage, setActivePage] = useState('flt-crew');
+  const [activePlan, setActivePlan] = useState(null);
   const [flightData, setFlightData] = useState({ offBlock:'', takeoffTime:'', takeoffFuel:'', landingTime:'', onBlock:'', remainingFuel:'' });
-  const updateFlight = (key, value) => setFlightData(prev => ({ ...prev, [key]: value }));
+  const updateFlight  = (key, value) => setFlightData(prev => ({ ...prev, [key]: value }));
   const [pageStatus, setPageStatus] = useState({ 'flt-crew':'pending','mandatory':'pending','efp':'pending','fuel':'pending','accept':'pending','takeoff':'pending','navlog':'pending','landing':'pending','endflt':'pending','docupload':'pending' });
-  const setStatus = (pageId, status) => setPageStatus(prev => ({ ...prev, [pageId]: status }));
+  const setStatus     = (pageId, status) => setPageStatus(prev => ({ ...prev, [pageId]: status }));
   const [divertData, setDivertData] = useState({ active:false, icao:'', rwy:'', len:'', reason:'' });
+  const updateDivert  = (key, value) => setDivertData(prev => ({ ...prev, [key]: value }));
   const [showAdminAuth, setShowAdminAuth] = useState(false);
-  const [adminPin, setAdminPin] = useState('');
+  const [adminPin, setAdminPin]           = useState('');
   const [adminPinError, setAdminPinError] = useState('');
-  const updateDivert = (key, value) => setDivertData(prev => ({ ...prev, [key]: value }));
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -369,16 +552,17 @@ function App() {
   }, []);
 
   const handleLogout = async () => { await supabase.auth.signOut(); };
+
   const handleAdminAuth = async () => {
-  const { data } = await supabase.from('system_settings').select('admin_password').single();
-  if (data?.admin_password === adminPin) {
-    setShowAdminAuth(false);
-    setAdminPin('');
-    setAdminPinError('');
-    setPage('admin');
-  } else {
-    setAdminPinError('Incorrect password.');
-  }
+    const { data } = await supabase.from('system_settings').select('admin_password').single();
+    if (data?.admin_password === adminPin) {
+      setShowAdminAuth(false);
+      setAdminPin('');
+      setAdminPinError('');
+      setPage('admin');
+    } else {
+      setAdminPinError('Incorrect password.');
+    }
   };
 
   const navigate = (target) => {
@@ -386,59 +570,73 @@ function App() {
     else { setPage('operational'); setActivePage(target); }
   };
 
+  const layoutTitle = activePlan
+    ? `${activePlan.reg || 'GO2'} · ${activePlan.dep || '—'}-${activePlan.dest || '—'} · ${activePlan.date || ''} ${activePlan.std || ''} Z`
+    : 'GO2 eFB';
+
   if (page === 'loading') return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
       <div style={{ fontSize:13, color:'#555' }}>Loading...</div>
     </div>
   );
 
-  if (page === 'login')     return <Login onLogin={() => setPage('dashboard')} />;
-  if (page === 'admin')     return <AdminPanel onBack={() => setPage('dashboard')} />;
+  if (page === 'login') return <Login onLogin={() => setPage('dashboard')} />;
+  if (page === 'admin') return <AdminPanel onBack={() => setPage('dashboard')} />;
+
   if (showAdminAuth) return (
-  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
-    <div style={{ width:300, background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-      <div style={{ background:'#1f1f1f', borderBottom:'1px solid var(--border)', padding:'10px 18px', fontSize:10, color:'#e8a020', fontWeight:700, letterSpacing:2 }}>
-        ADMIN ACCESS
-      </div>
-      <div style={{ padding:'20px 18px' }}>
-        <label style={{ display:'block', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Admin Password</label>
-        <input type="password" value={adminPin} onChange={e => { setAdminPin(e.target.value); setAdminPinError(''); }}
-          onKeyDown={e => e.key === 'Enter' && handleAdminAuth()}
-          placeholder="Enter password"
-          style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} />
-        {adminPinError && (
-          <div style={{ marginTop:8, padding:'7px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>
-            {adminPinError}
-          </div>
-        )}
-      </div>
-      <div style={{ padding:'0 18px 18px', display:'flex', gap:8 }}>
-        <button onClick={() => { setShowAdminAuth(false); setAdminPin(''); setAdminPinError(''); }}
-          style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>
-          Cancel
-        </button>
-        <button onClick={handleAdminAuth}
-          style={{ flex:1, background:'#e8a020', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#000', cursor:'pointer', fontFamily:'inherit' }}>
-          Enter
-        </button>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
+      <div style={{ width:300, background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+        <div style={{ background:'#1f1f1f', borderBottom:'1px solid var(--border)', padding:'10px 18px', fontSize:10, color:'#e8a020', fontWeight:700, letterSpacing:2 }}>
+          ADMIN ACCESS
+        </div>
+        <div style={{ padding:'20px 18px' }}>
+          <label style={{ display:'block', fontSize:10, color:'#ffffff', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Admin Password</label>
+          <input type="password" value={adminPin} onChange={e => { setAdminPin(e.target.value); setAdminPinError(''); }}
+            onKeyDown={e => e.key === 'Enter' && handleAdminAuth()}
+            placeholder="Enter password"
+            style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} />
+          {adminPinError && (
+            <div style={{ marginTop:8, padding:'7px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>
+              {adminPinError}
+            </div>
+          )}
+        </div>
+        <div style={{ padding:'0 18px 18px', display:'flex', gap:8 }}>
+          <button onClick={() => { setShowAdminAuth(false); setAdminPin(''); setAdminPinError(''); }}
+            style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>
+            Cancel
+          </button>
+          <button onClick={handleAdminAuth}
+            style={{ flex:1, background:'#e8a020', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#000', cursor:'pointer', fontFamily:'inherit' }}>
+            Enter
+          </button>
+        </div>
       </div>
     </div>
-  </div>
- );
-if (page === 'dashboard') return <Dashboard onOpen={() => navigate('flt-crew')} user={user} onLogout={handleLogout} onAdmin={() => { setAdminPin(''); setAdminPinError(''); setShowAdminAuth(true); }} />;
+  );
+
+  if (page === 'dashboard') return (
+    <Dashboard
+      onOpen={() => navigate('flt-crew')}
+      user={user}
+      onLogout={handleLogout}
+      onAdmin={() => { setAdminPin(''); setAdminPinError(''); setShowAdminAuth(true); }}
+      onActivate={setActivePlan}
+    />
+  );
 
   return (
-    <Layout activePage={activePage} onNavigate={navigate} title="GO2TCREC · LTAC-LTBA · 11 APR 09:00 Z" pageStatus={pageStatus}>
-      {activePage === 'flt-crew'  && <FlightCrew  setStatus={(s) => setStatus('flt-crew', s)} />}
-      {activePage === 'mandatory' && <Mandatory   setStatus={(s) => setStatus('mandatory', s)} />}
-      {activePage === 'efp'       && <EFP         setStatus={(s) => setStatus('efp', s)} />}
-      {activePage === 'fuel'      && <Fuel        setStatus={(s) => setStatus('fuel', s)} />}
-      {activePage === 'accept'    && <AcceptSign  pageStatus={pageStatus} setStatus={(s) => setStatus('accept', s)} />}
-      {activePage === 'takeoff'   && <TakeoffData setStatus={(s) => setStatus('takeoff', s)} />}
-      {activePage === 'navlog'    && <NavLog      flightData={flightData} updateFlight={updateFlight} setStatus={(s) => setStatus('navlog', s)} />}
-      {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} setStatus={(s) => setStatus('landing', s)} />}
-      {activePage === 'endflt'    && <EndFlight   flightData={flightData} divertData={divertData} setStatus={(s) => setStatus('endflt', s)} />}
-      {activePage === 'docupload' && <DocUpload   setStatus={(s) => setStatus('docupload', s)} />}
+    <Layout activePage={activePage} onNavigate={navigate} title={layoutTitle} pageStatus={pageStatus}>
+      {activePage === 'flt-crew'  && <FlightCrew  setStatus={(s) => setStatus('flt-crew', s)}  activePlan={activePlan} />}
+      {activePage === 'mandatory' && <Mandatory   setStatus={(s) => setStatus('mandatory', s)} activePlan={activePlan} />}
+      {activePage === 'efp'       && <EFP         setStatus={(s) => setStatus('efp', s)}        activePlan={activePlan} />}
+      {activePage === 'fuel'      && <Fuel        setStatus={(s) => setStatus('fuel', s)}       activePlan={activePlan} />}
+      {activePage === 'accept'    && <AcceptSign  pageStatus={pageStatus} setStatus={(s) => setStatus('accept', s)} activePlan={activePlan} />}
+      {activePage === 'takeoff'   && <TakeoffData setStatus={(s) => setStatus('takeoff', s)}    activePlan={activePlan} />}
+      {activePage === 'navlog'    && <NavLog      flightData={flightData} updateFlight={updateFlight} setStatus={(s) => setStatus('navlog', s)} activePlan={activePlan} />}
+      {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} setStatus={(s) => setStatus('landing', s)} activePlan={activePlan} />}
+      {activePage === 'endflt'    && <EndFlight   flightData={flightData} divertData={divertData} setStatus={(s) => setStatus('endflt', s)} activePlan={activePlan} />}
+      {activePage === 'docupload' && <DocUpload   setStatus={(s) => setStatus('docupload', s)}  activePlan={activePlan} />}
       {activePage === 'freenote'  && <FreeNote />}
       {!['flt-crew','mandatory','efp','fuel','accept','takeoff','navlog','landing','endflt','docupload','freenote'].includes(activePage) && (
         <div style={{ padding:24, color:'var(--t3)', fontSize:13 }}>Page under construction...</div>

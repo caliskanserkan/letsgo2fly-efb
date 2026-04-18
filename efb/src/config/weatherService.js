@@ -1,8 +1,7 @@
-const STATIONS = ['LTAC', 'LTBA', 'LTFM'];
-const BASE = 'https://aviationweather.gov/api/data';
-
-export async function fetchWeatherData() {
-  const ids = STATIONS.join(',');
+export async function fetchWeatherData(dep = 'LTAC', dest = 'LTBA', alt = 'LTFM') {
+  const STATIONS = [dep, dest, alt].filter(Boolean);
+  const ids = [...new Set(STATIONS)].join(',');
+  const BASE = 'https://aviationweather.gov/api/data';
 
   const [metarRes, tafRes] = await Promise.all([
     fetch(`${BASE}/metar?ids=${ids}&format=raw&hours=2`),
@@ -12,34 +11,31 @@ export async function fetchWeatherData() {
   const metarText = await metarRes.text();
   const tafText   = await tafRes.text();
 
-  // METAR'ları parse et — her satır bir istasyon
   const metars = {};
   metarText.trim().split('\n').forEach(line => {
-    const line2 = line.trim();
-    if (!line2) return;
-    const icao = line2.slice(0, 4);
+    const l = line.trim();
+    if (!l) return;
+    const icao = l.slice(0, 4);
     if (STATIONS.includes(icao)) {
       if (!metars[icao]) metars[icao] = [];
-      metars[icao].push(line2);
+      metars[icao].push(l);
     }
   });
 
-  // TAF'ları parse et
   const tafs = {};
   let currentIcao = null;
   tafText.trim().split('\n').forEach(line => {
-    const line2 = line.trim();
-    if (!line2) return;
-    const firstWord = line2.split(' ')[0];
-    if (STATIONS.includes(firstWord)) {
-      currentIcao = firstWord;
-      tafs[currentIcao] = [line2];
+    const l = line.trim();
+    if (!l) return;
+    const first = l.split(' ')[0];
+    if (STATIONS.includes(first)) {
+      currentIcao = first;
+      tafs[currentIcao] = [l];
     } else if (currentIcao) {
-      tafs[currentIcao].push(line2);
+      tafs[currentIcao].push(l);
     }
   });
 
-  // Güncelleme zamanı
   const now = new Date();
   const updatedAt = `${now.getUTCDate().toString().padStart(2,'0')} `
     + `${now.toUTCString().split(' ')[2]} `

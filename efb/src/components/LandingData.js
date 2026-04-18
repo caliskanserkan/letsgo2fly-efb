@@ -53,8 +53,8 @@ function AtisRow({ label, value, onChange, photo, onPhoto }) {
   );
 }
 
-function LandingData({ flightData, divertData, updateDivert, setStatus }) {
-  const [icao, setIcao]           = useState('LTBA');
+function LandingData({ flightData, divertData, updateDivert, setStatus, activePlan }) {
+  const [icao, setIcao]           = useState(activePlan?.dest || 'LTBA');
   const [runways, setRunways]     = useState([]);
   const [selRwy, setSelRwy]       = useState(null);
   const [loading, setLoading]     = useState(false);
@@ -66,6 +66,11 @@ function LandingData({ flightData, divertData, updateDivert, setStatus }) {
   const [reqLnd, setReqLnd]       = useState('');
 
   const divert = divertData.active;
+
+  // activePlan değişince ICAO'yu güncelle
+  useEffect(() => {
+    if (activePlan?.dest) setIcao(activePlan.dest);
+  }, [activePlan?.dest]);
 
   const fetchRunways = async (code) => {
     setLoading(true);
@@ -99,7 +104,6 @@ function LandingData({ flightData, divertData, updateDivert, setStatus }) {
     if (icao.length === 4) fetchRunways(icao.toUpperCase());
   }, [icao]);
 
-  // setStatus logic
   const runwayOk = divert ? !!(divertData.icao && divertData.rwy) : !!(selRwy || manualRwy);
   const atisOk   = !!arrAtis;
 
@@ -109,7 +113,7 @@ function LandingData({ flightData, divertData, updateDivert, setStatus }) {
     if (runwayOk && atisOk) setStatus('green');
     else if (runwayOk || atisOk) setStatus('amber');
     else setStatus('pending');
-  }, [runwayOk, atisOk]);
+  }, [runwayOk, atisOk, setStatus]);
 
   const selectedRwy = runways.find(r => r.id === selRwy);
   const divLenNum   = divertData.len ? parseInt(divertData.len.replace(/[^0-9]/g,'')) : null;
@@ -119,6 +123,12 @@ function LandingData({ flightData, divertData, updateDivert, setStatus }) {
   const reqLndNum   = reqLnd ? parseInt(reqLnd.replace(/[^0-9]/g,'')) : null;
   const stopMargin  = activeLenFt && reqLndNum ? activeLenFt - reqLndNum : null;
   const marginColor = getStopMarginColor(stopMargin);
+
+  // OFP landing weights from activePlan
+  const landingWeight = activePlan?.zfw
+    ? `${parseInt(activePlan.zfw).toLocaleString()} lb`
+    : '—';
+  const maxLwt = activePlan?.ac_type?.startsWith('GLF') ? '66,000 lb' : '66,000 lb';
 
   return (
     <div>
@@ -168,8 +178,8 @@ function LandingData({ flightData, divertData, updateDivert, setStatus }) {
       <Sep />
 
       <Title t="OFP — Landing Weights" />
-      <AutoRow label="Landing Weight" value="53,880 lb" />
-      <AutoRow label="Max LWT"        value="66,000 lb" />
+      <AutoRow label="Landing Weight" value={landingWeight} />
+      <AutoRow label="Max LWT"        value={maxLwt} />
       <AutoRow label="Vref"           value="— kt" />
 
       <Sep />

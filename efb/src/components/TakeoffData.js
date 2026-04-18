@@ -59,7 +59,7 @@ function AtisRow({ label, value, onChange, photo, onPhoto }) {
   );
 }
 
-function RvsmRow({ label, value, onChange }) {
+function RvsmRow({ label, value, onChange, elev }) {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 12px', borderBottom:'1px solid rgba(45,158,95,0.1)' }}>
       <span style={{ fontSize:11.5, color:'#777' }}>{label}</span>
@@ -72,8 +72,10 @@ function RvsmRow({ label, value, onChange }) {
   );
 }
 
-function TakeoffData({ setStatus }) {
-  const [icao, setIcao]         = useState('LTAC');
+function TakeoffData({ setStatus, activePlan }) {
+  const dep = activePlan?.dep || 'LTAC';
+
+  const [icao, setIcao]         = useState(dep);
   const [runways, setRunways]   = useState([]);
   const [selRwy, setSelRwy]     = useState(null);
   const [loading, setLoading]   = useState(false);
@@ -102,13 +104,18 @@ function TakeoffData({ setStatus }) {
   const [rvsmSby, setRvsmSby] = useState('');
   const [rvsm2, setRvsm2]     = useState('');
 
+  // Update ICAO when activePlan changes
+  useEffect(() => {
+    if (activePlan?.dep) setIcao(activePlan.dep);
+  }, [activePlan?.dep]);
+
   const fetchRunways = async (code) => {
     setLoading(true);
     setNoData(false);
     setRunways([]);
     setSelRwy(null);
     try {
-      const url = `https://ourairports.com/airports/${code}/runways.csv`;
+      const url = `https://corsproxy.io/?https://ourairports.com/airports/${code}/runways.csv`;
       const resp = await fetch(url);
       const text = await resp.text();
       const lines = text.trim().split('\n').slice(1);
@@ -124,15 +131,9 @@ function TakeoffData({ setStatus }) {
           if (id2 && len) parsed.push({ id:id2, length:lenFt });
         }
       });
-      if (parsed.length > 0) {
-        setRunways(parsed);
-        setNoData(false);
-      } else {
-        setNoData(true);
-      }
-    } catch {
-      setNoData(true);
-    }
+      if (parsed.length > 0) { setRunways(parsed); setNoData(false); }
+      else { setNoData(true); }
+    } catch { setNoData(true); }
     setLoading(false);
   };
 
@@ -140,7 +141,6 @@ function TakeoffData({ setStatus }) {
     if (icao.length === 4) fetchRunways(icao.toUpperCase());
   }, [icao]);
 
-  // setStatus logic
   const runwayOk = !!(selRwy || manualRwy);
   const speedsOk = !!(v1 && vr && v2);
   const atisOk   = !!depAtis;
@@ -150,7 +150,7 @@ function TakeoffData({ setStatus }) {
     if (runwayOk && speedsOk && atisOk) setStatus('green');
     else if (runwayOk || speedsOk || atisOk) setStatus('amber');
     else setStatus('pending');
-  }, [runwayOk, speedsOk, atisOk]);
+  }, [runwayOk, speedsOk, atisOk, setStatus]);
 
   const selectedRwy = runways.find(r => r.id === selRwy);
   const activeLenFt = selectedRwy ? selectedRwy.length
@@ -159,17 +159,18 @@ function TakeoffData({ setStatus }) {
   const stopMargin  = activeLenFt && reqRwNum ? activeLenFt - reqRwNum : null;
   const marginColor = getStopMarginColor(stopMargin);
 
+  // OFP weights from activePlan
+  const tow  = activePlan?.tow ? `${parseInt(activePlan.tow).toLocaleString()} lb` : '—';
+  const zfw  = activePlan?.zfw ? `${parseInt(activePlan.zfw).toLocaleString()} lb` : '—';
+
   return (
     <div>
-      {/* ATIS */}
       <Title t="ATIS" />
       <AtisRow label="Departure ATIS" value={depAtis} onChange={setDepAtis} photo={depPhoto} onPhoto={() => setDepPhoto(!depPhoto)} />
 
       <Sep />
 
-      {/* Departure Runway */}
       <Title t="Departure Aerodrome & Runway" />
-
       <div style={{ background:'#2e2e2e', borderBottom:'1px solid #383838', padding:'10px 16px', display:'flex', alignItems:'center', gap:10 }}>
         <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600, width:80 }}>ICAO</span>
         <input value={icao} onChange={e => setIcao(e.target.value.toUpperCase())} maxLength={4} placeholder="LTAC"
@@ -197,7 +198,7 @@ function TakeoffData({ setStatus }) {
             ⚠ No runway data available. Enter manually.
           </div>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <input value={manualRwy} onChange={e => setManualRwy(e.target.value.toUpperCase())} placeholder="RWY (e.g. 05)"
+            <input value={manualRwy} onChange={e => setManualRwy(e.target.value.toUpperCase())} placeholder="RWY"
               style={{ ...iStyle, width:90, textAlign:'center' }} />
             <input value={manualLen} onChange={e => setManualLen(e.target.value)} placeholder="Length (ft)"
               style={{ ...iStyle, flex:1, textAlign:'center' }} />
@@ -208,9 +209,8 @@ function TakeoffData({ setStatus }) {
       <Sep />
 
       <Title t="OFP — Weight & Performance" />
-      <AutoRow label="TOW"  value="56,593 lb" />
-      <AutoRow label="ZFW"  value="43,993 lb" />
-      <AutoRow label="LWT"  value="53,880 lb" />
+      <AutoRow label="TOW"  value={tow} />
+      <AutoRow label="ZFW"  value={zfw} />
       <AutoRow label="MZFW" value="49,000 lb" />
       <AutoRow label="MTOW" value="74,600 lb" />
       <AutoRow label="MLWT" value="66,000 lb" />
@@ -271,7 +271,7 @@ function TakeoffData({ setStatus }) {
       <div style={{ margin:'10px 16px', background:'rgba(45,158,95,0.06)', border:'1px solid rgba(45,158,95,0.2)', borderRadius:8, overflow:'hidden' }}>
         <div style={{ background:'rgba(45,158,95,0.15)', color:'#2d9e5f', padding:'7px 12px', fontSize:10, fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', borderBottom:'1px solid rgba(45,158,95,0.2)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <span>RVSM — Ground Altimeter Check</span>
-          <span style={{ fontSize:9, color:'#555' }}>LTAC ELEV 3158 ft</span>
+          <span style={{ fontSize:9, color:'#555' }}>{dep} ELEV</span>
         </div>
         <RvsmRow label="PRI 1 (ALT)"  value={rvsm1}   onChange={setRvsm1} />
         <RvsmRow label="SBY ALT"      value={rvsmSby} onChange={setRvsmSby} />
