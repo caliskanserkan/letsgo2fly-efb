@@ -1,21 +1,64 @@
 import React, { useState, useEffect } from 'react';
 
-const iStyle = {
-  background: '#1a1a1a', border: '1.5px solid #1a9bc4', borderRadius: 7,
-  padding: '8px 12px', fontSize: 15, fontWeight: 700, color: '#1a9bc4',
-  textAlign: 'right', fontFamily: 'monospace', outline: 'none', width: 110,
-};
+const LB_PER_KG = 2.20462;
 
-function Row({ label, hint, value, onChange, display, unit }) {
+function ltToLb(lt, density) {
+  if (!lt || !density) return null;
+  return Math.round(parseFloat(lt) * parseFloat(density) * LB_PER_KG);
+}
+
+function lbToLt(lb, density) {
+  if (!lb || !density) return null;
+  return Math.round(parseFloat(lb) / LB_PER_KG / parseFloat(density));
+}
+
+function n(v) {
+  if (!v && v !== 0) return null;
+  const parsed = parseInt(v.toString().replace(/,/g,''));
+  return isNaN(parsed) ? null : parsed;
+}
+
+function fmt(v) {
+  if (v === null || v === undefined) return '';
+  return v.toLocaleString();
+}
+
+function Sep() {
+  return <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />;
+}
+
+function Title({ t }) {
+  return <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>{t}</div>;
+}
+
+function EntryRow({ label, hint, value, onChange, unit }) {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838', minHeight:52 }}>
       <div>
         <div style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600 }}>{label}</div>
-        {hint && <div style={{ fontSize:10, color: display ? '#1a9bc4' : '#555', marginTop:2 }}>{hint}</div>}
+        {hint && <div style={{ fontSize:10, color:'#555', marginTop:2 }}>{hint}</div>}
       </div>
       <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-        <input style={{ ...iStyle, color: value ? '#1a9bc4' : '#444' }} value={value} onChange={e => onChange(e.target.value)} placeholder={display || '—'} />
-        <span style={{ fontSize:11, color:'#555', minWidth:24 }}>{unit}</span>
+        <input value={value} onChange={e => onChange(e.target.value)} placeholder="—"
+          style={{ background:'#1a1a1a', border:'1.5px solid #1a9bc4', borderRadius:6, padding:'7px 10px', fontSize:14, fontWeight:700, color:'#1a9bc4', fontFamily:'monospace', outline:'none', textAlign:'right', width:100 }} />
+        <span style={{ fontSize:11, color:'#555', minWidth:28 }}>{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+function AutoRow({ label, hint, value, unit }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#252525', borderBottom:'1px solid #383838', minHeight:52 }}>
+      <div>
+        <div style={{ fontSize:12.5, color:'#888', fontWeight:400 }}>{label}</div>
+        {hint && <div style={{ fontSize:10, color:'#2d9e5f', marginTop:2 }}>{hint}</div>}
+      </div>
+      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+        <div style={{ background:'#1e1e1e', border:'1.5px solid #2d9e5f', borderRadius:6, padding:'7px 10px', fontSize:14, fontWeight:700, color: value ? '#2d9e5f' : '#444', fontFamily:'monospace', textAlign:'right', width:100, minHeight:34, display:'flex', alignItems:'center', justifyContent:'flex-end' }}>
+          {value || '—'}
+        </div>
+        <span style={{ fontSize:11, color:'#555', minWidth:28 }}>{unit}</span>
       </div>
     </div>
   );
@@ -30,81 +73,101 @@ function Info({ label, value, color, big }) {
   );
 }
 
-function Sep() {
-  return <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />;
-}
-
-function Title({ t }) {
-  return <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>{t}</div>;
-}
-
-const n = v => v ? parseInt(v.toString().replace(/,/g,'')) : null;
-const fmt = v => v !== null ? v.toLocaleString() : null;
-
 function Fuel({ setStatus }) {
-  const [upliftLt, setUpliftLt] = useState('');
-  const [density, setDensity]   = useState('0.78');
+  const [density, setDensity]     = useState('0.78');
+  const [upliftLt, setUpliftLt]   = useState('');
+  const [upliftLb, setUpliftLb]   = useState('');
   const [remaining, setRemaining] = useState('');
-  const [ramp, setRamp]         = useState('');
+  const [totalFuel, setTotalFuel] = useState('');
 
   const ofp = { trip:2713, cont:250, alt:533, fin:1447, minTO:4943, taxi:400, disc:7657, max:25120 };
 
-  const upliftLb   = upliftLt && density ? Math.round(parseFloat(upliftLt) * parseFloat(density) * 2.20462) : null;
+  const handleUpliftLt = (val) => {
+    setUpliftLt(val);
+    const lb = ltToLb(val, density);
+    setUpliftLb(lb !== null ? lb.toString() : '');
+  };
+
+  const handleUpliftLb = (val) => {
+    setUpliftLb(val);
+    const lt = lbToLt(n(val), density);
+    setUpliftLt(lt !== null ? lt.toString() : '');
+  };
+
+  const handleDensity = (val) => {
+    setDensity(val);
+    if (upliftLt) {
+      const lb = ltToLb(upliftLt, val);
+      setUpliftLb(lb !== null ? lb.toString() : '');
+    } else if (upliftLb) {
+      const lt = lbToLt(n(upliftLb), val);
+      setUpliftLt(lt !== null ? lt.toString() : '');
+    }
+  };
+
+  const upliftN    = n(upliftLb);
   const remainingN = n(remaining);
-  const rampN      = n(ramp);
-  const has        = { u: upliftLb !== null, r: remainingN !== null, p: rampN !== null };
-  const autoRamp      = has.u && has.r && !has.p ? upliftLb + remainingN : null;
-  const autoRemaining = has.u && has.p && !has.r ? rampN - upliftLb      : null;
-  const autoUplift    = has.r && has.p && !has.u ? rampN - remainingN    : null;
-  const finalRamp  = has.p ? rampN : autoRamp;
-  const takeoff    = finalRamp ? finalRamp - ofp.taxi : null;
+  const totalN     = n(totalFuel);
+
+  const autoTotal     = upliftN !== null && remainingN !== null && totalN === null ? upliftN + remainingN : null;
+  const autoRemaining = upliftN !== null && totalN !== null && remainingN === null ? totalN - upliftN : null;
+  const autoUplift    = remainingN !== null && totalN !== null && upliftN === null ? totalN - remainingN : null;
+
+  const finalTotal  = totalN !== null ? totalN : autoTotal;
+  const finalUplift = upliftN !== null ? upliftN : autoUplift;
+  const takeoff     = finalTotal !== null ? finalTotal - ofp.taxi : null;
 
   useEffect(() => {
-    if (takeoff && takeoff >= ofp.minTO) setStatus('green');
-    else if (ramp || upliftLt) setStatus('amber');
+    if (!setStatus) return;
+    const fuelOk = finalTotal !== null && finalUplift !== null;
+    if (fuelOk) setStatus('green');
+    else if (upliftLt || upliftLb || remaining || totalFuel) setStatus('amber');
     else setStatus('pending');
-  }); // no dep array — runs every render, avoids eslint warning
+  }, [upliftLt, upliftLb, remaining, totalFuel, finalTotal, finalUplift, setStatus]);
 
   return (
     <div>
       <Title t="Uplift" />
-      <Row label="Uplift quantity" hint="From fuel receipt" value={upliftLt} onChange={v => { setUpliftLt(v); setRamp(''); }} unit="Lt" />
-      <Row label="Density" hint="Default 0.78" value={density} onChange={setDensity} unit="kg/L" />
-      <Row label="Uplift" hint="Auto calculated" display={fmt(upliftLb || autoUplift)} unit="lb" />
+      <EntryRow label="Density" hint="kg/lt — sicakliga gore ayarla" value={density} onChange={handleDensity} unit="kg/lt" />
+      <EntryRow label="Uplift" hint="Litres (from fuel receipt)" value={upliftLt} onChange={handleUpliftLt} unit="Lt" />
+      <EntryRow label="Uplift" hint="Pounds" value={upliftLb} onChange={handleUpliftLb} unit="lb" />
+      {autoUplift !== null && <AutoRow label="Uplift" hint="Auto calculated" value={fmt(autoUplift)} unit="lb" />}
 
       <Sep />
 
       <Title t="Fuel Quantities" />
-      <Row label="Remaining (last flight)" hint={autoRemaining ? "Auto calculated" : "From previous flight"} value={remaining} onChange={v => { setRemaining(v); setRamp(''); }} display={!has.r ? fmt(autoRemaining) : null} unit="lb" />
-      <Row label="Ramp fuel" hint={autoRamp ? "Auto calculated" : "From aircraft indicator"} value={ramp} onChange={v => setRamp(v)} display={!has.p ? fmt(autoRamp) : null} unit="lb" />
-
-      <Sep />
-
-      <Title t="OFP — Planned Fuel" />
-      <Info label="Trip"             value={`${ofp.trip.toLocaleString()} lb`} />
-      <Info label="Contingency"      value={`${ofp.cont.toLocaleString()} lb`} />
-      <Info label="Alternate (LTFM)" value={`${ofp.alt.toLocaleString()} lb`} />
-      <Info label="Final Reserve"    value={`${ofp.fin.toLocaleString()} lb`} />
-      <Info label="Taxi"             value={`${ofp.taxi.toLocaleString()} lb`} />
-      <Info label="Discretionary"    value={`${ofp.disc.toLocaleString()} lb`} />
-      <Info label="MIN T/O FUEL"     value={`${ofp.minTO.toLocaleString()} lb`} color="#e8731a" />
-      <Info label="Max Fuel (Tank)"  value={`${ofp.max.toLocaleString()} lb`} />
+      <EntryRow label="Remaining (last flight)" hint="From previous flight" value={remaining} onChange={setRemaining} unit="lb" />
+      {autoRemaining !== null && <AutoRow label="Remaining" hint="Auto calculated" value={fmt(autoRemaining)} unit="lb" />}
+      <EntryRow label="Total / Ramp Fuel" hint="From aircraft indicator" value={totalFuel} onChange={setTotalFuel} unit="lb" />
+      {autoTotal !== null && <AutoRow label="Total / Ramp Fuel" hint="Auto calculated (Uplift + Remaining)" value={fmt(autoTotal)} unit="lb" />}
 
       <Sep />
 
       <Title t="Calculated" />
-      <Info label="Take-off Fuel (Ramp - Taxi)" value={takeoff ? `${takeoff.toLocaleString()} lb` : '— lb'} color={takeoff ? '#1a9bc4' : '#444'} big />
+      <Info label="Take-off Fuel (Ramp - Taxi)" value={takeoff !== null ? `${fmt(takeoff)} lb` : '--- lb'} color={takeoff !== null ? '#1a9bc4' : '#444'} big />
 
       {takeoff !== null && takeoff < ofp.minTO && (
         <div style={{ margin:'10px 16px', padding:'10px 12px', borderRadius:6, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020', fontWeight:700 }}>
-          WARNING: T/O fuel below minimum! Min: {ofp.minTO.toLocaleString()} lb
+          WARNING: T/O fuel below minimum! Min: {fmt(ofp.minTO)} lb
         </div>
       )}
       {takeoff !== null && takeoff >= ofp.minTO && (
         <div style={{ margin:'10px 16px', padding:'10px 12px', borderRadius:6, background:'rgba(45,158,95,0.08)', borderLeft:'3px solid #2d9e5f', fontSize:11, color:'#6db890' }}>
-          T/O fuel OK · Extra: {(takeoff - ofp.minTO).toLocaleString()} lb
+          T/O fuel OK - Extra: {fmt(takeoff - ofp.minTO)} lb
         </div>
       )}
+
+      <Sep />
+
+      <Title t="OFP - Planned Fuel" />
+      <Info label="Trip"             value={`${fmt(ofp.trip)} lb`} />
+      <Info label="Contingency"      value={`${fmt(ofp.cont)} lb`} />
+      <Info label="Alternate (LTFM)" value={`${fmt(ofp.alt)} lb`} />
+      <Info label="Final Reserve"    value={`${fmt(ofp.fin)} lb`} />
+      <Info label="Taxi"             value={`${fmt(ofp.taxi)} lb`} />
+      <Info label="Discretionary"    value={`${fmt(ofp.disc)} lb`} />
+      <Info label="MIN T/O FUEL"     value={`${fmt(ofp.minTO)} lb`} color="#e8731a" />
+      <Info label="Max Fuel (Tank)"  value={`${fmt(ofp.max)} lb`} />
     </div>
   );
 }

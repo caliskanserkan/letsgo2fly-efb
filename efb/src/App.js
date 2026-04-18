@@ -15,10 +15,7 @@ import FreeNote from './components/FreeNote';
 import { createClient } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
-).toString();
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
 
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,
@@ -60,13 +57,20 @@ async function extractPdfText(file) {
 }
 
 function Login({ onLogin }) {
-  const [user, setUser] = useState('');
-  const [pass, setPass] = useState('');
-  const [error, setError] = useState(false);
-  const handleLogin = () => {
-    if (user === 'go2admin' && pass === 'go2efb2026') { setError(false); onLogin(); }
-    else setError(true);
+  const [email, setEmail]     = useState('');
+  const [pass, setPass]       = useState('');
+  const [error, setError]     = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    setLoading(true);
+    setError('');
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password: pass });
+    if (authError) setError('Invalid email or password.');
+    else onLogin();
+    setLoading(false);
   };
+
   return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
       <div style={{ textAlign:'center', marginBottom:36 }}>
@@ -77,15 +81,20 @@ function Login({ onLogin }) {
       <div style={{ width:300, background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
         <div style={{ background:'#1f1f1f', borderBottom:'1px solid var(--border)', padding:'10px 18px', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:1, textTransform:'uppercase' }}>Pilot Login</div>
         <div style={{ padding:'12px 18px', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
-          <label style={{ display:'block', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Username</label>
-          <input value={user} onChange={e => setUser(e.target.value)} style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none' }} />
+          <label style={{ display:'block', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Email</label>
+          <input value={email} onChange={e => setEmail(e.target.value)} placeholder="pilot@company.com"
+            style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none' }} />
         </div>
         <div style={{ padding:'12px 18px' }}>
           <label style={{ display:'block', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Password</label>
-          <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()} style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none' }} />
+          <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none' }} />
         </div>
-        {error && <div style={{ margin:'0 18px', padding:'8px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>Invalid username or password.</div>}
-        <button onClick={handleLogin} style={{ width:'calc(100% - 36px)', margin:'14px 18px', background:'var(--accent)', border:'none', borderRadius:7, padding:12, fontSize:14, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>Sign In</button>
+        {error && <div style={{ margin:'0 18px', padding:'8px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>{error}</div>}
+        <button onClick={handleLogin} disabled={loading}
+          style={{ width:'calc(100% - 36px)', margin:'14px 18px', background: loading ? '#333' : 'var(--accent)', border:'none', borderRadius:7, padding:12, fontSize:14, fontWeight:700, color:'#fff', cursor: loading ? 'default' : 'pointer', fontFamily:'inherit' }}>
+          {loading ? 'Signing in...' : 'Sign In'}
+        </button>
       </div>
       <div style={{ marginTop:20, fontSize:10, color:'#333' }}>GO2 Aviation · For internal use only</div>
     </div>
@@ -98,11 +107,13 @@ function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate }) {
       <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', gap:12, borderBottom:'1px solid var(--border)' }}>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:16, fontWeight:700, color:'var(--t1)', fontFamily:'monospace', letterSpacing:1 }}>
-            {plan.dep} <span style={{ color:'var(--accent)' }}>→</span> {plan.dest}
+            {plan.dep} <span style={{ color: archived ? '#555' : 'var(--accent)' }}>→</span> {plan.dest}
           </div>
           <div style={{ fontSize:11, color:'var(--t3)', marginTop:2 }}>{plan.date} · STD {plan.std} Z · {plan.ac} / {plan.reg}</div>
         </div>
-        <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:4, letterSpacing:0.5, background: active ? 'rgba(26,155,196,0.15)' : 'rgba(45,158,95,0.15)', color: active ? 'var(--accent)' : 'var(--green)' }}>
+        <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:4, letterSpacing:0.5,
+          background: archived ? 'rgba(100,100,100,0.15)' : active ? 'rgba(26,155,196,0.15)' : 'rgba(45,158,95,0.15)',
+          color: archived ? '#666' : active ? 'var(--accent)' : 'var(--green)' }}>
           {archived ? 'ARCHIVED' : active ? 'IN PROGRESS' : 'AVAILABLE'}
         </span>
       </div>
@@ -110,30 +121,22 @@ function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate }) {
         <div style={{ fontSize:11, color:'var(--t3)' }}>ETD <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.std}</b></div>
         <div style={{ fontSize:11, color:'var(--t3)' }}>ETA <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.eta}</b></div>
         <div style={{ fontSize:11, color:'var(--t3)' }}>FOB <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.fob}</b></div>
-        {active && <div style={{ fontSize:11, color:'var(--t3)' }}>Step <b style={{ color:'var(--accent)', marginLeft:3 }}>{plan.step}/10</b></div>}
-
-        {/* Available plan buttons */}
         {!active && !archived && onDelete && (
           <button onClick={onDelete} style={{ background:'transparent', border:'1px solid #e02020', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#e02020', cursor:'pointer', fontFamily:'inherit' }}>
             ✕ Delete
           </button>
         )}
-
-        {/* Active plan: Deactivate button */}
         {active && onDeactivate && (
           <button onClick={onDeactivate} style={{ background:'transparent', border:'1px solid #ff9500', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#ff9500', cursor:'pointer', fontFamily:'inherit' }}>
             ↩ Deactivate
           </button>
         )}
-
         {!archived && (
           <button onClick={onOpen} style={{ marginLeft:'auto', background: active ? 'rgba(26,155,196,0.12)' : 'var(--accent)', border: active ? '1px solid var(--accent)' : 'none', borderRadius:6, padding:'5px 13px', fontSize:11, fontWeight:700, color: active ? 'var(--accent)' : '#fff', cursor:'pointer', fontFamily:'inherit' }}>
             {active ? 'Open →' : '+ Activate'}
           </button>
         )}
-        {archived && (
-          <span style={{ marginLeft:'auto', fontSize:10, color:'#444', fontWeight:700 }}>🔒 Read Only</span>
-        )}
+        {archived && <span style={{ marginLeft:'auto', fontSize:10, color:'#444', fontWeight:700 }}>🔒 Read Only</span>}
         {plan.archived_at && archived && (
           <div style={{ fontSize:10, color:'#555', width:'100%', marginTop:4 }}>
             Archived: {new Date(plan.archived_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
@@ -201,7 +204,7 @@ function UploadPlanModal({ onClose, onUploaded }) {
   );
 }
 
-function Dashboard({ onOpen }) {
+function Dashboard({ onOpen, user, onLogout }) {
   const [tab, setTab]                       = useState('active');
   const [availablePlans, setAvailablePlans] = useState([]);
   const [activePlans, setActivePlans]       = useState([]);
@@ -230,7 +233,6 @@ function Dashboard({ onOpen }) {
   };
 
   const activatePlan = async (planId) => {
-    // Önce tüm aktif planları available'a al (tek aktif plan kuralı)
     await supabase.from('plans').update({ status: 'available' }).eq('status', 'active');
     await supabase.from('plans').update({ status: 'active' }).eq('id', planId);
     loadPlans();
@@ -257,7 +259,12 @@ function Dashboard({ onOpen }) {
     <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:'var(--bg)' }}>
       <div style={{ background:'#1a1a1a', borderBottom:'1px solid var(--border)', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <span style={{ fontSize:13, fontWeight:700, color:'var(--accent)', letterSpacing:1 }}>GO2 eFB</span>
-        <span style={{ fontSize:12, color:'var(--t3)' }}>Capt. <b style={{ color:'var(--t2)' }}>Ahmet Akpinar</b> · AAK</span>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <span style={{ fontSize:11, color:'var(--t3)' }}>{user?.email || ''}</span>
+          <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #383838', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>
+            Logout
+          </button>
+        </div>
       </div>
 
       <div style={{ display:'flex', background:'#1e1e1e', borderBottom:'1px solid var(--border)' }}>
@@ -266,7 +273,7 @@ function Dashboard({ onOpen }) {
           { id:'active',    label:'Active'    },
           { id:'archive',   label:'Archive'   },
         ].map(t => (
-          <div key={t.id} onClick={() => setTab(t.id)} style={{ flex:1, padding:11, textAlign:'center', fontSize:12, fontWeight:600, cursor:'pointer', color: tab===t.id ? 'var(--accent)' : 'var(--t3)', borderBottom: tab===t.id ? '2px solid var(--accent)' : '2px solid transparent', position:'relative' }}>
+          <div key={t.id} onClick={() => setTab(t.id)} style={{ flex:1, padding:11, textAlign:'center', fontSize:12, fontWeight:600, cursor:'pointer', color: tab===t.id ? 'var(--accent)' : 'var(--t3)', borderBottom: tab===t.id ? '2px solid var(--accent)' : '2px solid transparent' }}>
             {t.label}
             {t.id === 'active' && activePlans.length > 0 && (
               <span style={{ marginLeft:6, background:'#1a9bc4', color:'#fff', borderRadius:8, padding:'1px 6px', fontSize:9, fontWeight:700 }}>{activePlans.length}</span>
@@ -289,14 +296,13 @@ function Dashboard({ onOpen }) {
               <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No available plans.<br />Upload a PDF to get started.</div>
             )}
             {availablePlans.map((p, i) => (
-              <PlanCard key={i} plan={planCard(p)} active={false}
+              <PlanCard key={i} plan={planCard(p)} active={false} archived={false}
                 onOpen={() => activatePlan(p.id)}
                 onDelete={() => deletePlan(p.id)}
               />
             ))}
           </>
         )}
-
         {tab === 'active' && (
           <>
             {loading && <div style={{ textAlign:'center', color:'#555', fontSize:12, padding:20 }}>Loading...</div>}
@@ -304,15 +310,13 @@ function Dashboard({ onOpen }) {
               <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No active plans.<br />Activate a plan from Available Plans.</div>
             )}
             {activePlans.map((p, i) => (
-              <PlanCard key={i} plan={planCard(p)} active={true}
+              <PlanCard key={i} plan={planCard(p)} active={true} archived={false}
                 onOpen={onOpen}
                 onDeactivate={() => deactivatePlan(p.id)}
               />
             ))}
           </>
         )}
-      </div>
-
         {tab === 'archive' && (
           <>
             <div style={{ padding:'8px 4px 10px', fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>
@@ -327,6 +331,7 @@ function Dashboard({ onOpen }) {
             ))}
           </>
         )}
+      </div>
 
       {showUpload && <UploadPlanModal onClose={() => setShowUpload(false)} onUploaded={loadPlans} />}
     </div>
@@ -334,7 +339,8 @@ function Dashboard({ onOpen }) {
 }
 
 function App() {
-  const [page, setPage]           = useState('login');
+  const [page, setPage]             = useState('loading');
+  const [user, setUser]             = useState(null);
   const [activePage, setActivePage] = useState('flt-crew');
   const [flightData, setFlightData] = useState({ offBlock:'', takeoffTime:'', takeoffFuel:'', landingTime:'', onBlock:'', remainingFuel:'' });
   const updateFlight = (key, value) => setFlightData(prev => ({ ...prev, [key]: value }));
@@ -342,13 +348,34 @@ function App() {
   const setStatus = (pageId, status) => setPageStatus(prev => ({ ...prev, [pageId]: status }));
   const [divertData, setDivertData] = useState({ active:false, icao:'', rwy:'', len:'', reason:'' });
   const updateDivert = (key, value) => setDivertData(prev => ({ ...prev, [key]: value }));
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) { setUser(session.user); setPage('dashboard'); }
+      else setPage('login');
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) { setUser(session.user); setPage('dashboard'); }
+      else { setUser(null); setPage('login'); }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => { await supabase.auth.signOut(); };
+
   const navigate = (target) => {
     if (target === 'dashboard') setPage('dashboard');
     else { setPage('operational'); setActivePage(target); }
   };
 
+  if (page === 'loading') return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
+      <div style={{ fontSize:13, color:'#555' }}>Loading...</div>
+    </div>
+  );
+
   if (page === 'login')     return <Login onLogin={() => setPage('dashboard')} />;
-  if (page === 'dashboard') return <Dashboard onOpen={() => navigate('flt-crew')} />;
+  if (page === 'dashboard') return <Dashboard onOpen={() => navigate('flt-crew')} user={user} onLogout={handleLogout} />;
 
   return (
     <Layout activePage={activePage} onNavigate={navigate} title="GO2TCREC · LTAC-LTBA · 11 APR 09:00 Z" pageStatus={pageStatus}>
