@@ -665,7 +665,7 @@ function App() {
       {activePage === 'fuel'      && <Fuel        setStatus={(s) => setStatus('fuel', s)}       activePlan={activePlan} />}
       {activePage === 'accept'    && <AcceptSign  pageStatus={pageStatus} setStatus={(s) => setStatus('accept', s)} activePlan={activePlan} />}
       {activePage === 'takeoff'   && <TakeoffData setStatus={(s) => setStatus('takeoff', s)}    activePlan={activePlan} />}
-      {activePage === 'navlog'    && <NavLog      flightData={flightData} updateFlight={updateFlight} setStatus={(s) => setStatus('navlog', s)} activePlan={activePlan} />}
+      {activePage === 'navlog' && <NavLog flightData={flightData} updateFlight={updateFlight} setStatus={(s) => setStatus('navlog', s)} activePlan={activePlan} updateDivert={updateDivert} />}
       {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} setStatus={(s) => setStatus('landing', s)} activePlan={activePlan} />}
       {activePage === 'endflt'    && <EndFlight   flightData={flightData} divertData={divertData} setStatus={(s) => setStatus('endflt', s)} activePlan={activePlan} />}
       {activePage === 'docupload' && <DocUpload   setStatus={(s) => setStatus('docupload', s)}  activePlan={activePlan} />}
