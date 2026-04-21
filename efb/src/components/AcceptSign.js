@@ -77,8 +77,7 @@ function AcceptSign({ setStatus, pageStatus }) {
     if (accepted)    setStatus('green');
     else if (signed) setStatus('amber');
     else             setStatus('pending');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accepted, signed]);
+   }, [accepted, signed, setStatus]);
 
   const getPos = (e) => {
     const canvas = canvasRef.current;
