@@ -34,7 +34,7 @@ const now = () => {
 
 function AcceptSign({ setStatus, pageStatus }) {
   const [preflightPilot, setPreflightPilot] = useState('AAK');
- const [signed, setSigned] = useState(false);
+  const [signed, setSigned] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [acceptedAt, setAcceptedAt] = useState('');
   const [synced, setSynced] = useState(false);
@@ -77,6 +77,7 @@ function AcceptSign({ setStatus, pageStatus }) {
     if (accepted)    setStatus('green');
     else if (signed) setStatus('amber');
     else             setStatus('pending');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accepted, signed]);
 
   const getPos = (e) => {
@@ -151,7 +152,7 @@ function AcceptSign({ setStatus, pageStatus }) {
       <Title t="Pre-flight Status" />
       {statuses.map((s, i) => (
         <StatusRow key={i} label={s.label} ok={s.ok} inProgress={s.inProgress} value={s.value} />
-))}
+      ))}
 
       <Sep />
 
@@ -182,7 +183,6 @@ function AcceptSign({ setStatus, pageStatus }) {
         I confirm that pre-flight procedures have been completed, all entries are correct, and the aircraft is airworthy for this flight.
       </div>
 
-      {/* Signature canvas */}
       <div style={{ margin:'8px 16px', border:`1px solid ${accepted ? '#2d9e5f' : '#383838'}`, borderRadius:8, overflow:'hidden' }}>
         <div style={{ background:'#1f1f1f', borderBottom:`1px solid ${accepted ? '#2d9e5f' : '#383838'}`, padding:'7px 12px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <span style={{ fontSize:10, color: accepted ? '#2d9e5f' : '#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>
@@ -210,7 +210,6 @@ function AcceptSign({ setStatus, pageStatus }) {
 
       <Sep />
 
-      {/* Accept button */}
       {!accepted ? (
         <>
           {!allOk && (
@@ -225,7 +224,6 @@ function AcceptSign({ setStatus, pageStatus }) {
         </>
       ) : (
         <>
-          {/* Accepted state row */}
           <div style={{ margin:'8px 16px', padding:'12px', borderRadius:8, background:'rgba(45,158,95,0.1)', border:'1px solid rgba(45,158,95,0.3)', display:'flex', alignItems:'center', gap:10 }}>
             <span style={{ fontSize:20 }}>✅</span>
             <div style={{ flex:1 }}>
@@ -234,14 +232,12 @@ function AcceptSign({ setStatus, pageStatus }) {
                 {acceptedAt} · {pilots.find(p => p.code === preflightPilot)?.name}
               </div>
             </div>
-            {/* Re-evaluate button */}
             <button onClick={handleReEvaluate}
               style={{ background:'transparent', border:'1px solid #555', borderRadius:6, padding:'5px 10px', fontSize:10, fontWeight:700, color:'#777', cursor:'pointer', fontFamily:'inherit' }}>
               ↺ Re-evaluate
             </button>
           </div>
 
-          {/* Sync button */}
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', margin:'8px 16px 4px' }}>
             <button onClick={handleSync} disabled={synced}
               style={{ width:'100%', background: synced ? '#2d9e5f' : '#e8731a', border:'none', borderRadius:10, padding:14, fontSize:14, fontWeight:700, color:'#fff', cursor: synced ? 'default' : 'pointer', fontFamily:'inherit' }}>

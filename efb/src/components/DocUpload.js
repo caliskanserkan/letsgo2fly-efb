@@ -106,17 +106,15 @@ function DocUpload({ setStatus }) {
     setDocs(prev => ({ ...prev, [section]: prev[section].filter((_,i) => i !== idx) }));
   };
 
-  // setStatus logic — fuel + security zorunlu
   const requiredDone = docs.fuel.length > 0 && docs.security.length > 0;
   const anyUploaded  = Object.values(docs).some(d => d.length > 0);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!setStatus) return;
     if (requiredDone)     setStatus('green');
     else if (anyUploaded) setStatus('amber');
     else                  setStatus('pending');
-  }, [docs]);
+  }, [requiredDone, anyUploaded, setStatus]);
 
   const activeSection = SECTIONS.find(s => s.id === active);
 
@@ -144,7 +142,6 @@ function DocUpload({ setStatus }) {
       </div>
 
       <div style={{ flex:1, overflowY:'auto' }}>
-
         <div style={{ background:'#1f1f1f', borderBottom:'1px solid #383838', padding:'10px 16px', display:'flex', alignItems:'center', gap:8 }}>
           <span style={{ fontSize:18 }}>{activeSection?.icon}</span>
           <span style={{ fontSize:13, fontWeight:700, color:'#e8e8e8' }}>{activeSection?.label}</span>
