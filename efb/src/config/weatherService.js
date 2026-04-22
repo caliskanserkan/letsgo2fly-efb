@@ -1,11 +1,11 @@
 export async function fetchWeatherData(dep = 'LTAC', dest = 'LTBA', alt = 'LTFM') {
-  const STATIONS = [dep, dest, alt].filter(Boolean);
-  const ids = [...new Set(STATIONS)].join(',');
-  const BASE = 'https://aviationweather.gov/api/data';
+  const STATIONS = [...new Set([dep, dest, alt].filter(Boolean))];
+  const ids = STATIONS.join(',');
+  const BASE = '/api/wxr';
 
   const [metarRes, tafRes] = await Promise.all([
-    fetch(`${BASE}/metar?ids=${ids}&format=raw&hours=2`),
-    fetch(`${BASE}/taf?ids=${ids}&format=raw`),
+    fetch(`${BASE}?ids=${ids}&type=metar`),
+    fetch(`${BASE}?ids=${ids}&type=taf`),
   ]);
 
   const metarText = await metarRes.text();

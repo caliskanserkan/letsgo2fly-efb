@@ -184,7 +184,8 @@ useEffect(() => {
         alt:  { name:`${altIcao} — Alternate`,   metar: metars[altIcao]  || ['No METAR available'], taf: tafs[altIcao]  || ['No TAF available'] },
       });
       setUpdatedAt(ua);
-    } catch {
+      } catch (err) {
+      console.error('WXR fetch error:', err);
       setError(true);
     }
     setLoading(false);
