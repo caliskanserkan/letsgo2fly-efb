@@ -28,8 +28,9 @@ export async function fetchWeatherData(dep = 'LTAC', dest = 'LTBA', alt = 'LTFM'
   tafText.trim().split('\n').forEach(line => {
     const l = line.trim();
     if (!l) return;
-    const first = l.split(' ')[0];
-    if (STATIONS.includes(first)) {
+const parts2 = l.split(' ');
+const first = (parts2[0] === 'TAF' || parts2[0] === 'TAF') ? parts2[1] : parts2[0];
+if (STATIONS.includes(first)) {
       currentIcao = first;
       tafs[currentIcao] = [l];
     } else if (currentIcao) {
