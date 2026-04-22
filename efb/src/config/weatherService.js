@@ -15,7 +15,8 @@ export async function fetchWeatherData(dep = 'LTAC', dest = 'LTBA', alt = 'LTFM'
   metarText.trim().split('\n').forEach(line => {
     const l = line.trim();
     if (!l) return;
-    const icao = l.slice(0, 4);
+    const parts = l.split(' ');
+    const icao = parts[0] === 'METAR' || parts[0] === 'SPECI' ? parts[1] : parts[0];
     if (STATIONS.includes(icao)) {
       if (!metars[icao]) metars[icao] = [];
       metars[icao].push(l);
