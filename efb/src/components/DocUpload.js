@@ -1,14 +1,17 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import SyncButton from './SyncButton';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 const SECTIONS = [
-  { id:'fuel',        label:'Fuel Receipt',                icon:'⛽', required:true  },
-  { id:'handling',    label:'Handling Receipt',            icon:'🤝', required:false },
-  { id:'crs',         label:'CRS / Maintenance',          icon:'🔧', required:false },
-  { id:'catering',    label:'Catering Receipt',           icon:'🍽', required:false },
-  { id:'security',    label:'Security Form',              icon:'🛡', required:true  },
-  { id:'misc',        label:'Misc. (Cargo, EIC etc.)',    icon:'📂', required:false },
+  { id:'fuel',     label:'Fuel Receipt',             icon:'⛽', required:true  },
+  { id:'handling', label:'Handling Receipt',          icon:'🤝', required:false },
+  { id:'crs',      label:'CRS / Maintenance',        icon:'🔧', required:false },
+  { id:'catering', label:'Catering Receipt',         icon:'🍽', required:false },
+  { id:'security', label:'Security Form',            icon:'🛡', required:true  },
+  { id:'misc',     label:'Misc. (Cargo, EIC etc.)',  icon:'📂', required:false },
 ];
+
+const DEFAULT_DOCS = { fuel:[], handling:[], crs:[], catering:[], security:[], misc:[] };
 
 function Sep() {
   return <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />;
@@ -30,7 +33,6 @@ function DocItem({ doc, onDelete }) {
 
 function UploadArea({ onUpload, compact }) {
   const inputRef = useRef(null);
-
   const handleFile = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -42,7 +44,6 @@ function UploadArea({ onUpload, compact }) {
     onUpload({ name: file.name, size, time, by:'AAK', type });
     e.target.value = '';
   };
-
   if (compact) {
     return (
       <div style={{ margin:'0 16px 12px' }}>
@@ -55,15 +56,13 @@ function UploadArea({ onUpload, compact }) {
       </div>
     );
   }
-
   return (
     <div style={{ margin:'14px 16px' }}>
       <div onClick={() => inputRef.current.click()}
         style={{ border:'2px dashed #383838', borderRadius:10, padding:'32px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:12, cursor:'pointer' }}>
         <div style={{ fontSize:40 }}>📎</div>
         <div style={{ fontSize:13, color:'#555', textAlign:'center', lineHeight:1.6 }}>
-          Tap to upload document<br />
-          <span style={{ fontSize:11, color:'#444' }}>Photo or PDF</span>
+          Tap to upload document<br /><span style={{ fontSize:11, color:'#444' }}>Photo or PDF</span>
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <div style={{ background:'#2a2a2a', border:'1px solid #383838', borderRadius:6, padding:'8px 16px', fontSize:12, fontWeight:600, color:'#1a9bc4', cursor:'pointer' }}>📷 Camera</div>
@@ -93,20 +92,18 @@ function StatusBadge({ docs, required }) {
 }
 
 function DocUpload({ setStatus }) {
-  const [active, setActive] = useState('fuel');
-  const [docs, setDocs] = useState({
-    fuel:[], handling:[], crs:[], catering:[], security:[], misc:[]
-  });
+  const [active, setActive] = usePersistedState('efb_docupload_active', 'fuel');
+  const [docs,   setDocs]   = usePersistedState('efb_docupload_docs',   DEFAULT_DOCS);
 
   const addDoc = (section, doc) => {
-    setDocs(prev => ({ ...prev, [section]: [...prev[section], doc] }));
+    setDocs(prev => ({ ...prev, [section]: [...(prev[section] || []), doc] }));
   };
 
   const delDoc = (section, idx) => {
     setDocs(prev => ({ ...prev, [section]: prev[section].filter((_,i) => i !== idx) }));
   };
 
-  const requiredDone = docs.fuel.length > 0 && docs.security.length > 0;
+  const requiredDone = (docs.fuel?.length > 0) && (docs.security?.length > 0);
   const anyUploaded  = Object.values(docs).some(d => d.length > 0);
 
   useEffect(() => {
@@ -117,10 +114,10 @@ function DocUpload({ setStatus }) {
   }, [requiredDone, anyUploaded, setStatus]);
 
   const activeSection = SECTIONS.find(s => s.id === active);
+  const activeDocs    = docs[active] || [];
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-
       <div style={{ display:'flex', background:'#1a1a1a', borderBottom:'1px solid #383838', flexShrink:0, overflowX:'auto' }}>
         {SECTIONS.map(s => (
           <div key={s.id} onClick={() => setActive(s.id)}
@@ -129,12 +126,12 @@ function DocUpload({ setStatus }) {
               borderBottom: active===s.id ? '2px solid #1a9bc4' : '2px solid transparent',
               display:'flex', alignItems:'center', gap:4 }}>
             <span>{s.label}</span>
-            {docs[s.id].length > 0 && (
+            {(docs[s.id]?.length > 0) && (
               <span style={{ background:'#2d9e5f', color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:9, fontWeight:700 }}>
                 {docs[s.id].length}
               </span>
             )}
-            {s.required && docs[s.id].length === 0 && (
+            {s.required && !(docs[s.id]?.length > 0) && (
               <span style={{ background:'#e8731a', color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:9, fontWeight:700 }}>!</span>
             )}
           </div>
@@ -147,7 +144,7 @@ function DocUpload({ setStatus }) {
           <span style={{ fontSize:13, fontWeight:700, color:'#e8e8e8' }}>{activeSection?.label}</span>
         </div>
 
-        <StatusBadge docs={docs[active]} required={activeSection?.required} />
+        <StatusBadge docs={activeDocs} required={activeSection?.required} />
 
         {active === 'fuel' && (
           <div style={{ margin:'8px 16px', borderRadius:8, overflow:'hidden', border:'1px solid rgba(26,155,196,0.15)' }}>
@@ -171,16 +168,16 @@ function DocUpload({ setStatus }) {
           </div>
         )}
 
-        {docs[active].length > 0 && (
+        {activeDocs.length > 0 && (
           <div style={{ marginTop:8 }}>
-            {docs[active].map((doc, idx) => (
+            {activeDocs.map((doc, idx) => (
               <DocItem key={idx} doc={doc} onDelete={() => delDoc(active, idx)} />
             ))}
             <UploadArea onUpload={doc => addDoc(active, doc)} compact />
           </div>
         )}
 
-        {docs[active].length === 0 && (
+        {activeDocs.length === 0 && (
           <UploadArea onUpload={doc => addDoc(active, doc)} />
         )}
 
@@ -196,8 +193,8 @@ function DocUpload({ setStatus }) {
               <span style={{ fontSize:12, color:'#999' }}>{s.label}</span>
               {s.required && <span style={{ fontSize:9, color:'#e8731a', fontWeight:700 }}>REQ</span>}
             </div>
-            <span style={{ fontSize:11, fontWeight:600, color: docs[s.id].length > 0 ? '#2d9e5f' : (s.required ? '#e8731a' : '#444') }}>
-              {docs[s.id].length > 0 ? `${docs[s.id].length} ✓` : '—'}
+            <span style={{ fontSize:11, fontWeight:600, color: (docs[s.id]?.length > 0) ? '#2d9e5f' : (s.required ? '#e8731a' : '#444') }}>
+              {(docs[s.id]?.length > 0) ? `${docs[s.id].length} ✓` : '—'}
             </span>
           </div>
         ))}

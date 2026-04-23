@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import SyncButton from './SyncButton';
 import { createClient } from '@supabase/supabase-js';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,
@@ -67,27 +68,27 @@ function fromMins(m) {
 }
 
 function EndFlight({ flightData, divertData, setStatus, activePlan }) {
-  const [pax, setPax]             = useState('');
-  const [cycles, setCycles]       = useState('1');
-  const [archived, setArchived]   = useState(false);
-  const [archiving, setArchiving] = useState(false);
+  const [pax,      setPax]      = usePersistedState('efb_endflt_pax',      '');
+  const [cycles,   setCycles]   = usePersistedState('efb_endflt_cycles',   '1');
+  const [archived, setArchived] = usePersistedState('efb_endflt_archived', false);
+  const [archiving, setArchiving] = React.useState(false);
 
   const { offBlock, takeoffTime, landingTime, onBlock, takeoffFuel, remainingFuel } = flightData;
   const divert = divertData.active;
 
-  // From activePlan
-  const dep      = activePlan?.dep  || '—';
-  const dest     = activePlan?.dest || '—';
-  const date     = activePlan?.date || '—';
-  const reg      = activePlan?.reg  || '—';
-  const acType   = activePlan?.ac_type || '—';
-  const finalRes = n(activePlan?.reserve_fuel) || 1447;
+  const dep      = activePlan?.dep      || '—';
+  const dest     = activePlan?.dest     || '—';
+  const date     = activePlan?.date     || '—';
+  const reg      = activePlan?.reg      || '—';
+  const acType   = activePlan?.ac_type  || '—';
 
   function n(v) {
     if (!v) return null;
     const p = parseInt(v.toString().replace(/,/g,''));
     return isNaN(p) ? null : p;
   }
+
+  const finalRes = n(activePlan?.reserve_fuel) || 1447;
 
   const flightMins = toMins(landingTime) !== null && toMins(takeoffTime) !== null
     ? toMins(landingTime) - toMins(takeoffTime) : null;
@@ -118,9 +119,7 @@ function EndFlight({ flightData, divertData, setStatus, activePlan }) {
         .update({ status: 'archived', archived_at: new Date().toISOString() })
         .eq('status', 'active');
       setArchived(true);
-    } catch (err) {
-      console.error('Archive error:', err);
-    }
+    } catch {}
     setArchiving(false);
   };
 
@@ -136,7 +135,6 @@ function EndFlight({ flightData, divertData, setStatus, activePlan }) {
         </div>
       )}
 
-      {/* Flight Summary */}
       <Title t="Flight Summary" />
       <AutoRow label="Route"    value={`${dep} → ${dest}`}   valueColor="#1a9bc4" />
       <AutoRow label="Date"     value={date}                  valueColor="#e8e8e8" />
@@ -193,7 +191,6 @@ function EndFlight({ flightData, divertData, setStatus, activePlan }) {
           <div style={{ padding:'12px 14px', background:'#1e1e1e' }}>
             <textarea value={divertData.reason} onChange={() => {}} placeholder="Enter reason for divert..." rows={4}
               style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #e8731a', borderRadius:6, padding:'10px 12px', fontSize:13, color:'#e8e8e8', fontFamily:'inherit', outline:'none', resize:'vertical', lineHeight:1.6 }} />
-            <div style={{ fontSize:10, color:'#555', marginTop:6 }}>This information may be required by aviation authorities.</div>
           </div>
         </div>
       )}

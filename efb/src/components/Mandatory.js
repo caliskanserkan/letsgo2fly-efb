@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 const INITIAL_CHECKS = [
   { id:1, label:'General remarks & photos',    done:true,  badge:'✓',        badgeColor:'#2d9e5f' },
   { id:2, label:'Tech log remarks',            done:true,  badge:'1071',     badgeColor:'#2d9e5f' },
   { id:3, label:'Pre-flight acceptance',       done:true,  badge:'Offline ✓',badgeColor:'#2d9e5f' },
   { id:4, label:'AIRCRAFT SECURITY CHECKLIST', done:true,  badge:'✓',        badgeColor:'#2d9e5f', section:'Aircraft Checklists' },
-  { id:5, label:'EFB CHECKLIST',              done:true,  badge:'✓',        badgeColor:'#2d9e5f' },
-  { id:6, label:'MEL-HIL',                    done:false, badge:'Pending',  badgeColor:'#ff9500' },
+  { id:5, label:'EFB CHECKLIST',               done:true,  badge:'✓',        badgeColor:'#2d9e5f' },
+  { id:6, label:'MEL-HIL',                     done:false, badge:'Pending',  badgeColor:'#ff9500' },
 ];
 
 function SectionHeader({ title }) {
@@ -18,7 +19,7 @@ function SectionHeader({ title }) {
 }
 
 function Mandatory({ setStatus }) {
-  const [checks, setChecks] = useState(INITIAL_CHECKS);
+  const [checks, setChecks] = usePersistedState('efb_mandatory_checks', INITIAL_CHECKS);
 
   const toggle = (id) => {
     setChecks(prev => prev.map(c => c.id === id ? { ...c, done: !c.done } : c));
@@ -40,7 +41,7 @@ function Mandatory({ setStatus }) {
         Checks & Remarks
       </div>
 
-      {checks.map((c, idx) => (
+      {checks.map((c) => (
         <React.Fragment key={c.id}>
           {c.section && <SectionHeader title={c.section} />}
           <div onClick={() => toggle(c.id)}

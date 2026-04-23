@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SyncButton from './SyncButton';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 function getStopMarginColor(margin) {
   if (margin === null) return '#999';
@@ -59,7 +60,7 @@ function AtisRow({ label, value, onChange, photo, onPhoto }) {
   );
 }
 
-function RvsmRow({ label, value, onChange, elev }) {
+function RvsmRow({ label, value, onChange }) {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 12px', borderBottom:'1px solid rgba(45,158,95,0.1)' }}>
       <span style={{ fontSize:11.5, color:'#777' }}>{label}</span>
@@ -75,38 +76,35 @@ function RvsmRow({ label, value, onChange, elev }) {
 function TakeoffData({ setStatus, activePlan }) {
   const dep = activePlan?.dep || 'LTAC';
 
-  const [icao, setIcao]         = useState(dep);
-  const [runways, setRunways]   = useState([]);
-  const [selRwy, setSelRwy]     = useState(null);
-  const [loading, setLoading]   = useState(false);
-  const [noData, setNoData]     = useState(false);
+  const [icao,      setIcao]      = usePersistedState('efb_tkof_icao',      dep);
+  const [selRwy,    setSelRwy]    = usePersistedState('efb_tkof_selRwy',    null);
+  const [manualRwy, setManualRwy] = usePersistedState('efb_tkof_manualRwy', '');
+  const [manualLen, setManualLen] = usePersistedState('efb_tkof_manualLen', '');
+  const [depAtis,   setDepAtis]   = usePersistedState('efb_tkof_depAtis',   '');
+  const [depPhoto,  setDepPhoto]  = usePersistedState('efb_tkof_depPhoto',  false);
+  const [sid,       setSid]       = usePersistedState('efb_tkof_sid',       '');
+  const [fl,        setFl]        = usePersistedState('efb_tkof_fl',        '');
+  const [sq,        setSq]        = usePersistedState('efb_tkof_sq',        '');
+  const [oth,       setOth]       = usePersistedState('efb_tkof_oth',       '');
+  const [dclPhoto,  setDclPhoto]  = usePersistedState('efb_tkof_dclPhoto',  false);
+  const [v1,        setV1]        = usePersistedState('efb_tkof_v1',        '');
+  const [vr,        setVr]        = usePersistedState('efb_tkof_vr',        '');
+  const [v2,        setV2]        = usePersistedState('efb_tkof_v2',        '');
+  const [vse,       setVse]       = usePersistedState('efb_tkof_vse',       '');
+  const [trim,      setTrim]      = usePersistedState('efb_tkof_trim',      '');
+  const [reqRw,     setReqRw]     = usePersistedState('efb_tkof_reqRw',     '');
+  const [rvsm1,     setRvsm1]     = usePersistedState('efb_tkof_rvsm1',     '');
+  const [rvsmSby,   setRvsmSby]   = usePersistedState('efb_tkof_rvsmSby',   '');
+  const [rvsm2,     setRvsm2]     = usePersistedState('efb_tkof_rvsm2',     '');
 
-  const [manualRwy, setManualRwy] = useState('');
-  const [manualLen, setManualLen] = useState('');
+  // Runtime-only (fetched, no persist needed)
+  const [runways, setRunways] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [noData,  setNoData]  = useState(false);
 
-  const [depAtis, setDepAtis]   = useState('');
-  const [depPhoto, setDepPhoto] = useState(false);
-
-  const [sid, setSid]   = useState('');
-  const [fl, setFl]     = useState('');
-  const [sq, setSq]     = useState('');
-  const [oth, setOth]   = useState('');
-  const [dclPhoto, setDclPhoto] = useState(false);
-
-  const [v1, setV1]     = useState('');
-  const [vr, setVr]     = useState('');
-  const [v2, setV2]     = useState('');
-  const [vse, setVse]   = useState('');
-  const [trim, setTrim] = useState('');
-  const [reqRw, setReqRw] = useState('');
-
-  const [rvsm1, setRvsm1]     = useState('');
-  const [rvsmSby, setRvsmSby] = useState('');
-  const [rvsm2, setRvsm2]     = useState('');
-
-  // Update ICAO when activePlan changes
   useEffect(() => {
-    if (activePlan?.dep) setIcao(activePlan.dep);
+    if (activePlan?.dep && icao === dep) setIcao(activePlan.dep);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePlan?.dep]);
 
   const fetchRunways = async (code) => {
@@ -123,16 +121,16 @@ function TakeoffData({ setStatus, activePlan }) {
       lines.forEach(line => {
         const cols = line.split(',');
         if (cols.length > 4) {
-          const len = parseInt(cols[3]);
-          const id1 = cols[8]  ? cols[8].replace(/"/g,'').trim()  : '';
-          const id2 = cols[14] ? cols[14].replace(/"/g,'').trim() : '';
+          const len  = parseInt(cols[3]);
+          const id1  = cols[8]  ? cols[8].replace(/"/g,'').trim()  : '';
+          const id2  = cols[14] ? cols[14].replace(/"/g,'').trim() : '';
           const lenFt = Math.round(len * 3.28084);
           if (id1 && len) parsed.push({ id:id1, length:lenFt });
           if (id2 && len) parsed.push({ id:id2, length:lenFt });
         }
       });
       if (parsed.length > 0) { setRunways(parsed); setNoData(false); }
-      else { setNoData(true); }
+      else setNoData(true);
     } catch { setNoData(true); }
     setLoading(false);
   };
@@ -152,16 +150,14 @@ function TakeoffData({ setStatus, activePlan }) {
     else setStatus('pending');
   }, [runwayOk, speedsOk, atisOk, setStatus]);
 
-  const selectedRwy = runways.find(r => r.id === selRwy);
-  const activeLenFt = selectedRwy ? selectedRwy.length
-                    : (manualLen ? parseInt(manualLen.replace(/[^0-9]/g,'')) : null);
-  const reqRwNum    = reqRw ? parseInt(reqRw.replace(/[^0-9]/g,'')) : null;
-  const stopMargin  = activeLenFt && reqRwNum ? activeLenFt - reqRwNum : null;
-  const marginColor = getStopMarginColor(stopMargin);
+  const selectedRwy  = runways.find(r => r.id === selRwy);
+  const activeLenFt  = selectedRwy ? selectedRwy.length : (manualLen ? parseInt(manualLen.replace(/[^0-9]/g,'')) : null);
+  const reqRwNum     = reqRw ? parseInt(reqRw.replace(/[^0-9]/g,'')) : null;
+  const stopMargin   = activeLenFt && reqRwNum ? activeLenFt - reqRwNum : null;
+  const marginColor  = getStopMarginColor(stopMargin);
 
-  // OFP weights from activePlan
-  const tow  = activePlan?.tow ? `${parseInt(activePlan.tow).toLocaleString()} lb` : '—';
-  const zfw  = activePlan?.zfw ? `${parseInt(activePlan.zfw).toLocaleString()} lb` : '—';
+  const tow = activePlan?.tow ? `${parseInt(activePlan.tow).toLocaleString()} lb` : '—';
+  const zfw = activePlan?.zfw ? `${parseInt(activePlan.zfw).toLocaleString()} lb` : '—';
 
   return (
     <div>
@@ -269,9 +265,8 @@ function TakeoffData({ setStatus, activePlan }) {
       <Sep />
 
       <div style={{ margin:'10px 16px', background:'rgba(45,158,95,0.06)', border:'1px solid rgba(45,158,95,0.2)', borderRadius:8, overflow:'hidden' }}>
-        <div style={{ background:'rgba(45,158,95,0.15)', color:'#2d9e5f', padding:'7px 12px', fontSize:10, fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', borderBottom:'1px solid rgba(45,158,95,0.2)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <span>RVSM — Ground Altimeter Check</span>
-          <span style={{ fontSize:9, color:'#555' }}>{dep} ELEV</span>
+        <div style={{ background:'rgba(45,158,95,0.15)', color:'#2d9e5f', padding:'7px 12px', fontSize:10, fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', borderBottom:'1px solid rgba(45,158,95,0.2)' }}>
+          RVSM — Ground Altimeter Check
         </div>
         <RvsmRow label="PRI 1 (ALT)"  value={rvsm1}   onChange={setRvsm1} />
         <RvsmRow label="SBY ALT"      value={rvsmSby} onChange={setRvsmSby} />

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import SyncButton from './SyncButton';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,
@@ -9,40 +10,25 @@ const supabase = createClient(
 
 const FIFTY_MIN = 50 * 60 * 1000;
 
-// ─── Waypoint parser ──────────────────────────────────────────────────────────
 function parseWaypoints(rawText, dep, dest, std) {
   if (!rawText || !dep || !dest) return [];
-
-  // Find coordinate list section between DEP XXXX/ and DEST XXXX/
-  // Format: "DEP   LTAC/ESB   ANKARA/ESENBOGA   N40:07.7   E032:59.7"
-  //         "1   C3558   SID WAYPOINT   N40:07.4   E032:59.7"
-  //         "DEST   LTAS/ONQ   ZONGULDAK/CAYCU   N41:30.4   E032:05.4"
   const depPattern = new RegExp(
-    `DEP\\s+${dep}\\/\\S+[^\\n]*\\n([\\s\\S]*?)(?=DEST\\s+${dest}\\/)`,
-    'i'
+    `DEP\\s+${dep}\\/\\S+[^\\n]*\\n([\\s\\S]*?)(?=DEST\\s+${dest}\\/)`, 'i'
   );
   const sectionMatch = rawText.match(depPattern);
   const section = sectionMatch?.[1] || '';
-
   const wptNames = [];
-
   if (section) {
-    const lines = section.split('\n');
-    for (const line of lines) {
+    for (const line of section.split('\n')) {
       if (!line.trim() || line.match(/-TOC-|-TOD-/)) continue;
-      // Match: "1   C3558   SID WAYPOINT" or "4   GUMRU   GUMRU"
       const m = line.match(/^\s*\d+\s+([A-Z][A-Z0-9]{1,5})\s/);
       if (m) wptNames.push(m[1]);
     }
   }
-
   const waypoints = [];
   waypoints.push({ id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false });
-  wptNames.forEach(name => {
-    waypoints.push({ id: name, name, type: 'wpt', eta: '—', fl: '—', planFuel: null, custom: false });
-  });
+  wptNames.forEach(name => waypoints.push({ id: name, name, type: 'wpt', eta: '—', fl: '—', planFuel: null, custom: false }));
   waypoints.push({ id: dest, name: dest, type: 'dest', eta: '—', fl: '—', planFuel: null, custom: false });
-
   return waypoints;
 }
 
@@ -54,7 +40,6 @@ function getFuelDestColor(fuel) {
   return '#2d9e5f';
 }
 
-// ─── Input components ─────────────────────────────────────────────────────────
 function TimeBox({ value, onChange, placeholder }) {
   const handleChange = (e) => {
     let v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
@@ -76,11 +61,8 @@ function FuelBox({ value, onChange, placeholder }) {
 
 function RvsmBoxes({ value, onChange }) {
   const parts = (value || '//').split('/');
-  const pri1 = parts[0] || '';
-  const sby  = parts[1] || '';
-  const pri2 = parts[2] || '';
-  const ref2 = useRef(null);
-  const ref3 = useRef(null);
+  const pri1 = parts[0] || '', sby = parts[1] || '', pri2 = parts[2] || '';
+  const ref2 = useRef(null), ref3 = useRef(null);
   const update = (p1, p2, p3) => onChange(`${p1}/${p2}/${p3}`);
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
@@ -100,7 +82,6 @@ function RvsmBoxes({ value, onChange }) {
   );
 }
 
-// ─── Modals ───────────────────────────────────────────────────────────────────
 function DepModal({ dep, onClose, onSave, initial }) {
   const [offBlock, setOffBlock] = useState(initial.offBlock || '');
   const [toTime,   setToTime]   = useState(initial.toTime   || '');
@@ -133,14 +114,10 @@ function ArrivalModal({ wptName, isDivert, onClose, onSave, onDivert, initial })
   const [doDiv,      setDoDiv]      = useState(false);
   const [divertIcao, setDivertIcao] = useState('');
   const [divertRwy,  setDivertRwy]  = useState('');
-
   const handleSave = () => {
-    if (doDiv && divertIcao.length === 4 && onDivert) {
-      onDivert({ icao: divertIcao, rwy: divertRwy });
-    }
+    if (doDiv && divertIcao.length === 4 && onDivert) onDivert({ icao: divertIcao, rwy: divertRwy });
     onSave({ lndTime, onBlock, remFuel });
   };
-
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }}>
       <div style={{ background:'#252525', border:`1px solid ${isDivert ? '#e8731a55' : '#383838'}`, borderRadius:12, width:320, overflow:'hidden', maxHeight:'90vh', overflowY:'auto' }}>
@@ -152,8 +129,6 @@ function ArrivalModal({ wptName, isDivert, onClose, onSave, onDivert, initial })
           <div><div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Landing Time</div><TimeBox value={lndTime} onChange={setLndTime} /></div>
           <div><div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>On Block</div><TimeBox value={onBlock} onChange={setOnBlock} /></div>
           <div><div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Remaining Fuel</div><FuelBox value={remFuel} onChange={setRemFuel} /></div>
-
-          {/* Divert toggle — only for planned dest */}
           {!isDivert && (
             <div style={{ borderTop:'1px solid #383838', paddingTop:12 }}>
               <div onClick={() => setDoDiv(!doDiv)}
@@ -174,9 +149,6 @@ function ArrivalModal({ wptName, isDivert, onClose, onSave, onDivert, initial })
                     <div style={{ fontSize:10, color:'#e8731a', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Runway</div>
                     <input value={divertRwy} onChange={e => setDivertRwy(e.target.value.toUpperCase())} placeholder="e.g. 27L"
                       style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #e8731a', borderRadius:6, padding:'9px 12px', fontSize:14, fontWeight:700, color:'#e8731a', fontFamily:'monospace', outline:'none', textAlign:'center' }} />
-                  </div>
-                  <div style={{ padding:'7px 10px', borderRadius:5, background:'rgba(255,149,0,0.08)', fontSize:10, color:'#c4882a' }}>
-                    ⚠ Landing page will auto-activate divert.
                   </div>
                 </div>
               )}
@@ -266,11 +238,6 @@ function AddWptModal({ onClose, onAdd, type }) {
               placeholder={isArpt ? 'ICAO' : 'e.g. ROMEO'} maxLength={isArpt ? 4 : 6}
               style={{ width:'100%', background:'#1a1a1a', border:`1.5px solid ${isArpt ? '#e8731a' : '#ff9500'}`, borderRadius:6, padding:'9px 12px', fontSize:16, fontWeight:700, color: isArpt ? '#e8731a' : '#ff9500', fontFamily:'monospace', outline:'none', textAlign:'center', letterSpacing:2 }} />
           </div>
-          {isArpt && (
-            <div style={{ padding:'7px 10px', borderRadius:5, background:'rgba(255,149,0,0.08)', fontSize:10, color:'#c4882a' }}>
-              ⚠ Flight closes at this airport. Divert activates automatically on Landing page.
-            </div>
-          )}
         </div>
         <div style={{ padding:'0 16px 16px', display:'flex', gap:8 }}>
           <button onClick={onClose} style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
@@ -287,53 +254,65 @@ function AddWptModal({ onClose, onAdd, type }) {
 
 // ─── NavLog Main ──────────────────────────────────────────────────────────────
 function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert }) {
-  const [entries, setEntries]           = useState({});
-  const [modal, setModal]               = useState(null);
-  const [directTo, setDirectTo]         = useState(null);
-  const [alert50, setAlert50]           = useState(false);
-  const [lastCheckTime, setLastCheckTime] = useState(null);
-  const [waypoints, setWaypoints]       = useState([]);
-  const [addModal, setAddModal]         = useState(null);
-  const [flightClosed, setFlightClosed] = useState(false);
+  const [entries,       setEntries]       = usePersistedState('efb_navlog_entries',       {});
+  const [waypoints,     setWaypoints]     = usePersistedState('efb_navlog_waypoints',     []);
+  const [directTo,      setDirectTo]      = usePersistedState('efb_navlog_directTo',      null);
+  const [flightClosed,  setFlightClosed]  = usePersistedState('efb_navlog_flightClosed',  false);
+  const [lastCheckTime, setLastCheckTime] = usePersistedState('efb_navlog_lastCheckTime', null);
+
+  const [modal,    setModal]    = useState(null);
+  const [addModal, setAddModal] = useState(null);
+  const [alert50,  setAlert50]  = useState(false);
 
   const dep  = activePlan?.dep  || 'DEP';
   const dest = activePlan?.dest || 'DEST';
   const std  = activePlan?.std  || '';
 
+  // Fetch waypoints from Supabase; if offline or empty use persisted ones
   useEffect(() => {
     if (!activePlan?.id) {
-      setWaypoints([
-        { id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false },
-        { id: dest, name: dest, type: 'dest', eta: '—',        fl: '—', planFuel: null, custom: false },
-      ]);
-      return;
-    }
-    const fetchRaw = async () => {
-      const { data } = await supabase
-        .from('plan_versions')
-        .select('raw_text')
-        .eq('plan_id', activePlan.id)
-        .order('version_no', { ascending: false })
-        .limit(1)
-        .single();
-      if (data?.raw_text) {
-        const wpts = parseWaypoints(data.raw_text, dep, dest, std);
-        setWaypoints(wpts.length >= 2 ? wpts : [
+      if (waypoints.length === 0) {
+        setWaypoints([
           { id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false },
           { id: dest, name: dest, type: 'dest', eta: '—',        fl: '—', planFuel: null, custom: false },
         ]);
       }
+      return;
+    }
+    const fetchRaw = async () => {
+      try {
+        const { data } = await supabase
+          .from('plan_versions')
+          .select('raw_text')
+          .eq('plan_id', activePlan.id)
+          .order('version_no', { ascending: false })
+          .limit(1)
+          .single();
+        if (data?.raw_text) {
+          const wpts = parseWaypoints(data.raw_text, dep, dest, std);
+          // Merge: keep custom waypoints that were added
+          const customWpts = waypoints.filter(w => w.custom);
+          if (wpts.length >= 2) {
+            const destIdx = wpts.findIndex(w => w.type === 'dest');
+            const merged = [...wpts];
+            customWpts.forEach(cw => {
+              if (!merged.find(w => w.id === cw.id)) merged.splice(destIdx, 0, cw);
+            });
+            setWaypoints(merged);
+          }
+        }
+      } catch {
+        // Offline — use persisted waypoints
+        if (waypoints.length === 0) {
+          setWaypoints([
+            { id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false },
+            { id: dest, name: dest, type: 'dest', eta: '—',        fl: '—', planFuel: null, custom: false },
+          ]);
+        }
+      }
     };
     fetchRaw();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePlan?.id]);
-
-  useEffect(() => {
-    setEntries({});
-    setDirectTo(null);
-    setAlert50(false);
-    setLastCheckTime(null);
-    setFlightClosed(false);
   }, [activePlan?.id]);
 
   useEffect(() => {
@@ -403,26 +382,14 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     });
     if (wpt.isArpt) {
       setFlightClosed(true);
-      if (updateDivert) {
-        updateDivert('active', true);
-        updateDivert('icao', wpt.id);
-      }
+      if (updateDivert) { updateDivert('active', true); updateDivert('icao', wpt.id); }
     }
     setAddModal(null);
   };
 
-  const getToFuel = () => {
-    const d = entries[dep];
-    return d?.toFuel ? parseInt(d.toFuel.replace(/,/g,'')) : null;
-  };
-
-  const getFuelAtDest = (wpt) => {
-    const e = entries[wpt.id];
-    if (!e?.fuel) return null;
-    return parseInt(e.fuel.replace(/,/g,''));
-  };
-
-  const isSkipped = (wpt, idx) => {
+  const getToFuel     = () => { const d = entries[dep];  return d?.toFuel  ? parseInt(d.toFuel.replace(/,/g,''))  : null; };
+  const getFuelAtDest = (wpt) => { const e = entries[wpt.id]; if (!e?.fuel) return null; return parseInt(e.fuel.replace(/,/g,'')); };
+  const isSkipped     = (wpt, idx) => {
     if (!directTo) return false;
     const fromIdx = waypoints.findIndex(w => w.id === directTo.from);
     const toIdx   = waypoints.findIndex(w => w.id === directTo.to);
@@ -435,7 +402,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-
       {alert50 && (
         <div style={{ background:'rgba(224,32,32,0.12)', borderBottom:'1px solid rgba(224,32,32,0.3)', padding:'10px 16px', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
           <span style={{ fontSize:18 }}>⚠️</span>
@@ -481,8 +447,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
                           : !!(e.ata  || e.fuel);
           const isActive  = !isDone && !skipped && (idx === 0 || waypoints.slice(0, idx).every((w, wi) => {
             const pe = entries[w.id] || {};
-            return w.type === 'dep' ? !!(pe.offBlock || pe.toTime)
-                                    : !!(pe.ata || pe.fuel || pe.lndTime) || isSkipped(w, wi);
+            return w.type === 'dep' ? !!(pe.offBlock || pe.toTime) : !!(pe.ata || pe.fuel || pe.lndTime) || isSkipped(w, wi);
           }));
           const fuelAtDest = getFuelAtDest(wpt);
           const fuelColor  = getFuelDestColor(fuelAtDest);
@@ -490,7 +455,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           const borderLeft = isDivArpt ? '3px solid #e8731a' : isActive ? '3px solid #1a9bc4' : isDone ? '3px solid #2d9e5f' : '3px solid transparent';
           const nameColor  = isDivArpt ? '#e8731a' : isDep||isDest ? '#1a9bc4' : isDone ? '#2d9e5f' : isActive ? '#1a9bc4' : wpt.custom ? '#ff9500' : '#666';
           const rvsmDisp   = e.rvsm ? e.rvsm.split('/')[0] + '…' : (isDep || isArrival ? 'N/A' : '—');
-
           return (
             <div key={wpt.id + idx} onClick={() => !skipped && setModal(wpt.id)}
               style={{ display:'grid', gridTemplateColumns:'70px 50px 50px 45px 60px 60px 60px 1fr', padding:'10px', borderBottom:'1px solid #383838', background:rowBg, borderLeft, cursor: skipped ? 'default' : 'pointer', opacity: skipped ? 0.3 : 1, alignItems:'center' }}>
@@ -524,7 +488,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           );
         })}
 
-        {/* Add buttons */}
         {!flightClosed && (
           <div style={{ display:'flex', gap:8, padding:'10px' }}>
             <button onClick={() => setAddModal('wpt')}
@@ -546,7 +509,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
 
       <SyncButton />
 
-      {/* Modals */}
       {modal === dep && (
         <DepModal dep={dep} onClose={() => setModal(null)} onSave={handleDepSave} initial={entries[dep] || {}} />
       )}

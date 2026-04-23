@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 const LB_PER_KG = 2.20462;
 
@@ -74,32 +75,23 @@ function Info({ label, value, color, big }) {
 }
 
 function Fuel({ setStatus, activePlan }) {
-  const [density, setDensity]     = useState('0.78');
-  const [upliftLt, setUpliftLt]   = useState('');
-  const [upliftLb, setUpliftLb]   = useState('');
-  const [remaining, setRemaining] = useState('');
-  const [totalFuel, setTotalFuel] = useState('');
+  const [density,   setDensity]   = usePersistedState('efb_fuel_density',   '0.78');
+  const [upliftLt,  setUpliftLt]  = usePersistedState('efb_fuel_upliftLt',  '');
+  const [upliftLb,  setUpliftLb]  = usePersistedState('efb_fuel_upliftLb',  '');
+  const [remaining, setRemaining] = usePersistedState('efb_fuel_remaining', '');
+  const [totalFuel, setTotalFuel] = usePersistedState('efb_fuel_totalFuel', '');
 
-  // OFP fuel values from activePlan
   const ofp = {
     trip:  n(activePlan?.trip_fuel)      || 0,
     alt:   n(activePlan?.alternate_fuel) || 0,
     fin:   n(activePlan?.reserve_fuel)   || 0,
-    cont:  0,   // parsed from raw_text in EFP, not stored separately
-    taxi:  400, // standard
-    disc:  0,
-    minTO: 0,
-    max:   0,
+    cont:  0,
+    taxi:  400,
   };
-
-  // Calculate minTO = trip + cont + alt + fin + taxi
   ofp.minTO = ofp.trip + ofp.cont + ofp.alt + ofp.fin + ofp.taxi;
 
-  // FOB from activePlan
-  const planFob = n(activePlan?.fob?.replace(/[^\d]/g,'')) || null;
-
-  // Alternate ICAO
-  const altIcao = activePlan?.alternate || 'ALTN';
+  const planFob  = n(activePlan?.fob?.replace(/[^\d]/g,'')) || null;
+  const altIcao  = activePlan?.alternate || 'ALTN';
 
   const handleUpliftLt = (val) => {
     setUpliftLt(val);
@@ -147,17 +139,17 @@ function Fuel({ setStatus, activePlan }) {
   return (
     <div>
       <Title t="Uplift" />
-      <EntryRow label="Density" hint="kg/lt — adjust for temperature" value={density} onChange={handleDensity} unit="kg/lt" />
-      <EntryRow label="Uplift" hint="Litres (from fuel receipt)" value={upliftLt} onChange={handleUpliftLt} unit="Lt" />
-      <EntryRow label="Uplift" hint="Pounds" value={upliftLb} onChange={handleUpliftLb} unit="lb" />
+      <EntryRow label="Density" hint="kg/lt — adjust for temperature" value={density}   onChange={handleDensity}  unit="kg/lt" />
+      <EntryRow label="Uplift"  hint="Litres (from fuel receipt)"     value={upliftLt}  onChange={handleUpliftLt} unit="Lt" />
+      <EntryRow label="Uplift"  hint="Pounds"                         value={upliftLb}  onChange={handleUpliftLb} unit="lb" />
       {autoUplift !== null && <AutoRow label="Uplift" hint="Auto calculated" value={fmt(autoUplift)} unit="lb" />}
 
       <Sep />
 
       <Title t="Fuel Quantities" />
-      <EntryRow label="Remaining (last flight)" hint="From previous flight" value={remaining} onChange={setRemaining} unit="lb" />
+      <EntryRow label="Remaining (last flight)" hint="From previous flight"                value={remaining}  onChange={setRemaining}  unit="lb" />
       {autoRemaining !== null && <AutoRow label="Remaining" hint="Auto calculated" value={fmt(autoRemaining)} unit="lb" />}
-      <EntryRow label="Total / Ramp Fuel" hint="From aircraft indicator" value={totalFuel} onChange={setTotalFuel} unit="lb" />
+      <EntryRow label="Total / Ramp Fuel"       hint="From aircraft indicator"             value={totalFuel}  onChange={setTotalFuel}  unit="lb" />
       {autoTotal !== null && <AutoRow label="Total / Ramp Fuel" hint="Auto calculated (Uplift + Remaining)" value={fmt(autoTotal)} unit="lb" />}
 
       <Sep />
@@ -179,13 +171,13 @@ function Fuel({ setStatus, activePlan }) {
       <Sep />
 
       <Title t="OFP - Planned Fuel" />
-      <Info label="Trip"                         value={ofp.trip  ? `${fmt(ofp.trip)} lb`  : '— lb'} />
-      <Info label="Contingency"                  value={ofp.cont  ? `${fmt(ofp.cont)} lb`  : '— lb'} />
-      <Info label={`Alternate (${altIcao})`}     value={ofp.alt   ? `${fmt(ofp.alt)} lb`   : '— lb'} />
-      <Info label="Final Reserve"                value={ofp.fin   ? `${fmt(ofp.fin)} lb`   : '— lb'} />
-      <Info label="Taxi"                         value={`${fmt(ofp.taxi)} lb`} />
-      <Info label="MIN T/O FUEL"                 value={ofp.minTO ? `${fmt(ofp.minTO)} lb` : '— lb'} color="#e8731a" />
-      {planFob && <Info label="Total FOB (OFP)"  value={`${fmt(planFob)} lb`} color="#1a9bc4" />}
+      <Info label="Trip"                        value={ofp.trip  ? `${fmt(ofp.trip)} lb`  : '— lb'} />
+      <Info label="Contingency"                 value={ofp.cont  ? `${fmt(ofp.cont)} lb`  : '— lb'} />
+      <Info label={`Alternate (${altIcao})`}    value={ofp.alt   ? `${fmt(ofp.alt)} lb`   : '— lb'} />
+      <Info label="Final Reserve"               value={ofp.fin   ? `${fmt(ofp.fin)} lb`   : '— lb'} />
+      <Info label="Taxi"                        value={`${fmt(ofp.taxi)} lb`} />
+      <Info label="MIN T/O FUEL"                value={ofp.minTO ? `${fmt(ofp.minTO)} lb` : '— lb'} color="#e8731a" />
+      {planFob && <Info label="Total FOB (OFP)" value={`${fmt(planFob)} lb`} color="#1a9bc4" />}
     </div>
   );
 }

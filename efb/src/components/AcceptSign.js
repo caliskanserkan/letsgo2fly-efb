@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 const pilots = [
   { code: 'AAK', name: 'Capt. Ahmet Akpinar' },
@@ -12,9 +13,7 @@ function StatusRow({ label, ok, inProgress, value }) {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
       <span style={{ fontSize:12.5, color:'#999' }}>{label}</span>
-      <span style={{ fontSize:11, fontWeight:600, color }}>
-        {icon} {value}
-      </span>
+      <span style={{ fontSize:11, fontWeight:600, color }}>{icon} {value}</span>
     </div>
   );
 }
@@ -33,41 +32,23 @@ const now = () => {
 };
 
 function AcceptSign({ setStatus, pageStatus }) {
-  const [preflightPilot, setPreflightPilot] = useState('AAK');
-  const [signed, setSigned] = useState(false);
-  const [accepted, setAccepted] = useState(false);
-  const [acceptedAt, setAcceptedAt] = useState('');
-  const [synced, setSynced] = useState(false);
-  const [syncedAt, setSyncedAt] = useState('');
+  const [preflightPilot, setPreflightPilot] = usePersistedState('efb_accept_pilot',      'AAK');
+  const [accepted,       setAccepted]       = usePersistedState('efb_accept_accepted',    false);
+  const [acceptedAt,     setAcceptedAt]     = usePersistedState('efb_accept_acceptedAt',  '');
+  const [synced,         setSynced]         = usePersistedState('efb_accept_synced',       false);
+  const [syncedAt,       setSyncedAt]       = usePersistedState('efb_accept_syncedAt',    '');
+
+  // signature canvas — can't persist, but if already accepted canvas is irrelevant
+  const [signed,  setSigned]  = useState(false);
   const [drawing, setDrawing] = useState(false);
   const canvasRef = useRef(null);
   const ps = pageStatus || {};
 
   const statuses = [
-    {
-      label      : 'Flight & crew assigned',
-      ok         : ps['flt-crew']  === 'green',
-      inProgress : ps['flt-crew']  === 'amber',
-      value      : ps['flt-crew']  === 'green' ? 'Complete' : ps['flt-crew'] === 'amber' ? 'In Progress…' : 'Pending',
-    },
-    {
-      label      : 'Mandatory / Preflight',
-      ok         : ps['mandatory'] === 'green',
-      inProgress : ps['mandatory'] === 'amber',
-      value      : ps['mandatory'] === 'green' ? 'Complete' : ps['mandatory'] === 'amber' ? 'In Progress…' : 'Pending',
-    },
-    {
-      label      : 'eFP documents loaded',
-      ok         : ps['efp']       === 'green',
-      inProgress : ps['efp']       === 'amber',
-      value      : ps['efp']       === 'green' ? 'Loaded ✓' : ps['efp'] === 'amber' ? 'In Progress…' : 'Not viewed',
-    },
-    {
-      label      : 'FUEL uplift entered',
-      ok         : ps['fuel']      === 'green',
-      inProgress : ps['fuel']      === 'amber',
-      value      : ps['fuel']      === 'green' ? 'Complete' : ps['fuel'] === 'amber' ? 'In Progress…' : 'Pending',
-    },
+    { label:'Flight & crew assigned', ok: ps['flt-crew']==='green',  inProgress: ps['flt-crew']==='amber',  value: ps['flt-crew']==='green'  ? 'Complete' : ps['flt-crew']==='amber'  ? 'In Progress…' : 'Pending' },
+    { label:'Mandatory / Preflight',  ok: ps['mandatory']==='green', inProgress: ps['mandatory']==='amber', value: ps['mandatory']==='green' ? 'Complete' : ps['mandatory']==='amber' ? 'In Progress…' : 'Pending' },
+    { label:'eFP documents loaded',   ok: ps['efp']==='green',       inProgress: ps['efp']==='amber',       value: ps['efp']==='green'       ? 'Loaded ✓' : ps['efp']==='amber'       ? 'In Progress…' : 'Not viewed' },
+    { label:'FUEL uplift entered',    ok: ps['fuel']==='green',      inProgress: ps['fuel']==='amber',      value: ps['fuel']==='green'      ? 'Complete' : ps['fuel']==='amber'      ? 'In Progress…' : 'Pending' },
   ];
 
   const allOk = statuses.every(s => s.ok);
@@ -77,7 +58,7 @@ function AcceptSign({ setStatus, pageStatus }) {
     if (accepted)    setStatus('green');
     else if (signed) setStatus('amber');
     else             setStatus('pending');
-   }, [accepted, signed, setStatus]);
+  }, [accepted, signed, setStatus]);
 
   const getPos = (e) => {
     const canvas = canvasRef.current;
@@ -113,15 +94,11 @@ function AcceptSign({ setStatus, pageStatus }) {
     ctx.stroke();
   };
 
-  const endDraw = () => {
-    setDrawing(false);
-    setSigned(true);
-  };
+  const endDraw = () => { setDrawing(false); setSigned(true); };
 
   const clearSig = () => {
     if (accepted) return;
-    const canvas = canvasRef.current;
-    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    canvasRef.current.getContext('2d').clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
     setSigned(false);
   };
 
@@ -137,14 +114,10 @@ function AcceptSign({ setStatus, pageStatus }) {
     setSynced(false);
     setSyncedAt('');
     setAcceptedAt('');
-    const canvas = canvasRef.current;
-    if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    if (canvasRef.current) canvasRef.current.getContext('2d').clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
   };
 
-  const handleSync = () => {
-    setSynced(true);
-    setSyncedAt(now());
-  };
+  const handleSync = () => { setSynced(true); setSyncedAt(now()); };
 
   return (
     <div>
@@ -195,11 +168,13 @@ function AcceptSign({ setStatus, pageStatus }) {
           ref={canvasRef}
           width={450} height={120}
           style={{ display:'block', width:'100%', background: accepted ? '#111' : '#1a1a1a', cursor: accepted ? 'default' : 'crosshair' }}
-          onMouseDown={startDraw}
-          onMouseMove={draw}
-          onMouseUp={endDraw}
-          onMouseLeave={endDraw}
+          onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
         />
+        {accepted && (
+          <div style={{ padding:'8px', fontSize:11, color:'#2d9e5f', textAlign:'center', borderTop:'1px solid rgba(45,158,95,0.2)' }}>
+            ✓ Accepted at {acceptedAt}
+          </div>
+        )}
         {!signed && !accepted && (
           <div style={{ padding:'8px', fontSize:11, color:'#444', textAlign:'center', borderTop:'1px dashed #333' }}>
             ✍ Sign with mouse or Apple Pencil
@@ -242,14 +217,12 @@ function AcceptSign({ setStatus, pageStatus }) {
               style={{ width:'100%', background: synced ? '#2d9e5f' : '#e8731a', border:'none', borderRadius:10, padding:14, fontSize:14, fontWeight:700, color:'#fff', cursor: synced ? 'default' : 'pointer', fontFamily:'inherit' }}>
               {synced ? '✓ Synced to PM' : '⇄ Sync to PM'}
             </button>
-            {syncedAt && (
-              <div style={{ fontSize:10, color:'#555', marginTop:5 }}>Last sync: {syncedAt}</div>
-            )}
+            {syncedAt && <div style={{ fontSize:10, color:'#555', marginTop:5 }}>Last sync: {syncedAt}</div>}
           </div>
 
           {synced && (
             <div style={{ margin:'4px 16px 12px', padding:'10px 12px', borderRadius:6, background:'rgba(45,158,95,0.08)', borderLeft:'3px solid #2d9e5f', fontSize:11, color:'#6db890' }}>
-              ✓ Flight plan sent to PM. Plan will appear in their Active Plans.
+              ✓ Flight plan sent to PM.
             </div>
           )}
         </>

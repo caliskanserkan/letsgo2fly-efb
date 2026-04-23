@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 const ALL_PILOTS = [
   { code: 'AAK', name: 'Capt. Ahmet Akpinar' },
@@ -30,8 +31,8 @@ function PilotRow({ pilot, role, onSelect }) {
 }
 
 function FlightCrew({ setStatus, activePlan }) {
-  const [pf, setPF] = useState('AAK');
-  const [pm, setPM] = useState('SEL');
+  const [pf, setPF] = usePersistedState('efb_crew_pf', 'AAK');
+  const [pm, setPM] = usePersistedState('efb_crew_pm', 'SEL');
 
   const handleSelect = (code) => {
     if (pf === code) { setPF(pm); setPM(code); }
@@ -40,7 +41,6 @@ function FlightCrew({ setStatus, activePlan }) {
     setStatus('green');
   };
 
-  // Aktif plandan veri çek, yoksa varsayılan göster
   const flightId  = activePlan?.callsign || activePlan?.dispatch_no || '—';
   const logNr     = activePlan?.log_nr   || '—';
   const dof       = activePlan?.date     || '—';

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SyncButton from './SyncButton';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 function getStopMarginColor(margin) {
   if (margin === null) return '#999';
@@ -54,22 +55,24 @@ function AtisRow({ label, value, onChange, photo, onPhoto }) {
 }
 
 function LandingData({ flightData, divertData, updateDivert, setStatus, activePlan }) {
-  const [icao, setIcao]           = useState(activePlan?.dest || 'LTBA');
-  const [runways, setRunways]     = useState([]);
-  const [selRwy, setSelRwy]       = useState(null);
-  const [loading, setLoading]     = useState(false);
-  const [noData, setNoData]       = useState(false);
-  const [manualRwy, setManualRwy] = useState('');
-  const [manualLen, setManualLen] = useState('');
-  const [arrAtis, setArrAtis]     = useState('');
-  const [arrPhoto, setArrPhoto]   = useState(false);
-  const [reqLnd, setReqLnd]       = useState('');
+  const [icao,      setIcao]      = usePersistedState('efb_lnd_icao',      activePlan?.dest || 'LTBA');
+  const [selRwy,    setSelRwy]    = usePersistedState('efb_lnd_selRwy',    null);
+  const [manualRwy, setManualRwy] = usePersistedState('efb_lnd_manualRwy', '');
+  const [manualLen, setManualLen] = usePersistedState('efb_lnd_manualLen', '');
+  const [arrAtis,   setArrAtis]   = usePersistedState('efb_lnd_arrAtis',   '');
+  const [arrPhoto,  setArrPhoto]  = usePersistedState('efb_lnd_arrPhoto',  false);
+  const [reqLnd,    setReqLnd]    = usePersistedState('efb_lnd_reqLnd',    '');
+
+  // Runtime only
+  const [runways, setRunways] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [noData,  setNoData]  = useState(false);
 
   const divert = divertData.active;
 
-  // activePlan değişince ICAO'yu güncelle
   useEffect(() => {
     if (activePlan?.dest) setIcao(activePlan.dest);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePlan?.dest]);
 
   const fetchRunways = async (code) => {
@@ -86,16 +89,16 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
       lines.forEach(line => {
         const cols = line.split(',');
         if (cols.length > 4) {
-          const len   = parseInt(cols[3]);
-          const id1   = cols[8]  ? cols[8].replace(/"/g,'').trim()  : '';
-          const id2   = cols[14] ? cols[14].replace(/"/g,'').trim() : '';
+          const len  = parseInt(cols[3]);
+          const id1  = cols[8]  ? cols[8].replace(/"/g,'').trim()  : '';
+          const id2  = cols[14] ? cols[14].replace(/"/g,'').trim() : '';
           const lenFt = Math.round(len * 3.28084);
           if (id1 && len) parsed.push({ id:id1, length:lenFt });
           if (id2 && len) parsed.push({ id:id2, length:lenFt });
         }
       });
       if (parsed.length > 0) { setRunways(parsed); setNoData(false); }
-      else { setNoData(true); }
+      else setNoData(true);
     } catch { setNoData(true); }
     setLoading(false);
   };
@@ -107,28 +110,25 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
   const runwayOk = divert ? !!(divertData.icao && divertData.rwy) : !!(selRwy || manualRwy);
   const atisOk   = !!arrAtis;
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!setStatus) return;
     if (runwayOk && atisOk) setStatus('green');
     else if (runwayOk || atisOk) setStatus('amber');
     else setStatus('pending');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runwayOk, atisOk, setStatus]);
 
-  const selectedRwy = runways.find(r => r.id === selRwy);
-  const divLenNum   = divertData.len ? parseInt(divertData.len.replace(/[^0-9]/g,'')) : null;
-  const activeLenFt = divert && divLenNum ? divLenNum
-                    : selectedRwy ? selectedRwy.length
-                    : (manualLen ? parseInt(manualLen.replace(/[^0-9]/g,'')) : null);
-  const reqLndNum   = reqLnd ? parseInt(reqLnd.replace(/[^0-9]/g,'')) : null;
-  const stopMargin  = activeLenFt && reqLndNum ? activeLenFt - reqLndNum : null;
-  const marginColor = getStopMarginColor(stopMargin);
+  const selectedRwy  = runways.find(r => r.id === selRwy);
+  const divLenNum    = divertData.len ? parseInt(divertData.len.replace(/[^0-9]/g,'')) : null;
+  const activeLenFt  = divert && divLenNum ? divLenNum
+                     : selectedRwy ? selectedRwy.length
+                     : (manualLen ? parseInt(manualLen.replace(/[^0-9]/g,'')) : null);
+  const reqLndNum    = reqLnd ? parseInt(reqLnd.replace(/[^0-9]/g,'')) : null;
+  const stopMargin   = activeLenFt && reqLndNum ? activeLenFt - reqLndNum : null;
+  const marginColor  = getStopMarginColor(stopMargin);
 
-  // OFP landing weights from activePlan
-  const landingWeight = activePlan?.zfw
-    ? `${parseInt(activePlan.zfw).toLocaleString()} lb`
-    : '—';
-  const maxLwt = activePlan?.ac_type?.startsWith('GLF') ? '66,000 lb' : '66,000 lb';
+  const landingWeight = activePlan?.zfw ? `${parseInt(activePlan.zfw).toLocaleString()} lb` : '—';
+  const maxLwt = '66,000 lb';
 
   return (
     <div>
