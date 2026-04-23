@@ -190,8 +190,8 @@ function WXR({ activePlan, rawText }) {
   }, [rawText, depIcao, destIcao, altIcao]);
 
   const [wxTab,   setWxTab]   = usePersistedState('efb_wxr_tab', 'dep');
-  const [liveWx,  setLiveWx]  = useState(null);
-  const [liveAt,  setLiveAt]  = useState('');
+  const [liveWx,  setLiveWx]  = usePersistedState('efb_wxr_live', null);
+  const [liveAt,  setLiveAt]  = usePersistedState('efb_wxr_live_at', '');
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(false);
 
