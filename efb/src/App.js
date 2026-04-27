@@ -542,12 +542,7 @@ function parseWxrChartsFromRawText(rawText) {
 function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate, onDeactivate }) {
   const [tab, setTab]                       = useState('active');
   const [availablePlans, setAvailablePlans] = useState([]);
-  const [activePlan, setActivePlan] = useState(() => {
-  try {
-    const saved = localStorage.getItem('go2efb_activePlan');
-    return saved ? JSON.parse(saved) : null;
-  } catch { return null; }
-  });
+  const [activePlans, setActivePlans] = useState([]);
   const [archivedPlans, setArchivedPlans]   = useState([]);
   const [showUpload, setShowUpload]         = useState(false);
   const [loading, setLoading]               = useState(false);
