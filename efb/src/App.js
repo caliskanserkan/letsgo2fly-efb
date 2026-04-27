@@ -542,7 +542,12 @@ function parseWxrChartsFromRawText(rawText) {
 function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate, onDeactivate }) {
   const [tab, setTab]                       = useState('active');
   const [availablePlans, setAvailablePlans] = useState([]);
-  const [activePlans, setActivePlans]       = useState([]);
+  const [activePlan, setActivePlan] = useState(() => {
+  try {
+    const saved = localStorage.getItem('go2efb_activePlan');
+    return saved ? JSON.parse(saved) : null;
+  } catch { return null; }
+  });
   const [archivedPlans, setArchivedPlans]   = useState([]);
   const [showUpload, setShowUpload]         = useState(false);
   const [loading, setLoading]               = useState(false);
@@ -907,10 +912,15 @@ function App() {
       user={user}
       onLogout={handleLogout}
       onAdmin={() => { setAdminPin(''); setAdminPinError(''); setShowAdminAuth(true); }}
-      onActivate={(plan) => {
-        setActivePlan(plan);
-        if (plan) navigate('flt-crew');
-      }}
+onActivate={(plan) => {
+  setActivePlan(plan);
+  if (plan) {
+    localStorage.setItem('activePlan', JSON.stringify(plan));
+    navigate('flt-crew');
+  } else {
+    localStorage.removeItem('activePlan');
+  }
+}}
       onDeactivate={clearFlightSession}
     />
   );
