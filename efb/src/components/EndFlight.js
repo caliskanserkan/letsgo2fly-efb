@@ -1,12 +1,7 @@
 import React, { useEffect } from 'react';
 import SyncButton from './SyncButton';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../supabaseClient';
 import { usePersistedState } from '../hooks/usePersistedState';
-
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.REACT_APP_SUPABASE_ANON_KEY
-);
 
 function Sep() {
   return <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />;
@@ -67,7 +62,6 @@ function fromMins(m) {
   return String(Math.floor(m / 60)).padStart(2,'0') + ':' + String(m % 60).padStart(2,'0');
 }
 
-// rawText'teki DEST satırından koordinat çıkar
 function parseDestCoords(rawText) {
   if (!rawText) return { lat: null, lon: null };
   const m = rawText.match(/^DEST\s+\S+\s+.*?N(\d+):(\d+\.?\d*)\s+E(\d+):(\d+\.?\d*)/m);
@@ -79,9 +73,9 @@ function parseDestCoords(rawText) {
 }
 
 function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
-  const [pax,       setPax]      = usePersistedState('efb_endflt_pax',      '');
-  const [cycles,    setCycles]   = usePersistedState('efb_endflt_cycles',   '1');
-  const [archived,  setArchived] = usePersistedState('efb_endflt_archived', false);
+  const [pax,       setPax]       = usePersistedState('efb_endflt_pax',      '');
+  const [cycles,    setCycles]    = usePersistedState('efb_endflt_cycles',   '1');
+  const [archived,  setArchived]  = usePersistedState('efb_endflt_archived', false);
   const [archiving, setArchiving] = React.useState(false);
 
   const { offBlock, takeoffTime, landingTime, onBlock, takeoffFuel, remainingFuel } = flightData;
@@ -127,16 +121,13 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
     if (!activePlan?.id) return;
     setArchiving(true);
     try {
-      // 1 — plans tablosunu archived yap
       await supabase
         .from('plans')
         .update({ status: 'archived', archived_at: new Date().toISOString() })
         .eq('id', activePlan.id);
 
-      // 2 — DEST koordinatlarını rawText'ten çek
       const { lat: destLat, lon: destLon } = parseDestCoords(rawText);
 
-      // 3 — archived_flights'a kayıt at → trigger pilot_stats'ı otomatik günceller
       const { error: archiveError } = await supabase
         .from('archived_flights')
         .insert({
@@ -146,14 +137,14 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
           pf_id:            activePlan.pf_pilot,
           departure_icao:   dep,
           destination_icao: destIcao,
-          off_blocks:       offBlock    ? new Date(`${date}T${offBlock}:00Z`)    : null,
-          on_blocks:        onBlock     ? new Date(`${date}T${onBlock}:00Z`)     : null,
+          off_blocks:       offBlock  ? new Date(`${date}T${offBlock}:00Z`)  : null,
+          on_blocks:        onBlock   ? new Date(`${date}T${onBlock}:00Z`)   : null,
           block_minutes:    blockMins,
           airborne_minutes: flightMins,
           landing_count:    parseInt(cycles) || 1,
           dest_lat:         destLat,
           dest_lon:         destLon,
-          is_night_landing: false,   // gece hesabı bir sonraki adımda
+          is_night_landing: false,
         });
 
       if (archiveError) throw archiveError;

@@ -12,16 +12,11 @@ import LandingData from './components/LandingData';
 import EndFlight from './components/EndFlight';
 import DocUpload from './components/DocUpload';
 import FreeNote from './components/FreeNote';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './supabaseClient';
 import * as pdfjsLib from 'pdfjs-dist';
 import AdminPanel from './components/AdminPanel';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
-
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.REACT_APP_SUPABASE_ANON_KEY
-);
 
 // ─── LocalStorage helpers ─────────────────────────────────────────────────────
 const LS = {
@@ -429,31 +424,24 @@ function UploadPlanModal({ onClose, onUploaded }) {
 
 // ─── WX parser (from raw_text) ────────────────────────────────────────────────
 function parseWxFromRawText(rawText, dep, dest, alt) {
-  // WX bölümünü bul — "WX for flight" VEYA doğrudan airport bölümü
   const wxIdx = rawText.search(/WX for flight|WX search performed/i);
   const wxEndIdx = rawText.search(/End of WX information/i);
-
-  // WX bölümü yoksa raw_text'in tamamında ara
   const wxBlock = wxIdx !== -1
     ? rawText.slice(wxIdx, wxEndIdx !== -1 ? wxEndIdx + 25 : wxIdx + 12000)
     : rawText;
 
   const parseIcaoWx = (icao) => {
-    // Airport bölümünü bul — çok esnek pattern
     const pat = new RegExp(
       `(?:Departure|Destination|Alternate)\\s+airport\\s+${icao}\\s*[^\\n]*\\n([\\s\\S]*?)` +
       `(?=(?:Departure|Destination|Alternate|Adequate)\\s+airport\\s+[A-Z]{4}|WX messages|SIGMET|End of WX|Page \\d+ of \\d+|$)`,
       'i'
     );
     const sec = wxBlock.match(pat)?.[1] || '';
-
     const metars = [], tafs = [];
     let inTaf = false;
-
     for (const line of sec.split('\n')) {
       const l = line.trim();
       if (!l) { inTaf = false; continue; }
-      // METAR: "METAR 192350Z..." veya "LTAC 192350Z..." formatı
       if (/^(?:METAR|SPECI)\s+\d{6}Z/.test(l) || /^[A-Z]{4}\s+\d{6}Z/.test(l)) {
         metars.push(l); inTaf = false;
       } else if (/^TAF\b/.test(l)) {
@@ -462,7 +450,6 @@ function parseWxFromRawText(rawText, dep, dest, alt) {
         if (tafs.length) tafs[tafs.length-1] += ' ' + l;
       }
     }
-
     return {
       metar: metars.length ? metars : ['No METAR in plan data'],
       taf:   tafs.length   ? tafs   : ['No TAF in plan data'],
@@ -473,19 +460,16 @@ function parseWxFromRawText(rawText, dep, dest, alt) {
   const destData = parseIcaoWx(dest);
   const altData  = parseIcaoWx(alt);
 
-  // En az bir veri varsa döndür
   const hasData = [depData, destData, altData].some(
     d => d.metar[0] !== 'No METAR in plan data' || d.taf[0] !== 'No TAF in plan data'
   );
   if (!hasData) return null;
 
-  // SIGMET
   const sigmetIdx = rawText.search(/SIGMET\(s\) for/i);
   const sigmetEnd = rawText.search(/End of WX information/i);
   const sigmet = sigmetIdx !== -1
     ? rawText.slice(sigmetIdx, sigmetEnd !== -1 ? sigmetEnd : sigmetIdx + 500).trim()
     : '';
-
   const searchLine = rawText.match(/WX search performed ([^\n]+)/i)?.[1]?.trim() || 'From plan briefing';
 
   return {
@@ -497,29 +481,20 @@ function parseWxFromRawText(rawText, dep, dest, alt) {
   };
 }
 
-
-
 // ─── WXR Chart parser (from raw_text) ─────────────────────────────────────────
 function parseWxrChartsFromRawText(rawText) {
   const charts = [];
-
-  // Wind/Temperature prognostic charts
   const windRe = /WIND\/TEMPERATURE\s*\n\s*(FL \d+)\s*\n\s*PROGNOSTIC CHART\s*\n\s*(\S+ - \S+)\s*\n\s*VALID\s+([^\n]+)\s*\n\s*BASED ON ([^\n]+)\s*\n\s*(\d{2} UTC[^\n]+)/g;
   let m;
   while ((m = windRe.exec(rawText)) !== null) {
     charts.push({ type:'wind', fl:m[1], route:m[2], valid:m[3].trim(), based:m[4].trim() });
   }
-
-  // Vertical Cross Section
   const vcsMatch = rawText.match(/VERTICAL CROSS SECTION ALONG THE ROUTE ([^\n]+)\nWIND, TEMPERATURE,TROPOPAUSE[^\n]*\n([^\n]+)\nBased on ([^\n]+)\n([^\n]+)\n([^\n]+)/);
   if (vcsMatch) {
     charts.push({ type:'vcs', route:vcsMatch[1].trim(), subtitle:vcsMatch[2].trim(), based:vcsMatch[3].trim(), valid:`DEP: ${vcsMatch[4].trim()} ARR: ${vcsMatch[5]?.trim()}` });
   }
-
-  // SigWx
   const sigwxMatch = rawText.match(/SIGNIFICANT WEATHER\s*\nFIXED TIME PROGNOSTIC CHART\s*\nROUTE ([^\n]+)\s*\n([^\n]+)\s*\nVALID\s+([^\n]+)\s*\nBASED ON ([^\n]+)/);
   if (sigwxMatch) {
-    // Extract CB/icing/turbulence areas
     const cbMatch    = rawText.match(/CB CLOUD AREAS([\s\S]*?)ICING AREAS/);
     const icingMatch = rawText.match(/ICING AREAS([\s\S]*?)TURBULENCE AREAS/);
     const turbMatch  = rawText.match(/TURBULENCE AREAS([\s\S]*?)VOLCANIC/);
@@ -534,7 +509,6 @@ function parseWxrChartsFromRawText(rawText) {
       turb:  turbMatch?.[1]?.trim()  || '',
     });
   }
-
   return charts;
 }
 
@@ -542,7 +516,7 @@ function parseWxrChartsFromRawText(rawText) {
 function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate, onDeactivate }) {
   const [tab, setTab]                       = useState('active');
   const [availablePlans, setAvailablePlans] = useState([]);
-  const [activePlans, setActivePlans] = useState([]);
+  const [activePlans, setActivePlans]       = useState([]);
   const [archivedPlans, setArchivedPlans]   = useState([]);
   const [showUpload, setShowUpload]         = useState(false);
   const [loading, setLoading]               = useState(false);
@@ -559,9 +533,7 @@ function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate, onDeactivate }
       setAvailablePlans(avail.data || []);
       setActivePlans(active.data || []);
       setArchivedPlans(archived.data || []);
-    } catch {
-      // Offline — show empty lists, existing activePlan is preserved via localStorage
-    }
+    } catch {}
     setLoading(false);
   };
 
@@ -583,7 +555,6 @@ function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate, onDeactivate }
         .single();
 
       if (plan) {
-        // 1. raw_text çek, parse et, localStorage'a kaydet
         try {
           const { data: version } = await supabase
             .from('plan_versions')
@@ -595,8 +566,6 @@ function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate, onDeactivate }
 
           if (version?.raw_text) {
             const raw = version.raw_text;
-
-            // raw_text'i JSON.stringify OLMADAN kaydet — EFP direkt string olarak okuyor
             try { localStorage.setItem(LS.RAWTEXT, raw); } catch {}
 
             const routeKey = `${plan.dep}-${plan.dest}`;
@@ -612,7 +581,6 @@ function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate, onDeactivate }
             plan.tow            = block.match(/\bTOW\s+([\d]+)\s*Lbs/i)?.[1]    || plan.tow || '';
             plan.zfw            = block.match(/\bZFW\s+([\d]+)\s*Lbs/i)?.[1]    || plan.zfw || '';
 
-            // WX: önce PDF'teki embedded data'yı kullan
             const dep  = plan.dep       || 'LTAC';
             const dest = plan.dest      || 'LTBA';
             const alt  = plan.alternate || 'LTFM';
@@ -621,13 +589,10 @@ function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate, onDeactivate }
               lsSet('efb_wxr_data',      wxFromPdf);
               lsSet('efb_wxr_updatedAt', `Plan briefing · ${wxFromPdf.updatedAt}`);
             }
-
-            // WXR Charts: PDF'ten parse et
             const charts = parseWxrChartsFromRawText(raw);
             lsSet('efb_wxr_charts', charts);
           }
         } catch {}
-
         onActivate(plan);
       }
     } catch {}
@@ -736,20 +701,18 @@ function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate, onDeactivate }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 function App() {
-  const [page, setPage]     = useState('loading');
-  const [user, setUser]     = useState(null);
+  const [page, setPage]                   = useState('loading');
+  const [user, setUser]                   = useState(null);
   const [showAdminAuth, setShowAdminAuth] = useState(false);
   const [adminPin, setAdminPin]           = useState('');
   const [adminPinError, setAdminPinError] = useState('');
 
-  // ── Persisted state — init from localStorage ───────────────────────────────
   const [activePage, setActivePage] = useState(() => lsGet(LS.PAGE, 'flt-crew'));
   const [activePlan, setActivePlan] = useState(() => lsGet(LS.PLAN, null));
   const [flightData, setFlightData] = useState(() => lsGet(LS.FLIGHT, DEFAULT_FLIGHT_DATA));
   const [pageStatus, setPageStatus] = useState(() => lsGet(LS.STATUS, DEFAULT_PAGE_STATUS));
   const [divertData, setDivertData] = useState(() => lsGet(LS.DIVERT, DEFAULT_DIVERT_DATA));
 
-  // ── rawText — plan PDF'inden extract edilmiş text ─────────────────────────
   const [rawText, setRawText] = useState(() => {
     try {
       const v = localStorage.getItem('efb_rawText');
@@ -759,7 +722,6 @@ function App() {
     } catch { return ''; }
   });
 
-  // activePlan değişince rawText'i Supabase'den çek
   useEffect(() => {
     if (!activePlan?.id) return;
     supabase
@@ -778,19 +740,16 @@ function App() {
       .catch(() => {});
   }, [activePlan?.id]); // eslint-disable-line
 
-  // ── Sync every persisted state to localStorage on change ──────────────────
   useEffect(() => { lsSet(LS.PLAN,   activePlan);  }, [activePlan]);
   useEffect(() => { lsSet(LS.PAGE,   activePage);  }, [activePage]);
   useEffect(() => { lsSet(LS.FLIGHT, flightData);  }, [flightData]);
   useEffect(() => { lsSet(LS.STATUS, pageStatus);  }, [pageStatus]);
   useEffect(() => { lsSet(LS.DIVERT, divertData);  }, [divertData]);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
   const updateFlight = useCallback((key, value) => setFlightData(prev => ({ ...prev, [key]: value })), []);
   const setStatus    = useCallback((pageId, status) => setPageStatus(prev => ({ ...prev, [pageId]: status })), []);
   const updateDivert = useCallback((key, value) => setDivertData(prev => ({ ...prev, [key]: value })), []);
 
-  // Uçuş bitince veya deactivate'de tüm geçici veriyi temizle
   const clearFlightSession = () => {
     lsClear();
     setActivePlan(null);
@@ -800,13 +759,10 @@ function App() {
     setDivertData(DEFAULT_DIVERT_DATA);
   };
 
-  // ── Auth ───────────────────────────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setUser(session.user);
-        // activePlan zaten localStorage'dan state'e yüklendi,
-        // plan varsa kaldığı sayfaya dön
         const savedPlan = lsGet(LS.PLAN, null);
         setPage(savedPlan ? 'operational' : 'dashboard');
       } else {
@@ -815,13 +771,8 @@ function App() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setUser(session.user);
-      } else {
-        setUser(null);
-        setPage('login');
-        // localStorage'ı temizleme — plan deactivate edilmediği sürece veri korunur
-      }
+      if (session) { setUser(session.user); }
+      else { setUser(null); setPage('login'); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -832,9 +783,7 @@ function App() {
     try {
       const { data } = await supabase.from('system_settings').select('admin_password').single();
       if (data?.admin_password === adminPin) {
-        setShowAdminAuth(false);
-        setAdminPin('');
-        setAdminPinError('');
+        setShowAdminAuth(false); setAdminPin(''); setAdminPinError('');
         setPage('admin');
       } else {
         setAdminPinError('Incorrect password.');
@@ -845,12 +794,8 @@ function App() {
   };
 
   const navigate = (target) => {
-    if (target === 'dashboard') {
-      setPage('dashboard');
-    } else {
-      setActivePage(target);
-      setPage('operational');
-    }
+    if (target === 'dashboard') { setPage('dashboard'); }
+    else { setActivePage(target); setPage('operational'); }
   };
 
   const setStatusFltCrew   = useCallback((s) => setStatus('flt-crew',  s), [setStatus]);
@@ -868,7 +813,6 @@ function App() {
     ? `${activePlan.reg || 'GO2'} · ${activePlan.dep || '—'}-${activePlan.dest || '—'} · ${activePlan.date || ''} ${activePlan.std || ''} Z`
     : 'GO2 eFB';
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   if (page === 'loading') return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
       <div style={{ fontSize:13, color:'#555' }}>Loading...</div>
@@ -907,15 +851,11 @@ function App() {
       user={user}
       onLogout={handleLogout}
       onAdmin={() => { setAdminPin(''); setAdminPinError(''); setShowAdminAuth(true); }}
-onActivate={(plan) => {
-  setActivePlan(plan);
-  if (plan) {
-    localStorage.setItem('activePlan', JSON.stringify(plan));
-    navigate('flt-crew');
-  } else {
-    localStorage.removeItem('activePlan');
-  }
-}}
+      onActivate={(plan) => {
+        setActivePlan(plan);
+        if (plan) { localStorage.setItem('activePlan', JSON.stringify(plan)); navigate('flt-crew'); }
+        else { localStorage.removeItem('activePlan'); }
+      }}
       onDeactivate={clearFlightSession}
     />
   );
@@ -926,11 +866,11 @@ onActivate={(plan) => {
       {activePage === 'mandatory' && <Mandatory   setStatus={setStatusMandatory} activePlan={activePlan} />}
       {activePage === 'efp'       && <EFP         setStatus={setStatusEfp}       activePlan={activePlan} rawText={rawText} />}
       {activePage === 'fuel'      && <Fuel        setStatus={setStatusFuel}      activePlan={activePlan} />}
-      {activePage === 'accept'    && <AcceptSign  pageStatus={pageStatus} setStatus={setStatusAccept}   activePlan={activePlan} />}
+      {activePage === 'accept'    && <AcceptSign  pageStatus={pageStatus} setStatus={setStatusAccept} activePlan={activePlan} />}
       {activePage === 'takeoff'   && <TakeoffData setStatus={setStatusTakeoff}   activePlan={activePlan} />}
       {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} setStatus={setStatusNavlog} activePlan={activePlan} updateDivert={updateDivert} />}
       {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} setStatus={setStatusLanding} activePlan={activePlan} />}
-      {activePage === 'endflt' && <EndFlight flightData={flightData} divertData={divertData} setStatus={setStatusEndflt} activePlan={activePlan} rawText={rawText} />}
+      {activePage === 'endflt'    && <EndFlight   flightData={flightData} divertData={divertData} setStatus={setStatusEndflt} activePlan={activePlan} rawText={rawText} />}
       {activePage === 'docupload' && <DocUpload   setStatus={setStatusDocupload} activePlan={activePlan} />}
       {activePage === 'freenote'  && <FreeNote />}
       {!['flt-crew','mandatory','efp','fuel','accept','takeoff','navlog','landing','endflt','docupload','freenote'].includes(activePage) && (

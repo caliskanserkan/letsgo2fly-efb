@@ -1,35 +1,94 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../supabaseClient';
 import SyncButton from './SyncButton';
 import { usePersistedState } from '../hooks/usePersistedState';
 
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.REACT_APP_SUPABASE_ANON_KEY
-);
-
 const FIFTY_MIN = 50 * 60 * 1000;
 
+// ─── Koordinat parse ──────────────────────────────────────────────────────────
+function parseCoord(str) {
+  // "N40:58.6 E028:48.9" veya "N40:58.6E028:48.9" formatı
+  const m = str.match(/N(\d+):(\d+\.?\d*)\s*E(\d+):(\d+\.?\d*)/i);
+  if (!m) return null;
+  return {
+    lat: parseFloat(m[1]) + parseFloat(m[2]) / 60,
+    lon: parseFloat(m[3]) + parseFloat(m[4]) / 60,
+  };
+}
+
+// ─── Haversine mesafe (km) ────────────────────────────────────────────────────
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ─── Waypoint parse (koordinatlarla) ─────────────────────────────────────────
 function parseWaypoints(rawText, dep, dest, std) {
   if (!rawText || !dep || !dest) return [];
+
   const depPattern = new RegExp(
     `DEP\\s+${dep}\\/\\S+[^\\n]*\\n([\\s\\S]*?)(?=DEST\\s+${dest}\\/)`, 'i'
   );
   const sectionMatch = rawText.match(depPattern);
   const section = sectionMatch?.[1] || '';
-  const wptNames = [];
+
+  // DEP koordinatı
+  const depCoordMatch = rawText.match(new RegExp(`DEP\\s+${dep}\\/\\S+[^\\n]*(N\\d+:\\d+\\.?\\d*\\s*E\\d+:\\d+\\.?\\d*)`, 'i'));
+  const depCoord = depCoordMatch ? parseCoord(depCoordMatch[1]) : null;
+
+  // DEST koordinatı
+  const destCoordMatch = rawText.match(new RegExp(`DEST\\s+${dest}\\/\\S+[^\\n]*(N\\d+:\\d+\\.?\\d*\\s*E\\d+:\\d+\\.?\\d*)`, 'i'));
+  const destCoord = destCoordMatch ? parseCoord(destCoordMatch[1]) : null;
+
+  const wptList = [];
   if (section) {
     for (const line of section.split('\n')) {
       if (!line.trim() || line.match(/-TOC-|-TOD-/)) continue;
       const m = line.match(/^\s*\d+\s+([A-Z][A-Z0-9]{1,5})\s/);
-      if (m) wptNames.push(m[1]);
+      if (m) {
+        const coord = parseCoord(line);
+        wptList.push({ name: m[1], coord });
+      }
     }
   }
+
   const waypoints = [];
-  waypoints.push({ id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false });
-  wptNames.forEach(name => waypoints.push({ id: name, name, type: 'wpt', eta: '—', fl: '—', planFuel: null, custom: false }));
-  waypoints.push({ id: dest, name: dest, type: 'dest', eta: '—', fl: '—', planFuel: null, custom: false });
+  waypoints.push({ id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false, coord: depCoord });
+  wptList.forEach(w => waypoints.push({ id: w.name, name: w.name, type: 'wpt', eta: '—', fl: '—', planFuel: null, custom: false, coord: w.coord }));
+  waypoints.push({ id: dest, name: dest, type: 'dest', eta: '—', fl: '—', planFuel: null, custom: false, coord: destCoord });
   return waypoints;
+}
+
+// ─── GPS Hook ─────────────────────────────────────────────────────────────────
+function useGPS() {
+  const [pos, setPos] = useState(null);
+  const [error, setError] = useState(null);
+  const watchId = useRef(null);
+
+  const start = () => {
+    if (!navigator.geolocation) { setError('GPS not supported'); return; }
+    watchId.current = navigator.geolocation.watchPosition(
+      (p) => setPos({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }),
+      (e) => setError(e.message),
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    );
+  };
+
+  const stop = () => {
+    if (watchId.current !== null) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+      setPos(null);
+      setError(null);
+    }
+  };
+
+  useEffect(() => () => stop(), []); // eslint-disable-line
+
+  return { pos, error, active: watchId.current !== null, start, stop };
 }
 
 function getFuelDestColor(fuel) {
@@ -260,21 +319,37 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   const [flightClosed,  setFlightClosed]  = usePersistedState('efb_navlog_flightClosed',  false);
   const [lastCheckTime, setLastCheckTime] = usePersistedState('efb_navlog_lastCheckTime', null);
 
-  const [modal,    setModal]    = useState(null);
-  const [addModal, setAddModal] = useState(null);
-  const [alert50,  setAlert50]  = useState(false);
+  const [modal,        setModal]        = useState(null);
+  const [addModal,     setAddModal]     = useState(null);
+  const [alert50,      setAlert50]      = useState(false);
+  const [nearestWpt,   setNearestWpt]   = useState(null); // GPS ile en yakın waypoint id
+
+  const { pos, error: gpsError, active: gpsActive, start: startGPS, stop: stopGPS } = useGPS();
 
   const dep  = activePlan?.dep  || 'DEP';
   const dest = activePlan?.dest || 'DEST';
   const std  = activePlan?.std  || '';
 
-  // Fetch waypoints from Supabase; if offline or empty use persisted ones
+  // GPS pozisyonu değişince en yakın waypoint'i bul
+  useEffect(() => {
+    if (!pos) { setNearestWpt(null); return; }
+    let minDist = Infinity;
+    let nearest = null;
+    waypoints.forEach(wpt => {
+      if (!wpt.coord) return;
+      const d = haversine(pos.lat, pos.lon, wpt.coord.lat, wpt.coord.lon);
+      if (d < minDist) { minDist = d; nearest = wpt.id; }
+    });
+    setNearestWpt(nearest);
+  }, [pos, waypoints]);
+
+  // Fetch waypoints from Supabase
   useEffect(() => {
     if (!activePlan?.id) {
       if (waypoints.length === 0) {
         setWaypoints([
-          { id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false },
-          { id: dest, name: dest, type: 'dest', eta: '—',        fl: '—', planFuel: null, custom: false },
+          { id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false, coord: null },
+          { id: dest, name: dest, type: 'dest', eta: '—',        fl: '—', planFuel: null, custom: false, coord: null },
         ]);
       }
       return;
@@ -290,7 +365,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           .single();
         if (data?.raw_text) {
           const wpts = parseWaypoints(data.raw_text, dep, dest, std);
-          // Merge: keep custom waypoints that were added
           const customWpts = waypoints.filter(w => w.custom);
           if (wpts.length >= 2) {
             const destIdx = wpts.findIndex(w => w.type === 'dest');
@@ -302,11 +376,10 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           }
         }
       } catch {
-        // Offline — use persisted waypoints
         if (waypoints.length === 0) {
           setWaypoints([
-            { id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false },
-            { id: dest, name: dest, type: 'dest', eta: '—',        fl: '—', planFuel: null, custom: false },
+            { id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false, coord: null },
+            { id: dest, name: dest, type: 'dest', eta: '—',        fl: '—', planFuel: null, custom: false, coord: null },
           ]);
         }
       }
@@ -400,6 +473,9 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   const lastCheckStr = lastCheckTime ? new Date(lastCheckTime).toTimeString().slice(0,5) + ' Z' : '—';
   const modalWpt     = waypoints.find(w => w.id === modal);
 
+  // Koordinatı olan waypoint sayısı — GPS butonunu buna göre göster
+  const hasCoords = waypoints.some(w => w.coord);
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
       {alert50 && (
@@ -410,6 +486,28 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
             <div style={{ fontSize:10, color:'#888', marginTop:1 }}>50 minutes since last check</div>
           </div>
           <button onClick={() => setAlert50(false)} style={{ marginLeft:'auto', background:'transparent', border:'1px solid #555', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>Dismiss</button>
+        </div>
+      )}
+
+      {/* GPS Bar */}
+      {hasCoords && (
+        <div style={{ background: gpsActive ? 'rgba(45,158,95,0.1)' : '#1e1e1e', borderBottom:'1px solid #383838', padding:'7px 12px', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+          <span style={{ fontSize:14 }}>✈</span>
+          <div style={{ flex:1 }}>
+            {gpsActive && pos && (
+              <span style={{ fontSize:10, color:'#2d9e5f', fontFamily:'monospace' }}>
+                {pos.lat.toFixed(4)}N {pos.lon.toFixed(4)}E · ±{Math.round(pos.acc)}m
+                {nearestWpt && <span style={{ color:'#1a9bc4', marginLeft:8 }}>→ {nearestWpt}</span>}
+              </span>
+            )}
+            {gpsActive && !pos && <span style={{ fontSize:10, color:'#555' }}>Acquiring GPS...</span>}
+            {!gpsActive && <span style={{ fontSize:10, color:'#555' }}>GPS position tracking</span>}
+            {gpsError && <span style={{ fontSize:10, color:'#e02020', marginLeft:8 }}>⚠ {gpsError}</span>}
+          </div>
+          <button onClick={gpsActive ? stopGPS : startGPS}
+            style={{ background: gpsActive ? 'rgba(224,32,32,0.15)' : 'rgba(45,158,95,0.15)', border:`1px solid ${gpsActive ? '#e02020' : '#2d9e5f'}`, borderRadius:6, padding:'4px 10px', fontSize:10, fontWeight:700, color: gpsActive ? '#e02020' : '#2d9e5f', cursor:'pointer', fontFamily:'inherit' }}>
+            {gpsActive ? 'Stop' : 'Start GPS'}
+          </button>
         </div>
       )}
 
@@ -436,30 +534,44 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         {waypoints.length === 0 ? (
           <div style={{ padding:20, textAlign:'center', color:'#444', fontSize:12 }}>Loading waypoints...</div>
         ) : waypoints.map((wpt, idx) => {
-          const e         = entries[wpt.id] || {};
-          const skipped   = isSkipped(wpt, idx);
-          const isDep     = wpt.type === 'dep';
-          const isDest    = wpt.type === 'dest';
-          const isDivArpt = wpt.type === 'divert-arpt';
-          const isArrival = isDest || isDivArpt;
-          const isDone    = isDep     ? !!(e.offBlock || e.toTime)
-                          : isArrival ? !!(e.lndTime  || e.onBlock)
-                          : !!(e.ata  || e.fuel);
-          const isActive  = !isDone && !skipped && (idx === 0 || waypoints.slice(0, idx).every((w, wi) => {
+          const e           = entries[wpt.id] || {};
+          const skipped     = isSkipped(wpt, idx);
+          const isDep       = wpt.type === 'dep';
+          const isDest      = wpt.type === 'dest';
+          const isDivArpt   = wpt.type === 'divert-arpt';
+          const isArrival   = isDest || isDivArpt;
+          const isDone      = isDep     ? !!(e.offBlock || e.toTime)
+                            : isArrival ? !!(e.lndTime  || e.onBlock)
+                            : !!(e.ata  || e.fuel);
+          const isActive    = !isDone && !skipped && (idx === 0 || waypoints.slice(0, idx).every((w, wi) => {
             const pe = entries[w.id] || {};
             return w.type === 'dep' ? !!(pe.offBlock || pe.toTime) : !!(pe.ata || pe.fuel || pe.lndTime) || isSkipped(w, wi);
           }));
-          const fuelAtDest = getFuelAtDest(wpt);
-          const fuelColor  = getFuelDestColor(fuelAtDest);
-          const rowBg      = isDivArpt ? 'rgba(255,149,0,0.08)' : skipped ? '#1e1e1e' : isDone ? '#1f2a1f' : isActive ? 'rgba(26,155,196,0.06)' : '#242424';
-          const borderLeft = isDivArpt ? '3px solid #e8731a' : isActive ? '3px solid #1a9bc4' : isDone ? '3px solid #2d9e5f' : '3px solid transparent';
-          const nameColor  = isDivArpt ? '#e8731a' : isDep||isDest ? '#1a9bc4' : isDone ? '#2d9e5f' : isActive ? '#1a9bc4' : wpt.custom ? '#ff9500' : '#666';
-          const rvsmDisp   = e.rvsm ? e.rvsm.split('/')[0] + '…' : (isDep || isArrival ? 'N/A' : '—');
+          const isGpsNearest = gpsActive && nearestWpt === wpt.id;
+          const fuelAtDest  = getFuelAtDest(wpt);
+          const fuelColor   = getFuelDestColor(fuelAtDest);
+          const rowBg       = isDivArpt    ? 'rgba(255,149,0,0.08)'
+                            : isGpsNearest ? 'rgba(45,158,95,0.1)'
+                            : skipped      ? '#1e1e1e'
+                            : isDone       ? '#1f2a1f'
+                            : isActive     ? 'rgba(26,155,196,0.06)'
+                            : '#242424';
+          const borderLeft  = isDivArpt    ? '3px solid #e8731a'
+                            : isGpsNearest ? '3px solid #2d9e5f'
+                            : isActive     ? '3px solid #1a9bc4'
+                            : isDone       ? '3px solid #2d9e5f'
+                            : '3px solid transparent';
+          const nameColor   = isDivArpt ? '#e8731a' : isDep||isDest ? '#1a9bc4' : isDone ? '#2d9e5f' : isActive ? '#1a9bc4' : wpt.custom ? '#ff9500' : '#666';
+          const rvsmDisp    = e.rvsm ? e.rvsm.split('/')[0] + '…' : (isDep || isArrival ? 'N/A' : '—');
+
           return (
             <div key={wpt.id + idx} onClick={() => !skipped && setModal(wpt.id)}
               style={{ display:'grid', gridTemplateColumns:'70px 50px 50px 45px 60px 60px 60px 1fr', padding:'10px', borderBottom:'1px solid #383838', background:rowBg, borderLeft, cursor: skipped ? 'default' : 'pointer', opacity: skipped ? 0.3 : 1, alignItems:'center' }}>
               <div>
-                <div style={{ fontSize:12, fontWeight:700, fontFamily:'monospace', color: nameColor }}>{wpt.name}</div>
+                <div style={{ fontSize:12, fontWeight:700, fontFamily:'monospace', color: nameColor, display:'flex', alignItems:'center', gap:4 }}>
+                  {isGpsNearest && <span style={{ fontSize:13 }}>✈</span>}
+                  {wpt.name}
+                </div>
                 {isDivArpt && <div style={{ fontSize:8, color:'#e8731a', marginTop:1 }}>DIVERT</div>}
                 {wpt.custom && !isDivArpt && <div style={{ fontSize:8, color:'#ff9500', marginTop:1 }}>ADDED</div>}
                 {directTo?.from === wpt.id && <div style={{ fontSize:9, color:'#ff9500', marginTop:1 }}>→ {directTo.to}</div>}
@@ -470,7 +582,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
               </div>
               <div style={{ fontSize:11, color:'#777', fontFamily:'monospace' }}>{wpt.fl}</div>
               <div style={{ fontSize:11, fontFamily:'monospace', color: isDone ? '#2d9e5f' : '#444' }}>
-                {isDep     ? (e.toFuel  ? parseInt(e.toFuel.replace(/,/g,'')).toLocaleString()  : '—')
+                {isDep      ? (e.toFuel  ? parseInt(e.toFuel.replace(/,/g,'')).toLocaleString()  : '—')
                 : isArrival ? (e.remFuel ? parseInt(e.remFuel.replace(/,/g,'')).toLocaleString() : '—')
                 :              (e.fuel   ? parseInt(e.fuel.replace(/,/g,'')).toLocaleString()    : '—')}
               </div>
@@ -479,9 +591,10 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
                 {fuelAtDest ? fuelAtDest.toLocaleString() : '—'}
               </div>
               <div style={{ textAlign:'right' }}>
-                {skipped   ? <span style={{ fontSize:9, color:'#444' }}>SKIP</span>
-                : isDone   ? <span style={{ fontSize:10, fontWeight:700, color:'#2d9e5f', background:'rgba(45,158,95,0.12)', padding:'2px 6px', borderRadius:3 }}>✓ DONE</span>
-                : isActive ? <span style={{ fontSize:10, fontWeight:700, color:'#1a9bc4', background:'rgba(26,155,196,0.12)', padding:'2px 6px', borderRadius:3 }}>● ACTIVE</span>
+                {skipped      ? <span style={{ fontSize:9, color:'#444' }}>SKIP</span>
+                : isGpsNearest ? <span style={{ fontSize:10, fontWeight:700, color:'#2d9e5f', background:'rgba(45,158,95,0.12)', padding:'2px 6px', borderRadius:3 }}>✈ HERE</span>
+                : isDone       ? <span style={{ fontSize:10, fontWeight:700, color:'#2d9e5f', background:'rgba(45,158,95,0.12)', padding:'2px 6px', borderRadius:3 }}>✓ DONE</span>
+                : isActive     ? <span style={{ fontSize:10, fontWeight:700, color:'#1a9bc4', background:'rgba(26,155,196,0.12)', padding:'2px 6px', borderRadius:3 }}>● ACTIVE</span>
                 : <span style={{ fontSize:9, color:'#444' }}>Pending</span>}
               </div>
             </div>
