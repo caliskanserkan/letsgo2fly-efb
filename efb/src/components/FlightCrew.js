@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
+import { supabase } from '../supabaseClient';
 
 const ALL_PILOTS = [
   { code: 'AAK', name: 'Capt. Ahmet Akpinar' },
@@ -7,11 +8,11 @@ const ALL_PILOTS = [
   { code: 'SCL', name: 'Capt. Serkan Caliskan' },
 ];
 
-function Row({ label, value, accent }) {
+function Row({ label, value }) {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838', minHeight:44 }}>
       <span style={{ fontSize:12.5, color:'#999' }}>{label}</span>
-      <span style={{ fontSize:12.5, color: accent ? '#1a9bc4' : '#e8e8e8' }}>{value}</span>
+      <span style={{ fontSize:12.5, color:'#e8e8e8' }}>{value}</span>
     </div>
   );
 }
@@ -33,12 +34,48 @@ function PilotRow({ pilot, role, onSelect }) {
 function FlightCrew({ setStatus, activePlan }) {
   const [pf, setPF] = usePersistedState('efb_crew_pf', 'AAK');
   const [pm, setPM] = usePersistedState('efb_crew_pm', 'SEL');
+  const [pilotMap, setPilotMap] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, code')
+        .in('code', ['AAK', 'SEL', 'SCL']);
+      if (error) { console.error('Profiles fetch error:', error); return; }
+      const map = {};
+      data.forEach(p => { map[p.code] = p.id; });
+      setPilotMap(map);
+    };
+    fetchProfiles();
+  }, []);
+
+  const saveToPlan = async (newPF, newPM) => {
+    if (!activePlan?.id) return;
+    if (!pilotMap[newPF] || !pilotMap[newPM]) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from('plans')
+      .update({
+        pf_pilot: pilotMap[newPF],
+        pm_pilot: pilotMap[newPM],
+      })
+      .eq('id', activePlan.id);
+    if (error) console.error('Crew save error:', error);
+    setSaving(false);
+  };
 
   const handleSelect = (code) => {
-    if (pf === code) { setPF(pm); setPM(code); }
-    else if (pm === code) { setPM(pf); setPF(code); }
-    else { setPF(code); }
+    let newPF = pf;
+    let newPM = pm;
+    if (pf === code)      { newPF = pm;   newPM = code; }
+    else if (pm === code) { newPM = pf;   newPF = code; }
+    else                  { newPF = code; }
+    setPF(newPF);
+    setPM(newPM);
     setStatus('green');
+    saveToPlan(newPF, newPM);
   };
 
   const flightId  = activePlan?.callsign || activePlan?.dispatch_no || '—';
@@ -62,7 +99,9 @@ function FlightCrew({ setStatus, activePlan }) {
 
       <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />
 
-      <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>Crew Assignment</div>
+      <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>
+        Crew Assignment {saving && <span style={{ color:'#555', fontWeight:400 }}>· kaydediliyor...</span>}
+      </div>
       <div style={{ margin:'8px 16px', background:'#2e2e2e', border:'1px solid #383838', borderRadius:8, overflow:'hidden' }}>
         <div style={{ background:'#1f1f1f', color:'#555', padding:'7px 12px', fontSize:10, fontWeight:700, letterSpacing:0.8, borderBottom:'1px solid #383838', textTransform:'uppercase' }}>
           Tap to rotate PF / PM

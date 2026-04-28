@@ -67,20 +67,31 @@ function fromMins(m) {
   return String(Math.floor(m / 60)).padStart(2,'0') + ':' + String(m % 60).padStart(2,'0');
 }
 
-function EndFlight({ flightData, divertData, setStatus, activePlan }) {
-  const [pax,      setPax]      = usePersistedState('efb_endflt_pax',      '');
-  const [cycles,   setCycles]   = usePersistedState('efb_endflt_cycles',   '1');
-  const [archived, setArchived] = usePersistedState('efb_endflt_archived', false);
+// rawText'teki DEST satırından koordinat çıkar
+function parseDestCoords(rawText) {
+  if (!rawText) return { lat: null, lon: null };
+  const m = rawText.match(/^DEST\s+\S+\s+.*?N(\d+):(\d+\.?\d*)\s+E(\d+):(\d+\.?\d*)/m);
+  if (!m) return { lat: null, lon: null };
+  return {
+    lat: parseFloat(m[1]) + parseFloat(m[2]) / 60,
+    lon: parseFloat(m[3]) + parseFloat(m[4]) / 60,
+  };
+}
+
+function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
+  const [pax,       setPax]      = usePersistedState('efb_endflt_pax',      '');
+  const [cycles,    setCycles]   = usePersistedState('efb_endflt_cycles',   '1');
+  const [archived,  setArchived] = usePersistedState('efb_endflt_archived', false);
   const [archiving, setArchiving] = React.useState(false);
 
   const { offBlock, takeoffTime, landingTime, onBlock, takeoffFuel, remainingFuel } = flightData;
   const divert = divertData.active;
 
-  const dep      = activePlan?.dep      || '—';
-  const dest     = activePlan?.dest     || '—';
-  const date     = activePlan?.date     || '—';
-  const reg      = activePlan?.reg      || '—';
-  const acType   = activePlan?.ac_type  || '—';
+  const dep    = activePlan?.dep     || '—';
+  const dest   = activePlan?.dest    || '—';
+  const date   = activePlan?.date    || '—';
+  const reg    = activePlan?.reg     || '—';
+  const acType = activePlan?.ac_type || '—';
 
   function n(v) {
     if (!v) return null;
@@ -113,13 +124,43 @@ function EndFlight({ flightData, divertData, setStatus, activePlan }) {
   }, [timesOk, fuelOk, pax, archived, setStatus]);
 
   const handleArchive = async () => {
+    if (!activePlan?.id) return;
     setArchiving(true);
     try {
-      await supabase.from('plans')
+      // 1 — plans tablosunu archived yap
+      await supabase
+        .from('plans')
         .update({ status: 'archived', archived_at: new Date().toISOString() })
-        .eq('status', 'active');
+        .eq('id', activePlan.id);
+
+      // 2 — DEST koordinatlarını rawText'ten çek
+      const { lat: destLat, lon: destLon } = parseDestCoords(rawText);
+
+      // 3 — archived_flights'a kayıt at → trigger pilot_stats'ı otomatik günceller
+      const { error: archiveError } = await supabase
+        .from('archived_flights')
+        .insert({
+          plan_id:          activePlan.id,
+          pic_id:           activePlan.pf_pilot,
+          sic_id:           activePlan.pm_pilot,
+          pf_id:            activePlan.pf_pilot,
+          departure_icao:   dep,
+          destination_icao: destIcao,
+          off_blocks:       offBlock    ? new Date(`${date}T${offBlock}:00Z`)    : null,
+          on_blocks:        onBlock     ? new Date(`${date}T${onBlock}:00Z`)     : null,
+          block_minutes:    blockMins,
+          airborne_minutes: flightMins,
+          landing_count:    parseInt(cycles) || 1,
+          dest_lat:         destLat,
+          dest_lon:         destLon,
+          is_night_landing: false,   // gece hesabı bir sonraki adımda
+        });
+
+      if (archiveError) throw archiveError;
       setArchived(true);
-    } catch {}
+    } catch (e) {
+      console.error('Archive error:', e);
+    }
     setArchiving(false);
   };
 
@@ -153,7 +194,7 @@ function EndFlight({ flightData, divertData, setStatus, activePlan }) {
       <Title t="Calculated" />
       <AutoRow label="Flight Time"  value={fromMins(flightMins)} valueColor={flightMins ? '#e8e8e8' : '#444'} big />
       <AutoRow label="Block Time"   value={fromMins(blockMins)}  valueColor={blockMins  ? '#e8e8e8' : '#444'} big />
-      <AutoRow label="Landings"     value="1"       valueColor="#e8e8e8" />
+      <AutoRow label="Landings"     value="1"        valueColor="#e8e8e8" />
       <AutoRow label="Destination"  value={destIcao} valueColor={divert ? '#e8731a' : '#1a9bc4'} />
 
       <Sep />

@@ -930,7 +930,7 @@ onActivate={(plan) => {
       {activePage === 'takeoff'   && <TakeoffData setStatus={setStatusTakeoff}   activePlan={activePlan} />}
       {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} setStatus={setStatusNavlog} activePlan={activePlan} updateDivert={updateDivert} />}
       {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} setStatus={setStatusLanding} activePlan={activePlan} />}
-      {activePage === 'endflt'    && <EndFlight   flightData={flightData} divertData={divertData} setStatus={setStatusEndflt}   activePlan={activePlan} />}
+      {activePage === 'endflt' && <EndFlight flightData={flightData} divertData={divertData} setStatus={setStatusEndflt} activePlan={activePlan} rawText={rawText} />}
       {activePage === 'docupload' && <DocUpload   setStatus={setStatusDocupload} activePlan={activePlan} />}
       {activePage === 'freenote'  && <FreeNote />}
       {!['flt-crew','mandatory','efp','fuel','accept','takeoff','navlog','landing','endflt','docupload','freenote'].includes(activePage) && (
