@@ -205,8 +205,8 @@ function ArrivalModal({ wptName, isDivert, onClose, onSave, onDivert, initial })
   );
 }
 
-// ─── Wpt Modal (Add Before/After dahil) ──────────────────────────────────────
-function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, initial, wptList }) {
+// ─── Wpt Modal (Add Before/After + Delete dahil) ─────────────────────────────
+function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initial, wptList }) {
   const [ata,     setAta]     = useState(initial.ata  || '');
   const [fuel,    setFuel]    = useState(initial.fuel || '');
   const [rvsm,    setRvsm]    = useState(initial.rvsm || '');
@@ -243,16 +243,14 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, initial, wptList
             <FuelBox value={fuel} onChange={setFuel} />
           </div>
 
-          {/* RVSM */}
-          {!wpt.custom && (
-            <div>
-              <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>RVSM Altimeter Check</div>
-              <RvsmBoxes value={rvsm} onChange={setRvsm} />
-            </div>
-          )}
+          {/* RVSM — herkeste göster */}
+          <div>
+            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>RVSM Altimeter Check</div>
+            <RvsmBoxes value={rvsm} onChange={setRvsm} />
+          </div>
 
-          {/* Direct To */}
-          {!wpt.custom && wptList.length > 0 && (
+          {/* Direct To — herkeste göster */}
+          {wptList.length > 0 && (
             <div>
               <button onClick={() => setShowDT(!showDT)}
                 style={{ width:'100%', background:'rgba(255,149,0,0.1)', border:'1px solid rgba(255,149,0,0.3)', borderRadius:6, padding:'9px', fontSize:12, fontWeight:700, color:'#ff9500', cursor:'pointer', fontFamily:'inherit' }}>
@@ -262,8 +260,8 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, initial, wptList
                 <div style={{ marginTop:8, background:'#1e1e1e', borderRadius:6, overflow:'hidden', border:'1px solid #383838' }}>
                   {wptList.map(w => (
                     <div key={w.uid} onClick={() => onDirectTo(w.uid)}
-                      style={{ padding:'10px 12px', borderBottom:'1px solid #383838', cursor:'pointer', fontSize:12, color:'#999', fontFamily:'monospace', display:'flex', justifyContent:'space-between' }}>
-                      <span>{w.name}</span>
+                      style={{ padding:'10px 12px', borderBottom:'1px solid #383838', cursor:'pointer', fontSize:12, fontFamily:'monospace', display:'flex', justifyContent:'space-between' }}>
+                      <span style={{ color: w.custom ? '#ff9500' : '#999' }}>{w.name}</span>
                       <span style={{ color:'#555' }}>ETA {w.eta}</span>
                     </div>
                   ))}
@@ -281,7 +279,6 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, initial, wptList
 
             {showAdd && (
               <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:10 }}>
-                {/* Before / After toggle */}
                 <div style={{ display:'flex', gap:6 }}>
                   {['before', 'after'].map(pos => (
                     <button key={pos} onClick={() => setAddPos(pos)}
@@ -290,32 +287,34 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, initial, wptList
                     </button>
                   ))}
                 </div>
-
-                {/* Name input */}
                 <div>
                   <div style={{ fontSize:10, color:'#ff9500', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Waypoint Name</div>
-                  <input
-                    value={addName}
+                  <input value={addName}
                     onChange={e => setAddName(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
-                    placeholder="e.g. ROMEO"
-                    maxLength={6}
+                    placeholder="e.g. ROMEO" maxLength={6}
                     style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #ff9500', borderRadius:6, padding:'9px 12px', fontSize:16, fontWeight:700, color:'#ff9500', fontFamily:'monospace', outline:'none', textAlign:'center', letterSpacing:2, boxSizing:'border-box' }}
                   />
                 </div>
-
                 <div style={{ fontSize:10, color:'#444', lineHeight:1.5, padding:'4px 2px' }}>
                   ⚠ Konumu hava haritası üzerinden doğrulayın. Airway/WPT veritabanı kullanılmıyor.
                 </div>
-
-                <button
-                  onClick={handleAdd}
-                  disabled={addName.length < 2}
+                <button onClick={handleAdd} disabled={addName.length < 2}
                   style={{ width:'100%', background: addName.length >= 2 ? '#ff9500' : '#2a2a2a', border:'none', borderRadius:7, padding:'9px', fontSize:13, fontWeight:700, color: addName.length >= 2 ? '#fff' : '#444', cursor: addName.length >= 2 ? 'pointer' : 'not-allowed', fontFamily:'inherit' }}>
                   Add {addPos === 'before' ? 'Before' : 'After'} {wpt.name}
                 </button>
               </div>
             )}
           </div>
+
+          {/* Delete — sadece custom WPT'lerde */}
+          {wpt.custom && (
+            <div style={{ borderTop:'1px solid #2a2a2a', paddingTop:12 }}>
+              <button onClick={onDelete}
+                style={{ width:'100%', background:'rgba(224,32,32,0.08)', border:'1px solid rgba(224,32,32,0.3)', borderRadius:6, padding:'9px', fontSize:12, fontWeight:700, color:'#e02020', cursor:'pointer', fontFamily:'inherit' }}>
+                🗑 Delete Waypoint
+              </button>
+            </div>
+          )}
         </div>
 
         <div style={{ padding:'0 16px 16px', display:'flex', gap:8 }}>
@@ -326,7 +325,6 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, initial, wptList
     </div>
   );
 }
-
 // ─── Divert Airport Modal ─────────────────────────────────────────────────────
 function DivertArptModal({ onClose, onAdd }) {
   const [name, setName] = useState('');
@@ -476,6 +474,15 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   };
 
   const handleDirectTo = (fromUid, toUid) => { setDirectTo({ from: fromUid, to: toUid }); setModal(null); };
+
+  // Custom WPT silme
+  const handleDeleteWpt = (uid) => {
+    setWaypoints(prev => prev.filter(w => w.uid !== uid));
+    setEntries(prev => { const next = { ...prev }; delete next[uid]; return next; });
+    // directTo bu WPT'yi referans ediyorsa sıfırla
+    if (directTo?.from === uid || directTo?.to === uid) setDirectTo(null);
+    setModal(null);
+  };
 
   // WptModal'dan Add Before/After
   const handleAddWptAt = (newWpt, position, relativeUid) => {
@@ -691,6 +698,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
             onSave={(data) => handleWptSave(modal, data)}
             onDirectTo={(toUid) => handleDirectTo(modal, toUid)}
             onAddWpt={(newWpt, position) => handleAddWptAt(newWpt, position, modal)}
+            onDelete={() => handleDeleteWpt(modal)}
             initial={entries[modal] || {}}
             wptList={afterWpt}
           />
