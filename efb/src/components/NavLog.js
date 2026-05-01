@@ -5,9 +5,7 @@ import { usePersistedState } from '../hooks/usePersistedState';
 
 const FIFTY_MIN = 50 * 60 * 1000;
 
-// ─── Koordinat parse ──────────────────────────────────────────────────────────
 function parseCoord(str) {
-  // "N40:58.6 E028:48.9" veya "N40:58.6E028:48.9" formatı
   const m = str.match(/N(\d+):(\d+\.?\d*)\s*E(\d+):(\d+\.?\d*)/i);
   if (!m) return null;
   return {
@@ -16,7 +14,6 @@ function parseCoord(str) {
   };
 }
 
-// ─── Haversine mesafe (km) ────────────────────────────────────────────────────
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -25,49 +22,34 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// ─── Waypoint parse (koordinatlarla) ─────────────────────────────────────────
 function parseWaypoints(rawText, dep, dest, std) {
   if (!rawText || !dep || !dest) return [];
-
-  const depPattern = new RegExp(
-    `DEP\\s+${dep}\\/\\S+[^\\n]*\\n([\\s\\S]*?)(?=DEST\\s+${dest}\\/)`, 'i'
-  );
+  const depPattern = new RegExp(`DEP\\s+${dep}\\/\\S+[^\\n]*\\n([\\s\\S]*?)(?=DEST\\s+${dest}\\/)`, 'i');
   const sectionMatch = rawText.match(depPattern);
   const section = sectionMatch?.[1] || '';
-
-  // DEP koordinatı
   const depCoordMatch = rawText.match(new RegExp(`DEP\\s+${dep}\\/\\S+[^\\n]*(N\\d+:\\d+\\.?\\d*\\s*E\\d+:\\d+\\.?\\d*)`, 'i'));
   const depCoord = depCoordMatch ? parseCoord(depCoordMatch[1]) : null;
-
-  // DEST koordinatı
   const destCoordMatch = rawText.match(new RegExp(`DEST\\s+${dest}\\/\\S+[^\\n]*(N\\d+:\\d+\\.?\\d*\\s*E\\d+:\\d+\\.?\\d*)`, 'i'));
   const destCoord = destCoordMatch ? parseCoord(destCoordMatch[1]) : null;
-
   const wptList = [];
   if (section) {
     for (const line of section.split('\n')) {
       if (!line.trim() || line.match(/-TOC-|-TOD-/)) continue;
       const m = line.match(/^\s*\d+\s+([A-Z][A-Z0-9]{1,5})\s/);
-      if (m) {
-        const coord = parseCoord(line);
-        wptList.push({ name: m[1], coord });
-      }
+      if (m) wptList.push({ name: m[1], coord: parseCoord(line) });
     }
   }
-
   const waypoints = [];
-  waypoints.push({ id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false, coord: depCoord });
-  wptList.forEach(w => waypoints.push({ id: w.name, name: w.name, type: 'wpt', eta: '—', fl: '—', planFuel: null, custom: false, coord: w.coord }));
-  waypoints.push({ id: dest, name: dest, type: 'dest', eta: '—', fl: '—', planFuel: null, custom: false, coord: destCoord });
+  waypoints.push({ uid: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false, coord: depCoord });
+  wptList.forEach(w => waypoints.push({ uid: w.name, name: w.name, type: 'wpt', eta: '—', fl: '—', planFuel: null, custom: false, coord: w.coord }));
+  waypoints.push({ uid: dest, name: dest, type: 'dest', eta: '—', fl: '—', planFuel: null, custom: false, coord: destCoord });
   return waypoints;
 }
 
-// ─── GPS Hook ─────────────────────────────────────────────────────────────────
 function useGPS() {
   const [pos, setPos] = useState(null);
   const [error, setError] = useState(null);
   const watchId = useRef(null);
-
   const start = () => {
     if (!navigator.geolocation) { setError('GPS not supported'); return; }
     watchId.current = navigator.geolocation.watchPosition(
@@ -76,18 +58,13 @@ function useGPS() {
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
     );
   };
-
   const stop = () => {
     if (watchId.current !== null) {
       navigator.geolocation.clearWatch(watchId.current);
-      watchId.current = null;
-      setPos(null);
-      setError(null);
+      watchId.current = null; setPos(null); setError(null);
     }
   };
-
   useEffect(() => () => stop(), []); // eslint-disable-line
-
   return { pos, error, active: watchId.current !== null, start, stop };
 }
 
@@ -141,6 +118,7 @@ function RvsmBoxes({ value, onChange }) {
   );
 }
 
+// ─── Dep Modal ────────────────────────────────────────────────────────────────
 function DepModal({ dep, onClose, onSave, initial }) {
   const [offBlock, setOffBlock] = useState(initial.offBlock || '');
   const [toTime,   setToTime]   = useState(initial.toTime   || '');
@@ -166,6 +144,7 @@ function DepModal({ dep, onClose, onSave, initial }) {
   );
 }
 
+// ─── Arrival Modal ────────────────────────────────────────────────────────────
 function ArrivalModal({ wptName, isDivert, onClose, onSave, onDivert, initial }) {
   const [lndTime,    setLndTime]    = useState(initial.lndTime  || '');
   const [onBlock,    setOnBlock]    = useState(initial.onBlock   || '');
@@ -226,27 +205,53 @@ function ArrivalModal({ wptName, isDivert, onClose, onSave, onDivert, initial })
   );
 }
 
-function WptModal({ wpt, onClose, onSave, onDirectTo, initial, wptList }) {
-  const [ata,    setAta]    = useState(initial.ata  || '');
-  const [fuel,   setFuel]   = useState(initial.fuel || '');
-  const [rvsm,   setRvsm]   = useState(initial.rvsm || '');
-  const [showDT, setShowDT] = useState(false);
+// ─── Wpt Modal (Add Before/After dahil) ──────────────────────────────────────
+function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, initial, wptList }) {
+  const [ata,     setAta]     = useState(initial.ata  || '');
+  const [fuel,    setFuel]    = useState(initial.fuel || '');
+  const [rvsm,    setRvsm]    = useState(initial.rvsm || '');
+  const [showDT,  setShowDT]  = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addPos,  setAddPos]  = useState('after');
+  const [addName, setAddName] = useState('');
+
+  const handleAdd = () => {
+    if (addName.length < 2) return;
+    const uid = `${addName}_${Date.now()}`;
+    onAddWpt({ uid, name: addName, type: 'wpt', custom: true, eta: '—', fl: '—', planFuel: null, coord: null }, addPos);
+    setAddName(''); setShowAdd(false);
+  };
+
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }}>
-      <div style={{ background:'#252525', border:'1px solid #383838', borderRadius:12, width:320, overflow:'hidden', maxHeight:'85vh', overflowY:'auto' }}>
+      <div style={{ background:'#252525', border:'1px solid #383838', borderRadius:12, width:320, overflow:'hidden', maxHeight:'92vh', overflowY:'auto' }}>
         <div style={{ background:'#1f1f1f', padding:'10px 16px', borderBottom:'1px solid #383838', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <span style={{ fontSize:12, fontWeight:700, color: wpt.custom ? '#ff9500' : '#1a9bc4' }}>{wpt.name} — Waypoint Data</span>
           <span onClick={onClose} style={{ color:'#555', cursor:'pointer', fontSize:20, lineHeight:1 }}>×</span>
         </div>
+
         <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:14 }}>
-          <div><div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>ATA</div><TimeBox value={ata} onChange={setAta} /></div>
-          <div><div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Fuel Remaining</div><FuelBox value={fuel} onChange={setFuel} /></div>
+          {/* ATA */}
+          <div>
+            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>ATA</div>
+            <TimeBox value={ata} onChange={setAta} />
+          </div>
+
+          {/* Fuel */}
+          <div>
+            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Fuel Remaining</div>
+            <FuelBox value={fuel} onChange={setFuel} />
+          </div>
+
+          {/* RVSM */}
           {!wpt.custom && (
             <div>
               <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>RVSM Altimeter Check</div>
               <RvsmBoxes value={rvsm} onChange={setRvsm} />
             </div>
           )}
+
+          {/* Direct To */}
           {!wpt.custom && wptList.length > 0 && (
             <div>
               <button onClick={() => setShowDT(!showDT)}
@@ -256,7 +261,7 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, initial, wptList }) {
               {showDT && (
                 <div style={{ marginTop:8, background:'#1e1e1e', borderRadius:6, overflow:'hidden', border:'1px solid #383838' }}>
                   {wptList.map(w => (
-                    <div key={w.id} onClick={() => onDirectTo(w.id)}
+                    <div key={w.uid} onClick={() => onDirectTo(w.uid)}
                       style={{ padding:'10px 12px', borderBottom:'1px solid #383838', cursor:'pointer', fontSize:12, color:'#999', fontFamily:'monospace', display:'flex', justifyContent:'space-between' }}>
                       <span>{w.name}</span>
                       <span style={{ color:'#555' }}>ETA {w.eta}</span>
@@ -266,7 +271,53 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, initial, wptList }) {
               )}
             </div>
           )}
+
+          {/* Add Before / After */}
+          <div style={{ borderTop:'1px solid #2a2a2a', paddingTop:12 }}>
+            <button onClick={() => setShowAdd(!showAdd)}
+              style={{ width:'100%', background: showAdd ? 'rgba(255,149,0,0.1)' : '#1f1f1f', border:`1px solid ${showAdd ? 'rgba(255,149,0,0.4)' : '#383838'}`, borderRadius:6, padding:'9px', fontSize:12, fontWeight:700, color: showAdd ? '#ff9500' : '#555', cursor:'pointer', fontFamily:'inherit' }}>
+              {showAdd ? '✕ Cancel Add' : '+ Add Waypoint'}
+            </button>
+
+            {showAdd && (
+              <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:10 }}>
+                {/* Before / After toggle */}
+                <div style={{ display:'flex', gap:6 }}>
+                  {['before', 'after'].map(pos => (
+                    <button key={pos} onClick={() => setAddPos(pos)}
+                      style={{ flex:1, background: addPos === pos ? 'rgba(255,149,0,0.15)' : '#1f1f1f', border:`1px solid ${addPos === pos ? '#ff9500' : '#383838'}`, borderRadius:6, padding:'7px', fontSize:11, fontWeight:700, color: addPos === pos ? '#ff9500' : '#555', cursor:'pointer', fontFamily:'inherit', textTransform:'uppercase' }}>
+                      {pos === 'before' ? '↑ Before' : '↓ After'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Name input */}
+                <div>
+                  <div style={{ fontSize:10, color:'#ff9500', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Waypoint Name</div>
+                  <input
+                    value={addName}
+                    onChange={e => setAddName(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+                    placeholder="e.g. ROMEO"
+                    maxLength={6}
+                    style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #ff9500', borderRadius:6, padding:'9px 12px', fontSize:16, fontWeight:700, color:'#ff9500', fontFamily:'monospace', outline:'none', textAlign:'center', letterSpacing:2, boxSizing:'border-box' }}
+                  />
+                </div>
+
+                <div style={{ fontSize:10, color:'#444', lineHeight:1.5, padding:'4px 2px' }}>
+                  ⚠ Konumu hava haritası üzerinden doğrulayın. Airway/WPT veritabanı kullanılmıyor.
+                </div>
+
+                <button
+                  onClick={handleAdd}
+                  disabled={addName.length < 2}
+                  style={{ width:'100%', background: addName.length >= 2 ? '#ff9500' : '#2a2a2a', border:'none', borderRadius:7, padding:'9px', fontSize:13, fontWeight:700, color: addName.length >= 2 ? '#fff' : '#444', cursor: addName.length >= 2 ? 'pointer' : 'not-allowed', fontFamily:'inherit' }}>
+                  Add {addPos === 'before' ? 'Before' : 'After'} {wpt.name}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+
         <div style={{ padding:'0 16px 16px', display:'flex', gap:8 }}>
           <button onClick={onClose} style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
           <button onClick={() => onSave({ ata, fuel, rvsm })} style={{ flex:2, background:'#1a9bc4', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>Save</button>
@@ -276,34 +327,28 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, initial, wptList }) {
   );
 }
 
-function AddWptModal({ onClose, onAdd, type }) {
+// ─── Divert Airport Modal ─────────────────────────────────────────────────────
+function DivertArptModal({ onClose, onAdd }) {
   const [name, setName] = useState('');
-  const isArpt = type === 'arpt';
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }}>
-      <div style={{ background:'#252525', border:`1px solid ${isArpt ? '#e8731a55' : '#ff950044'}`, borderRadius:12, width:300, overflow:'hidden' }}>
+      <div style={{ background:'#252525', border:'1px solid #e8731a55', borderRadius:12, width:300, overflow:'hidden' }}>
         <div style={{ background:'#1f1f1f', padding:'10px 16px', borderBottom:'1px solid #383838', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <span style={{ fontSize:12, fontWeight:700, color: isArpt ? '#e8731a' : '#ff9500' }}>
-            {isArpt ? '⚠ Add Divert Airport' : '+ Add Waypoint'}
-          </span>
+          <span style={{ fontSize:12, fontWeight:700, color:'#e8731a' }}>⚠ Add Divert Airport</span>
           <span onClick={onClose} style={{ color:'#555', cursor:'pointer', fontSize:20, lineHeight:1 }}>×</span>
         </div>
-        <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:12 }}>
-          <div>
-            <div style={{ fontSize:10, color: isArpt ? '#e8731a' : '#ff9500', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>
-              {isArpt ? 'Airport ICAO *' : 'Waypoint Name'}
-            </div>
-            <input value={name} onChange={e => setName(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0, isArpt ? 4 : 6))}
-              placeholder={isArpt ? 'ICAO' : 'e.g. ROMEO'} maxLength={isArpt ? 4 : 6}
-              style={{ width:'100%', background:'#1a1a1a', border:`1.5px solid ${isArpt ? '#e8731a' : '#ff9500'}`, borderRadius:6, padding:'9px 12px', fontSize:16, fontWeight:700, color: isArpt ? '#e8731a' : '#ff9500', fontFamily:'monospace', outline:'none', textAlign:'center', letterSpacing:2 }} />
-          </div>
+        <div style={{ padding:'14px 16px' }}>
+          <div style={{ fontSize:10, color:'#e8731a', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Airport ICAO *</div>
+          <input value={name} onChange={e => setName(e.target.value.toUpperCase().replace(/[^A-Z]/g,'').slice(0, 4))}
+            placeholder="ICAO" maxLength={4}
+            style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #e8731a', borderRadius:6, padding:'9px 12px', fontSize:16, fontWeight:700, color:'#e8731a', fontFamily:'monospace', outline:'none', textAlign:'center', letterSpacing:2 }} />
         </div>
         <div style={{ padding:'0 16px 16px', display:'flex', gap:8 }}>
           <button onClick={onClose} style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
-          <button onClick={() => { if (name.length >= 2) onAdd({ id: name, name, type: isArpt ? 'divert-arpt' : 'wpt', custom: true, eta:'—', fl:'—', planFuel:null, isArpt }); }}
-            disabled={name.length < (isArpt ? 4 : 2)}
-            style={{ flex:2, background: isArpt ? '#e8731a' : '#ff9500', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit', opacity: name.length < (isArpt ? 4 : 2) ? 0.5 : 1 }}>
-            Add
+          <button onClick={() => { if (name.length === 4) onAdd(name); }}
+            disabled={name.length !== 4}
+            style={{ flex:2, background:'#e8731a', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit', opacity: name.length !== 4 ? 0.5 : 1 }}>
+            Add Divert
           </button>
         </div>
       </div>
@@ -319,10 +364,11 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   const [flightClosed,  setFlightClosed]  = usePersistedState('efb_navlog_flightClosed',  false);
   const [lastCheckTime, setLastCheckTime] = usePersistedState('efb_navlog_lastCheckTime', null);
 
-  const [modal,        setModal]        = useState(null);
-  const [addModal,     setAddModal]     = useState(null);
-  const [alert50,      setAlert50]      = useState(false);
-  const [nearestWpt,   setNearestWpt]   = useState(null); // GPS ile en yakın waypoint id
+  const [modal,      setModal]      = useState(null); // wpt.uid
+  const [showDivert, setShowDivert] = useState(false);
+  const [alert50,    setAlert50]    = useState(false);
+  // GPS uçak pozisyonu: { prev: uid, next: uid } — iki waypoint arası
+  const [acPosition, setAcPosition] = useState(null);
 
   const { pos, error: gpsError, active: gpsActive, start: startGPS, stop: stopGPS } = useGPS();
 
@@ -330,58 +376,53 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   const dest = activePlan?.dest || 'DEST';
   const std  = activePlan?.std  || '';
 
-  // GPS pozisyonu değişince en yakın waypoint'i bul
+  // GPS → en yakın iki waypoint arası hesapla
   useEffect(() => {
-    if (!pos) { setNearestWpt(null); return; }
-    let minDist = Infinity;
-    let nearest = null;
-    waypoints.forEach(wpt => {
-      if (!wpt.coord) return;
-      const d = haversine(pos.lat, pos.lon, wpt.coord.lat, wpt.coord.lon);
-      if (d < minDist) { minDist = d; nearest = wpt.id; }
-    });
-    setNearestWpt(nearest);
+    if (!pos) { setAcPosition(null); return; }
+    const coordWpts = waypoints
+      .map((w, i) => ({ ...w, idx: i }))
+      .filter(w => w.coord);
+    if (coordWpts.length === 0) { setAcPosition(null); return; }
+    const sorted = coordWpts
+      .map(w => ({ ...w, dist: haversine(pos.lat, pos.lon, w.coord.lat, w.coord.lon) }))
+      .sort((a, b) => a.dist - b.dist);
+    if (sorted.length === 1) {
+      setAcPosition({ prev: sorted[0].uid, next: null });
+      return;
+    }
+    // En yakın 2 noktayı liste sırasına göre sırala (prev önce, next sonra)
+    const top2 = [sorted[0], sorted[1]].sort((a, b) => a.idx - b.idx);
+    setAcPosition({ prev: top2[0].uid, next: top2[1].uid });
   }, [pos, waypoints]);
 
-  // Fetch waypoints from Supabase
   useEffect(() => {
     if (!activePlan?.id) {
-      if (waypoints.length === 0) {
-        setWaypoints([
-          { id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false, coord: null },
-          { id: dest, name: dest, type: 'dest', eta: '—',        fl: '—', planFuel: null, custom: false, coord: null },
-        ]);
-      }
+      if (waypoints.length === 0) setWaypoints([
+        { uid: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false, coord: null },
+        { uid: dest, name: dest, type: 'dest', eta: '—',        fl: '—', planFuel: null, custom: false, coord: null },
+      ]);
       return;
     }
     const fetchRaw = async () => {
       try {
         const { data } = await supabase
-          .from('plan_versions')
-          .select('raw_text')
-          .eq('plan_id', activePlan.id)
-          .order('version_no', { ascending: false })
-          .limit(1)
-          .single();
+          .from('plan_versions').select('raw_text')
+          .eq('plan_id', activePlan.id).order('version_no', { ascending: false }).limit(1).single();
         if (data?.raw_text) {
           const wpts = parseWaypoints(data.raw_text, dep, dest, std);
           const customWpts = waypoints.filter(w => w.custom);
           if (wpts.length >= 2) {
             const destIdx = wpts.findIndex(w => w.type === 'dest');
             const merged = [...wpts];
-            customWpts.forEach(cw => {
-              if (!merged.find(w => w.id === cw.id)) merged.splice(destIdx, 0, cw);
-            });
+            customWpts.forEach(cw => { if (!merged.find(w => w.uid === cw.uid)) merged.splice(destIdx, 0, cw); });
             setWaypoints(merged);
           }
         }
       } catch {
-        if (waypoints.length === 0) {
-          setWaypoints([
-            { id: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false, coord: null },
-            { id: dest, name: dest, type: 'dest', eta: '—',        fl: '—', planFuel: null, custom: false, coord: null },
-          ]);
-        }
+        if (waypoints.length === 0) setWaypoints([
+          { uid: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false, coord: null },
+          { uid: dest, name: dest, type: 'dest', eta: '—',        fl: '—', planFuel: null, custom: false, coord: null },
+        ]);
       }
     };
     fetchRaw();
@@ -390,9 +431,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
 
   useEffect(() => {
     if (!lastCheckTime) return;
-    const interval = setInterval(() => {
-      if (Date.now() - lastCheckTime >= FIFTY_MIN) setAlert50(true);
-    }, 10000);
+    const interval = setInterval(() => { if (Date.now() - lastCheckTime >= FIFTY_MIN) setAlert50(true); }, 10000);
     return () => clearInterval(interval);
   }, [lastCheckTime]);
 
@@ -406,78 +445,75 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     else                     setStatus('pending');
   }, [depDone, destDone, setStatus]);
 
-  const updateEntry = (id, data) =>
-    setEntries(prev => ({ ...prev, [id]: { ...(prev[id] || {}), ...data } }));
+  const updateEntry = (uid, data) => setEntries(prev => ({ ...prev, [uid]: { ...(prev[uid] || {}), ...data } }));
 
   const handleDepSave = (data) => {
     updateEntry(dep, data);
-    updateFlight('offBlock',    data.offBlock);
+    updateFlight('offBlock', data.offBlock);
     updateFlight('takeoffTime', data.toTime);
     updateFlight('takeoffFuel', data.toFuel);
     setLastCheckTime(Date.now());
     setModal(null);
   };
 
-  const handleArrivalSave = (wptId, data) => {
-    updateEntry(wptId, data);
-    updateFlight('landingTime',   data.lndTime);
-    updateFlight('onBlock',       data.onBlock);
+  const handleArrivalSave = (uid, data) => {
+    updateEntry(uid, data);
+    updateFlight('landingTime', data.lndTime);
+    updateFlight('onBlock', data.onBlock);
     updateFlight('remainingFuel', data.remFuel);
     setModal(null);
   };
 
-  const handleDivert = (divertInfo) => {
-    if (updateDivert) {
-      updateDivert('active', true);
-      updateDivert('icao',   divertInfo.icao);
-      updateDivert('rwy',    divertInfo.rwy || '');
-    }
+  const handleDivert = (info) => {
+    if (updateDivert) { updateDivert('active', true); updateDivert('icao', info.icao); updateDivert('rwy', info.rwy || ''); }
   };
 
-  const handleWptSave = (id, data) => {
-    updateEntry(id, data);
+  const handleWptSave = (uid, data) => {
+    updateEntry(uid, data);
     setLastCheckTime(Date.now());
     setAlert50(false);
     setModal(null);
   };
 
-  const handleDirectTo = (fromId, toId) => {
-    setDirectTo({ from: fromId, to: toId });
+  const handleDirectTo = (fromUid, toUid) => { setDirectTo({ from: fromUid, to: toUid }); setModal(null); };
+
+  // WptModal'dan Add Before/After
+  const handleAddWptAt = (newWpt, position, relativeUid) => {
+    setWaypoints(prev => {
+      const idx = prev.findIndex(w => w.uid === relativeUid);
+      if (idx === -1) return prev;
+      const updated = [...prev];
+      updated.splice(position === 'before' ? idx : idx + 1, 0, newWpt);
+      return updated;
+    });
     setModal(null);
   };
 
-  const handleAddWpt = (wpt) => {
-    setWaypoints(prev => {
-      const destIdx = prev.findIndex(w => w.type === 'dest');
-      const updated = [...prev];
-      updated.splice(destIdx, 0, wpt);
-      return updated;
-    });
-    if (wpt.isArpt) {
-      setFlightClosed(true);
-      if (updateDivert) { updateDivert('active', true); updateDivert('icao', wpt.id); }
-    }
-    setAddModal(null);
+  const handleAddDivertArpt = (icao) => {
+    const uid = `${icao}_divert_${Date.now()}`;
+    setWaypoints(prev => [...prev, { uid, name: icao, type: 'divert-arpt', custom: true, eta: '—', fl: '—', planFuel: null, coord: null }]);
+    setFlightClosed(true);
+    if (updateDivert) { updateDivert('active', true); updateDivert('icao', icao); }
+    setShowDivert(false);
   };
 
-  const getToFuel     = () => { const d = entries[dep];  return d?.toFuel  ? parseInt(d.toFuel.replace(/,/g,''))  : null; };
-  const getFuelAtDest = (wpt) => { const e = entries[wpt.id]; if (!e?.fuel) return null; return parseInt(e.fuel.replace(/,/g,'')); };
-  const isSkipped     = (wpt, idx) => {
+  const getToFuel    = () => { const d = entries[dep]; return d?.toFuel ? parseInt(d.toFuel.replace(/,/g,'')) : null; };
+  const getFuelAtWpt = (wpt) => { const e = entries[wpt.uid]; if (!e?.fuel) return null; return parseInt(e.fuel.replace(/,/g,'')); };
+  const isSkipped    = (wpt, idx) => {
     if (!directTo) return false;
-    const fromIdx = waypoints.findIndex(w => w.id === directTo.from);
-    const toIdx   = waypoints.findIndex(w => w.id === directTo.to);
+    const fromIdx = waypoints.findIndex(w => w.uid === directTo.from);
+    const toIdx   = waypoints.findIndex(w => w.uid === directTo.to);
     return idx > fromIdx && idx < toIdx;
   };
 
   const toFuel       = getToFuel();
   const lastCheckStr = lastCheckTime ? new Date(lastCheckTime).toTimeString().slice(0,5) + ' Z' : '—';
-  const modalWpt     = waypoints.find(w => w.id === modal);
-
-  // Koordinatı olan waypoint sayısı — GPS butonunu buna göre göster
-  const hasCoords = waypoints.some(w => w.coord);
+  const modalWpt     = waypoints.find(w => w.uid === modal);
+  const hasCoords    = waypoints.some(w => w.coord);
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+
       {alert50 && (
         <div style={{ background:'rgba(224,32,32,0.12)', borderBottom:'1px solid rgba(224,32,32,0.3)', padding:'10px 16px', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
           <span style={{ fontSize:18 }}>⚠️</span>
@@ -489,7 +525,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         </div>
       )}
 
-      {/* GPS Bar */}
       {hasCoords && (
         <div style={{ background: gpsActive ? 'rgba(45,158,95,0.1)' : '#1e1e1e', borderBottom:'1px solid #383838', padding:'7px 12px', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
           <span style={{ fontSize:14 }}>✈</span>
@@ -497,7 +532,12 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
             {gpsActive && pos && (
               <span style={{ fontSize:10, color:'#2d9e5f', fontFamily:'monospace' }}>
                 {pos.lat.toFixed(4)}N {pos.lon.toFixed(4)}E · ±{Math.round(pos.acc)}m
-                {nearestWpt && <span style={{ color:'#1a9bc4', marginLeft:8 }}>→ {nearestWpt}</span>}
+                {acPosition && (
+                  <span style={{ color:'#1a9bc4', marginLeft:8 }}>
+                    {waypoints.find(w=>w.uid===acPosition.prev)?.name}
+                    {acPosition.next ? ` ✈ ${waypoints.find(w=>w.uid===acPosition.next)?.name}` : ' ✈'}
+                  </span>
+                )}
               </span>
             )}
             {gpsActive && !pos && <span style={{ fontSize:10, color:'#555' }}>Acquiring GPS...</span>}
@@ -534,81 +574,85 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         {waypoints.length === 0 ? (
           <div style={{ padding:20, textAlign:'center', color:'#444', fontSize:12 }}>Loading waypoints...</div>
         ) : waypoints.map((wpt, idx) => {
-          const e           = entries[wpt.id] || {};
-          const skipped     = isSkipped(wpt, idx);
-          const isDep       = wpt.type === 'dep';
-          const isDest      = wpt.type === 'dest';
-          const isDivArpt   = wpt.type === 'divert-arpt';
-          const isArrival   = isDest || isDivArpt;
-          const isDone      = isDep     ? !!(e.offBlock || e.toTime)
-                            : isArrival ? !!(e.lndTime  || e.onBlock)
-                            : !!(e.ata  || e.fuel);
-          const isActive    = !isDone && !skipped && (idx === 0 || waypoints.slice(0, idx).every((w, wi) => {
-            const pe = entries[w.id] || {};
+          const e          = entries[wpt.uid] || {};
+          const skipped    = isSkipped(wpt, idx);
+          const isDep      = wpt.type === 'dep';
+          const isDest     = wpt.type === 'dest';
+          const isDivArpt  = wpt.type === 'divert-arpt';
+          const isArrival  = isDest || isDivArpt;
+          const isDone     = isDep ? !!(e.offBlock || e.toTime) : isArrival ? !!(e.lndTime || e.onBlock) : !!(e.ata || e.fuel);
+          const isActive   = !isDone && !skipped && (idx === 0 || waypoints.slice(0, idx).every((w, wi) => {
+            const pe = entries[w.uid] || {};
             return w.type === 'dep' ? !!(pe.offBlock || pe.toTime) : !!(pe.ata || pe.fuel || pe.lndTime) || isSkipped(w, wi);
           }));
-          const isGpsNearest = gpsActive && nearestWpt === wpt.id;
-          const fuelAtDest  = getFuelAtDest(wpt);
-          const fuelColor   = getFuelDestColor(fuelAtDest);
-          const rowBg       = isDivArpt    ? 'rgba(255,149,0,0.08)'
-                            : isGpsNearest ? 'rgba(45,158,95,0.1)'
-                            : skipped      ? '#1e1e1e'
-                            : isDone       ? '#1f2a1f'
-                            : isActive     ? 'rgba(26,155,196,0.06)'
-                            : '#242424';
-          const borderLeft  = isDivArpt    ? '3px solid #e8731a'
-                            : isGpsNearest ? '3px solid #2d9e5f'
-                            : isActive     ? '3px solid #1a9bc4'
-                            : isDone       ? '3px solid #2d9e5f'
-                            : '3px solid transparent';
-          const nameColor   = isDivArpt ? '#e8731a' : isDep||isDest ? '#1a9bc4' : isDone ? '#2d9e5f' : isActive ? '#1a9bc4' : wpt.custom ? '#ff9500' : '#666';
-          const rvsmDisp    = e.rvsm ? e.rvsm.split('/')[0] + '…' : (isDep || isArrival ? 'N/A' : '—');
+          const fuelAtDest = getFuelAtWpt(wpt);
+          const fuelColor  = getFuelDestColor(fuelAtDest);
+          const rowBg      = isDivArpt ? 'rgba(255,149,0,0.08)' : skipped ? '#1e1e1e' : isDone ? '#1f2a1f' : isActive ? 'rgba(26,155,196,0.06)' : '#242424';
+          const borderLeft = isDivArpt ? '3px solid #e8731a' : isActive ? '3px solid #1a9bc4' : isDone ? '3px solid #2d9e5f' : '3px solid transparent';
+          const nameColor  = isDivArpt ? '#e8731a' : isDep||isDest ? '#1a9bc4' : isDone ? '#2d9e5f' : isActive ? '#1a9bc4' : wpt.custom ? '#ff9500' : '#666';
+          const rvsmDisp   = e.rvsm ? e.rvsm.split('/')[0] + '…' : (isDep || isArrival ? 'N/A' : '—');
+
+          // Bu satırdan SONRA uçak simgesi eklenecek mi?
+          const showAcAfter = gpsActive && acPosition && acPosition.prev === wpt.uid && acPosition.next;
 
           return (
-            <div key={wpt.id + idx} onClick={() => !skipped && setModal(wpt.id)}
-              style={{ display:'grid', gridTemplateColumns:'70px 50px 50px 45px 60px 60px 60px 1fr', padding:'10px', borderBottom:'1px solid #383838', background:rowBg, borderLeft, cursor: skipped ? 'default' : 'pointer', opacity: skipped ? 0.3 : 1, alignItems:'center' }}>
-              <div>
-                <div style={{ fontSize:12, fontWeight:700, fontFamily:'monospace', color: nameColor, display:'flex', alignItems:'center', gap:4 }}>
-                  {isGpsNearest && <span style={{ fontSize:13 }}>✈</span>}
-                  {wpt.name}
+            <React.Fragment key={wpt.uid}>
+              <div onClick={() => !skipped && setModal(wpt.uid)}
+                style={{ display:'grid', gridTemplateColumns:'70px 50px 50px 45px 60px 60px 60px 1fr', padding:'10px', borderBottom:'1px solid #383838', background:rowBg, borderLeft, cursor: skipped ? 'default' : 'pointer', opacity: skipped ? 0.3 : 1, alignItems:'center' }}>
+                <div>
+                  <div style={{ fontSize:12, fontWeight:700, fontFamily:'monospace', color: nameColor }}>
+                    {wpt.name}
+                  </div>
+                  {isDivArpt && <div style={{ fontSize:8, color:'#e8731a', marginTop:1 }}>DIVERT</div>}
+                  {wpt.custom && !isDivArpt && <div style={{ fontSize:8, color:'#ff9500', marginTop:1 }}>ADDED</div>}
+                  {directTo?.from === wpt.uid && <div style={{ fontSize:9, color:'#ff9500', marginTop:1 }}>→ {waypoints.find(w=>w.uid===directTo.to)?.name}</div>}
                 </div>
-                {isDivArpt && <div style={{ fontSize:8, color:'#e8731a', marginTop:1 }}>DIVERT</div>}
-                {wpt.custom && !isDivArpt && <div style={{ fontSize:8, color:'#ff9500', marginTop:1 }}>ADDED</div>}
-                {directTo?.from === wpt.id && <div style={{ fontSize:9, color:'#ff9500', marginTop:1 }}>→ {directTo.to}</div>}
+                <div style={{ fontSize:11, color:'#555', fontFamily:'monospace' }}>{wpt.eta}</div>
+                <div style={{ fontSize:11, fontFamily:'monospace', color: isDone ? '#2d9e5f' : '#444' }}>
+                  {isDep ? (e.toTime||'—') : isArrival ? (e.lndTime||'—') : (e.ata||'—')}
+                </div>
+                <div style={{ fontSize:11, color:'#777', fontFamily:'monospace' }}>{wpt.fl}</div>
+                <div style={{ fontSize:11, fontFamily:'monospace', color: isDone ? '#2d9e5f' : '#444' }}>
+                  {isDep ? (e.toFuel ? parseInt(e.toFuel.replace(/,/g,'')).toLocaleString() : '—')
+                  : isArrival ? (e.remFuel ? parseInt(e.remFuel.replace(/,/g,'')).toLocaleString() : '—')
+                  : (e.fuel ? parseInt(e.fuel.replace(/,/g,'')).toLocaleString() : '—')}
+                </div>
+                <div style={{ fontSize:10, color: e.rvsm ? '#2d9e5f' : '#444', fontFamily:'monospace' }}>{rvsmDisp}</div>
+                <div style={{ fontSize:11, fontWeight: fuelAtDest ? 700 : 400, color: fuelAtDest ? fuelColor : '#333', fontFamily:'monospace' }}>
+                  {fuelAtDest ? fuelAtDest.toLocaleString() : '—'}
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  {skipped   ? <span style={{ fontSize:9, color:'#444' }}>SKIP</span>
+                  : isDone   ? <span style={{ fontSize:10, fontWeight:700, color:'#2d9e5f', background:'rgba(45,158,95,0.12)', padding:'2px 6px', borderRadius:3 }}>✓ DONE</span>
+                  : isActive ? <span style={{ fontSize:10, fontWeight:700, color:'#1a9bc4', background:'rgba(26,155,196,0.12)', padding:'2px 6px', borderRadius:3 }}>● ACTIVE</span>
+                  : <span style={{ fontSize:9, color:'#444' }}>Pending</span>}
+                </div>
               </div>
-              <div style={{ fontSize:11, color:'#555', fontFamily:'monospace' }}>{wpt.eta}</div>
-              <div style={{ fontSize:11, fontFamily:'monospace', color: isDone ? '#2d9e5f' : '#444' }}>
-                {isDep ? (e.toTime||'—') : isArrival ? (e.lndTime||'—') : (e.ata||'—')}
-              </div>
-              <div style={{ fontSize:11, color:'#777', fontFamily:'monospace' }}>{wpt.fl}</div>
-              <div style={{ fontSize:11, fontFamily:'monospace', color: isDone ? '#2d9e5f' : '#444' }}>
-                {isDep      ? (e.toFuel  ? parseInt(e.toFuel.replace(/,/g,'')).toLocaleString()  : '—')
-                : isArrival ? (e.remFuel ? parseInt(e.remFuel.replace(/,/g,'')).toLocaleString() : '—')
-                :              (e.fuel   ? parseInt(e.fuel.replace(/,/g,'')).toLocaleString()    : '—')}
-              </div>
-              <div style={{ fontSize:10, color: e.rvsm ? '#2d9e5f' : '#444', fontFamily:'monospace' }}>{rvsmDisp}</div>
-              <div style={{ fontSize:11, fontWeight: fuelAtDest ? 700 : 400, color: fuelAtDest ? fuelColor : '#333', fontFamily:'monospace' }}>
-                {fuelAtDest ? fuelAtDest.toLocaleString() : '—'}
-              </div>
-              <div style={{ textAlign:'right' }}>
-                {skipped      ? <span style={{ fontSize:9, color:'#444' }}>SKIP</span>
-                : isGpsNearest ? <span style={{ fontSize:10, fontWeight:700, color:'#2d9e5f', background:'rgba(45,158,95,0.12)', padding:'2px 6px', borderRadius:3 }}>✈ HERE</span>
-                : isDone       ? <span style={{ fontSize:10, fontWeight:700, color:'#2d9e5f', background:'rgba(45,158,95,0.12)', padding:'2px 6px', borderRadius:3 }}>✓ DONE</span>
-                : isActive     ? <span style={{ fontSize:10, fontWeight:700, color:'#1a9bc4', background:'rgba(26,155,196,0.12)', padding:'2px 6px', borderRadius:3 }}>● ACTIVE</span>
-                : <span style={{ fontSize:9, color:'#444' }}>Pending</span>}
-              </div>
-            </div>
+
+              {/* ✈ Uçak pozisyon satırı — prev'den sonra, next'ten önce */}
+              {showAcAfter && (
+                <div style={{ display:'flex', alignItems:'center', padding:'6px 10px', background:'rgba(45,158,95,0.07)', borderBottom:'1px solid rgba(45,158,95,0.2)', borderLeft:'3px solid #2d9e5f' }}>
+                  <span style={{ fontSize:16, marginRight:8 }}>✈</span>
+                  <div style={{ flex:1 }}>
+                    <span style={{ fontSize:11, fontWeight:700, color:'#2d9e5f', fontFamily:'monospace' }}>
+                      {pos?.lat.toFixed(4)}N {pos?.lon.toFixed(4)}E
+                    </span>
+                    <span style={{ fontSize:10, color:'#555', marginLeft:8 }}>±{pos ? Math.round(pos.acc) : '—'}m</span>
+                  </div>
+                  <span style={{ fontSize:9, fontWeight:700, color:'#2d9e5f', background:'rgba(45,158,95,0.15)', padding:'2px 8px', borderRadius:3 }}>
+                    AIRCRAFT
+                  </span>
+                </div>
+              )}
+            </React.Fragment>
           );
         })}
 
+        {/* Sadece ⚠ Add Divert ARPT */}
         {!flightClosed && (
-          <div style={{ display:'flex', gap:8, padding:'10px' }}>
-            <button onClick={() => setAddModal('wpt')}
-              style={{ flex:1, background:'rgba(255,149,0,0.08)', border:'1px solid rgba(255,149,0,0.3)', borderRadius:7, padding:'8px', fontSize:11, fontWeight:700, color:'#ff9500', cursor:'pointer', fontFamily:'inherit' }}>
-              + Add WP
-            </button>
-            <button onClick={() => setAddModal('arpt')}
-              style={{ flex:1, background:'rgba(232,115,26,0.08)', border:'1px solid rgba(232,115,26,0.3)', borderRadius:7, padding:'8px', fontSize:11, fontWeight:700, color:'#e8731a', cursor:'pointer', fontFamily:'inherit' }}>
+          <div style={{ padding:'10px' }}>
+            <button onClick={() => setShowDivert(true)}
+              style={{ width:'100%', background:'rgba(232,115,26,0.08)', border:'1px solid rgba(232,115,26,0.3)', borderRadius:7, padding:'10px', fontSize:11, fontWeight:700, color:'#e8731a', cursor:'pointer', fontFamily:'inherit' }}>
               ⚠ Add Divert ARPT
             </button>
           </div>
@@ -625,6 +669,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
       {modal === dep && (
         <DepModal dep={dep} onClose={() => setModal(null)} onSave={handleDepSave} initial={entries[dep] || {}} />
       )}
+
       {modal && modal !== dep && modalWpt && (modalWpt.type === 'dest' || modalWpt.type === 'divert-arpt') && (
         <ArrivalModal
           wptName={modalWpt.name}
@@ -635,23 +680,24 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           initial={entries[modal] || {}}
         />
       )}
+
       {modal && modal !== dep && modalWpt && modalWpt.type === 'wpt' && (() => {
-        const wptIdx   = waypoints.indexOf(modalWpt);
+        const wptIdx   = waypoints.findIndex(w => w.uid === modal);
         const afterWpt = waypoints.filter((w, i) => i > wptIdx && w.type !== 'dest' && w.type !== 'divert-arpt');
         return (
           <WptModal
             wpt={modalWpt}
             onClose={() => setModal(null)}
             onSave={(data) => handleWptSave(modal, data)}
-            onDirectTo={(toId) => handleDirectTo(modal, toId)}
+            onDirectTo={(toUid) => handleDirectTo(modal, toUid)}
+            onAddWpt={(newWpt, position) => handleAddWptAt(newWpt, position, modal)}
             initial={entries[modal] || {}}
             wptList={afterWpt}
           />
         );
       })()}
-      {addModal && (
-        <AddWptModal type={addModal} onClose={() => setAddModal(null)} onAdd={handleAddWpt} />
-      )}
+
+      {showDivert && <DivertArptModal onClose={() => setShowDivert(false)} onAdd={handleAddDivertArpt} />}
     </div>
   );
 }
