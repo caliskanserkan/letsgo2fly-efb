@@ -605,7 +605,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
                   </div>
                   {isDivArpt && <div style={{ fontSize:8, color:'#e8731a', marginTop:1 }}>DIVERT</div>}
                   {wpt.custom && !isDivArpt && <div style={{ fontSize:8, color:'#ff9500', marginTop:1 }}>ADDED</div>}
-                  {directTo?.from === wpt.uid && <div style={{ fontSize:9, color:'#ff9500', marginTop:1 }}>→ {waypoints.find(w=>w.uid===directTo.to)?.name}</div>}
+                  {directTo?.from === wpt.uid && directTo?.to && <div style={{ fontSize:9, color:'#ff9500', marginTop:1 }}>→ {waypoints.find(w=>w.uid===directTo.to)?.name}</div>}
                 </div>
                 <div style={{ fontSize:11, color:'#555', fontFamily:'monospace' }}>{wpt.eta}</div>
                 <div style={{ fontSize:11, fontFamily:'monospace', color: isDone ? '#2d9e5f' : '#444' }}>
