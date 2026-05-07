@@ -137,25 +137,31 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
           pf_id:            activePlan.pf_pilot,
           departure_icao:   dep,
           destination_icao: destIcao,
-          off_blocks:       offBlock  ? new Date(`${date}T${offBlock}:00Z`)  : null,
-          on_blocks:        onBlock   ? new Date(`${date}T${onBlock}:00Z`)   : null,
+          off_blocks:       offBlock     ? new Date(`${date}T${offBlock}:00Z`)     : null,
+          on_blocks:        onBlock      ? new Date(`${date}T${onBlock}:00Z`)      : null,
+          takeoff_time:     takeoffTime  ? new Date(`${date}T${takeoffTime}:00Z`)  : null,
+          landing_time:     landingTime  ? new Date(`${date}T${landingTime}:00Z`)  : null,
           block_minutes:    blockMins,
           airborne_minutes: flightMins,
           landing_count:    parseInt(cycles) || 1,
           dest_lat:         destLat,
           dest_lon:         destLon,
           is_night_landing: false,
+          takeoff_fuel:     toFuelNum    || null,
+          remaining_fuel:   remFuelNum   || null,
+          pax:              pax ? parseInt(pax) : null,
+          archived_at:      new Date().toISOString(),
         });
 
       if (archiveError) throw archiveError;
       logEvent(activePlan.id, 'FLIGHT_ARCHIVED', {
         dep,
         dest: destIcao,
-        block_minutes: blockMins,
+        block_minutes:    blockMins,
         airborne_minutes: flightMins,
-        landing_count: parseInt(cycles) || 1,
-        dest_lat: destLat,
-        dest_lon: destLon,
+        landing_count:    parseInt(cycles) || 1,
+        dest_lat:         destLat,
+        dest_lon:         destLon,
       });
       setArchived(true);
     } catch (e) {
