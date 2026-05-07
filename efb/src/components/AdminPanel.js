@@ -993,57 +993,207 @@ function StationInfo({ toast }) {
 }
 
 // ─── 7. FLT Logs & Times ─────────────────────────────────────────────────────
-function FltLogsAndTimes({ toast }) {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState({ planId: '' });
+const ACTION_META = {
+  PLAN_RELEASED:              { icon: '📤', label: 'Plan Released',           color: '#e8a020' },
+  PLAN_DOWNLOADED:            { icon: '📥', label: 'Plan Downloaded',         color: '#1a9bc4' },
+  CREW_ASSIGNED:              { icon: '👨‍✈️', label: 'Crew Assigned',          color: '#1a9bc4' },
+  PREFLIGHT_MANDATORY_COMPLETE:{ icon: '✅', label: 'Mandatory Complete',      color: '#2d9e5f' },
+  MANDATORY_CHECK_DONE:       { icon: '☑',  label: 'Check Done',              color: '#2d9e5f' },
+  MANDATORY_CHECK_UNDONE:     { icon: '☐',  label: 'Check Undone',            color: '#e8731a' },
+  FUEL_CHECKED:               { icon: '⛽', label: 'Fuel Checked',            color: '#2d9e5f' },
+  PLAN_ACCEPTED:              { icon: '✍',  label: 'Plan Accepted & Signed',  color: '#2d9e5f' },
+  PLAN_ACCEPTANCE_REVOKED:    { icon: '↺',  label: 'Acceptance Revoked',      color: '#e02020' },
+  SYNC_TO_PM:                 { icon: '⇄',  label: 'Synced to PM',            color: '#1a9bc4' },
+  OFF_BLOCKS:                 { icon: '🛫', label: 'Off Blocks',              color: '#e8a020' },
+  TAKEOFF:                    { icon: '✈',  label: 'Takeoff',                 color: '#e8a020' },
+  RVSM_CHECK:                 { icon: '📡', label: 'RVSM Check',              color: '#1a9bc4' },
+  LANDING:                    { icon: '🛬', label: 'Landing',                 color: '#e8a020' },
+  ON_BLOCKS:                  { icon: '🅿',  label: 'On Blocks',              color: '#e8a020' },
+  FUEL_REMAINING:             { icon: '⛽', label: 'Fuel Remaining',          color: '#2d9e5f' },
+  FLIGHT_ARCHIVED:            { icon: '📁', label: 'Flight Archived',         color: '#2d9e5f' },
+  ADMIN_EDIT:                 { icon: '✎',  label: 'Admin Edit',              color: '#e02020' },
+};
 
+function FltLogsAndTimes({ toast }) {
+  const [plans,      setPlans]      = useState([]);
+  const [selected,   setSelected]   = useState(null);
+  const [logs,       setLogs]       = useState([]);
+  const [loadingP,   setLoadingP]   = useState(true);
+  const [loadingL,   setLoadingL]   = useState(false);
+  const [filter,     setFilter]     = useState({ dep: '', dest: '', pilot: '' });
+
+  // Tüm planları çek (active + archived)
   useEffect(() => {
     const fetch = async () => {
-      setLoading(true);
-      const { data } = await supabase.from('flight_logs')
-        .select('*, profiles(full_name, code)')
+      setLoadingP(true);
+      const { data } = await supabase.from('plans')
+        .select('id, dep, dest, date, dispatch_no, reg, status, archived_at, created_at')
+        .in('status', ['active', 'archived'])
         .order('created_at', { ascending: false })
-        .limit(500);
-      setLogs(data || []);
-      setLoading(false);
+        .limit(200);
+      setPlans(data || []);
+      setLoadingP(false);
     };
     fetch();
   }, []);
 
-  const filtered = logs.filter(l => !filter.planId || (l.plan_id || '').includes(filter.planId));
+  // Seçilen planın loglarını çek
+  useEffect(() => {
+    if (!selected) { setLogs([]); return; }
+    const fetch = async () => {
+      setLoadingL(true);
+      const { data } = await supabase.from('flight_logs')
+        .select('*, profiles(full_name, code)')
+        .eq('plan_id', selected)
+        .order('created_at', { ascending: true });
+      setLogs(data || []);
+      setLoadingL(false);
+    };
+    fetch();
+  }, [selected]);
+
+  const filteredPlans = plans.filter(p => {
+    const depMatch  = !filter.dep  || (p.dep  || '').toLowerCase().includes(filter.dep.toLowerCase());
+    const destMatch = !filter.dest || (p.dest || '').toLowerCase().includes(filter.dest.toLowerCase());
+    return depMatch && destMatch;
+  });
+
+  const selectedPlan = plans.find(p => p.id === selected);
+
+  const fmtTime = (iso) => {
+    const d = new Date(iso);
+    return `${d.toLocaleDateString('en-GB')}  ${d.toTimeString().slice(0, 8)} UTC`;
+  };
+
+  const detailStr = (details) => {
+    if (!details) return '';
+    const skip = ['platform', 'timestamp_utc'];
+    return Object.entries(details)
+      .filter(([k]) => !skip.includes(k))
+      .map(([k, v]) => `${k}: ${v}`)
+      .join('  ·  ');
+  };
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto' }}>
-      <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 10, alignItems: 'center' }}>
-        <input placeholder="Filter by Plan ID..." value={filter.planId}
-          onChange={e => setFilter({ planId: e.target.value })}
-          style={{ ...S.input, width: 240 }} />
-        <span style={{ ...S.label, marginLeft: 'auto' }}>{filtered.length} LOG ENTRIES</span>
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
+      {/* Sol: Plan listesi */}
+      <div style={{ width: 280, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+        <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 6, flexDirection: 'column' }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input placeholder="DEP" value={filter.dep}  onChange={e => setFilter(p => ({ ...p, dep:  e.target.value }))} style={{ ...S.input, width: '50%', fontSize: 12 }} />
+            <input placeholder="DEST" value={filter.dest} onChange={e => setFilter(p => ({ ...p, dest: e.target.value }))} style={{ ...S.input, width: '50%', fontSize: 12 }} />
+          </div>
+          <span style={{ ...S.label, fontSize: 10 }}>{filteredPlans.length} FLIGHTS</span>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {loadingP && <div style={{ padding: 20, textAlign: 'center', color: C.t3, fontSize: 11 }}>LOADING...</div>}
+          {filteredPlans.map(p => (
+            <div key={p.id} onClick={() => setSelected(p.id === selected ? null : p.id)}
+              style={{ padding: '10px 12px', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', background: selected === p.id ? `${C.accent}12` : 'transparent', borderLeft: `3px solid ${selected === p.id ? C.accent : 'transparent'}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.accent, fontFamily: "'Courier New', monospace" }}>
+                  {p.dep} → {p.dest}
+                </span>
+                <span style={S.badge(p.status === 'active' ? 'green' : '')}>
+                  {p.status === 'active' ? 'ACTIVE' : 'ARCH'}
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: C.t3, marginTop: 3, fontFamily: "'Courier New', monospace" }}>
+                {p.date || '—'}  ·  {p.reg || '—'}
+              </div>
+              <div style={{ fontSize: 10, color: C.t3, marginTop: 2, fontFamily: "'Courier New', monospace" }}>
+                {p.dispatch_no || p.id.slice(0, 8)}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {loading && <div style={{ padding: 32, textAlign: 'center', color: C.t3, fontSize: 11 }}>LOADING...</div>}
-      {!loading && filtered.length === 0 && <div style={{ padding: 48, textAlign: 'center', color: C.t3, fontSize: 11, letterSpacing: 2 }}>NO LOG ENTRIES</div>}
+      {/* Sağ: Timeline */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {!selected && (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.t3, fontSize: 13, letterSpacing: 2 }}>
+            ← SELECT A FLIGHT
+          </div>
+        )}
 
-      <table style={S.table}>
-        <thead>
-          <tr>
-            {['TIMESTAMP','PILOT','CODE','ACTION','PLAN ID','DETAILS'].map(h => <th key={h} style={S.th}>{h}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map(l => (
-            <tr key={l.id}>
-              <td style={{ ...S.td, fontSize: 10 }}>{new Date(l.created_at).toLocaleString('en-GB')}</td>
-              <td style={S.td}>{l.profiles?.full_name || '—'}</td>
-              <td style={{ ...S.td, color: C.accent, fontWeight: 700 }}>{l.profiles?.code || '—'}</td>
-              <td style={S.td}><span style={S.badge('blue')}>{l.action}</span></td>
-              <td style={{ ...S.td, fontSize: 9 }}>{l.plan_id ? l.plan_id.slice(0, 8) + '...' : '—'}</td>
-              <td style={{ ...S.td, fontSize: 10 }}>{l.details ? JSON.stringify(l.details).slice(0, 60) : '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        {selected && (
+          <>
+            {/* Header */}
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, background: C.bg3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.accent, fontFamily: "'Courier New', monospace" }}>
+                  {selectedPlan?.dep} → {selectedPlan?.dest}
+                </span>
+                <span style={{ fontSize: 11, color: C.t3, marginLeft: 12, fontFamily: "'Courier New', monospace" }}>
+                  {selectedPlan?.date}  ·  {selectedPlan?.reg}  ·  {selectedPlan?.dispatch_no}
+                </span>
+              </div>
+              <span style={{ ...S.label, fontSize: 11 }}>{logs.length} LOG ENTRIES</span>
+            </div>
+
+            {/* Timeline */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+              {loadingL && <div style={{ textAlign: 'center', color: C.t3, fontSize: 11 }}>LOADING...</div>}
+              {!loadingL && logs.length === 0 && (
+                <div style={{ textAlign: 'center', color: C.t3, fontSize: 11, letterSpacing: 2, padding: 32 }}>NO LOGS FOR THIS FLIGHT</div>
+              )}
+
+              {logs.map((l, idx) => {
+                const meta = ACTION_META[l.action] || { icon: '·', label: l.action, color: C.t3 };
+                const isLast = idx === logs.length - 1;
+                return (
+                  <div key={l.id} style={{ display: 'flex', gap: 14, marginBottom: isLast ? 0 : 0 }}>
+                    {/* Timeline line + dot */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 32, flexShrink: 0 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 14, background: `${meta.color}20`, border: `2px solid ${meta.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>
+                        {meta.icon}
+                      </div>
+                      {!isLast && <div style={{ width: 2, flex: 1, background: C.border, minHeight: 16, margin: '2px 0' }} />}
+                    </div>
+
+                    {/* Content */}
+                    <div style={{ flex: 1, paddingBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: meta.color, fontFamily: "'Courier New', monospace" }}>
+                          {meta.label}
+                        </span>
+                        <span style={{ fontSize: 11, color: C.t3, fontFamily: "'Courier New', monospace", whiteSpace: 'nowrap', marginLeft: 12 }}>
+                          {fmtTime(l.created_at)}
+                        </span>
+                      </div>
+
+                      {/* Pilot */}
+                      {l.profiles && (
+                        <div style={{ fontSize: 11, color: C.t1, marginBottom: 3, fontFamily: "'Courier New', monospace" }}>
+                          <span style={{ color: C.accent, fontWeight: 700 }}>{l.profiles.code}</span>
+                          {' · '}{l.profiles.full_name}
+                        </div>
+                      )}
+
+                      {/* Details */}
+                      {l.details && Object.keys(l.details).filter(k => !['platform','timestamp_utc'].includes(k)).length > 0 && (
+                        <div style={{ fontSize: 11, color: C.t3, fontFamily: "'Courier New', monospace", background: C.bg3, padding: '6px 10px', borderLeft: `2px solid ${meta.color}40`, lineHeight: 1.8 }}>
+                          {detailStr(l.details)}
+                        </div>
+                      )}
+
+                      {/* Platform */}
+                      {l.details?.platform && (
+                        <div style={{ fontSize: 10, color: C.t3, marginTop: 3, fontFamily: "'Courier New', monospace" }}>
+                          via {l.details.platform}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
