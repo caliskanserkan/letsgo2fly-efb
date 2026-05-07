@@ -353,12 +353,12 @@ function ArchivedFlts({ toast }) {
 
   const fetch = useCallback(async () => {
     setLoading(true);
-    const fiveYearsAgo = new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000).toISOString();
-    const { data } = await supabase.from('archived_flights')
+    const { data, error } = await supabase
+      .from('archived_flights')
       .select('*, plans(dep, dest, date, reg, ac_type, dispatch_no, pf_pilot, pm_pilot)')
-      .gte('archived_at', fiveYearsAgo)
-      .order('archived_at', { ascending: false })
+      .order('archived_at', { ascending: false, nullsFirst: false })
       .limit(200);
+    if (error) console.error('ArchivedFlts fetch error:', error);
     setFlights(data || []);
     setLoading(false);
   }, []);
