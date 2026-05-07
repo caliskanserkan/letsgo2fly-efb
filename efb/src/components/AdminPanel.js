@@ -1458,7 +1458,7 @@ function EditReports({ toast }) {
       setLoading(true);
       const { data } = await supabase
         .from('admin_edits')
-        .select('*, profiles:edited_by(full_name, code)')
+        .select('*, profiles:edited_by(full_name, code), plans:plan_id(dep, dest, date)')
         .order('created_at', { ascending: false })
         .limit(500);
       setReports(data || []);
@@ -1488,7 +1488,7 @@ function EditReports({ toast }) {
       <table style={S.table}>
         <thead>
           <tr>
-            {['DATE','TYPE','FIELD','OLD VALUE','NEW VALUE','BY','REASON'].map(h => (
+            {['DATE','TYPE','FLIGHT','FIELD','OLD VALUE','NEW VALUE','BY','REASON'].map(h => (
               <th key={h} style={S.th}>{h}</th>
             ))}
           </tr>
@@ -1502,7 +1502,10 @@ function EditReports({ toast }) {
                   {r.edit_type || 'EDIT'}
                 </span>
               </td>
-              <td style={{ ...S.td, color: C.accent, fontWeight: 700 }}>{r.field_name || '—'}</td>
+              <td style={{ ...S.td, color: C.accent, fontWeight: 700 }}>
+                {r.plans ? `${r.plans.dep} → ${r.plans.dest}` : '—'}
+              </td>
+              <td style={{ ...S.td, color: C.accent }}>{r.field_name || '—'}</td>
               <td style={{ ...S.td, color: C.t3 }}>{r.old_value?.slice(0, 30) || '—'}</td>
               <td style={{ ...S.td, color: C.t1 }}>{r.new_value?.slice(0, 30) || '—'}</td>
               <td style={{ ...S.td, color: C.accent }}>{r.profiles?.code || '—'}</td>
