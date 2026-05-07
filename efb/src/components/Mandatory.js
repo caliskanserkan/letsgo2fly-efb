@@ -3,12 +3,22 @@ import { usePersistedState } from '../hooks/usePersistedState';
 import { logEvent } from '../supabaseClient';
 
 const INITIAL_CHECKS = [
-  { id:1, label:'General remarks & photos',    done:true,  badge:'✓',         badgeColor:'#2d9e5f' },
-  { id:2, label:'Tech log remarks',            done:true,  badge:'1071',      badgeColor:'#2d9e5f' },
-  { id:3, label:'Pre-flight acceptance',       done:true,  badge:'Offline ✓', badgeColor:'#2d9e5f' },
-  { id:4, label:'AIRCRAFT SECURITY CHECKLIST', done:true,  badge:'✓',         badgeColor:'#2d9e5f', section:'Aircraft Checklists' },
-  { id:5, label:'EFB CHECKLIST',               done:true,  badge:'✓',         badgeColor:'#2d9e5f' },
-  { id:6, label:'MEL-HIL',                     done:false, badge:'Pending',   badgeColor:'#ff9500' },
+  // ── Genel Uçuş Öncesi ─────────────────────────────────────────────────────
+  { id:1,  label:'General remarks & photos reviewed',           done:false, badge:'', badgeColor:'#2d9e5f' },
+  { id:2,  label:'Tech log remarks reviewed',                   done:false, badge:'', badgeColor:'#2d9e5f' },
+  { id:3,  label:'Pre-flight acceptance completed',             done:false, badge:'', badgeColor:'#2d9e5f' },
+  { id:4,  label:'AIRCRAFT SECURITY CHECKLIST',                 done:false, badge:'', badgeColor:'#2d9e5f', section:'Aircraft Checklists' },
+  { id:5,  label:'MEL / HIL checked',                          done:false, badge:'', badgeColor:'#ff9500' },
+  // ── EFB Checklist — AMC 20-25 ─────────────────────────────────────────────
+  { id:6,  label:'EFB battery level ≥ 80%',                    done:false, badge:'', badgeColor:'#2d9e5f', section:'EFB Checklist — AMC 20-25' },
+  { id:7,  label:'EFB application version current',             done:false, badge:'', badgeColor:'#2d9e5f' },
+  { id:8,  label:'OFP loaded — route and fuel data verified',   done:false, badge:'', badgeColor:'#2d9e5f' },
+  { id:9,  label:'WXR data loaded and reviewed',               done:false, badge:'', badgeColor:'#2d9e5f' },
+  { id:10, label:'NOTAM reviewed for all airports',             done:false, badge:'', badgeColor:'#2d9e5f' },
+  { id:11, label:'EFB screen brightness suitable for conditions',done:false, badge:'', badgeColor:'#2d9e5f' },
+  { id:12, label:'Backup procedure available (paper/alternate)',done:false, badge:'', badgeColor:'#2d9e5f' },
+  { id:13, label:'EFB secured at duty station',                 done:false, badge:'', badgeColor:'#2d9e5f' },
+  { id:14, label:'GPS position — NOT FOR NAVIGATION acknowledged',done:false, badge:'', badgeColor:'#e8731a' },
 ];
 
 function SectionHeader({ title }) {
