@@ -610,12 +610,14 @@ function Aircrafts({ toast }) {
 
 // ─── 4. Crews ─────────────────────────────────────────────────────────────────
 function Crews({ toast }) {
-  const [pilots, setPilots] = useState([]);
-  const [quals, setQuals] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [pilots,   setPilots]   = useState([]);
+  const [quals,    setQuals]    = useState([]);
+  const [loading,  setLoading]  = useState(true);
   const [selected, setSelected] = useState(null);
   const [showQual, setShowQual] = useState(false);
+  const [showEfb,  setShowEfb]  = useState(false);
   const [qualForm, setQualForm] = useState({ ac_type: '', seat: 'CPT', hand: 'BOTH', landing_cat: 'CAT1', valid_from: '', valid_until: '' });
+  const [efbForm,  setEfbForm]  = useState({ efb_training_date: '', efb_training_valid_until: '', efb_training_type: 'Initial', efb_trained_by: '' });
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -630,8 +632,10 @@ function Crews({ toast }) {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  const sel = pilots.find(p => p.id === selected);
+  const sel      = pilots.find(p => p.id === selected);
   const selQuals = quals.filter(q => q.pilot_id === selected);
+  // EFB training kaydı — pilot_id'ye göre herhangi bir qual kaydında varsa göster
+  const efbRecord = selQuals.find(q => q.efb_training_date);
 
   const handleAddQual = async () => {
     if (!qualForm.ac_type) { toast('Aircraft type required.', 'error'); return; }
@@ -640,6 +644,32 @@ function Crews({ toast }) {
     toast('Qualification saved.', 'success');
     setShowQual(false);
     fetch();
+  };
+
+  const handleSaveEfb = async () => {
+    if (!efbForm.efb_training_date) { toast('Training date required.', 'error'); return; }
+    // Mevcut bir qual kaydına ekle, yoksa yeni kayıt oluştur
+    const existing = selQuals[0];
+    if (existing) {
+      const { error } = await supabase.from('crew_qualifications').update(efbForm).eq('id', existing.id);
+      if (error) { toast(error.message, 'error'); return; }
+    } else {
+      const { error } = await supabase.from('crew_qualifications').insert({ pilot_id: selected, ac_type: 'EFB', seat: 'BOTH', hand: 'BOTH', landing_cat: 'CAT1', ...efbForm });
+      if (error) { toast(error.message, 'error'); return; }
+    }
+    toast('EFB training record saved.', 'success');
+    setShowEfb(false);
+    fetch();
+  };
+
+  // EFB training durumu rengi
+  const efbStatus = (rec) => {
+    if (!rec?.efb_training_date) return { color: '#e02020', label: 'NO RECORD' };
+    if (!rec.efb_training_valid_until) return { color: '#2d9e5f', label: 'CURRENT' };
+    const daysLeft = Math.floor((new Date(rec.efb_training_valid_until) - new Date()) / 86400000);
+    if (daysLeft < 0)   return { color: '#e02020',  label: 'EXPIRED'  };
+    if (daysLeft < 30)  return { color: '#e8731a',  label: `${daysLeft}d LEFT` };
+    return { color: '#2d9e5f', label: 'CURRENT' };
   };
 
   return (
@@ -654,14 +684,16 @@ function Crews({ toast }) {
         <table style={S.table}>
           <thead>
             <tr>
-              {['CODE','FULL NAME','ROLE','EMAIL','QUALIFICATIONS','PWD'].map(h => (
+              {['CODE','FULL NAME','ROLE','EMAIL','QUALIFICATIONS','EFB TRAINING','PWD'].map(h => (
                 <th key={h} style={S.th}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {pilots.map(p => {
-              const pQuals = quals.filter(q => q.pilot_id === p.id);
+              const pQuals   = quals.filter(q => q.pilot_id === p.id);
+              const pEfbRec  = pQuals.find(q => q.efb_training_date);
+              const pEfbStat = efbStatus(pEfbRec);
               return (
                 <tr key={p.id} onClick={() => setSelected(p.id === selected ? null : p.id)}
                   style={{ cursor: 'pointer', background: selected === p.id ? `${C.accent}08` : 'transparent' }}>
@@ -670,9 +702,19 @@ function Crews({ toast }) {
                   <td style={S.td}><span style={S.badge(p.role === 'admin' ? '' : 'blue')}>{(p.role || '—').toUpperCase()}</span></td>
                   <td style={S.td}>{p.email || '—'}</td>
                   <td style={S.td}>
-                    {pQuals.length === 0 ? <span style={{ color: C.t3 }}>—</span> : pQuals.map(q => (
-                      <span key={q.id} style={{ ...S.badge('blue'), marginRight: 4 }}>{q.ac_type} {q.seat} {q.landing_cat}</span>
-                    ))}
+                    {pQuals.filter(q => q.ac_type !== 'EFB').length === 0
+                      ? <span style={{ color: C.t3 }}>—</span>
+                      : pQuals.filter(q => q.ac_type !== 'EFB').map(q => (
+                        <span key={q.id} style={{ ...S.badge('blue'), marginRight: 4 }}>{q.ac_type} {q.seat} {q.landing_cat}</span>
+                      ))}
+                  </td>
+                  <td style={S.td}>
+                    <span style={{ ...S.badge(''), color: pEfbStat.color, background: `${pEfbStat.color}15`, border: `1px solid ${pEfbStat.color}40` }}>
+                      {pEfbStat.label}
+                    </span>
+                    {pEfbRec?.efb_training_date && (
+                      <div style={{ fontSize: 10, color: C.t3, marginTop: 3 }}>{pEfbRec.efb_training_date}</div>
+                    )}
                   </td>
                   <td style={S.td}>
                     <button style={S.btnSecondary} onClick={async (e) => {
@@ -694,27 +736,103 @@ function Crews({ toast }) {
 
       {sel && (
         <DetailPanel title={`${sel.code} — ${sel.full_name}`} onClose={() => setSelected(null)}>
-          <DetailRow label="Code" value={sel.code} accent />
+          <DetailRow label="Code"      value={sel.code}      accent />
           <DetailRow label="Full Name" value={sel.full_name} />
-          <DetailRow label="Email" value={sel.email} />
-          <DetailRow label="Role" value={sel.role} />
+          <DetailRow label="Email"     value={sel.email}     />
+          <DetailRow label="Role"      value={sel.role}      />
+
+          {/* EFB Training — AMC 20-25 */}
           <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ ...S.label, marginBottom: 8 }}>Qualifications</div>
-            {selQuals.length === 0 && <div style={{ fontSize: 11, color: C.t3 }}>No qualifications</div>}
-            {selQuals.map(q => (
+            <div style={{ ...S.label, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>EFB Training — AMC 20-25</span>
+              {(() => { const st = efbStatus(efbRecord); return <span style={{ ...S.badge(''), color: st.color, background: `${st.color}15`, border: `1px solid ${st.color}40` }}>{st.label}</span>; })()}
+            </div>
+            {efbRecord ? (
+              <div style={{ fontSize: 12, color: C.t1, fontFamily: "'Courier New', monospace", lineHeight: 2 }}>
+                <div>Type: <span style={{ color: C.accent }}>{efbRecord.efb_training_type || '—'}</span></div>
+                <div>Date: {efbRecord.efb_training_date}</div>
+                <div>Valid Until: {efbRecord.efb_training_valid_until || '—'}</div>
+                <div>Trained By: {efbRecord.efb_trained_by || '—'}</div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: '#e02020', marginBottom: 8 }}>⚠ No EFB training record on file</div>
+            )}
+            <button style={{ ...S.btnPrimary, marginTop: 10, width: '100%' }}
+              onClick={() => {
+                setEfbForm({
+                  efb_training_date:        efbRecord?.efb_training_date        || '',
+                  efb_training_valid_until: efbRecord?.efb_training_valid_until || '',
+                  efb_training_type:        efbRecord?.efb_training_type        || 'Initial',
+                  efb_trained_by:           efbRecord?.efb_trained_by           || '',
+                });
+                setShowEfb(true);
+              }}>
+              {efbRecord ? '✎ UPDATE EFB TRAINING' : '+ ADD EFB TRAINING'}
+            </button>
+          </div>
+
+          {/* Type Qualifications */}
+          <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ ...S.label, marginBottom: 8 }}>Type Qualifications</div>
+            {selQuals.filter(q => q.ac_type !== 'EFB').length === 0 && (
+              <div style={{ fontSize: 12, color: C.t3 }}>No qualifications</div>
+            )}
+            {selQuals.filter(q => q.ac_type !== 'EFB').map(q => (
               <div key={q.id} style={{ marginBottom: 8, padding: '8px 10px', background: C.bg3, border: `1px solid ${C.border}` }}>
-                <div style={{ fontSize: 11, color: C.accent, fontWeight: 700, fontFamily: "'Courier New', monospace" }}>{q.ac_type}</div>
-                <div style={{ fontSize: 10, color: C.t3, marginTop: 3, fontFamily: "'Courier New', monospace" }}>
+                <div style={{ fontSize: 12, color: C.accent, fontWeight: 700, fontFamily: "'Courier New', monospace" }}>{q.ac_type}</div>
+                <div style={{ fontSize: 11, color: C.t2, marginTop: 3, fontFamily: "'Courier New', monospace" }}>
                   {q.seat} · {q.hand} · {q.landing_cat}<br />
                   {q.valid_from && `Valid: ${q.valid_from} → ${q.valid_until || '∞'}`}
                 </div>
               </div>
             ))}
-            <button style={{ ...S.btnPrimary, marginTop: 8, width: '100%' }} onClick={() => setShowQual(true)}>+ ADD QUALIFICATION</button>
+            <button style={{ ...S.btnPrimary, marginTop: 8, width: '100%' }} onClick={() => setShowQual(true)}>
+              + ADD QUALIFICATION
+            </button>
           </div>
         </DetailPanel>
       )}
 
+      {/* EFB Training Modal */}
+      {showEfb && selected && (
+        <Modal title="EFB TRAINING RECORD — AMC 20-25" onClose={() => setShowEfb(false)}>
+          <div style={{ fontSize: 11, color: C.t3, marginBottom: 16, lineHeight: 1.7, fontFamily: "'Courier New', monospace" }}>
+            Per EASA AMC 20-25, all EFB users must complete initial and recurrent training. This record is retained for audit purposes.
+          </div>
+          <div style={S.formGroup}>
+            <label style={S.formLabel}>TRAINING TYPE</label>
+            <select style={S.select} value={efbForm.efb_training_type} onChange={e => setEfbForm(p => ({ ...p, efb_training_type: e.target.value }))}>
+              <option value="Initial">Initial</option>
+              <option value="Recurrent">Recurrent</option>
+              <option value="Differences">Differences</option>
+              <option value="OJT">OJT (On-the-Job)</option>
+            </select>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={S.formGroup}>
+              <label style={S.formLabel}>TRAINING DATE *</label>
+              <input type="date" style={S.input} value={efbForm.efb_training_date}
+                onChange={e => setEfbForm(p => ({ ...p, efb_training_date: e.target.value }))} />
+            </div>
+            <div style={S.formGroup}>
+              <label style={S.formLabel}>VALID UNTIL</label>
+              <input type="date" style={S.input} value={efbForm.efb_training_valid_until}
+                onChange={e => setEfbForm(p => ({ ...p, efb_training_valid_until: e.target.value }))} />
+            </div>
+          </div>
+          <div style={S.formGroup}>
+            <label style={S.formLabel}>TRAINED BY / INSTRUCTOR</label>
+            <input style={S.input} placeholder="Name or organization" value={efbForm.efb_trained_by}
+              onChange={e => setEfbForm(p => ({ ...p, efb_trained_by: e.target.value }))} />
+          </div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+            <button style={S.btnSecondary} onClick={() => setShowEfb(false)}>CANCEL</button>
+            <button style={S.btnPrimary} onClick={handleSaveEfb}>SAVE RECORD</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Type Qualification Modal */}
       {showQual && selected && (
         <Modal title="ADD QUALIFICATION" onClose={() => setShowQual(false)}>
           <div style={S.formGroup}>
