@@ -1,5 +1,36 @@
 import React, { useState } from 'react';
 
+// ─── Font size CSS variable helper ───────────────────────────────────────────
+const FONT_KEY  = 'efb_font_size';
+const FONT_MIN  = 10;
+const FONT_MAX  = 22;
+const FONT_DEF  = 13;
+const FONT_STEP = 1;
+
+function applyFont(size) {
+  const scale = size / FONT_DEF;
+  document.documentElement.style.zoom = scale.toString();
+  localStorage.setItem(FONT_KEY, size);
+}
+
+function FontControls() {
+  const [size, setSize] = useState(() => parseInt(localStorage.getItem(FONT_KEY) || FONT_DEF));
+  const change = (delta) => {
+    const next = Math.min(FONT_MAX, Math.max(FONT_MIN, size + delta));
+    setSize(next);
+    applyFont(next);
+  };
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+      <button onClick={() => change(-FONT_STEP)}
+        style={{ width:28, height:28, background:'#2a2a2a', border:'1px solid #444', borderRadius:5, color:'#aaa', fontSize:18, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1, fontFamily:'inherit' }}>−</button>
+      <span style={{ fontSize:11, color:'#555', minWidth:22, textAlign:'center', fontFamily:'monospace' }}>{size}</span>
+      <button onClick={() => change(+FONT_STEP)}
+        style={{ width:28, height:28, background:'#2a2a2a', border:'1px solid #444', borderRadius:5, color:'#aaa', fontSize:18, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1, fontFamily:'inherit' }}>+</button>
+    </div>
+  );
+}
+
 // ── PHASE COLOR SYSTEM ────────────────────────────────────────
 const PHASE = {
   'flt-crew':  { color: '#8B6F4E', type: 'tile'   },
@@ -325,6 +356,7 @@ function Layout({ activePage, onNavigate, title, children, flightInfo, pageStatu
         <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#e8e8e8' }}>
           {title || 'GO2TCREC · LTAC-LTBA · 11 APR 09:00 Z'}
         </span>
+        <FontControls />
       </div>
 
       {/* Body */}
@@ -362,4 +394,5 @@ function Layout({ activePage, onNavigate, title, children, flightInfo, pageStatu
     </div>
   );
 }
+
 export default Layout;
