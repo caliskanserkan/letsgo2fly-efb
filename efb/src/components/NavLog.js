@@ -370,7 +370,13 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
 
   const { pos, error: gpsError, active: gpsActive, start: startGPS, stop: stopGPS } = useGPS();
 
-  const dep  = activePlan?.dep  || 'DEP';
+  const [gpsWarningAccepted, setGpsWarningAccepted] = useState(false);
+  const [showGpsWarning, setShowGpsWarning] = useState(false);
+
+  const handleStartGPS = () => {
+    if (!gpsWarningAccepted) { setShowGpsWarning(true); return; }
+    startGPS();
+  };
   const dest = activePlan?.dest || 'DEST';
   const std  = activePlan?.std  || '';
 
@@ -562,7 +568,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
             {!gpsActive && <span style={{ fontSize:10, color:'#555' }}>GPS position tracking</span>}
             {gpsError && <span style={{ fontSize:10, color:'#e02020', marginLeft:8 }}>⚠ {gpsError}</span>}
           </div>
-          <button onClick={gpsActive ? stopGPS : startGPS}
+          <button onClick={gpsActive ? stopGPS : handleStartGPS}
             style={{ background: gpsActive ? 'rgba(224,32,32,0.15)' : 'rgba(45,158,95,0.15)', border:`1px solid ${gpsActive ? '#e02020' : '#2d9e5f'}`, borderRadius:6, padding:'4px 10px', fontSize:10, fontWeight:700, color: gpsActive ? '#e02020' : '#2d9e5f', cursor:'pointer', fontFamily:'inherit' }}>
             {gpsActive ? 'Stop' : 'Start GPS'}
           </button>
@@ -681,6 +687,41 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           </div>
         )}
       </div>
+
+      {/* GPS NOT FOR NAVIGATION uyarısı */}
+      {showGpsWarning && (
+        <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
+          <div style={{ background:'#1a1a1a', border:'2px solid #e8731a', borderRadius:12, width:340, overflow:'hidden' }}>
+            <div style={{ background:'rgba(232,115,26,0.15)', padding:'14px 16px', borderBottom:'1px solid #e8731a', display:'flex', alignItems:'center', gap:10 }}>
+              <span style={{ fontSize:22 }}>⚠️</span>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:'#e8731a' }}>NOT FOR NAVIGATION</div>
+                <div style={{ fontSize:10, color:'#888', marginTop:2 }}>AMC 20-25 Compliance Notice</div>
+              </div>
+            </div>
+            <div style={{ padding:'16px', fontSize:12, color:'#ccc', lineHeight:1.8 }}>
+              The GPS position display on this EFB is provided for situational awareness only and must <b style={{ color:'#fff' }}>NOT be used as a primary navigation source</b>.<br /><br />
+              In accordance with EASA AMC 20-25, own-ship position display on a portable EFB is permitted for <b style={{ color:'#fff' }}>advisory purposes only</b>. Navigation must be conducted using certified aircraft navigation systems.<br /><br />
+              <span style={{ color:'#e8731a', fontWeight:700 }}>Confirm you understand this limitation before activating GPS.</span>
+            </div>
+            <div style={{ padding:'0 16px 16px', display:'flex', gap:8 }}>
+              <button onClick={() => setShowGpsWarning(false)}
+                style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:12, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>
+                Cancel
+              </button>
+              <button onClick={() => {
+                setGpsWarningAccepted(true);
+                setShowGpsWarning(false);
+                startGPS();
+                logEvent(activePlan?.id, 'GPS_ACTIVATED', { notice: 'NOT_FOR_NAVIGATION_acknowledged' });
+              }}
+                style={{ flex:2, background:'#e8731a', border:'none', borderRadius:7, padding:10, fontSize:12, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>
+                I Understand — Activate GPS
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SyncButton />
 
