@@ -118,8 +118,67 @@ function EfbFailureModal({ onClose }) {
   );
 }
 
-// ── SIDEBAR ───────────────────────────────────────────────────
-function Sidebar({ activePage, onNavigate, flightInfo, pageStatus, onEfbFailure }) {
+// ── ABOUT EFB MODAL — AMC 20-25 §7.11 ───────────────────────
+function AboutEfbModal({ onClose }) {
+  const [info, setInfo] = React.useState(null);
+
+  React.useEffect(() => {
+    const fetch = async () => {
+      try {
+        const { createClient } = await import('@supabase/supabase-js');
+        const sb = createClient(
+          process.env.REACT_APP_SUPABASE_URL,
+          process.env.REACT_APP_SUPABASE_ANON_KEY
+        );
+        const { data } = await sb.from('system_settings').select('*').single();
+        setInfo(data);
+      } catch { setInfo(null); }
+    };
+    fetch();
+  }, []);
+
+  const rows = [
+    ['Application',       'GO2 eFB'],
+    ['Version',           info?.app_version  || '2.0.0'],
+    ['Build',             info?.app_build    || '2026.05'],
+    ['EFB Administrator', info?.efb_admin    || 'GO2 Aviation'],
+    ['Approved By',       info?.approved_by  || 'GO2 Aviation Safety Dept'],
+    ['Last Config Check', info?.last_config_check ? new Date(info.last_config_check).toLocaleDateString('en-GB') : '—'],
+    ['Regulation',        'EASA AMC 20-25A'],
+    ['EFB Type',          'Portable — Type B'],
+    ['Platform',          /iPad/.test(navigator.userAgent) ? 'iPad' : 'Browser'],
+    ['Connectivity',      navigator.onLine ? '✓ Online' : '⚠ Offline'],
+  ];
+
+  return (
+    <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500 }}>
+      <div style={{ background:'#1a1a1a', border:'1px solid #383838', borderRadius:12, width:360, overflow:'hidden' }}>
+        <div style={{ background:'#1f1f1f', padding:'12px 16px', borderBottom:'1px solid #383838', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <div style={{ fontSize:13, fontWeight:700, color:'#1a9bc4' }}>GO2 eFB</div>
+            <div style={{ fontSize:10, color:'#555', marginTop:2 }}>Configuration — AMC 20-25 §7.11</div>
+          </div>
+          <span onClick={onClose} style={{ color:'#555', cursor:'pointer', fontSize:20 }}>×</span>
+        </div>
+        <div>
+          {rows.map(([label, value]) => (
+            <div key={label} style={{ display:'flex', justifyContent:'space-between', padding:'9px 16px', borderBottom:'1px solid #2a2a2a' }}>
+              <span style={{ fontSize:11, color:'#666' }}>{label}</span>
+              <span style={{ fontSize:11, color: value?.startsWith('✓') ? '#2d9e5f' : value?.startsWith('⚠') ? '#e8731a' : '#e8e8e8', fontWeight:600, fontFamily:'monospace' }}>{value}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ padding:'12px 16px', borderTop:'1px solid #383838' }}>
+          <button onClick={onClose}
+            style={{ width:'100%', background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#e8e8e8', cursor:'pointer', fontFamily:'inherit' }}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function Sidebar({ activePage, onNavigate, flightInfo, pageStatus, onEfbFailure, onAbout }) {
   return (
     <div style={{
       width: 240, background: '#252525',
@@ -230,11 +289,17 @@ function Sidebar({ activePage, onNavigate, flightInfo, pageStatus, onEfbFailure 
           LTAC UMRUN G8 TOKER LTBA
         </div>
 
-        {/* EFB FAILURE butonu — her zaman erişilebilir */}
-        <button onClick={onEfbFailure}
-          style={{ width:'100%', background:'rgba(224,32,32,0.1)', border:'1px solid rgba(224,32,32,0.4)', borderRadius:6, padding:'7px 10px', fontSize:11, fontWeight:700, color:'#e02020', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
-          🚨 EFB FAILURE
-        </button>
+        {/* EFB FAILURE + About butonu */}
+        <div style={{ display:'flex', gap:6, marginTop:8 }}>
+          <button onClick={onEfbFailure}
+            style={{ flex:1, background:'rgba(224,32,32,0.1)', border:'1px solid rgba(224,32,32,0.4)', borderRadius:6, padding:'7px 6px', fontSize:11, fontWeight:700, color:'#e02020', cursor:'pointer', fontFamily:'inherit' }}>
+            🚨 EFB FAILURE
+          </button>
+          <button onClick={onAbout}
+            style={{ width:36, background:'rgba(26,155,196,0.1)', border:'1px solid rgba(26,155,196,0.3)', borderRadius:6, fontSize:14, color:'#1a9bc4', cursor:'pointer' }}>
+            ⓘ
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -243,6 +308,7 @@ function Sidebar({ activePage, onNavigate, flightInfo, pageStatus, onEfbFailure 
 // ── LAYOUT ────────────────────────────────────────────────────
 function Layout({ activePage, onNavigate, title, children, flightInfo, pageStatus }) {
   const [showEfbFailure, setShowEfbFailure] = useState(false);
+  const [showAbout,      setShowAbout]      = useState(false);
   const phase = PHASE[activePage] || { color: '#666', type: 'tile' };
 
   return (
@@ -269,6 +335,7 @@ function Layout({ activePage, onNavigate, title, children, flightInfo, pageStatu
           flightInfo={flightInfo}
           pageStatus={pageStatus}
           onEfbFailure={() => setShowEfbFailure(true)}
+          onAbout={() => setShowAbout(true)}
         />
         <div style={{ flex: 1, background: '#242424', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Page header */}
@@ -291,8 +358,12 @@ function Layout({ activePage, onNavigate, title, children, flightInfo, pageStatu
 
       {/* EFB Failure Modal */}
       {showEfbFailure && <EfbFailureModal onClose={() => setShowEfbFailure(false)} />}
+      {showAbout      && <AboutEfbModal   onClose={() => setShowAbout(false)} />}
     </div>
   );
 }
 
-export default Layout;
+export default Layout;cd /workspaces/letsgo2fly-efb/efb
+git add src/components/Layout.js
+git commit -m "feat: AMC 20-25 version management - About EFB modal"
+git push
