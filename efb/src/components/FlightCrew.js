@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
-import { supabase } from '../supabaseClient';
+import { supabase, logEvent } from '../supabaseClient';
 
 const ALL_PILOTS = [
   { code: 'AAK', name: 'Capt. Ahmet Akpinar' },
@@ -62,7 +62,18 @@ function FlightCrew({ setStatus, activePlan }) {
         pm_pilot: pilotMap[newPM],
       })
       .eq('id', activePlan.id);
-    if (error) console.error('Crew save error:', error);
+    if (error) {
+      console.error('Crew save error:', error);
+    } else {
+      logEvent(activePlan.id, 'CREW_ASSIGNED', {
+        pf: newPF,
+        pm: newPM,
+        pf_name: ALL_PILOTS.find(p => p.code === newPF)?.name,
+        pm_name: ALL_PILOTS.find(p => p.code === newPM)?.name,
+        pf_uuid: pilotMap[newPF],
+        pm_uuid: pilotMap[newPM],
+      });
+    }
     setSaving(false);
   };
 

@@ -12,7 +12,7 @@ import LandingData from './components/LandingData';
 import EndFlight from './components/EndFlight';
 import DocUpload from './components/DocUpload';
 import FreeNote from './components/FreeNote';
-import { supabase } from './supabaseClient';
+import { supabase, logEvent } from './supabaseClient';
 import * as pdfjsLib from 'pdfjs-dist';
 import AdminPanel from './components/AdminPanel';
 
@@ -362,6 +362,13 @@ function UploadPlanModal({ onClose, onUploaded }) {
             raw_text:    pdfText,
           });
 
+          logEvent(plan.id, 'PLAN_RELEASED', {
+            dispatch_no: dispatchNo,
+            dep: sector.dep,
+            dest: sector.dest,
+            filename: file.name,
+          });
+
           if (sector.ac_type) {
             const { data: profiles } = await supabase
               .from('profiles')
@@ -594,6 +601,11 @@ function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate, onDeactivate }
           }
         } catch {}
         onActivate(plan);
+        logEvent(plan.id, 'PLAN_DOWNLOADED', {
+          dep: plan.dep,
+          dest: plan.dest,
+          dispatch_no: plan.dispatch_no,
+        });
       }
     } catch {}
     loadPlans();

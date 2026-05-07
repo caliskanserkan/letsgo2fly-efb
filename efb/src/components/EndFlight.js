@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import SyncButton from './SyncButton';
-import { supabase } from '../supabaseClient';
+import { supabase, logEvent } from '../supabaseClient';
 import { usePersistedState } from '../hooks/usePersistedState';
 
 function Sep() {
@@ -148,6 +148,15 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
         });
 
       if (archiveError) throw archiveError;
+      logEvent(activePlan.id, 'FLIGHT_ARCHIVED', {
+        dep,
+        dest: destIcao,
+        block_minutes: blockMins,
+        airborne_minutes: flightMins,
+        landing_count: parseInt(cycles) || 1,
+        dest_lat: destLat,
+        dest_lon: destLon,
+      });
       setArchived(true);
     } catch (e) {
       console.error('Archive error:', e);

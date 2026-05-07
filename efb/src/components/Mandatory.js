@@ -1,13 +1,14 @@
 import React, { useEffect } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
+import { logEvent } from '../supabaseClient';
 
 const INITIAL_CHECKS = [
-  { id:1, label:'General remarks & photos',    done:true,  badge:'✓',        badgeColor:'#2d9e5f' },
-  { id:2, label:'Tech log remarks',            done:true,  badge:'1071',     badgeColor:'#2d9e5f' },
-  { id:3, label:'Pre-flight acceptance',       done:true,  badge:'Offline ✓',badgeColor:'#2d9e5f' },
-  { id:4, label:'AIRCRAFT SECURITY CHECKLIST', done:true,  badge:'✓',        badgeColor:'#2d9e5f', section:'Aircraft Checklists' },
-  { id:5, label:'EFB CHECKLIST',               done:true,  badge:'✓',        badgeColor:'#2d9e5f' },
-  { id:6, label:'MEL-HIL',                     done:false, badge:'Pending',  badgeColor:'#ff9500' },
+  { id:1, label:'General remarks & photos',    done:true,  badge:'✓',         badgeColor:'#2d9e5f' },
+  { id:2, label:'Tech log remarks',            done:true,  badge:'1071',      badgeColor:'#2d9e5f' },
+  { id:3, label:'Pre-flight acceptance',       done:true,  badge:'Offline ✓', badgeColor:'#2d9e5f' },
+  { id:4, label:'AIRCRAFT SECURITY CHECKLIST', done:true,  badge:'✓',         badgeColor:'#2d9e5f', section:'Aircraft Checklists' },
+  { id:5, label:'EFB CHECKLIST',               done:true,  badge:'✓',         badgeColor:'#2d9e5f' },
+  { id:6, label:'MEL-HIL',                     done:false, badge:'Pending',   badgeColor:'#ff9500' },
 ];
 
 function SectionHeader({ title }) {
@@ -18,20 +19,34 @@ function SectionHeader({ title }) {
   );
 }
 
-function Mandatory({ setStatus }) {
+function Mandatory({ setStatus, activePlan }) {
   const [checks, setChecks] = usePersistedState('efb_mandatory_checks', INITIAL_CHECKS);
 
   const toggle = (id) => {
-    setChecks(prev => prev.map(c => c.id === id ? { ...c, done: !c.done } : c));
+    setChecks(prev => {
+      const updated = prev.map(c => c.id === id ? { ...c, done: !c.done } : c);
+      const item = updated.find(c => c.id === id);
+      // Log her check toggle
+      logEvent(activePlan?.id, item.done ? 'MANDATORY_CHECK_DONE' : 'MANDATORY_CHECK_UNDONE', {
+        check_label: item.label,
+        check_id: id,
+      });
+      return updated;
+    });
   };
 
   useEffect(() => {
     const allDone = checks.every(c => c.done);
     const anyDone = checks.some(c => c.done);
-    if (allDone) setStatus('green');
-    else if (anyDone) setStatus('amber');
+    if (allDone) {
+      setStatus('green');
+      logEvent(activePlan?.id, 'PREFLIGHT_MANDATORY_COMPLETE', {
+        checks_count: checks.length,
+      });
+    } else if (anyDone) setStatus('amber');
     else setStatus('pending');
-  }, [checks, setStatus]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checks]);
 
   const allDone = checks.every(c => c.done);
 

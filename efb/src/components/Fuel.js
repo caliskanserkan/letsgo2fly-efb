@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
+import { logEvent } from '../supabaseClient';
 
 const LB_PER_KG = 2.20462;
 
@@ -81,6 +82,9 @@ function Fuel({ setStatus, activePlan }) {
   const [remaining, setRemaining] = usePersistedState('efb_fuel_remaining', '');
   const [totalFuel, setTotalFuel] = usePersistedState('efb_fuel_totalFuel', '');
 
+  // Log sadece bir kez "fuel complete" olunca gönderilsin
+  const loggedRef = useRef(false);
+
   const ofp = {
     trip:  n(activePlan?.trip_fuel)      || 0,
     alt:   n(activePlan?.alternate_fuel) || 0,
@@ -97,12 +101,14 @@ function Fuel({ setStatus, activePlan }) {
     setUpliftLt(val);
     const lb = ltToLb(val, density);
     setUpliftLb(lb !== null ? lb.toString() : '');
+    loggedRef.current = false;
   };
 
   const handleUpliftLb = (val) => {
     setUpliftLb(val);
     const lt = lbToLt(n(val), density);
     setUpliftLt(lt !== null ? lt.toString() : '');
+    loggedRef.current = false;
   };
 
   const handleDensity = (val) => {
@@ -114,6 +120,7 @@ function Fuel({ setStatus, activePlan }) {
       const lt = lbToLt(n(upliftLb), val);
       setUpliftLt(lt !== null ? lt.toString() : '');
     }
+    loggedRef.current = false;
   };
 
   const upliftN    = n(upliftLb);
@@ -131,10 +138,27 @@ function Fuel({ setStatus, activePlan }) {
   useEffect(() => {
     if (!setStatus) return;
     const fuelOk = finalTotal !== null && finalUplift !== null;
-    if (fuelOk) setStatus('green');
-    else if (upliftLt || upliftLb || remaining || totalFuel) setStatus('amber');
-    else setStatus('pending');
-  }, [upliftLt, upliftLb, remaining, totalFuel, finalTotal, finalUplift, setStatus]);
+    if (fuelOk) {
+      setStatus('green');
+      // Sadece ilk tamamlanmada logla
+      if (!loggedRef.current) {
+        loggedRef.current = true;
+        logEvent(activePlan?.id, 'FUEL_CHECKED', {
+          uplift_lb:    finalUplift,
+          uplift_lt:    upliftLt,
+          total_lb:     finalTotal,
+          takeoff_lb:   takeoff,
+          density:      density,
+          min_to_lb:    ofp.minTO,
+          fob_ok:       takeoff >= ofp.minTO,
+        });
+      }
+    } else if (upliftLt || upliftLb || remaining || totalFuel) {
+      setStatus('amber');
+    } else {
+      setStatus('pending');
+    }
+  }, [upliftLt, upliftLb, remaining, totalFuel, finalTotal, finalUplift, setStatus]); // eslint-disable-line
 
   return (
     <div>
@@ -147,9 +171,9 @@ function Fuel({ setStatus, activePlan }) {
       <Sep />
 
       <Title t="Fuel Quantities" />
-      <EntryRow label="Remaining (last flight)" hint="From previous flight"                value={remaining}  onChange={setRemaining}  unit="lb" />
+      <EntryRow label="Remaining (last flight)" hint="From previous flight"                              value={remaining}  onChange={setRemaining}  unit="lb" />
       {autoRemaining !== null && <AutoRow label="Remaining" hint="Auto calculated" value={fmt(autoRemaining)} unit="lb" />}
-      <EntryRow label="Total / Ramp Fuel"       hint="From aircraft indicator"             value={totalFuel}  onChange={setTotalFuel}  unit="lb" />
+      <EntryRow label="Total / Ramp Fuel"       hint="From aircraft indicator"                           value={totalFuel}  onChange={setTotalFuel}  unit="lb" />
       {autoTotal !== null && <AutoRow label="Total / Ramp Fuel" hint="Auto calculated (Uplift + Remaining)" value={fmt(autoTotal)} unit="lb" />}
 
       <Sep />

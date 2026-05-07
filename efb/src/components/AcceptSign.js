@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
+import { logEvent } from '../supabaseClient';
 
 const pilots = [
   { code: 'AAK', name: 'Capt. Ahmet Akpinar' },
@@ -26,19 +27,18 @@ function Title({ t }) {
   return <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>{t}</div>;
 }
 
-const now = () => {
+const nowUTC = () => {
   const d = new Date();
   return `${d.getUTCHours().toString().padStart(2,'0')}:${d.getUTCMinutes().toString().padStart(2,'0')} Z`;
 };
 
-function AcceptSign({ setStatus, pageStatus }) {
-  const [preflightPilot, setPreflightPilot] = usePersistedState('efb_accept_pilot',      'AAK');
-  const [accepted,       setAccepted]       = usePersistedState('efb_accept_accepted',    false);
-  const [acceptedAt,     setAcceptedAt]     = usePersistedState('efb_accept_acceptedAt',  '');
-  const [synced,         setSynced]         = usePersistedState('efb_accept_synced',       false);
-  const [syncedAt,       setSyncedAt]       = usePersistedState('efb_accept_syncedAt',    '');
+function AcceptSign({ setStatus, pageStatus, activePlan }) {
+  const [preflightPilot, setPreflightPilot] = usePersistedState('efb_accept_pilot',     'AAK');
+  const [accepted,       setAccepted]       = usePersistedState('efb_accept_accepted',   false);
+  const [acceptedAt,     setAcceptedAt]     = usePersistedState('efb_accept_acceptedAt', '');
+  const [synced,         setSynced]         = usePersistedState('efb_accept_synced',      false);
+  const [syncedAt,       setSyncedAt]       = usePersistedState('efb_accept_syncedAt',   '');
 
-  // signature canvas — can't persist, but if already accepted canvas is irrelevant
   const [signed,  setSigned]  = useState(false);
   const [drawing, setDrawing] = useState(false);
   const canvasRef = useRef(null);
@@ -104,8 +104,14 @@ function AcceptSign({ setStatus, pageStatus }) {
 
   const handleAccept = () => {
     if (!signed || !allOk) return;
+    const t = nowUTC();
     setAccepted(true);
-    setAcceptedAt(now());
+    setAcceptedAt(t);
+    logEvent(activePlan?.id, 'PLAN_ACCEPTED', {
+      accepted_at: t,
+      preflight_by: preflightPilot,
+      preflight_pilot_name: pilots.find(p => p.code === preflightPilot)?.name,
+    });
   };
 
   const handleReEvaluate = () => {
@@ -115,9 +121,15 @@ function AcceptSign({ setStatus, pageStatus }) {
     setSyncedAt('');
     setAcceptedAt('');
     if (canvasRef.current) canvasRef.current.getContext('2d').clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    logEvent(activePlan?.id, 'PLAN_ACCEPTANCE_REVOKED', {});
   };
 
-  const handleSync = () => { setSynced(true); setSyncedAt(now()); };
+  const handleSync = () => {
+    const t = nowUTC();
+    setSynced(true);
+    setSyncedAt(t);
+    logEvent(activePlan?.id, 'SYNC_TO_PM', { synced_at: t });
+  };
 
   return (
     <div>
@@ -169,6 +181,7 @@ function AcceptSign({ setStatus, pageStatus }) {
           width={450} height={120}
           style={{ display:'block', width:'100%', background: accepted ? '#111' : '#1a1a1a', cursor: accepted ? 'default' : 'crosshair' }}
           onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
+          onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}
         />
         {accepted && (
           <div style={{ padding:'8px', fontSize:11, color:'#2d9e5f', textAlign:'center', borderTop:'1px solid rgba(45,158,95,0.2)' }}>

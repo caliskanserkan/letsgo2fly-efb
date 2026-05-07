@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase, logEvent } from '../supabaseClient';
 import SyncButton from './SyncButton';
 import { usePersistedState } from '../hooks/usePersistedState';
 
@@ -451,6 +451,8 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     updateFlight('takeoffTime', data.toTime);
     updateFlight('takeoffFuel', data.toFuel);
     setLastCheckTime(Date.now());
+    if (data.offBlock)  logEvent(activePlan?.id, 'OFF_BLOCKS',  { time: data.offBlock,  role: 'PIC' });
+    if (data.toTime)    logEvent(activePlan?.id, 'TAKEOFF',     { time: data.toTime,    role: 'PIC', fuel_lb: data.toFuel });
     setModal(null);
   };
 
@@ -459,6 +461,9 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     updateFlight('landingTime', data.lndTime);
     updateFlight('onBlock', data.onBlock);
     updateFlight('remainingFuel', data.remFuel);
+    if (data.lndTime)  logEvent(activePlan?.id, 'LANDING',        { time: data.lndTime, role: 'PIC' });
+    if (data.onBlock)  logEvent(activePlan?.id, 'ON_BLOCKS',      { time: data.onBlock, role: 'PIC' });
+    if (data.remFuel)  logEvent(activePlan?.id, 'FUEL_REMAINING', { fuel_lb: data.remFuel });
     setModal(null);
   };
 
@@ -470,6 +475,12 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     updateEntry(uid, data);
     setLastCheckTime(Date.now());
     setAlert50(false);
+    if (data.rvsm) logEvent(activePlan?.id, 'RVSM_CHECK', {
+      waypoint: waypoints.find(w => w.uid === uid)?.name,
+      rvsm: data.rvsm,
+      ata: data.ata,
+      fuel_lb: data.fuel,
+    });
     setModal(null);
   };
 
