@@ -344,12 +344,15 @@ function ActiveFlts({ toast }) {
 
 // ─── 2. Archived FLTs ─────────────────────────────────────────────────────────
 function ArchivedFlts({ toast }) {
-  const [flights, setFlights] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState(null);
-  const [filter, setFilter] = useState({ pilot: '', route: '', dateFrom: '', dateTo: '' });
-  const [editModal, setEditModal] = useState(null);
-  const [editForm, setEditForm] = useState({ field: '', old: '', new: '', reason: '' });
+  const [flights,     setFlights]     = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [selected,    setSelected]    = useState(null);
+  const [filter,      setFilter]      = useState({ route: '' });
+  const [editModal,   setEditModal]   = useState(false);
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [editForm,    setEditForm]    = useState({});
+  const [deleteReason,setDeleteReason]= useState('');
+  const [saving,      setSaving]      = useState(false);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -367,47 +370,125 @@ function ArchivedFlts({ toast }) {
 
   const filtered = flights.filter(f => {
     const plan = f.plans || {};
-    const pilotMatch = !filter.pilot || (plan.pf_pilot || '').includes(filter.pilot) || (plan.pm_pilot || '').includes(filter.pilot);
-    const routeMatch = !filter.route || `${plan.dep}${plan.dest}`.toLowerCase().includes(filter.route.toLowerCase());
-    return pilotMatch && routeMatch;
+    return !filter.route || `${plan.dep}${plan.dest}`.toLowerCase().includes(filter.route.toLowerCase());
   });
 
   const sel = flights.find(f => f.id === selected);
 
-  const handleEdit = async () => {
-    if (!editForm.reason || !editForm.new) { toast('Reason and new value required.', 'error'); return; }
-    const { error } = await supabase.from('admin_edits').insert({
-      archived_flight_id: editModal.id,
-      plan_id: editModal.plan_id,
-      field_name: editForm.field,
-      old_value: String(editForm.old),
-      new_value: editForm.new,
-      reason: editForm.reason,
+  const fmtMins = (m) => m ? `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}` : '—';
+
+  const openEdit = (f) => {
+    setEditForm({
+      off_blocks:       f.off_blocks  ? new Date(f.off_blocks).toISOString().slice(11,16)  : '',
+      takeoff_time:     f.takeoff_time ? new Date(f.takeoff_time).toISOString().slice(11,16) : '',
+      landing_time:     f.landing_time ? new Date(f.landing_time).toISOString().slice(11,16) : '',
+      on_blocks:        f.on_blocks   ? new Date(f.on_blocks).toISOString().slice(11,16)   : '',
+      block_minutes:    f.block_minutes    || '',
+      airborne_minutes: f.airborne_minutes || '',
+      takeoff_fuel:     f.takeoff_fuel     || '',
+      remaining_fuel:   f.remaining_fuel   || '',
+      actual_lw:        f.actual_lw        || '',
+      vref:             f.vref             || '',
+      req_landing_dist: f.req_landing_dist || '',
+      dep_rwy:          f.dep_rwy          || '',
+      arr_rwy:          f.arr_rwy          || '',
+      dep_atis:         f.dep_atis         || '',
+      arr_atis:         f.arr_atis         || '',
+      sid:              f.sid              || '',
+      pax:              f.pax              || '',
+      landing_count:    f.landing_count    || 1,
+      is_night_landing: f.is_night_landing || false,
+      reason:           '',
     });
-    if (error) { toast(error.message, 'error'); return; }
-    toast('Edit saved and logged.', 'success');
-    setEditModal(null);
-    setEditForm({ field: '', old: '', new: '', reason: '' });
+    setEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editForm.reason) { toast('Reason is mandatory.', 'error'); return; }
+    setSaving(true);
+    const { reason, ...fields } = editForm;
+    // Her değişen field için admin_edits log
+    const changes = Object.entries(fields).filter(([k, v]) => {
+      const orig = sel[k];
+      return String(v) !== String(orig === null || orig === undefined ? '' : orig);
+    });
+    if (changes.length === 0) { toast('No changes detected.', 'error'); setSaving(false); return; }
+
+    // archived_flights güncelle
+    const updateObj = {};
+    changes.forEach(([k, v]) => { updateObj[k] = v; });
+    const { error: upErr } = await supabase.from('archived_flights').update(updateObj).eq('id', sel.id);
+    if (upErr) { toast(upErr.message, 'error'); setSaving(false); return; }
+
+    // admin_edits log
+    for (const [k, v] of changes) {
+      await supabase.from('admin_edits').insert({
+        archived_flight_id: sel.id,
+        plan_id: sel.plan_id,
+        field_name: k,
+        old_value: String(sel[k] ?? ''),
+        new_value: String(v),
+        reason,
+      });
+    }
+    toast(`${changes.length} field(s) updated and logged.`, 'success');
+    setEditModal(false);
+    setSaving(false);
     fetch();
   };
+
+  const handleDelete = async () => {
+    if (!deleteReason) { toast('Reason is mandatory.', 'error'); return; }
+    setSaving(true);
+    // Log before delete
+    await supabase.from('admin_edits').insert({
+      archived_flight_id: sel.id,
+      plan_id: sel.plan_id,
+      field_name: 'RECORD_DELETED',
+      old_value: sel.id,
+      new_value: 'DELETED',
+      reason: deleteReason,
+    });
+    const { error } = await supabase.from('archived_flights').delete().eq('id', sel.id);
+    if (error) { toast(error.message, 'error'); setSaving(false); return; }
+    toast('Record deleted and logged.', 'success');
+    setDeleteModal(false);
+    setSelected(null);
+    setDeleteReason('');
+    setSaving(false);
+    fetch();
+  };
+
+  const EF = ({ label, k, type = 'text' }) => (
+    <div style={{ marginBottom: 10 }}>
+      <label style={S.formLabel}>{label}</label>
+      {type === 'toggle' ? (
+        <div style={{ display: 'flex', gap: 10 }}>
+          {['YES', 'NO'].map(v => (
+            <button key={v} onClick={() => setEditForm(p => ({ ...p, [k]: v === 'YES' }))}
+              style={{ ...S.btnSecondary, background: editForm[k] === (v === 'YES') ? `${C.accent}20` : 'none', borderColor: editForm[k] === (v === 'YES') ? C.accent : C.border2, color: editForm[k] === (v === 'YES') ? C.accent : C.t2 }}>
+              {v}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <input style={S.input} value={editForm[k] || ''} type={type}
+          onChange={e => setEditForm(p => ({ ...p, [k]: e.target.value }))} />
+      )}
+    </div>
+  );
 
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {/* Filters */}
-        <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {[
-            { ph: 'Pilot...', key: 'pilot' },
-            { ph: 'Route / ICAO...', key: 'route' },
-          ].map(({ ph, key }) => (
-            <input key={key} placeholder={ph} value={filter[key]}
-              onChange={e => setFilter(prev => ({ ...prev, [key]: e.target.value }))}
-              style={{ ...S.input, width: 160 }} />
-          ))}
-          <span style={{ ...S.label, alignSelf: 'center', marginLeft: 'auto' }}>{filtered.length} RECORDS · LAST 5 YEARS</span>
+        <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input placeholder="Route / ICAO..." value={filter.route}
+            onChange={e => setFilter(p => ({ ...p, route: e.target.value }))}
+            style={{ ...S.input, width: 200 }} />
+          <span style={{ ...S.label, marginLeft: 'auto' }}>{filtered.length} RECORDS</span>
         </div>
 
-        {loading && <div style={{ padding: 32, textAlign: 'center', color: C.t3, fontSize: 11, letterSpacing: 2 }}>LOADING...</div>}
+        {loading && <div style={{ padding: 32, textAlign: 'center', color: C.t3, fontSize: 11 }}>LOADING...</div>}
 
         <table style={S.table}>
           <thead>
@@ -426,10 +507,10 @@ function ArchivedFlts({ toast }) {
                   <td style={S.td}>{f.archived_at ? new Date(f.archived_at).toLocaleString('en-GB') : '—'}</td>
                   <td style={{ ...S.td, color: C.accent, fontWeight: 700 }}>{plan.dep || '—'} → {plan.dest || '—'}</td>
                   <td style={S.td}>{plan.reg || '—'}</td>
-                  <td style={S.td}>{f.block_minutes ? `${Math.floor(f.block_minutes/60)}:${String(f.block_minutes%60).padStart(2,'0')}` : '—'}</td>
-                  <td style={S.td}>{f.airborne_minutes ? `${Math.floor(f.airborne_minutes/60)}:${String(f.airborne_minutes%60).padStart(2,'0')}` : '—'}</td>
+                  <td style={S.td}>{fmtMins(f.block_minutes)}</td>
+                  <td style={S.td}>{fmtMins(f.airborne_minutes)}</td>
                   <td style={S.td}>{f.landing_count || '—'}</td>
-                  <td style={S.td}>{f.pf_id ? f.pf_id.slice(0,8) + '...' : '—'}</td>
+                  <td style={S.td}>{f.pf_id ? f.pf_id.slice(0,8) + '…' : '—'}</td>
                 </tr>
               );
             })}
@@ -439,58 +520,102 @@ function ArchivedFlts({ toast }) {
 
       {sel && (
         <DetailPanel title="Archive Detail" onClose={() => setSelected(null)}>
-          <DetailRow label="Route" value={`${sel.plans?.dep} → ${sel.plans?.dest}`} accent />
+          <DetailRow label="Route"        value={`${sel.plans?.dep} → ${sel.plans?.dest}`} accent />
+          <DetailRow label="Date"         value={sel.plans?.date} />
           <DetailRow label="Registration" value={sel.plans?.reg} />
-          <DetailRow label="Archived" value={sel.archived_at ? new Date(sel.archived_at).toLocaleString('en-GB') : '—'} />
-          <DetailRow label="Block Time" value={sel.block_minutes ? `${Math.floor(sel.block_minutes/60)}:${String(sel.block_minutes%60).padStart(2,'0')}` : '—'} />
-          <DetailRow label="Flight Time" value={sel.airborne_minutes ? `${Math.floor(sel.airborne_minutes/60)}:${String(sel.airborne_minutes%60).padStart(2,'0')}` : '—'} />
-          <DetailRow label="Landings" value={sel.landing_count} />
-          <DetailRow label="Night Landing" value={sel.is_night_landing ? 'YES' : 'NO'} />
-          <DetailRow label="Dest Lat" value={sel.dest_lat} />
-          <DetailRow label="Dest Lon" value={sel.dest_lon} />
-          <div style={{ padding: '12px 16px' }}>
-            <button style={S.btnPrimary} onClick={() => {
-              setEditModal(sel);
-              setEditForm({ field: 'block_minutes', old: sel.block_minutes, new: '', reason: '' });
-            }}>
-              ✎ EDIT WITH REPORT
-            </button>
+          <DetailRow label="Archived"     value={sel.archived_at ? new Date(sel.archived_at).toLocaleString('en-GB') : '—'} />
+          <div style={{ padding: '8px 16px', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.t3, fontFamily: "'Courier New', monospace", lineHeight: 2 }}>
+            <div>OFF BLOCK: <span style={{ color: C.t1 }}>{sel.off_blocks ? new Date(sel.off_blocks).toISOString().slice(11,16) + ' Z' : '—'}</span></div>
+            <div>T/O TIME:  <span style={{ color: C.t1 }}>{sel.takeoff_time ? new Date(sel.takeoff_time).toISOString().slice(11,16) + ' Z' : '—'}</span></div>
+            <div>LANDING:   <span style={{ color: C.t1 }}>{sel.landing_time ? new Date(sel.landing_time).toISOString().slice(11,16) + ' Z' : '—'}</span></div>
+            <div>ON BLOCK:  <span style={{ color: C.t1 }}>{sel.on_blocks ? new Date(sel.on_blocks).toISOString().slice(11,16) + ' Z' : '—'}</span></div>
+            <div>BLOCK:     <span style={{ color: C.accent }}>{fmtMins(sel.block_minutes)}</span></div>
+            <div>FLIGHT:    <span style={{ color: C.accent }}>{fmtMins(sel.airborne_minutes)}</span></div>
+            <div>T/O FUEL:  <span style={{ color: C.t1 }}>{sel.takeoff_fuel || '—'} lb</span></div>
+            <div>REM FUEL:  <span style={{ color: C.t1 }}>{sel.remaining_fuel || '—'} lb</span></div>
+            <div>ACTUAL LW: <span style={{ color: C.t1 }}>{sel.actual_lw || '—'} lb</span></div>
+            <div>VREF:      <span style={{ color: C.t1 }}>{sel.vref || '—'} kt</span></div>
+            <div>DEP RWY:   <span style={{ color: C.t1 }}>{sel.dep_rwy || '—'}</span></div>
+            <div>ARR RWY:   <span style={{ color: C.t1 }}>{sel.arr_rwy || '—'}</span></div>
+            <div>SID:       <span style={{ color: C.t1 }}>{sel.sid || '—'}</span></div>
+            <div>DEP ATIS:  <span style={{ color: C.t1 }}>{sel.dep_atis || '—'}</span></div>
+            <div>ARR ATIS:  <span style={{ color: C.t1 }}>{sel.arr_atis || '—'}</span></div>
+            <div>PAX:       <span style={{ color: C.t1 }}>{sel.pax || '—'}</span></div>
+            <div>LANDINGS:  <span style={{ color: C.t1 }}>{sel.landing_count || '—'}</span></div>
+            <div>NIGHT LDG: <span style={{ color: C.t1 }}>{sel.is_night_landing ? 'YES' : 'NO'}</span></div>
+          </div>
+          <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button style={S.btnPrimary} onClick={() => openEdit(sel)}>✎ EDIT WITH REPORT</button>
+            <button style={S.btnDanger}  onClick={() => setDeleteModal(true)}>🗑 DELETE RECORD</button>
           </div>
         </DetailPanel>
       )}
 
-      {editModal && (
-        <Modal title="EDIT ARCHIVED FLIGHT — REPORT REQUIRED" onClose={() => setEditModal(null)}>
-          <div style={{ fontSize: 10, color: C.t3, marginBottom: 16, lineHeight: 1.8, fontFamily: "'Courier New', monospace" }}>
-            ⚠ All edits are logged and notification will be sent to designated personnel.
+      {/* ── Edit Modal ── */}
+      {editModal && sel && (
+        <Modal title="EDIT ARCHIVED FLIGHT — REPORT REQUIRED" onClose={() => setEditModal(false)} width={520}>
+          <div style={{ fontSize: 11, color: '#e8731a', marginBottom: 16, padding: '8px 12px', background: 'rgba(232,115,26,0.08)', border: '1px solid rgba(232,115,26,0.2)' }}>
+            ⚠ All edits are logged. Only changed fields will be updated.
           </div>
-          <div style={S.formGroup}>
-            <label style={S.formLabel}>Field to Edit</label>
-            <select style={S.select} value={editForm.field} onChange={e => setEditForm(p => ({ ...p, field: e.target.value }))}>
-              <option value="block_minutes">Block Minutes</option>
-              <option value="airborne_minutes">Airborne Minutes</option>
-              <option value="landing_count">Landing Count</option>
-              <option value="is_night_landing">Night Landing</option>
-              <option value="pf_id">PF Pilot</option>
-            </select>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <EF label="OFF BLOCK (HH:MM)" k="off_blocks" />
+            <EF label="T/O TIME (HH:MM)"  k="takeoff_time" />
+            <EF label="LANDING (HH:MM)"   k="landing_time" />
+            <EF label="ON BLOCK (HH:MM)"  k="on_blocks" />
+            <EF label="BLOCK MINS"        k="block_minutes" />
+            <EF label="FLIGHT MINS"       k="airborne_minutes" />
+            <EF label="T/O FUEL (lb)"     k="takeoff_fuel" />
+            <EF label="REM FUEL (lb)"     k="remaining_fuel" />
+            <EF label="ACTUAL LW (lb)"    k="actual_lw" />
+            <EF label="VREF (kt)"         k="vref" />
+            <EF label="REQ LND DIST (ft)" k="req_landing_dist" />
+            <EF label="LANDINGS"          k="landing_count" />
+            <EF label="DEP RWY"           k="dep_rwy" />
+            <EF label="ARR RWY"           k="arr_rwy" />
+            <EF label="SID"               k="sid" />
+            <EF label="PAX"               k="pax" />
           </div>
-          <div style={S.formGroup}>
-            <label style={S.formLabel}>Current Value</label>
-            <input style={S.input} value={editForm.old} readOnly />
-          </div>
-          <div style={S.formGroup}>
-            <label style={S.formLabel}>New Value *</label>
-            <input style={S.input} value={editForm.new} onChange={e => setEditForm(p => ({ ...p, new: e.target.value }))} placeholder="Enter corrected value" />
-          </div>
-          <div style={S.formGroup}>
-            <label style={S.formLabel}>Reason / Report *</label>
-            <textarea style={{ ...S.input, minHeight: 80, resize: 'vertical' }} value={editForm.reason}
+          <EF label="DEP ATIS" k="dep_atis" />
+          <EF label="ARR ATIS" k="arr_atis" />
+          <EF label="NIGHT LANDING" k="is_night_landing" type="toggle" />
+
+          <div style={{ marginTop: 16 }}>
+            <label style={S.formLabel}>REASON / REPORT *</label>
+            <textarea style={{ ...S.input, minHeight: 80, resize: 'vertical' }}
+              value={editForm.reason}
               onChange={e => setEditForm(p => ({ ...p, reason: e.target.value }))}
               placeholder="Mandatory: explain why this edit is required..." />
           </div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
-            <button style={S.btnSecondary} onClick={() => setEditModal(null)}>CANCEL</button>
-            <button style={S.btnPrimary} onClick={handleEdit}>SAVE & LOG EDIT</button>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+            <button style={S.btnSecondary} onClick={() => setEditModal(false)}>CANCEL</button>
+            <button style={S.btnPrimary} onClick={handleSaveEdit} disabled={saving}>
+              {saving ? 'SAVING...' : 'SAVE & LOG EDITS'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Delete Modal ── */}
+      {deleteModal && sel && (
+        <Modal title="DELETE ARCHIVED FLIGHT RECORD" onClose={() => setDeleteModal(false)}>
+          <div style={{ fontSize: 12, color: '#e02020', marginBottom: 16, padding: '10px 12px', background: 'rgba(224,32,32,0.08)', border: '1px solid rgba(224,32,32,0.2)' }}>
+            ⚠ This action is irreversible. The record will be permanently deleted and logged.
+          </div>
+          <DetailRow label="Flight" value={`${sel.plans?.dep} → ${sel.plans?.dest}`} accent />
+          <DetailRow label="Archived" value={sel.archived_at ? new Date(sel.archived_at).toLocaleString('en-GB') : '—'} />
+          <div style={{ marginTop: 16 }}>
+            <label style={S.formLabel}>REASON FOR DELETION *</label>
+            <textarea style={{ ...S.input, minHeight: 80, resize: 'vertical' }}
+              value={deleteReason}
+              onChange={e => setDeleteReason(e.target.value)}
+              placeholder="Mandatory: explain why this record is being deleted..." />
+          </div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+            <button style={S.btnSecondary} onClick={() => setDeleteModal(false)}>CANCEL</button>
+            <button style={S.btnDanger} onClick={handleDelete} disabled={saving}>
+              {saving ? 'DELETING...' : '🗑 CONFIRM DELETE'}
+            </button>
           </div>
         </Modal>
       )}
@@ -1146,7 +1271,7 @@ function FltLogsAndTimes({ toast }) {
       setLoadingP(true);
       const { data } = await supabase.from('plans')
         .select('id, dep, dest, date, dispatch_no, reg, status, archived_at, created_at')
-        .in('status', ['active', 'archived'])
+        .in('status', ['active', 'archived', 'available'])
         .order('created_at', { ascending: false })
         .limit(200);
       setPlans(data || []);
