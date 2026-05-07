@@ -18,6 +18,27 @@ import AdminPanel from './components/AdminPanel';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
+// ─── Offline Banner — AMC 20-25 ──────────────────────────────────────────────
+function OfflineBanner({ offlineSince }) {
+  if (!offlineSince) return null;
+  const mins = Math.floor((Date.now() - offlineSince) / 60000);
+  return (
+    <div style={{ background:'rgba(232,115,26,0.15)', borderBottom:'2px solid #e8731a', padding:'7px 16px', display:'flex', alignItems:'center', gap:10, flexShrink:0, zIndex:50 }}>
+      <span style={{ fontSize:16 }}>⚠️</span>
+      <div style={{ flex:1 }}>
+        <span style={{ fontSize:12, fontWeight:700, color:'#e8731a' }}>OFFLINE MODE</span>
+        <span style={{ fontSize:11, color:'#a86020', marginLeft:10 }}>
+          No network connection — EFB operating on cached data
+          {mins > 0 && ` · ${mins} min ago`}
+        </span>
+      </div>
+      <span style={{ fontSize:10, color:'#a86020', fontWeight:700 }}>AMC 20-25 §7.4</span>
+    </div>
+  );
+}
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+
 // ─── LocalStorage helpers ─────────────────────────────────────────────────────
 const LS = {
   PLAN:    'efb_activePlan',
@@ -718,6 +739,20 @@ function App() {
   const [showAdminAuth, setShowAdminAuth] = useState(false);
   const [adminPin, setAdminPin]           = useState('');
   const [adminPinError, setAdminPinError] = useState('');
+  const [offlineSince, setOfflineSince]   = useState(null);
+
+  // ── Offline detection — AMC 20-25 §7.4 ───────────────────────────────────
+  useEffect(() => {
+    const handleOffline = () => setOfflineSince(Date.now());
+    const handleOnline  = () => setOfflineSince(null);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online',  handleOnline);
+    if (!navigator.onLine) setOfflineSince(Date.now());
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online',  handleOnline);
+    };
+  }, []);
 
   const [activePage, setActivePage] = useState(() => lsGet(LS.PAGE, 'flt-crew'));
   const [activePlan, setActivePlan] = useState(() => lsGet(LS.PLAN, null));
@@ -874,6 +909,7 @@ function App() {
 
   return (
     <Layout activePage={activePage} onNavigate={navigate} title={layoutTitle} pageStatus={pageStatus}>
+      <OfflineBanner offlineSince={offlineSince} />
       {activePage === 'flt-crew'  && <FlightCrew  setStatus={setStatusFltCrew}   activePlan={activePlan} />}
       {activePage === 'mandatory' && <Mandatory   setStatus={setStatusMandatory} activePlan={activePlan} />}
       {activePage === 'efp'       && <EFP         setStatus={setStatusEfp}       activePlan={activePlan} rawText={rawText} />}
