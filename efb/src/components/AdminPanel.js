@@ -448,9 +448,15 @@ function ArchivedFlts({ toast }) {
       old_value: sel.id,
       new_value: 'DELETED',
       reason: deleteReason,
+      edit_type: 'DELETE',
     });
+    // archived_flights kaydını sil
     const { error } = await supabase.from('archived_flights').delete().eq('id', sel.id);
     if (error) { toast(error.message, 'error'); setSaving(false); return; }
+    // plans tablosunda status → deleted (listelerden kalksın)
+    if (sel.plan_id) {
+      await supabase.from('plans').update({ status: 'deleted' }).eq('id', sel.plan_id);
+    }
     toast('Record deleted and logged.', 'success');
     setDeleteModal(false);
     setSelected(null);
@@ -1441,15 +1447,84 @@ function FltLogsAndTimes({ toast }) {
   );
 }
 
+// ─── 8. Edit Reports ──────────────────────────────────────────────────────────
+function EditReports({ toast }) {
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter,  setFilter]  = useState('');
+
+  useEffect(() => {
+    const fetch = async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from('admin_edits')
+        .select('*, profiles:edited_by(full_name, code)')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      setReports(data || []);
+      setLoading(false);
+    };
+    fetch();
+  }, []);
+
+  const filtered = reports.filter(r =>
+    !filter || r.field_name?.toLowerCase().includes(filter.toLowerCase()) ||
+    r.reason?.toLowerCase().includes(filter.toLowerCase()) ||
+    r.plan_id?.includes(filter)
+  );
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 10, alignItems: 'center' }}>
+        <input placeholder="Search reports..." value={filter}
+          onChange={e => setFilter(e.target.value)}
+          style={{ ...S.input, width: 260 }} />
+        <span style={{ ...S.label, marginLeft: 'auto' }}>{filtered.length} REPORTS</span>
+      </div>
+
+      {loading && <div style={{ padding: 32, textAlign: 'center', color: C.t3, fontSize: 11 }}>LOADING...</div>}
+      {!loading && filtered.length === 0 && <div style={{ padding: 48, textAlign: 'center', color: C.t3, fontSize: 11, letterSpacing: 2 }}>NO REPORTS</div>}
+
+      <table style={S.table}>
+        <thead>
+          <tr>
+            {['DATE','TYPE','FIELD','OLD VALUE','NEW VALUE','BY','REASON'].map(h => (
+              <th key={h} style={S.th}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map(r => (
+            <tr key={r.id}>
+              <td style={{ ...S.td, fontSize: 11, whiteSpace: 'nowrap' }}>{new Date(r.created_at).toLocaleString('en-GB')}</td>
+              <td style={S.td}>
+                <span style={S.badge(r.edit_type === 'DELETE' ? 'red' : '')}>
+                  {r.edit_type || 'EDIT'}
+                </span>
+              </td>
+              <td style={{ ...S.td, color: C.accent, fontWeight: 700 }}>{r.field_name || '—'}</td>
+              <td style={{ ...S.td, color: C.t3 }}>{r.old_value?.slice(0, 30) || '—'}</td>
+              <td style={{ ...S.td, color: C.t1 }}>{r.new_value?.slice(0, 30) || '—'}</td>
+              <td style={{ ...S.td, color: C.accent }}>{r.profiles?.code || '—'}</td>
+              <td style={{ ...S.td, color: C.t2, maxWidth: 300 }}>{r.reason || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ─── Nav Items ────────────────────────────────────────────────────────────────
 const NAV = [
-  { id: 'active',    icon: '●', label: 'Active FLTs'      },
-  { id: 'archived',  icon: '◎', label: 'Archived FLTs'    },
-  { id: 'aircrafts', icon: '✈', label: 'Aircrafts'        },
-  { id: 'crews',     icon: '◈', label: 'Crews'            },
-  { id: 'stats',     icon: '▦', label: 'Statistics'       },
-  { id: 'stations',  icon: '◉', label: 'Station INFO'     },
-  { id: 'logs',      icon: '≡', label: 'FLTs Logs & Times'},
+  { id: 'active',    icon: '●', label: 'Active FLTs'       },
+  { id: 'archived',  icon: '◎', label: 'Archived FLTs'     },
+  { id: 'aircrafts', icon: '✈', label: 'Aircrafts'         },
+  { id: 'crews',     icon: '◈', label: 'Crews'             },
+  { id: 'stats',     icon: '▦', label: 'Statistics'        },
+  { id: 'stations',  icon: '◉', label: 'Station INFO'      },
+  { id: 'logs',      icon: '≡', label: 'FLTs Logs & Times' },
+  { id: 'reports',   icon: '📋', label: 'Edit Reports'     },
 ];
 
 // ─── Main AdminPanel ──────────────────────────────────────────────────────────
@@ -1527,13 +1602,14 @@ export default function AdminPanel({ onBack }) {
           </div>
 
           <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-            {tab === 'active'   && <ActiveFlts    toast={showToast} />}
-            {tab === 'archived' && <ArchivedFlts  toast={showToast} />}
-            {tab === 'aircrafts'&& <Aircrafts     toast={showToast} />}
-            {tab === 'crews'    && <Crews         toast={showToast} />}
-            {tab === 'stats'    && <Statistics    toast={showToast} />}
-            {tab === 'stations' && <StationInfo   toast={showToast} />}
+            {tab === 'active'   && <ActiveFlts      toast={showToast} />}
+            {tab === 'archived' && <ArchivedFlts    toast={showToast} />}
+            {tab === 'aircrafts'&& <Aircrafts       toast={showToast} />}
+            {tab === 'crews'    && <Crews           toast={showToast} />}
+            {tab === 'stats'    && <Statistics      toast={showToast} />}
+            {tab === 'stations' && <StationInfo     toast={showToast} />}
             {tab === 'logs'     && <FltLogsAndTimes toast={showToast} />}
+            {tab === 'reports'  && <EditReports     toast={showToast} />}
           </div>
         </div>
       </div>
