@@ -4,21 +4,13 @@ import { logEvent } from '../supabaseClient';
 
 const INITIAL_CHECKS = [
   // ── Genel Uçuş Öncesi ─────────────────────────────────────────────────────
-  { id:1,  label:'General remarks & photos reviewed',           done:false, badge:'', badgeColor:'#2d9e5f' },
-  { id:2,  label:'Tech log remarks reviewed',                   done:false, badge:'', badgeColor:'#2d9e5f' },
-  { id:3,  label:'Pre-flight acceptance completed',             done:false, badge:'', badgeColor:'#2d9e5f' },
-  { id:4,  label:'AIRCRAFT SECURITY CHECKLIST',                 done:false, badge:'', badgeColor:'#2d9e5f', section:'Aircraft Checklists' },
-  { id:5,  label:'MEL / HIL checked',                          done:false, badge:'', badgeColor:'#ff9500' },
+  { id:1, label:'General remarks & photos reviewed',  done:false, badge:'', badgeColor:'#2d9e5f' },
+  { id:2, label:'Tech log remarks reviewed',          done:false, badge:'', badgeColor:'#2d9e5f' },
+  { id:3, label:'Pre-flight acceptance completed',    done:false, badge:'', badgeColor:'#2d9e5f' },
+  { id:4, label:'AIRCRAFT SECURITY CHECKLIST',        done:false, badge:'', badgeColor:'#2d9e5f', section:'Aircraft Checklists' },
+  { id:5, label:'MEL / HIL checked',                 done:false, badge:'', badgeColor:'#ff9500' },
   // ── EFB Checklist — AMC 20-25 ─────────────────────────────────────────────
-  { id:6,  label:'EFB battery level ≥ 80%',                    done:false, badge:'', badgeColor:'#2d9e5f', section:'EFB Checklist — AMC 20-25' },
-  { id:7,  label:'EFB application version current',             done:false, badge:'', badgeColor:'#2d9e5f' },
-  { id:8,  label:'OFP loaded — route and fuel data verified',   done:false, badge:'', badgeColor:'#2d9e5f' },
-  { id:9,  label:'WXR data loaded and reviewed',               done:false, badge:'', badgeColor:'#2d9e5f' },
-  { id:10, label:'NOTAM reviewed for all airports',             done:false, badge:'', badgeColor:'#2d9e5f' },
-  { id:11, label:'EFB screen brightness suitable for conditions',done:false, badge:'', badgeColor:'#2d9e5f' },
-  { id:12, label:'Backup procedure available (paper/alternate)',done:false, badge:'', badgeColor:'#2d9e5f' },
-  { id:13, label:'EFB secured at duty station',                 done:false, badge:'', badgeColor:'#2d9e5f' },
-  { id:14, label:'GPS position — NOT FOR NAVIGATION acknowledged',done:false, badge:'', badgeColor:'#e8731a' },
+  { id:6, label:'EFB_CHECKLIST_CONSOLIDATED',         done:false, badge:'', badgeColor:'#2d9e5f', section:'EFB Checklist — AMC 20-25', isEfbConsolidated: true },
 ];
 
 function SectionHeader({ title }) {
@@ -69,20 +61,49 @@ function Mandatory({ setStatus, activePlan }) {
       {checks.map((c) => (
         <React.Fragment key={c.id}>
           {c.section && <SectionHeader title={c.section} />}
-          <div onClick={() => toggle(c.id)}
-            style={{ display:'flex', alignItems:'center', padding:'12px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838', gap:12, cursor:'pointer' }}>
-            <div style={{ width:20, height:20, borderRadius:4, border: c.done ? 'none' : '1px solid #444', background: c.done ? '#2d9e5f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:11, color:'#fff' }}>
-              {c.done ? '✓' : ''}
+
+          {c.isEfbConsolidated ? (
+            /* ── Konsolide EFB Checklist maddesi ── */
+            <div onClick={() => toggle(c.id)}
+              style={{ display:'flex', alignItems:'flex-start', padding:'14px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838', gap:12, cursor:'pointer' }}>
+              <div style={{ width:20, height:20, borderRadius:4, border: c.done ? 'none' : '1px solid #444', background: c.done ? '#2d9e5f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:11, color:'#fff', marginTop:2 }}>
+                {c.done ? '✓' : ''}
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:11, color: c.done ? '#555' : '#888', marginBottom:6, lineHeight:1.7, fontStyle:'italic', textDecoration: c.done ? 'line-through' : 'none' }}>
+                  <span style={{ fontWeight:700, color: c.done ? '#555' : '#aaa' }}>"</span>
+                  <span style={{ fontWeight:700 }}>EFB battery ≥80%, application version current, screen brightness suitable for conditions, backup procedure available (paper/alternate), EFB secured at duty station, GPS position NOT FOR NAVIGATION acknowledged.</span>
+                  <span style={{ fontWeight:700, color: c.done ? '#555' : '#aaa' }}>"</span>
+                </div>
+                {!c.done && (
+                  <div style={{ fontSize:10, color:'#e8731a', fontWeight:700 }}>
+                    Tap to confirm you have read and understood all EFB checklist items above.
+                  </div>
+                )}
+                {c.done && (
+                  <div style={{ fontSize:10, color:'#2d9e5f', fontWeight:700 }}>
+                    ✓ Read and acknowledged
+                  </div>
+                )}
+              </div>
             </div>
-            <span style={{ fontSize:12.5, color: c.done ? '#4a4a4a' : '#999', flex:1, textDecoration: c.done ? 'line-through' : 'none' }}>
-              {c.label}
-            </span>
-            {c.badge && (
-              <span style={{ fontSize:11, fontWeight:600, color: c.badgeColor || (c.done ? '#2d9e5f' : '#ff9500') }}>
-                {c.done ? c.badge : 'Pending'}
+          ) : (
+            /* ── Normal madde ── */
+            <div onClick={() => toggle(c.id)}
+              style={{ display:'flex', alignItems:'center', padding:'12px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838', gap:12, cursor:'pointer' }}>
+              <div style={{ width:20, height:20, borderRadius:4, border: c.done ? 'none' : '1px solid #444', background: c.done ? '#2d9e5f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:11, color:'#fff' }}>
+                {c.done ? '✓' : ''}
+              </div>
+              <span style={{ fontSize:12.5, color: c.done ? '#4a4a4a' : '#999', flex:1, textDecoration: c.done ? 'line-through' : 'none' }}>
+                {c.label}
               </span>
-            )}
-          </div>
+              {c.badge && (
+                <span style={{ fontSize:11, fontWeight:600, color: c.badgeColor || (c.done ? '#2d9e5f' : '#ff9500') }}>
+                  {c.done ? c.badge : 'Pending'}
+                </span>
+              )}
+            </div>
+          )}
         </React.Fragment>
       ))}
 
