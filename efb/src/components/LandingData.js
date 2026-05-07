@@ -39,6 +39,19 @@ function AutoRow({ label, value }) {
   );
 }
 
+function EntryRow({ label, value, onChange, unit, placeholder }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838', minHeight:52 }}>
+      <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600 }}>{label}</span>
+      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+        <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder || '——'}
+          style={{ ...iStyle, width:100, textAlign:'right' }} />
+        {unit && <span style={{ fontSize:11, color:'#555', minWidth:28 }}>{unit}</span>}
+      </div>
+    </div>
+  );
+}
+
 function AtisRow({ label, value, onChange, photo, onPhoto }) {
   return (
     <div style={{ background:'#2e2e2e', borderBottom:'1px solid #383838', padding:'10px 16px' }}>
@@ -62,8 +75,9 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
   const [arrAtis,   setArrAtis]   = usePersistedState('efb_lnd_arrAtis',   '');
   const [arrPhoto,  setArrPhoto]  = usePersistedState('efb_lnd_arrPhoto',  false);
   const [reqLnd,    setReqLnd]    = usePersistedState('efb_lnd_reqLnd',    '');
+  const [actualLw,  setActualLw]  = usePersistedState('efb_lnd_actualLw',  '');
+  const [vref,      setVref]      = usePersistedState('efb_lnd_vref',      '');
 
-  // Runtime only
   const [runways, setRunways] = useState([]);
   const [loading, setLoading] = useState(false);
   const [noData,  setNoData]  = useState(false);
@@ -105,7 +119,7 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
 
   useEffect(() => {
     if (icao.length === 4) fetchRunways(icao.toUpperCase());
-  }, [icao]);
+  }, [icao]); // eslint-disable-line
 
   const runwayOk = divert ? !!(divertData.icao && divertData.rwy) : !!(selRwy || manualRwy);
   const atisOk   = !!arrAtis;
@@ -127,8 +141,13 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
   const stopMargin   = activeLenFt && reqLndNum ? activeLenFt - reqLndNum : null;
   const marginColor  = getStopMarginColor(stopMargin);
 
-  const landingWeight = activePlan?.zfw ? `${parseInt(activePlan.zfw).toLocaleString()} lb` : '—';
-  const maxLwt = '66,000 lb';
+  // OFP verilerinden max LWT
+  const planLw  = activePlan?.zfw ? `${parseInt(activePlan.zfw).toLocaleString()} lb` : '—';
+  const maxLwt  = '66,000 lb';
+
+  // Actual LW vs Max LWT kontrol
+  const actualLwNum = actualLw ? parseInt(actualLw.replace(/[^0-9]/g,'')) : null;
+  const lwExceeded  = actualLwNum && actualLwNum > 66000;
 
   return (
     <div>
@@ -178,9 +197,36 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
       <Sep />
 
       <Title t="OFP — Landing Weights" />
-      <AutoRow label="Landing Weight" value={landingWeight} />
-      <AutoRow label="Max LWT"        value={maxLwt} />
-      <AutoRow label="Vref"           value="— kt" />
+      <AutoRow label="Plan Landing Weight (ZFW)" value={planLw} />
+      <AutoRow label="Max LWT"                   value={maxLwt} />
+
+      {/* Actual LW — pilot girişi */}
+      <EntryRow
+        label="Actual Landing Weight"
+        value={actualLw}
+        onChange={setActualLw}
+        unit="lb"
+        placeholder="——"
+      />
+      {lwExceeded && (
+        <div style={{ margin:'0 16px 4px', padding:'8px 12px', borderRadius:6, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020', fontWeight:700 }}>
+          ⚠ ACTUAL LW EXCEEDS MAX LWT (66,000 lb)
+        </div>
+      )}
+      {actualLwNum && !lwExceeded && (
+        <div style={{ margin:'0 16px 4px', padding:'8px 12px', borderRadius:6, background:'rgba(45,158,95,0.08)', borderLeft:'3px solid #2d9e5f', fontSize:11, color:'#2d9e5f' }}>
+          LW OK — Margin: {(66000 - actualLwNum).toLocaleString()} lb below Max LWT
+        </div>
+      )}
+
+      {/* Vref — pilot girişi */}
+      <EntryRow
+        label="Vref"
+        value={vref}
+        onChange={setVref}
+        unit="kt"
+        placeholder="——"
+      />
 
       <Sep />
 
