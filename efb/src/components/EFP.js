@@ -127,26 +127,19 @@ function ColoredWeather({ text }) {
 
 function parseIcaoWxFromRaw(rawText, icao) {
   if (!rawText || !icao) return { metar:[], taf:[] };
-
-  // WX bölümünü belirle
   const wxIdx = rawText.search(/WX for (?:flight|Flight Group)/i);
   const wxEnd = rawText.search(/End of WX information/i);
   const block = wxIdx !== -1
     ? rawText.slice(wxIdx, wxEnd !== -1 ? wxEnd + 30 : wxIdx + 20000)
     : rawText;
-
-  // Bu ICAO'nun bölümünü bul
-  // Tek uçuş: "Departure airport LTAC..." / Flight group: "Flight group apt LTAC..."
   const pat = new RegExp(
     `(?:(?:Departure|Destination|Alternate|Adequate)\\s+airport|Flight\\s+group\\s+apt)\\s+${icao}[^\\n]*\\n([\\s\\S]*?)` +
     `(?=(?:(?:Departure|Destination|Alternate|Adequate)\\s+airport|Flight\\s+group\\s+apt)\\s+[A-Z]{4}|WX messages|SIGMET|End of WX|Page\\s+\\d|$)`,
     'i'
   );
   const sec = block.match(pat)?.[1] || '';
-
   const metars = [], tafs = [];
   let inTaf = false;
-
   for (const line of sec.split('\n')) {
     const l = line.trim();
     if (!l) { inTaf = false; continue; }
@@ -164,7 +157,6 @@ function WXR({ activePlan, rawText }) {
   const destIcao = activePlan?.dest      || 'LTBA';
   const altIcao  = activePlan?.alternate || 'LTFM';
 
-  // Plan WX — rawText'ten doğrudan parse
   const planWx = useMemo(() => {
     if (!rawText) return null;
     const dep  = parseIcaoWxFromRaw(rawText, depIcao);
@@ -172,15 +164,12 @@ function WXR({ activePlan, rawText }) {
     const alt  = parseIcaoWxFromRaw(rawText, altIcao);
     if (!dep.metar.length && !dest.metar.length && !alt.metar.length &&
         !dep.taf.length   && !dest.taf.length   && !alt.taf.length) return null;
-
     const sigmetIdx = rawText.search(/SIGMET\(s\)\s+for/i);
     const sigmetEnd = rawText.search(/End of WX information/i);
     const sigmet = sigmetIdx !== -1
       ? rawText.slice(sigmetIdx, sigmetEnd !== -1 ? sigmetEnd : sigmetIdx + 800).trim()
       : '';
-
     const ts = rawText.match(/WX search performed\s+([^\n]+)/i)?.[1]?.trim() || 'Plan briefing';
-
     return {
       dep:  { name:`${depIcao} — Departure`,    metar: dep.metar.length  ? dep.metar  : ['No METAR in plan'], taf: dep.taf.length  ? dep.taf  : ['No TAF in plan'] },
       dest: { name:`${destIcao} — Destination`, metar: dest.metar.length ? dest.metar : ['No METAR in plan'], taf: dest.taf.length ? dest.taf : ['No TAF in plan'] },
@@ -189,24 +178,21 @@ function WXR({ activePlan, rawText }) {
     };
   }, [rawText, depIcao, destIcao, altIcao]);
 
-  const [wxTab,   setWxTab]   = usePersistedState('efb_wxr_tab', 'dep');
-  const [liveWx,  setLiveWx]  = usePersistedState('efb_wxr_live', null);
+  const [wxTab,   setWxTab]   = usePersistedState('efb_wxr_tab',     'dep');
+  const [liveWx,  setLiveWx]  = usePersistedState('efb_wxr_live',    null);
   const [liveAt,  setLiveAt]  = usePersistedState('efb_wxr_live_at', '');
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(false);
 
-  const data    = liveWx || planWx;
-  const source  = liveWx ? `Live · ${liveAt}` : planWx ? `Plan · ${planWx.ts}` : rawText ? 'No WX in plan' : 'Loading...';
-
-  // Live ve plan datasını birleştir: live null ise plan datasını kullan
   const mergedData = liveWx && planWx ? {
     dep:  { name: liveWx.dep.name,  metar: liveWx.dep.metar  || planWx.dep.metar,  taf: liveWx.dep.taf  || planWx.dep.taf  },
     dest: { name: liveWx.dest.name, metar: liveWx.dest.metar || planWx.dest.metar, taf: liveWx.dest.taf || planWx.dest.taf },
     alt:  { name: liveWx.alt.name,  metar: liveWx.alt.metar  || planWx.alt.metar,  taf: liveWx.alt.taf  || planWx.alt.taf  },
-    sigmet: liveWx.sigmet || planWx.sigmet,
-  } : data;
-  const d       = wxTab !== 'sigmet' ? (mergedData?.[wxTab] || mergedData?.dep) : null;
-  const sigmet  = mergedData?.sigmet || '';
+    sigmet: liveWx.sigmet || planWx?.sigmet,
+  } : liveWx || planWx;
+
+  const d      = wxTab !== 'sigmet' ? (mergedData?.[wxTab] || mergedData?.dep) : null;
+  const sigmet = mergedData?.sigmet || '';
 
   const doFetch = async () => {
     setLoading(true); setError(false);
@@ -232,12 +218,57 @@ function WXR({ activePlan, rawText }) {
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ background:'#1a2a1a', borderBottom:'1px solid rgba(45,158,95,0.3)', padding:'7px 14px', display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-        <span style={{ fontSize:10, color: error ? '#e02020' : '#2d9e5f', flex:1 }}>
-          {error ? '⚠ Live fetch failed — showing plan data' : source || `${depIcao} · ${destIcao} · ${altIcao}`}
-        </span>
+
+      {/* ── AMC 20-25 Veri Kaynağı Etiketi ── */}
+      <div style={{
+        background: liveWx ? '#0a1a12' : '#141408',
+        borderBottom: `1px solid ${liveWx ? 'rgba(45,158,95,0.4)' : 'rgba(200,160,20,0.3)'}`,
+        padding: '8px 14px',
+        display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+      }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {/* Kaynak badge */}
+            <span style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: 1,
+              padding: '2px 8px', borderRadius: 4,
+              background: error ? 'rgba(224,32,32,0.15)' : liveWx ? 'rgba(45,158,95,0.15)' : 'rgba(200,160,20,0.15)',
+              color: error ? '#e02020' : liveWx ? '#2d9e5f' : '#c8a014',
+              border: `1px solid ${error ? '#601010' : liveWx ? '#1a4030' : '#604a08'}`,
+            }}>
+              {error ? '⚠ FETCH FAILED' : liveWx ? '● LIVE' : '◎ PLAN BRIEFING'}
+            </span>
+
+            {/* Zaman + kaynak */}
+            {liveWx && !error && (
+              <span style={{ fontSize: 11, color: '#2d9e5f', fontFamily: 'monospace', fontWeight: 600 }}>
+                {liveAt}
+                <span style={{ color: '#1a5a3a', fontWeight: 400, marginLeft: 5 }}>by NOAA / aviationweather.gov</span>
+              </span>
+            )}
+            {!liveWx && planWx && (
+              <span style={{ fontSize: 11, color: '#a08010', fontFamily: 'monospace' }}>
+                {planWx.ts}
+                <span style={{ color: '#605008', fontWeight: 400, marginLeft: 5 }}>by Airsupport A/S (Denmark)</span>
+              </span>
+            )}
+            {error && (
+              <span style={{ fontSize: 11, color: '#e02020', fontFamily: 'monospace' }}>
+                Showing plan data · by Airsupport A/S (Denmark)
+              </span>
+            )}
+          </div>
+
+          {/* Alt satır uyarı */}
+          <div style={{ fontSize: 9, color: '#555', marginTop: 3 }}>
+            {liveWx
+              ? 'Live METAR/TAF — verify against latest ATIS before use'
+              : 'OFP briefing package — may not reflect current conditions · refresh for live data'}
+          </div>
+        </div>
+
         <button onClick={doFetch} disabled={loading}
-          style={{ background: loading ? '#333' : '#2d9e5f', border:'none', borderRadius:6, padding:'5px 14px', fontSize:11, fontWeight:700, color: loading ? '#555' : '#fff', cursor: loading ? 'default' : 'pointer', fontFamily:'inherit' }}>
+          style={{ background: loading ? '#333' : '#2d9e5f', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 11, fontWeight: 700, color: loading ? '#555' : '#fff', cursor: loading ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
           {loading ? '…' : '↻ Live WXR'}
         </button>
       </div>
@@ -292,32 +323,19 @@ function WXR({ activePlan, rawText }) {
 // ─── NOTAM ────────────────────────────────────────────────────────────────────
 function parseNotams(rawText, icao) {
   if (!rawText || !icao) return [];
-
-  // "|#1|" ile başlayan ilk NOTAM bloğunu bul
   const startIdx = rawText.indexOf('|#1|');
   if (startIdx === -1) return [];
-
-  // "End of NOTAM information" ile bitir
   const endIdx = rawText.search(/End of NOTAM information/i);
   const section = rawText.slice(startIdx, endIdx !== -1 ? endIdx : startIdx + 80000);
-
-  // Tüm NOTAM bloklarını |#N| ile ayır
   const blocks = section.split(/\|#\d+\|[^\n]*/);
-
   const items = [];
   for (const block of blocks) {
     const t = block.trim();
     if (t.length < 20) continue;
-
-    // A) field'ında bu ICAO var mı?
     if (!new RegExp(`\\bA\\)\\s*${icao}\\b`).test(t)) continue;
-
-    // NOTAM ID
     const idMatch = t.match(/([A-Z]\d+\/\d+\s+NOTAM[RNC]?)/);
     const id   = idMatch?.[1]?.trim() || t.slice(0, 15) || 'NOTAM';
     const type = t.match(/\[([^\]]+)\]/)?.[1] || '';
-
-    // E) field — \nE) veya sadece E)
     let eStart = t.indexOf('\nE)');
     if (eStart === -1) eStart = t.indexOf(' E)');
     if (eStart === -1) continue;
@@ -325,7 +343,6 @@ function parseNotams(rawText, icao) {
     const fIdx   = afterE.search(/\n[A-GQ]\)\s/);
     const text   = (fIdx !== -1 ? afterE.slice(0, fIdx) : afterE).replace(/\s+/g, ' ').trim();
     if (!text || text.length < 5) continue;
-
     const u = text.toUpperCase();
     const color =
       /\bCLSD\b|\bCLOSED\b|\bU\/S\b|\bUNSERVICEABLE\b|\bPROHIBITED\b/.test(u) ? '#e02020' :
@@ -338,35 +355,28 @@ function parseNotams(rawText, icao) {
 
 function NOTAM({ activePlan, rawText }) {
   const [tab, setTab] = usePersistedState('efb_notam_tab', 'dep');
-
   const depIcao  = activePlan?.dep       || '—';
   const destIcao = activePlan?.dest      || '—';
   const altIcao  = activePlan?.alternate || '—';
-
   const tabs = [
     { id:'dep',  label:'Departure',   icao:depIcao  },
     { id:'dest', label:'Destination', icao:destIcao },
     { id:'alt',  label:'Alternate',   icao:altIcao  },
   ];
-
   const items = useMemo(() => parseNotams(rawText, tabs.find(t=>t.id===tab)?.icao), // eslint-disable-line
   [rawText, tab, depIcao, destIcao, altIcao]); // eslint-disable-line
-
   const apName = { dep:`${depIcao} — Departure`, dest:`${destIcao} — Destination`, alt:`${altIcao} — Alternate` }[tab];
-
   const keywords = [
     { words:['CLSD','CLOSED','U/S','UNSERVICEABLE','PROHIBITED'], color:'#e02020', bold:true  },
     { words:['INOP','LIMITED','RESTRICTED','SUSPEND'],             color:'#e8731a', bold:false },
     { words:['WIP','CONST','CONSTRUCTION'],                        color:'#f0c040', bold:false },
   ];
   const kwRe = new RegExp('\\b(' + keywords.flatMap(r=>r.words).map(w=>w.replace(/\//g,'\\/')).join('|') + ')\\b','gi');
-
   const highlight = (text) =>
     text.split(kwRe).map((part,i) => {
       const rule = keywords.find(r=>r.words.includes(part.toUpperCase()));
       return <span key={i} style={{ color:rule?rule.color:'#888', fontWeight:rule?.bold?700:400 }}>{part}</span>;
     });
-
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
       <div style={{ display:'flex', background:'#1a1a1a', borderBottom:'1px solid #383838', flexShrink:0 }}>
@@ -406,40 +416,26 @@ function NOTAM({ activePlan, rawText }) {
 // ─── WXR Charts ───────────────────────────────────────────────────────────────
 function WXRCharts({ rawText }) {
   const [sel, setSel] = usePersistedState('efb_wxrchart_sel', null);
-
   const charts = useMemo(() => {
     if (!rawText) return [];
     const result = [];
-    console.log('[CHARTS] rawText length:', rawText.length);
-    console.log('[CHARTS] hasWindTemp:', rawText.includes('WIND/TEMPERATURE'));
-    console.log('[CHARTS] hasVCS:', rawText.includes('VERTICAL CROSS SECTION'));
-    console.log('[CHARTS] hasSigWx:', rawText.includes('SIGNIFICANT WEATHER'));
-
-    // Wind/Temp charts
     const windRe = /WIND\/TEMPERATURE\s*\n\s*(FL\s*\d+)\s*\n\s*PROGNOSTIC CHART\s*\n\s*([A-Z]+ - [A-Z]+)\s*\n\s*VALID\s+([^\n]+)/g;
     let m;
     while ((m = windRe.exec(rawText)) !== null) {
       result.push({ type:'wind', label:`Wind/Temp ${m[1].trim()}`, fl:m[1].trim(), route:m[2].trim(), valid:m[3].trim() });
     }
-
-    // Vertical Cross Section
     const vcsM = rawText.match(/VERTICAL CROSS SECTION ALONG THE ROUTE ([^\n]+)/);
     if (vcsM) result.push({ type:'vcs', label:'Vertical Cross Section', route:vcsM[1].trim() });
-
-    // SigWx
     const swM = rawText.match(/SIGNIFICANT WEATHER\s*\nFIXED TIME PROGNOSTIC CHART\s*\nROUTE ([^\n]+)\s*\n([^\n]+)\s*\nVALID\s+([^\n]+)/);
     if (swM) {
-      const cb    = rawText.match(/CB CLOUD AREAS\s*([\s\S]*?)ICING AREAS/)?.[1]?.trim()       || '';
-      const icing = rawText.match(/ICING AREAS\s*([\s\S]*?)TURBULENCE AREAS/)?.[1]?.trim()      || '';
-      const turb  = rawText.match(/TURBULENCE AREAS\s*([\s\S]*?)VOLCANIC/)?.[1]?.trim()         || '';
+      const cb    = rawText.match(/CB CLOUD AREAS\s*([\s\S]*?)ICING AREAS/)?.[1]?.trim()  || '';
+      const icing = rawText.match(/ICING AREAS\s*([\s\S]*?)TURBULENCE AREAS/)?.[1]?.trim() || '';
+      const turb  = rawText.match(/TURBULENCE AREAS\s*([\s\S]*?)VOLCANIC/)?.[1]?.trim()    || '';
       result.push({ type:'sigwx', label:`SigWx ${swM[2].trim()}`, route:swM[1].trim(), level:swM[2].trim(), valid:swM[3].trim(), cb, icing, turb });
     }
-
     return result;
   }, [rawText]);
-
   const active = charts.find(c => c.label === sel) || null;
-
   if (!rawText || charts.length === 0) {
     return (
       <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, padding:20 }}>
@@ -448,14 +444,12 @@ function WXRCharts({ rawText }) {
       </div>
     );
   }
-
   const block = (color, label, content) => content ? (
     <div style={{ marginBottom:10 }}>
       <div style={{ fontSize:9, color, fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:4 }}>{label}</div>
       <div style={{ background:'rgba(0,0,0,0.2)', borderLeft:`3px solid ${color}`, borderRadius:4, padding:'6px 10px', fontFamily:'monospace', fontSize:10, lineHeight:1.7, whiteSpace:'pre-wrap', color: color+'cc' }}>{content}</div>
     </div>
   ) : null;
-
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
       <div style={{ flexShrink:0, borderBottom:'1px solid #383838' }}>
@@ -478,7 +472,7 @@ function WXRCharts({ rawText }) {
             <div style={{ fontSize:11, fontWeight:700, color:'#1a9bc4', marginBottom:6 }}>{active.label} · {active.route}</div>
             <div style={{ fontSize:10, color:'#555', marginBottom:10 }}>Valid: {active.valid}</div>
             <div style={{ padding:'8px 10px', background:'rgba(26,155,196,0.06)', borderRadius:6, fontSize:10, color:'#888', lineHeight:1.6 }}>
-              Wind/Temperature grid data is in the plan PDF. See NavLog for per-waypoint wind components (H=headwind, T=tailwind).
+              Wind/Temperature grid data is in the plan PDF. See NavLog for per-waypoint wind components.
             </div>
           </div>
         )}
@@ -486,7 +480,7 @@ function WXRCharts({ rawText }) {
           <div>
             <div style={{ fontSize:11, fontWeight:700, color:'#1a9bc4', marginBottom:6 }}>Vertical Cross Section · {active.route}</div>
             <div style={{ padding:'8px 10px', background:'rgba(26,155,196,0.06)', borderRadius:6, fontSize:10, color:'#888', lineHeight:1.6 }}>
-              Wind, temperature, tropopause, icing and turbulence forecast by waypoint. See NavLog for per-waypoint data.
+              Wind, temperature, tropopause, icing and turbulence forecast by waypoint.
             </div>
           </div>
         )}
@@ -497,9 +491,6 @@ function WXRCharts({ rawText }) {
             {block('#e02020', 'CB Cloud Areas',   active.cb)}
             {block('#e8731a', 'Icing Areas',      active.icing)}
             {block('#f0c040', 'Turbulence Areas', active.turb)}
-            <div style={{ padding:'8px 10px', background:'rgba(255,255,255,0.03)', borderRadius:6, fontSize:10, color:'#555', lineHeight:1.6, marginTop:6 }}>
-              ℹ Visual SigWx chart is in the original PDF (last pages).
-            </div>
           </div>
         )}
       </div>
@@ -512,14 +503,12 @@ function EFP({ setStatus, activePlan, rawText = '' }) {
   const [activeTab, setActiveTab] = usePersistedState('efb_efp_activeTab', 'fl-plan');
   const [seenTabs,  setSeenTabs]  = usePersistedState('efb_efp_seenTabs',  []);
 
-  // seenTabs güncelle
   useEffect(() => {
     if (seenTabs.includes(activeTab)) return;
     const t = setTimeout(() => setSeenTabs(prev => [...prev, activeTab]), 1000);
     return () => clearTimeout(t);
   }, [activeTab]); // eslint-disable-line
 
-  // Status güncelle
   useEffect(() => {
     if (!setStatus) return;
     if (seenTabs.length === ALL_TABS.length) setStatus('green');
@@ -542,11 +531,11 @@ function EFP({ setStatus, activePlan, rawText = '' }) {
 
       <div style={{ display:'flex', background:'#1a1a1a', borderBottom:'1px solid #383838', flexShrink:0, overflowX:'auto' }}>
         {[
-          { id:'fl-plan',    label:'FL Plan'         },
-          { id:'atc-plan',   label:'ATC Flight Plan'  },
-          { id:'wxr',        label:'WXR'              },
-          { id:'notam',      label:'NOTAM'            },
-          { id:'wxr-charts', label:'WXR Charts'       },
+          { id:'fl-plan',    label:'FL Plan'        },
+          { id:'atc-plan',   label:'ATC Flight Plan' },
+          { id:'wxr',        label:'WXR'             },
+          { id:'notam',      label:'NOTAM'           },
+          { id:'wxr-charts', label:'WXR Charts'      },
         ].map(t => (
           <div key={t.id} onClick={() => setActiveTab(t.id)}
             style={{ padding:'9px 14px', whiteSpace:'nowrap', fontSize:11, fontWeight:600, cursor:'pointer', color:activeTab===t.id?'#1a9bc4':'#555', borderBottom:activeTab===t.id?'2px solid #1a9bc4':'2px solid transparent' }}>
