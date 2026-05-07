@@ -362,8 +362,4 @@ function Layout({ activePage, onNavigate, title, children, flightInfo, pageStatu
     </div>
   );
 }
-
-export default Layout;cd /workspaces/letsgo2fly-efb/efb
-git add src/components/Layout.js
-git commit -m "feat: AMC 20-25 version management - About EFB modal"
-git push
+export default Layout;

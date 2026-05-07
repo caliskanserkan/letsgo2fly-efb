@@ -377,6 +377,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     if (!gpsWarningAccepted) { setShowGpsWarning(true); return; }
     startGPS();
   };
+  const dep  = activePlan?.dep  || 'DEP';
   const dest = activePlan?.dest || 'DEST';
   const std  = activePlan?.std  || '';
 
