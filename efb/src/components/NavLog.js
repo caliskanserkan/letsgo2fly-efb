@@ -76,6 +76,27 @@ function getFuelDestColor(fuel) {
   return '#2d9e5f';
 }
 
+// ─── Zaman Yardımcıları ───────────────────────────────────────────────────────
+function toMins(t) {
+  if (!t || !t.includes(':')) return null;
+  const [h, m] = t.split(':').map(Number);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+}
+
+function fromMins(m) {
+  if (m === null || m === undefined) return null;
+  const n = ((m % 1440) + 1440) % 1440;
+  return `${String(Math.floor(n / 60)).padStart(2,'0')}:${String(n % 60).padStart(2,'0')}`;
+}
+
+function fmtDev(dev) {
+  if (dev === null || dev === undefined) return null;
+  if (dev === 0) return { label: '±0', color: '#2d9e5f' };
+  if (dev > 0)   return { label: `+${dev}`, color: '#e8731a' };
+  return { label: `${dev}`, color: '#2d9e5f' };
+}
+
 function TimeBox({ value, onChange, placeholder }) {
   const handleChange = (e) => {
     let v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
@@ -206,7 +227,7 @@ function ArrivalModal({ wptName, isDivert, onClose, onSave, onDivert, initial })
 }
 
 // ─── Wpt Modal (Add Before/After + Delete dahil) ─────────────────────────────
-function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initial, wptList }) {
+function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initial, wptList, estimatedATA, estimatedFuel, plannedFuel }) {
   const [ata,     setAta]     = useState(initial.ata  || '');
   const [fuel,    setFuel]    = useState(initial.fuel || '');
   const [rvsm,    setRvsm]    = useState(initial.rvsm || '');
@@ -233,14 +254,37 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
         <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:14 }}>
           {/* ATA */}
           <div>
-            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>ATA</div>
-            <TimeBox value={ata} onChange={setAta} />
+            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span>ATA</span>
+              {estimatedATA && !ata && (
+                <span style={{ fontSize:10, color:'#555', fontStyle:'italic' }}>
+                  Est: <span style={{ color:'#888', fontFamily:'monospace' }}>{estimatedATA}</span>
+                  <button onClick={() => setAta(estimatedATA)}
+                    style={{ marginLeft:6, background:'rgba(26,155,196,0.15)', border:'1px solid rgba(26,155,196,0.3)', borderRadius:4, padding:'1px 7px', fontSize:9, color:'#1a9bc4', cursor:'pointer', fontFamily:'inherit' }}>
+                    Use
+                  </button>
+                </span>
+              )}
+            </div>
+            <TimeBox value={ata} onChange={setAta} placeholder={estimatedATA || 'HH:MM'} />
           </div>
 
           {/* Fuel */}
           <div>
-            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>Fuel Remaining</div>
-            <FuelBox value={fuel} onChange={setFuel} />
+            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span>Fuel Remaining</span>
+              {estimatedFuel && !fuel && (
+                <span style={{ fontSize:10, color:'#555', fontStyle:'italic' }}>
+                  Est: <span style={{ color:'#888', fontFamily:'monospace' }}>{estimatedFuel.toLocaleString()}</span>
+                  {plannedFuel && <span style={{ color:'#444', marginLeft:4 }}>Plan: {plannedFuel.toLocaleString()}</span>}
+                  <button onClick={() => setFuel(String(estimatedFuel))}
+                    style={{ marginLeft:6, background:'rgba(26,155,196,0.15)', border:'1px solid rgba(26,155,196,0.3)', borderRadius:4, padding:'1px 7px', fontSize:9, color:'#1a9bc4', cursor:'pointer', fontFamily:'inherit' }}>
+                    Use
+                  </button>
+                </span>
+              )}
+            </div>
+            <FuelBox value={fuel} onChange={setFuel} placeholder={estimatedFuel ? String(estimatedFuel) : 'lb'} />
           </div>
 
           {/* RVSM — herkeste göster */}
@@ -531,6 +575,144 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     return idx > fromIdx && idx < toIdx;
   };
 
+  // ── Otomatik ATA tahmini ──────────────────────────────────────────────────
+  // T/O actual girilince tüm sonraki noktaların ETA'sını offset ile hesaplar
+  // Bir noktaya actual girilince o noktadan itibaren yeniden hesaplar
+  const getAutoATA = (wpt, idx) => {
+    if (!wpt.eta || wpt.eta === '—') return null;
+    const planEta = toMins(wpt.eta);
+    if (planEta === null) return null;
+
+    // Referans noktayı bul: bu noktadan önce actual girilen en son nokta
+    let refActualMins = null;
+    let refPlanMins   = null;
+
+    // DEP T/O saatini kontrol et
+    const depEntry = entries[dep] || {};
+    if (depEntry.toTime) {
+      const std = activePlan?.std || '';
+      const planTO = toMins(std);
+      const actualTO = toMins(depEntry.toTime);
+      if (planTO !== null && actualTO !== null) {
+        refActualMins = actualTO;
+        refPlanMins   = planTO;
+      }
+    }
+
+    // Bu noktadan önceki actual ATA'ları tara
+    for (let i = 1; i < idx; i++) {
+      const w = waypoints[i];
+      if (!w.eta || w.eta === '—') continue;
+      const e = entries[w.uid] || {};
+      const actualTime = e.ata;
+      if (!actualTime) continue;
+      const actualMins = toMins(actualTime);
+      const planMins   = toMins(w.eta);
+      if (actualMins !== null && planMins !== null) {
+        refActualMins = actualMins;
+        refPlanMins   = planMins;
+      }
+    }
+
+    if (refActualMins === null) return null;
+    const offset = refActualMins - refPlanMins;
+    return fromMins(planEta + offset);
+  };
+
+  // Sapma hesabı (actual - planned, dakika)
+  const getDeviation = (wpt) => {
+    if (!wpt.eta || wpt.eta === '—') return null;
+    const e = entries[wpt.uid] || {};
+    const actualTime = wpt.type === 'dep'
+      ? e.toTime
+      : (wpt.type === 'dest' || wpt.type === 'divert-arpt')
+        ? e.lndTime
+        : e.ata;
+    if (!actualTime) return null;
+    const planMins   = toMins(wpt.eta);
+    const actualMins = toMins(actualTime);
+    if (planMins === null || actualMins === null) return null;
+    return actualMins - planMins;
+  };
+
+  // ── Otomatik Yakıt Tahmini ────────────────────────────────────────────────
+  // OFP trip fuel / trip time = burn rate (lb/dk)
+  // Son girilen yakıt entry'sinden sonraki noktaları projeksiyon ile hesaplar
+  const getBurnRate = () => {
+    const tripFuel = activePlan?.trip_fuel ? parseInt(activePlan.trip_fuel) : null;
+    const std = activePlan?.std;
+    const eta = activePlan?.eta;
+    if (!tripFuel || !std || !eta) return null;
+    const totalMins = toMins(eta) - toMins(std);
+    if (!totalMins || totalMins <= 0) return null;
+    return tripFuel / totalMins; // lb per minute
+  };
+
+  const getAutoFuel = (wpt, idx) => {
+    if (!wpt.eta || wpt.eta === '—') return null;
+    const wptEtaMins = toMins(wpt.eta);
+    if (wptEtaMins === null) return null;
+
+    const burnRate = getBurnRate();
+    if (!burnRate) return null;
+
+    // Referans: son gerçek yakıt girişi
+    const depEntry = entries[dep] || {};
+    let lastFuel   = depEntry.toFuel ? parseInt(depEntry.toFuel.replace(/,/g,'')) : null;
+    let lastEtaMins = toMins(activePlan?.std || '');
+
+    for (let i = 1; i < idx; i++) {
+      const w = waypoints[i];
+      if (!w.eta || w.eta === '—') continue;
+      const e = entries[w.uid] || {};
+      if (!e.fuel) continue;
+      const fuelNum = parseInt(e.fuel.replace(/,/g,''));
+      const etaMins = toMins(w.eta);
+      if (!isNaN(fuelNum) && etaMins !== null) {
+        lastFuel    = fuelNum;
+        lastEtaMins = etaMins;
+      }
+    }
+
+    if (lastFuel === null || lastEtaMins === null) return null;
+    const elapsed = wptEtaMins - lastEtaMins;
+    if (elapsed <= 0) return null;
+    const estimated = Math.round(lastFuel - burnRate * elapsed);
+    return estimated > 0 ? estimated : null;
+  };
+
+  // Planlanan yakıt (OFP oransal) — sapmayı buna göre hesapla
+  const getPlanFuelAt = (wpt) => {
+    if (!wpt.eta || wpt.eta === '—') return null;
+    const depEntry = entries[dep] || {};
+    const toFuelNum = depEntry.toFuel ? parseInt(depEntry.toFuel.replace(/,/g,'')) : null;
+    if (!toFuelNum) return null;
+    const burnRate = getBurnRate();
+    if (!burnRate) return null;
+    const std = activePlan?.std;
+    if (!std) return null;
+    const elapsed = toMins(wpt.eta) - toMins(std);
+    if (!elapsed || elapsed <= 0) return null;
+    return Math.round(toFuelNum - burnRate * elapsed);
+  };
+
+  const getFuelDeviation = (wpt) => {
+    const e = entries[wpt.uid] || {};
+    const fuelStr = e.fuel;
+    if (!fuelStr) return null;
+    const actual  = parseInt(fuelStr.replace(/,/g,''));
+    const planned = getPlanFuelAt(wpt);
+    if (!planned) return null;
+    return actual - planned; // + daha fazla yakıt = iyi, - daha az = kötü
+  };
+
+  const fmtFuelDev = (dev) => {
+    if (dev === null || dev === undefined) return null;
+    const abs = Math.abs(dev);
+    if (abs < 50) return { label: '±0', color: '#2d9e5f' };
+    if (dev > 0)  return { label: `+${dev.toLocaleString()}`, color: '#2d9e5f' };
+    return { label: dev.toLocaleString(), color: '#e02020' };
+  };
   const toFuel       = getToFuel();
   const lastCheckStr = lastCheckTime ? new Date(lastCheckTime).toTimeString().slice(0,5) + ' Z' : '—';
   const modalWpt     = waypoints.find(w => w.uid === modal);
@@ -610,12 +792,18 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
             const pe = entries[w.uid] || {};
             return w.type === 'dep' ? !!(pe.offBlock || pe.toTime) : !!(pe.ata || pe.fuel || pe.lndTime) || isSkipped(w, wi);
           }));
-          const fuelAtDest = getFuelAtWpt(wpt);
-          const fuelColor  = getFuelDestColor(fuelAtDest);
-          const rowBg      = isDivArpt ? 'rgba(255,149,0,0.08)' : skipped ? '#1e1e1e' : isDone ? '#1f2a1f' : isActive ? 'rgba(26,155,196,0.06)' : '#242424';
-          const borderLeft = isDivArpt ? '3px solid #e8731a' : isActive ? '3px solid #1a9bc4' : isDone ? '3px solid #2d9e5f' : '3px solid transparent';
-          const nameColor  = isDivArpt ? '#e8731a' : isDep||isDest ? '#1a9bc4' : isDone ? '#2d9e5f' : isActive ? '#1a9bc4' : wpt.custom ? '#ff9500' : '#666';
-          const rvsmDisp   = e.rvsm ? e.rvsm.split('/')[0] + '…' : (isDep || isArrival ? 'N/A' : '—');
+          const fuelAtDest  = getFuelAtWpt(wpt);
+          const fuelColor   = getFuelDestColor(fuelAtDest);
+          const rowBg       = isDivArpt ? 'rgba(255,149,0,0.08)' : skipped ? '#1e1e1e' : isDone ? '#1f2a1f' : isActive ? 'rgba(26,155,196,0.06)' : '#242424';
+          const borderLeft  = isDivArpt ? '3px solid #e8731a' : isActive ? '3px solid #1a9bc4' : isDone ? '3px solid #2d9e5f' : '3px solid transparent';
+          const nameColor   = isDivArpt ? '#e8731a' : isDep||isDest ? '#1a9bc4' : isDone ? '#2d9e5f' : isActive ? '#1a9bc4' : wpt.custom ? '#ff9500' : '#666';
+          const rvsmDisp    = e.rvsm ? e.rvsm.split('/')[0] + '…' : (isDep || isArrival ? 'N/A' : '—');
+
+          // ATA: actual, yoksa tahmini
+          const actualATA   = isDep ? e.toTime : isArrival ? e.lndTime : e.ata;
+          const autoATA     = !actualATA ? getAutoATA(wpt, idx) : null;
+          const deviation   = getDeviation(wpt);
+          const devFmt      = fmtDev(deviation);
 
           // Bu satırdan SONRA uçak simgesi eklenecek mi?
           const showAcAfter = gpsActive && acPosition && acPosition.prev === wpt.uid && acPosition.next;
@@ -633,15 +821,45 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
                   {directTo?.from === wpt.uid && directTo?.to && <div style={{ fontSize:9, color:'#ff9500', marginTop:1 }}>→ {waypoints.find(w=>w.uid===directTo.to)?.name}</div>}
                 </div>
                 <div style={{ fontSize:11, color:'#555', fontFamily:'monospace' }}>{wpt.eta}</div>
-                <div style={{ fontSize:11, fontFamily:'monospace', color: isDone ? '#2d9e5f' : '#444' }}>
-                  {isDep ? (e.toTime||'—') : isArrival ? (e.lndTime||'—') : (e.ata||'—')}
+                <div style={{ fontSize:11, fontFamily:'monospace' }}>
+                  {actualATA ? (
+                    <div>
+                      <span style={{ color:'#2d9e5f', fontWeight:700 }}>{actualATA}</span>
+                      {devFmt && <span style={{ fontSize:9, color:devFmt.color, marginLeft:3, fontWeight:700 }}>{devFmt.label}</span>}
+                    </div>
+                  ) : autoATA ? (
+                    <div>
+                      <span style={{ color:'#555', fontStyle:'italic' }}>{autoATA}</span>
+                      <span style={{ fontSize:8, color:'#444', marginLeft:2 }}>est</span>
+                    </div>
+                  ) : (
+                    <span style={{ color:'#333' }}>—</span>
+                  )}
                 </div>
                 <div style={{ fontSize:11, color:'#777', fontFamily:'monospace' }}>{wpt.fl}</div>
-                <div style={{ fontSize:11, fontFamily:'monospace', color: isDone ? '#2d9e5f' : '#444' }}>
-                  {isDep ? (e.toFuel ? parseInt(e.toFuel.replace(/,/g,'')).toLocaleString() : '—')
-                  : isArrival ? (e.remFuel ? parseInt(e.remFuel.replace(/,/g,'')).toLocaleString() : '—')
-                  : (e.fuel ? parseInt(e.fuel.replace(/,/g,'')).toLocaleString() : '—')}
-                </div>
+                {(() => {
+                  const actualFuelStr = isDep ? e.toFuel : isArrival ? e.remFuel : e.fuel;
+                  const actualFuelNum = actualFuelStr ? parseInt(actualFuelStr.replace(/,/g,'')) : null;
+                  const autoFuelNum   = !actualFuelNum && !isDep ? getAutoFuel(wpt, idx) : null;
+                  const fuelDev       = !isDep && !isArrival ? fmtFuelDev(getFuelDeviation(wpt)) : null;
+                  return (
+                    <div style={{ fontSize:11, fontFamily:'monospace' }}>
+                      {actualFuelNum ? (
+                        <div>
+                          <span style={{ color:'#2d9e5f', fontWeight:700 }}>{actualFuelNum.toLocaleString()}</span>
+                          {fuelDev && <div style={{ fontSize:9, color:fuelDev.color, fontWeight:700 }}>{fuelDev.label}</div>}
+                        </div>
+                      ) : autoFuelNum ? (
+                        <div>
+                          <span style={{ color:'#555', fontStyle:'italic' }}>{autoFuelNum.toLocaleString()}</span>
+                          <span style={{ fontSize:8, color:'#444', marginLeft:2 }}>est</span>
+                        </div>
+                      ) : (
+                        <span style={{ color:'#333' }}>—</span>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div style={{ fontSize:10, color: e.rvsm ? '#2d9e5f' : '#444', fontFamily:'monospace' }}>{rvsmDisp}</div>
                 <div style={{ fontSize:11, fontWeight: fuelAtDest ? 700 : 400, color: fuelAtDest ? fuelColor : '#333', fontFamily:'monospace' }}>
                   {fuelAtDest ? fuelAtDest.toLocaleString() : '—'}
@@ -744,6 +962,9 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
       {modal && modal !== dep && modalWpt && modalWpt.type === 'wpt' && (() => {
         const wptIdx   = waypoints.findIndex(w => w.uid === modal);
         const afterWpt = waypoints.filter((w, i) => i > wptIdx && w.type !== 'dest' && w.type !== 'divert-arpt');
+        const estATA   = getAutoATA(modalWpt, wptIdx);
+        const estFuel  = getAutoFuel(modalWpt, wptIdx);
+        const planFuel = getPlanFuelAt(modalWpt);
         return (
           <WptModal
             wpt={modalWpt}
@@ -754,6 +975,9 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
             onDelete={() => handleDeleteWpt(modal)}
             initial={entries[modal] || {}}
             wptList={afterWpt}
+            estimatedATA={estATA}
+            estimatedFuel={estFuel}
+            plannedFuel={planFuel}
           />
         );
       })()}
