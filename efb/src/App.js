@@ -310,7 +310,14 @@ function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate }) {
             {active ? 'Open →' : '+ Activate'}
           </button>
         )}
-        {archived && <span style={{ marginLeft:'auto', fontSize:10, color:'#444', fontWeight:700 }}>🔒 Read Only</span>}
+        {archived && (
+          <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:10, color:'#555', fontWeight:700 }}>🔒 Read Only</span>
+            <button onClick={onOpen} style={{ background:'rgba(100,100,100,0.15)', border:'1px solid #555', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#888', cursor:'pointer', fontFamily:'inherit' }}>
+              View →
+            </button>
+          </div>
+        )}
         {plan.archived_at && archived && (
           <div style={{ fontSize:10, color:'#555', width:'100%', marginTop:4 }}>
             Archived: {new Date(plan.archived_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
@@ -550,7 +557,7 @@ function parseWxrChartsFromRawText(rawText) {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate, onDeactivate }) {
+function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate, onDeactivate }) {
   const [tab, setTab]                       = useState('active');
   const [availablePlans, setAvailablePlans] = useState([]);
   const [activePlans, setActivePlans]       = useState([]);
@@ -561,11 +568,10 @@ function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate, onDeactivate }
   const loadPlans = async () => {
     setLoading(true);
     try {
-      const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
       const [avail, active, archived] = await Promise.all([
         supabase.from('plans').select('*').eq('status', 'available').order('created_at', { ascending: false }),
         supabase.from('plans').select('*').eq('status', 'active').order('created_at', { ascending: false }),
-        supabase.from('plans').select('*').eq('status', 'archived').gte('archived_at', fifteenDaysAgo).order('archived_at', { ascending: false }),
+        supabase.from('plans').select('*').eq('status', 'archived').order('archived_at', { ascending: false, nullsFirst: false }).limit(100),
       ]);
       setAvailablePlans(avail.data || []);
       setActivePlans(active.data || []);
@@ -724,13 +730,29 @@ function Dashboard({ onOpen, user, onLogout, onAdmin, onActivate, onDeactivate }
         )}
         {tab === 'archive' && (
           <>
-            <div style={{ padding:'8px 4px 10px', fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>Last 15 days · Read Only</div>
+            <div style={{ padding:'8px 4px 10px', fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>Archived Plans · Read Only</div>
             {loading && <div style={{ textAlign:'center', color:'#555', fontSize:12, padding:20 }}>Loading...</div>}
             {!loading && archivedPlans.length === 0 && (
-              <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No archived flights in the last 15 days.</div>
+              <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No archived flights.</div>
             )}
             {archivedPlans.map((p, i) => (
-              <PlanCard key={i} plan={planCard(p)} active={false} archived={true} />
+              <PlanCard key={i} plan={planCard(p)} active={false} archived={true}
+                onOpen={async () => {
+                  try {
+                    const { data: version } = await supabase
+                      .from('plan_versions')
+                      .select('raw_text')
+                      .eq('plan_id', p.id)
+                      .order('version_no', { ascending: false })
+                      .limit(1)
+                      .single();
+                    if (version?.raw_text) {
+                      try { localStorage.setItem('efb_rawText', version.raw_text); } catch {}
+                    }
+                  } catch {}
+                  onOpenArchived({ ...p, readOnly: true });
+                }}
+              />
             ))}
           </>
         )}
@@ -909,6 +931,10 @@ function App() {
   if (page === 'dashboard') return (
     <Dashboard
       onOpen={() => navigate('flt-crew')}
+      onOpenArchived={(plan) => {
+        setActivePlan(plan);
+        navigate('flt-crew');
+      }}
       user={user}
       onLogout={handleLogout}
       onAdmin={() => { setAdminPin(''); setAdminPinError(''); setShowAdminAuth(true); }}
@@ -924,6 +950,15 @@ function App() {
   return (
     <Layout activePage={activePage} onNavigate={navigate} title={layoutTitle} pageStatus={pageStatus}>
       <OfflineBanner offlineSince={offlineSince} />
+      {activePlan?.readOnly && (
+        <div style={{ background:'rgba(100,100,100,0.15)', borderBottom:'2px solid #555', padding:'7px 16px', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+          <span style={{ fontSize:14 }}>🔒</span>
+          <span style={{ fontSize:12, fontWeight:700, color:'#888' }}>READ ONLY — Archived Flight</span>
+          <span style={{ fontSize:11, color:'#555', marginLeft:4 }}>
+            {activePlan.archived_at ? `Archived: ${new Date(activePlan.archived_at).toLocaleDateString('en-GB')}` : ''}
+          </span>
+        </div>
+      )}
       {activePage === 'flt-crew'  && <FlightCrew  setStatus={setStatusFltCrew}   activePlan={activePlan} />}
       {activePage === 'mandatory' && <Mandatory   setStatus={setStatusMandatory} activePlan={activePlan} />}
       {activePage === 'efp'       && <EFP         setStatus={setStatusEfp}       activePlan={activePlan} rawText={rawText} />}
