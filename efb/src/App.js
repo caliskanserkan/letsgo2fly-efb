@@ -846,8 +846,7 @@ function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setUser(session.user);
-        const savedPlan = lsGet(LS.PLAN, null);
-        setPage(savedPlan ? 'operational' : 'dashboard');
+        setPage('dashboard');
       } else {
         setPage('login');
       }
