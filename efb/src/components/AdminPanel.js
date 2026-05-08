@@ -343,7 +343,7 @@ function ActiveFlts({ toast }) {
 }
 
 // ─── 2. Archived FLTs ─────────────────────────────────────────────────────────
-function ArchivedFlts({ toast }) {
+function ArchivedFlts({ toast, user }) {
   const [flights,     setFlights]     = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [selected,    setSelected]    = useState(null);
@@ -421,49 +421,65 @@ function ArchivedFlts({ toast }) {
     if (upErr) { toast(upErr.message, 'error'); setSaving(false); return; }
 
     // admin_edits log
-    for (const [k, v] of changes) {
-      await supabase.from('admin_edits').insert({
-        archived_flight_id: sel.id,
-        plan_id: sel.plan_id,
-        field_name: k,
-        old_value: String(sel[k] ?? ''),
-        new_value: String(v),
-        reason,
-      });
-    }
+for (const [k, v] of changes) {
+  const { error: logErr } = await supabase.from('admin_edits').insert({
+    archived_flight_id: sel.id,
+    plan_id:            sel.plan_id,
+    field_name:         k,
+    old_value:          String(sel[k] ?? ''),
+    new_value:          String(v),
+    reason,
+    edit_type:          'EDIT',
+    edited_by:          user?.id ?? null,
+  });
+  if (logErr) {
+    toast(`Log error: ${logErr.message}`, 'error');
+    setSaving(false);
+    return;
+  }
+}
     toast(`${changes.length} field(s) updated and logged.`, 'success');
     setEditModal(false);
     setSaving(false);
     fetch();
   };
 
-  const handleDelete = async () => {
-    if (!deleteReason) { toast('Reason is mandatory.', 'error'); return; }
-    setSaving(true);
-    // Log before delete
-    await supabase.from('admin_edits').insert({
-      archived_flight_id: sel.id,
-      plan_id: sel.plan_id,
-      field_name: 'RECORD_DELETED',
-      old_value: sel.id,
-      new_value: 'DELETED',
-      reason: deleteReason,
-      edit_type: 'DELETE',
-    });
-    // archived_flights kaydını sil
-    const { error } = await supabase.from('archived_flights').delete().eq('id', sel.id);
-    if (error) { toast(error.message, 'error'); setSaving(false); return; }
-    // plans tablosunda status → deleted (listelerden kalksın)
-    if (sel.plan_id) {
-      await supabase.from('plans').update({ status: 'deleted' }).eq('id', sel.plan_id);
-    }
-    toast('Record deleted and logged.', 'success');
-    setDeleteModal(false);
-    setSelected(null);
-    setDeleteReason('');
-    setSaving(false);
-    fetch();
-  };
+const handleDelete = async () => {
+  if (!deleteReason) { toast('Reason is mandatory.', 'error'); return; }
+  setSaving(true);
+
+  // 1. Log yaz
+  const { error: logErr } = await supabase.from('admin_edits').insert({
+    archived_flight_id: sel.id,
+    plan_id:            sel.plan_id,
+    field_name:         'RECORD_DELETED',
+    old_value:          String(sel.id),
+    new_value:          'DELETED',
+    reason:             deleteReason,
+    edit_type:          'DELETE',
+    edited_by:          user?.id ?? null,
+  });
+  if (logErr) { toast(`Log failed: ${logErr.message}`, 'error'); setSaving(false); return; }
+
+  // 2. archived_flights sil
+  const { error: delErr } = await supabase.from('archived_flights').delete().eq('id', sel.id);
+  if (delErr) { toast(`Delete failed: ${delErr.message}`, 'error'); setSaving(false); return; }
+
+  // 3. plans.status → 'deleted'
+  if (sel.plan_id) {
+    const { error: planErr } = await supabase.from('plans')
+      .update({ status: 'deleted' })
+      .eq('id', sel.plan_id);
+    if (planErr) toast(`Plan status warning: ${planErr.message}`, 'error');
+  }
+
+  toast('Record deleted and logged.', 'success');
+  setDeleteModal(false);
+  setSelected(null);
+  setDeleteReason('');
+  setSaving(false);
+  fetch();
+};
 
   const EF = ({ label, k, type = 'text' }) => (
     <div style={{ marginBottom: 10 }}>
@@ -1606,7 +1622,7 @@ export default function AdminPanel({ onBack }) {
 
           <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
             {tab === 'active'   && <ActiveFlts      toast={showToast} />}
-            {tab === 'archived' && <ArchivedFlts    toast={showToast} />}
+            {tab === 'archived' && <ArchivedFlts toast={showToast} user={user} />}
             {tab === 'aircrafts'&& <Aircrafts       toast={showToast} />}
             {tab === 'crews'    && <Crews           toast={showToast} />}
             {tab === 'stats'    && <Statistics      toast={showToast} />}

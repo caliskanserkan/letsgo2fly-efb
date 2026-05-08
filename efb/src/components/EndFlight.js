@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import SyncButton from './SyncButton';
 import { supabase, logEvent } from '../supabaseClient';
 import { usePersistedState } from '../hooks/usePersistedState';
+import { AdminEditsHistory } from './AdminPanel';
 
 function Sep() {
   return <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />;
@@ -73,10 +74,11 @@ function parseDestCoords(rawText) {
 }
 
 function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
-  const [pax,       setPax]       = usePersistedState('efb_endflt_pax',      '');
-  const [cycles,    setCycles]    = usePersistedState('efb_endflt_cycles',   '1');
-  const [archived,  setArchived]  = usePersistedState('efb_endflt_archived', false);
-  const [archiving, setArchiving] = React.useState(false);
+  const [pax,              setPax]              = usePersistedState('efb_endflt_pax',      '');
+  const [cycles,           setCycles]           = usePersistedState('efb_endflt_cycles',   '1');
+  const [archived,         setArchived]         = usePersistedState('efb_endflt_archived', false);
+  const [archiving,        setArchiving]        = React.useState(false);
+  const [archivedFlightId, setArchivedFlightId] = React.useState(null); // admin edit geçmişi için
 
   const { offBlock, takeoffTime, landingTime, onBlock, takeoffFuel, remainingFuel } = flightData;
   const divert = divertData.active;
@@ -109,6 +111,19 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
   const timesOk  = !!(landingTime && onBlock && takeoffTime && offBlock);
   const fuelOk   = !!remainingFuel;
 
+  // Daha önce archive edilmişse archived_flight id'yi yükle
+  useEffect(() => {
+    if (!archived || !activePlan?.id || archivedFlightId) return;
+    (async () => {
+      const { data } = await supabase
+        .from('archived_flights')
+        .select('id')
+        .eq('plan_id', activePlan.id)
+        .single();
+      if (data) setArchivedFlightId(data.id);
+    })();
+  }, [archived, activePlan?.id, archivedFlightId]);
+
   useEffect(() => {
     if (!setStatus) return;
     if (archived)                      setStatus('green');
@@ -128,7 +143,7 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
 
       const { lat: destLat, lon: destLon } = parseDestCoords(rawText);
 
-      const { error: archiveError } = await supabase
+      const { data: afData, error: archiveError } = await supabase
         .from('archived_flights')
         .insert({
           plan_id:          activePlan.id,
@@ -137,32 +152,39 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
           pf_id:            activePlan.pf_pilot,
           departure_icao:   dep,
           destination_icao: destIcao,
-          off_blocks:       offBlock     ? new Date(`${date}T${offBlock}:00Z`)     : null,
-          on_blocks:        onBlock      ? new Date(`${date}T${onBlock}:00Z`)      : null,
-          takeoff_time:     takeoffTime  ? new Date(`${date}T${takeoffTime}:00Z`)  : null,
-          landing_time:     landingTime  ? new Date(`${date}T${landingTime}:00Z`)  : null,
+          off_blocks:       offBlock    ? new Date(`${date}T${offBlock}:00Z`)    : null,
+          on_blocks:        onBlock     ? new Date(`${date}T${onBlock}:00Z`)     : null,
+          takeoff_time:     takeoffTime ? new Date(`${date}T${takeoffTime}:00Z`) : null,
+          landing_time:     landingTime ? new Date(`${date}T${landingTime}:00Z`) : null,
           block_minutes:    blockMins,
           airborne_minutes: flightMins,
           landing_count:    parseInt(cycles) || 1,
           dest_lat:         destLat,
           dest_lon:         destLon,
           is_night_landing: false,
-          takeoff_fuel:     toFuelNum    || null,
-          remaining_fuel:   remFuelNum   || null,
+          takeoff_fuel:     toFuelNum  || null,
+          remaining_fuel:   remFuelNum || null,
           pax:              pax ? parseInt(pax) : null,
           archived_at:      new Date().toISOString(),
-        });
+        })
+        .select('id')
+        .single();
 
       if (archiveError) throw archiveError;
+
+      // Yeni oluşturulan archived_flight id'sini kaydet
+      if (afData?.id) setArchivedFlightId(afData.id);
+
       logEvent(activePlan.id, 'FLIGHT_ARCHIVED', {
         dep,
-        dest: destIcao,
+        dest:             destIcao,
         block_minutes:    blockMins,
         airborne_minutes: flightMins,
         landing_count:    parseInt(cycles) || 1,
         dest_lat:         destLat,
         dest_lon:         destLon,
       });
+
       setArchived(true);
     } catch (e) {
       console.error('Archive error:', e);
@@ -254,13 +276,23 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
             {!timesOk && <div style={{ fontSize:10, color:'#555', textAlign:'center', marginTop:6 }}>Complete flight times to archive</div>}
           </>
         ) : (
-          <div style={{ padding:'12px 14px', borderRadius:8, background:'rgba(45,158,95,0.1)', border:'1px solid rgba(45,158,95,0.3)', display:'flex', alignItems:'center', gap:10 }}>
-            <span style={{ fontSize:20 }}>✅</span>
-            <div>
-              <div style={{ fontSize:13, fontWeight:700, color:'#2d9e5f' }}>Flight Archived</div>
-              <div style={{ fontSize:10, color:'#555', marginTop:2 }}>Plan moved to archive — read only</div>
+          <>
+            {/* Archive başarılı mesajı */}
+            <div style={{ padding:'12px 14px', borderRadius:8, background:'rgba(45,158,95,0.1)', border:'1px solid rgba(45,158,95,0.3)', display:'flex', alignItems:'center', gap:10 }}>
+              <span style={{ fontSize:20 }}>✅</span>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:'#2d9e5f' }}>Flight Archived</div>
+                <div style={{ fontSize:10, color:'#555', marginTop:2 }}>Plan moved to archive — read only</div>
+              </div>
             </div>
-          </div>
+
+            {/* Admin edit geçmişi — read only, sadece archivedFlightId varsa göster */}
+            {archivedFlightId && (
+              <div style={{ marginTop:12, borderRadius:8, overflow:'hidden', border:'1px solid #2a3040' }}>
+                <AdminEditsHistory archivedFlightId={archivedFlightId} readOnly={true} />
+              </div>
+            )}
+          </>
         )}
       </div>
 
