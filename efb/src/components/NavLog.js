@@ -22,27 +22,49 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+// FIX: ETA saatlerini OFP raw text'ten çıkar
+function extractEtaFromLine(line) {
+  // Koordinatları satırdan çıkar, sonrasında HH:MM formatında saat ara
+  const afterCoord = line.replace(/N\d+:\d+\.?\d*\s*E\d+:\d+\.?\d*/i, '');
+  const m = afterCoord.match(/\b(\d{2}:\d{2})\b(?!\.\d)/);
+  return m ? m[1] : '—';
+}
+
 function parseWaypoints(rawText, dep, dest, std) {
   if (!rawText || !dep || !dest) return [];
+
   const depPattern = new RegExp(`DEP\\s+${dep}\\/\\S+[^\\n]*\\n([\\s\\S]*?)(?=DEST\\s+${dest}\\/)`, 'i');
   const sectionMatch = rawText.match(depPattern);
   const section = sectionMatch?.[1] || '';
+
   const depCoordMatch = rawText.match(new RegExp(`DEP\\s+${dep}\\/\\S+[^\\n]*(N\\d+:\\d+\\.?\\d*\\s*E\\d+:\\d+\\.?\\d*)`, 'i'));
   const depCoord = depCoordMatch ? parseCoord(depCoordMatch[1]) : null;
-  const destCoordMatch = rawText.match(new RegExp(`DEST\\s+${dest}\\/\\S+[^\\n]*(N\\d+:\\d+\\.?\\d*\\s*E\\d+:\\d+\\.?\\d*)`, 'i'));
+
+  // DEST satırından ETA ve koordinat çıkar
+  const destLineMatch = rawText.match(new RegExp(`DEST\\s+${dest}\\/\\S+[^\\n]*`, 'i'));
+  const destLine = destLineMatch?.[0] || '';
+  const destCoordMatch = destLine.match(/(N\d+:\d+\.?\d*\s*E\d+:\d+\.?\d*)/i);
   const destCoord = destCoordMatch ? parseCoord(destCoordMatch[1]) : null;
+  // DEST ETA: koordinattan sonraki ilk HH:MM
+  const destEta = extractEtaFromLine(destLine);
+
   const wptList = [];
   if (section) {
     for (const line of section.split('\n')) {
       if (!line.trim() || line.match(/-TOC-|-TOD-/)) continue;
       const m = line.match(/^\s*\d+\s+([A-Z][A-Z0-9]{1,5})\s/);
-      if (m) wptList.push({ name: m[1], coord: parseCoord(line) });
+      if (m) {
+        const coord = parseCoord(line);
+        const eta   = extractEtaFromLine(line); // FIX: her waypoint'in ETA'sını çıkar
+        wptList.push({ name: m[1], coord, eta });
+      }
     }
   }
+
   const waypoints = [];
   waypoints.push({ uid: dep,  name: dep,  type: 'dep',  eta: std || '—', fl: '—', planFuel: null, custom: false, coord: depCoord });
-  wptList.forEach(w => waypoints.push({ uid: w.name, name: w.name, type: 'wpt', eta: '—', fl: '—', planFuel: null, custom: false, coord: w.coord }));
-  waypoints.push({ uid: dest, name: dest, type: 'dest', eta: '—', fl: '—', planFuel: null, custom: false, coord: destCoord });
+  wptList.forEach(w => waypoints.push({ uid: w.name, name: w.name, type: 'wpt', eta: w.eta, fl: '—', planFuel: null, custom: false, coord: w.coord }));
+  waypoints.push({ uid: dest, name: dest, type: 'dest', eta: destEta,    fl: '—', planFuel: null, custom: false, coord: destCoord });
   return waypoints;
 }
 
@@ -76,7 +98,6 @@ function getFuelDestColor(fuel) {
   return '#2d9e5f';
 }
 
-// ─── Zaman Yardımcıları ───────────────────────────────────────────────────────
 function toMins(t) {
   if (!t || !t.includes(':')) return null;
   const [h, m] = t.split(':').map(Number);
@@ -139,7 +160,6 @@ function RvsmBoxes({ value, onChange }) {
   );
 }
 
-// ─── Dep Modal ────────────────────────────────────────────────────────────────
 function DepModal({ dep, onClose, onSave, initial }) {
   const [offBlock, setOffBlock] = useState(initial.offBlock || '');
   const [toTime,   setToTime]   = useState(initial.toTime   || '');
@@ -165,7 +185,6 @@ function DepModal({ dep, onClose, onSave, initial }) {
   );
 }
 
-// ─── Arrival Modal ────────────────────────────────────────────────────────────
 function ArrivalModal({ wptName, isDivert, onClose, onSave, onDivert, initial }) {
   const [lndTime,    setLndTime]    = useState(initial.lndTime  || '');
   const [onBlock,    setOnBlock]    = useState(initial.onBlock   || '');
@@ -226,7 +245,6 @@ function ArrivalModal({ wptName, isDivert, onClose, onSave, onDivert, initial })
   );
 }
 
-// ─── Wpt Modal (Add Before/After + Delete dahil) ─────────────────────────────
 function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initial, wptList, estimatedATA, estimatedFuel, plannedFuel }) {
   const [ata,     setAta]     = useState(initial.ata  || '');
   const [fuel,    setFuel]    = useState(initial.fuel || '');
@@ -250,9 +268,7 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
           <span style={{ fontSize:12, fontWeight:700, color: wpt.custom ? '#ff9500' : '#1a9bc4' }}>{wpt.name} — Waypoint Data</span>
           <span onClick={onClose} style={{ color:'#555', cursor:'pointer', fontSize:20, lineHeight:1 }}>×</span>
         </div>
-
         <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:14 }}>
-          {/* ATA */}
           <div>
             <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <span>ATA</span>
@@ -268,8 +284,6 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
             </div>
             <TimeBox value={ata} onChange={setAta} placeholder={estimatedATA || 'HH:MM'} />
           </div>
-
-          {/* Fuel */}
           <div>
             <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <span>Fuel Remaining</span>
@@ -286,14 +300,10 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
             </div>
             <FuelBox value={fuel} onChange={setFuel} placeholder={estimatedFuel ? String(estimatedFuel) : 'lb'} />
           </div>
-
-          {/* RVSM — herkeste göster */}
           <div>
             <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.6, textTransform:'uppercase', marginBottom:6 }}>RVSM Altimeter Check</div>
             <RvsmBoxes value={rvsm} onChange={setRvsm} />
           </div>
-
-          {/* Direct To — herkeste göster */}
           {wptList.length > 0 && (
             <div>
               <button onClick={() => setShowDT(!showDT)}
@@ -313,14 +323,11 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
               )}
             </div>
           )}
-
-          {/* Add Before / After */}
           <div style={{ borderTop:'1px solid #2a2a2a', paddingTop:12 }}>
             <button onClick={() => setShowAdd(!showAdd)}
               style={{ width:'100%', background: showAdd ? 'rgba(255,149,0,0.1)' : '#1f1f1f', border:`1px solid ${showAdd ? 'rgba(255,149,0,0.4)' : '#383838'}`, borderRadius:6, padding:'9px', fontSize:12, fontWeight:700, color: showAdd ? '#ff9500' : '#555', cursor:'pointer', fontFamily:'inherit' }}>
               {showAdd ? '✕ Cancel Add' : '+ Add Waypoint'}
             </button>
-
             {showAdd && (
               <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:10 }}>
                 <div style={{ display:'flex', gap:6 }}>
@@ -339,9 +346,6 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
                     style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #ff9500', borderRadius:6, padding:'9px 12px', fontSize:16, fontWeight:700, color:'#ff9500', fontFamily:'monospace', outline:'none', textAlign:'center', letterSpacing:2, boxSizing:'border-box' }}
                   />
                 </div>
-                <div style={{ fontSize:10, color:'#444', lineHeight:1.5, padding:'4px 2px' }}>
-                  ⚠ Konumu hava haritası üzerinden doğrulayın. Airway/WPT veritabanı kullanılmıyor.
-                </div>
                 <button onClick={handleAdd} disabled={addName.length < 2}
                   style={{ width:'100%', background: addName.length >= 2 ? '#ff9500' : '#2a2a2a', border:'none', borderRadius:7, padding:'9px', fontSize:13, fontWeight:700, color: addName.length >= 2 ? '#fff' : '#444', cursor: addName.length >= 2 ? 'pointer' : 'not-allowed', fontFamily:'inherit' }}>
                   Add {addPos === 'before' ? 'Before' : 'After'} {wpt.name}
@@ -349,8 +353,6 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
               </div>
             )}
           </div>
-
-          {/* Delete — sadece custom WPT'lerde */}
           {wpt.custom && (
             <div style={{ borderTop:'1px solid #2a2a2a', paddingTop:12 }}>
               <button onClick={onDelete}
@@ -360,7 +362,6 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
             </div>
           )}
         </div>
-
         <div style={{ padding:'0 16px 16px', display:'flex', gap:8 }}>
           <button onClick={onClose} style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
           <button onClick={() => onSave({ ata, fuel, rvsm })} style={{ flex:2, background:'#1a9bc4', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>Save</button>
@@ -369,7 +370,7 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
     </div>
   );
 }
-// ─── Divert Airport Modal ─────────────────────────────────────────────────────
+
 function DivertArptModal({ onClose, onAdd }) {
   const [name, setName] = useState('');
   return (
@@ -387,8 +388,7 @@ function DivertArptModal({ onClose, onAdd }) {
         </div>
         <div style={{ padding:'0 16px 16px', display:'flex', gap:8 }}>
           <button onClick={onClose} style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
-          <button onClick={() => { if (name.length === 4) onAdd(name); }}
-            disabled={name.length !== 4}
+          <button onClick={() => { if (name.length === 4) onAdd(name); }} disabled={name.length !== 4}
             style={{ flex:2, background:'#e8731a', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit', opacity: name.length !== 4 ? 0.5 : 1 }}>
             Add Divert
           </button>
@@ -400,46 +400,41 @@ function DivertArptModal({ onClose, onAdd }) {
 
 // ─── NavLog Main ──────────────────────────────────────────────────────────────
 function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert }) {
-  const [entries,       setEntries]       = usePersistedState('efb_navlog_entries',       {});
-  const [waypoints,     setWaypoints]     = usePersistedState('efb_navlog_waypoints',     []);
-  const [directTo,      setDirectTo]      = usePersistedState('efb_navlog_directTo',      null);
-  const [flightClosed,  setFlightClosed]  = usePersistedState('efb_navlog_flightClosed',  false);
-  const [lastCheckTime, setLastCheckTime] = usePersistedState('efb_navlog_lastCheckTime', null);
+  // FIX: plan bazlı key — yeni plan gelince state sıfırlanır
+  const planKey = activePlan?.id || 'default';
 
-  const [modal,      setModal]      = useState(null); // wpt.uid
+  const [entries,       setEntries]       = usePersistedState(`efb_navlog_entries_${planKey}`,       {});
+  const [waypoints,     setWaypoints]     = usePersistedState(`efb_navlog_waypoints_${planKey}`,     []);
+  const [directTo,      setDirectTo]      = usePersistedState(`efb_navlog_directTo_${planKey}`,      null);
+  const [flightClosed,  setFlightClosed]  = usePersistedState(`efb_navlog_flightClosed_${planKey}`,  false);
+  const [lastCheckTime, setLastCheckTime] = usePersistedState(`efb_navlog_lastCheckTime_${planKey}`, null);
+
+  const [modal,      setModal]      = useState(null);
   const [showDivert, setShowDivert] = useState(false);
   const [alert50,    setAlert50]    = useState(false);
-  // GPS uçak pozisyonu: { prev: uid, next: uid } — iki waypoint arası
   const [acPosition, setAcPosition] = useState(null);
 
   const { pos, error: gpsError, active: gpsActive, start: startGPS, stop: stopGPS } = useGPS();
-
   const [gpsWarningAccepted, setGpsWarningAccepted] = useState(false);
-  const [showGpsWarning, setShowGpsWarning] = useState(false);
+  const [showGpsWarning,     setShowGpsWarning]     = useState(false);
 
   const handleStartGPS = () => {
     if (!gpsWarningAccepted) { setShowGpsWarning(true); return; }
     startGPS();
   };
+
   const dep  = activePlan?.dep  || 'DEP';
   const dest = activePlan?.dest || 'DEST';
   const std  = activePlan?.std  || '';
 
-  // GPS → en yakın iki waypoint arası hesapla
   useEffect(() => {
     if (!pos) { setAcPosition(null); return; }
-    const coordWpts = waypoints
-      .map((w, i) => ({ ...w, idx: i }))
-      .filter(w => w.coord);
+    const coordWpts = waypoints.map((w, i) => ({ ...w, idx: i })).filter(w => w.coord);
     if (coordWpts.length === 0) { setAcPosition(null); return; }
     const sorted = coordWpts
       .map(w => ({ ...w, dist: haversine(pos.lat, pos.lon, w.coord.lat, w.coord.lon) }))
       .sort((a, b) => a.dist - b.dist);
-    if (sorted.length === 1) {
-      setAcPosition({ prev: sorted[0].uid, next: null });
-      return;
-    }
-    // En yakın 2 noktayı liste sırasına göre sırala (prev önce, next sonra)
+    if (sorted.length === 1) { setAcPosition({ prev: sorted[0].uid, next: null }); return; }
     const top2 = [sorted[0], sorted[1]].sort((a, b) => a.idx - b.idx);
     setAcPosition({ prev: top2[0].uid, next: top2[1].uid });
   }, [pos, waypoints]);
@@ -502,8 +497,8 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     updateFlight('takeoffTime', data.toTime);
     updateFlight('takeoffFuel', data.toFuel);
     setLastCheckTime(Date.now());
-    if (data.offBlock)  logEvent(activePlan?.id, 'OFF_BLOCKS',  { time: data.offBlock,  role: 'PIC' });
-    if (data.toTime)    logEvent(activePlan?.id, 'TAKEOFF',     { time: data.toTime,    role: 'PIC', fuel_lb: data.toFuel });
+    if (data.offBlock) logEvent(activePlan?.id, 'OFF_BLOCKS',  { time: data.offBlock, role: 'PIC' });
+    if (data.toTime)   logEvent(activePlan?.id, 'TAKEOFF',     { time: data.toTime,   role: 'PIC', fuel_lb: data.toFuel });
     setModal(null);
   };
 
@@ -512,9 +507,9 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     updateFlight('landingTime', data.lndTime);
     updateFlight('onBlock', data.onBlock);
     updateFlight('remainingFuel', data.remFuel);
-    if (data.lndTime)  logEvent(activePlan?.id, 'LANDING',        { time: data.lndTime, role: 'PIC' });
-    if (data.onBlock)  logEvent(activePlan?.id, 'ON_BLOCKS',      { time: data.onBlock, role: 'PIC' });
-    if (data.remFuel)  logEvent(activePlan?.id, 'FUEL_REMAINING', { fuel_lb: data.remFuel });
+    if (data.lndTime) logEvent(activePlan?.id, 'LANDING',        { time: data.lndTime, role: 'PIC' });
+    if (data.onBlock) logEvent(activePlan?.id, 'ON_BLOCKS',      { time: data.onBlock, role: 'PIC' });
+    if (data.remFuel) logEvent(activePlan?.id, 'FUEL_REMAINING', { fuel_lb: data.remFuel });
     setModal(null);
   };
 
@@ -528,26 +523,19 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     setAlert50(false);
     if (data.rvsm) logEvent(activePlan?.id, 'RVSM_CHECK', {
       waypoint: waypoints.find(w => w.uid === uid)?.name,
-      rvsm: data.rvsm,
-      ata: data.ata,
-      fuel_lb: data.fuel,
+      rvsm: data.rvsm, ata: data.ata, fuel_lb: data.fuel,
     });
     setModal(null);
   };
 
-  const handleDirectTo = (fromUid, toUid) => { setDirectTo({ from: fromUid, to: toUid }); setModal(null); };
-
-  // Custom WPT silme
-  const handleDeleteWpt = (uid) => {
+  const handleDirectTo   = (fromUid, toUid) => { setDirectTo({ from: fromUid, to: toUid }); setModal(null); };
+  const handleDeleteWpt  = (uid) => {
     setWaypoints(prev => prev.filter(w => w.uid !== uid));
     setEntries(prev => { const next = { ...prev }; delete next[uid]; return next; });
-    // directTo bu WPT'yi referans ediyorsa sıfırla
     if (directTo?.from === uid || directTo?.to === uid) setDirectTo(null);
     setModal(null);
   };
-
-  // WptModal'dan Add Before/After
-  const handleAddWptAt = (newWpt, position, relativeUid) => {
+  const handleAddWptAt   = (newWpt, position, relativeUid) => {
     setWaypoints(prev => {
       const idx = prev.findIndex(w => w.uid === relativeUid);
       if (idx === -1) return prev;
@@ -557,7 +545,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     });
     setModal(null);
   };
-
   const handleAddDivertArpt = (icao) => {
     const uid = `${icao}_divert_${Date.now()}`;
     setWaypoints(prev => [...prev, { uid, name: icao, type: 'divert-arpt', custom: true, eta: '—', fl: '—', planFuel: null, coord: null }]);
@@ -575,23 +562,19 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     return idx > fromIdx && idx < toIdx;
   };
 
-  // ── Otomatik ATA tahmini ──────────────────────────────────────────────────
-  // T/O actual girilince tüm sonraki noktaların ETA'sını offset ile hesaplar
-  // Bir noktaya actual girilince o noktadan itibaren yeniden hesaplar
+  // ── Otomatik ATA: T/O actual + sonraki noktaların planned offset'i
   const getAutoATA = (wpt, idx) => {
     if (!wpt.eta || wpt.eta === '—') return null;
     const planEta = toMins(wpt.eta);
     if (planEta === null) return null;
 
-    // Referans noktayı bul: bu noktadan önce actual girilen en son nokta
     let refActualMins = null;
     let refPlanMins   = null;
 
-    // DEP T/O saatini kontrol et
+    // DEP T/O saatinden offset hesapla
     const depEntry = entries[dep] || {};
     if (depEntry.toTime) {
-      const std = activePlan?.std || '';
-      const planTO = toMins(std);
+      const planTO   = toMins(activePlan?.std || '');
       const actualTO = toMins(depEntry.toTime);
       if (planTO !== null && actualTO !== null) {
         refActualMins = actualTO;
@@ -599,14 +582,13 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
       }
     }
 
-    // Bu noktadan önceki actual ATA'ları tara
+    // Bu noktadan önceki en son actual ATA'yı referans al
     for (let i = 1; i < idx; i++) {
       const w = waypoints[i];
       if (!w.eta || w.eta === '—') continue;
       const e = entries[w.uid] || {};
-      const actualTime = e.ata;
-      if (!actualTime) continue;
-      const actualMins = toMins(actualTime);
+      if (!e.ata) continue;
+      const actualMins = toMins(e.ata);
       const planMins   = toMins(w.eta);
       if (actualMins !== null && planMins !== null) {
         refActualMins = actualMins;
@@ -619,15 +601,12 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     return fromMins(planEta + offset);
   };
 
-  // Sapma hesabı (actual - planned, dakika)
   const getDeviation = (wpt) => {
     if (!wpt.eta || wpt.eta === '—') return null;
     const e = entries[wpt.uid] || {};
     const actualTime = wpt.type === 'dep'
       ? e.toTime
-      : (wpt.type === 'dest' || wpt.type === 'divert-arpt')
-        ? e.lndTime
-        : e.ata;
+      : (wpt.type === 'dest' || wpt.type === 'divert-arpt') ? e.lndTime : e.ata;
     if (!actualTime) return null;
     const planMins   = toMins(wpt.eta);
     const actualMins = toMins(actualTime);
@@ -635,32 +614,22 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     return actualMins - planMins;
   };
 
-  // ── Otomatik Yakıt Tahmini ────────────────────────────────────────────────
-  // OFP trip fuel / trip time = burn rate (lb/dk)
-  // Son girilen yakıt entry'sinden sonraki noktaları projeksiyon ile hesaplar
   const getBurnRate = () => {
     const tripFuel = activePlan?.trip_fuel ? parseInt(activePlan.trip_fuel) : null;
-    const std = activePlan?.std;
-    const eta = activePlan?.eta;
-    if (!tripFuel || !std || !eta) return null;
-    const totalMins = toMins(eta) - toMins(std);
-    if (!totalMins || totalMins <= 0) return null;
-    return tripFuel / totalMins; // lb per minute
+    const totalMins = toMins(activePlan?.eta) - toMins(activePlan?.std);
+    if (!tripFuel || !totalMins || totalMins <= 0) return null;
+    return tripFuel / totalMins;
   };
 
   const getAutoFuel = (wpt, idx) => {
     if (!wpt.eta || wpt.eta === '—') return null;
     const wptEtaMins = toMins(wpt.eta);
     if (wptEtaMins === null) return null;
-
     const burnRate = getBurnRate();
     if (!burnRate) return null;
-
-    // Referans: son gerçek yakıt girişi
     const depEntry = entries[dep] || {};
-    let lastFuel   = depEntry.toFuel ? parseInt(depEntry.toFuel.replace(/,/g,'')) : null;
+    let lastFuel    = depEntry.toFuel ? parseInt(depEntry.toFuel.replace(/,/g,'')) : null;
     let lastEtaMins = toMins(activePlan?.std || '');
-
     for (let i = 1; i < idx; i++) {
       const w = waypoints[i];
       if (!w.eta || w.eta === '—') continue;
@@ -668,12 +637,8 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
       if (!e.fuel) continue;
       const fuelNum = parseInt(e.fuel.replace(/,/g,''));
       const etaMins = toMins(w.eta);
-      if (!isNaN(fuelNum) && etaMins !== null) {
-        lastFuel    = fuelNum;
-        lastEtaMins = etaMins;
-      }
+      if (!isNaN(fuelNum) && etaMins !== null) { lastFuel = fuelNum; lastEtaMins = etaMins; }
     }
-
     if (lastFuel === null || lastEtaMins === null) return null;
     const elapsed = wptEtaMins - lastEtaMins;
     if (elapsed <= 0) return null;
@@ -681,38 +646,34 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     return estimated > 0 ? estimated : null;
   };
 
-  // Planlanan yakıt (OFP oransal) — sapmayı buna göre hesapla
   const getPlanFuelAt = (wpt) => {
     if (!wpt.eta || wpt.eta === '—') return null;
-    const depEntry = entries[dep] || {};
+    const depEntry  = entries[dep] || {};
     const toFuelNum = depEntry.toFuel ? parseInt(depEntry.toFuel.replace(/,/g,'')) : null;
     if (!toFuelNum) return null;
     const burnRate = getBurnRate();
     if (!burnRate) return null;
-    const std = activePlan?.std;
-    if (!std) return null;
-    const elapsed = toMins(wpt.eta) - toMins(std);
+    const elapsed = toMins(wpt.eta) - toMins(activePlan?.std || '');
     if (!elapsed || elapsed <= 0) return null;
     return Math.round(toFuelNum - burnRate * elapsed);
   };
 
   const getFuelDeviation = (wpt) => {
     const e = entries[wpt.uid] || {};
-    const fuelStr = e.fuel;
-    if (!fuelStr) return null;
-    const actual  = parseInt(fuelStr.replace(/,/g,''));
+    if (!e.fuel) return null;
+    const actual  = parseInt(e.fuel.replace(/,/g,''));
     const planned = getPlanFuelAt(wpt);
     if (!planned) return null;
-    return actual - planned; // + daha fazla yakıt = iyi, - daha az = kötü
+    return actual - planned;
   };
 
   const fmtFuelDev = (dev) => {
     if (dev === null || dev === undefined) return null;
-    const abs = Math.abs(dev);
-    if (abs < 50) return { label: '±0', color: '#2d9e5f' };
-    if (dev > 0)  return { label: `+${dev.toLocaleString()}`, color: '#2d9e5f' };
+    if (Math.abs(dev) < 50) return { label: '±0', color: '#2d9e5f' };
+    if (dev > 0) return { label: `+${dev.toLocaleString()}`, color: '#2d9e5f' };
     return { label: dev.toLocaleString(), color: '#e02020' };
   };
+
   const toFuel       = getToFuel();
   const lastCheckStr = lastCheckTime ? new Date(lastCheckTime).toTimeString().slice(0,5) + ' Z' : '—';
   const modalWpt     = waypoints.find(w => w.uid === modal);
@@ -781,31 +742,27 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         {waypoints.length === 0 ? (
           <div style={{ padding:20, textAlign:'center', color:'#444', fontSize:12 }}>Loading waypoints...</div>
         ) : waypoints.map((wpt, idx) => {
-          const e          = entries[wpt.uid] || {};
-          const skipped    = isSkipped(wpt, idx);
-          const isDep      = wpt.type === 'dep';
-          const isDest     = wpt.type === 'dest';
-          const isDivArpt  = wpt.type === 'divert-arpt';
-          const isArrival  = isDest || isDivArpt;
-          const isDone     = isDep ? !!(e.offBlock || e.toTime) : isArrival ? !!(e.lndTime || e.onBlock) : !!(e.ata || e.fuel);
-          const isActive   = !isDone && !skipped && (idx === 0 || waypoints.slice(0, idx).every((w, wi) => {
+          const e         = entries[wpt.uid] || {};
+          const skipped   = isSkipped(wpt, idx);
+          const isDep     = wpt.type === 'dep';
+          const isDest    = wpt.type === 'dest';
+          const isDivArpt = wpt.type === 'divert-arpt';
+          const isArrival = isDest || isDivArpt;
+          const isDone    = isDep ? !!(e.offBlock || e.toTime) : isArrival ? !!(e.lndTime || e.onBlock) : !!(e.ata || e.fuel);
+          const isActive  = !isDone && !skipped && (idx === 0 || waypoints.slice(0, idx).every((w, wi) => {
             const pe = entries[w.uid] || {};
             return w.type === 'dep' ? !!(pe.offBlock || pe.toTime) : !!(pe.ata || pe.fuel || pe.lndTime) || isSkipped(w, wi);
           }));
-          const fuelAtDest  = getFuelAtWpt(wpt);
-          const fuelColor   = getFuelDestColor(fuelAtDest);
-          const rowBg       = isDivArpt ? 'rgba(255,149,0,0.08)' : skipped ? '#1e1e1e' : isDone ? '#1f2a1f' : isActive ? 'rgba(26,155,196,0.06)' : '#242424';
-          const borderLeft  = isDivArpt ? '3px solid #e8731a' : isActive ? '3px solid #1a9bc4' : isDone ? '3px solid #2d9e5f' : '3px solid transparent';
-          const nameColor   = isDivArpt ? '#e8731a' : isDep||isDest ? '#1a9bc4' : isDone ? '#2d9e5f' : isActive ? '#1a9bc4' : wpt.custom ? '#ff9500' : '#666';
-          const rvsmDisp    = e.rvsm ? e.rvsm.split('/')[0] + '…' : (isDep || isArrival ? 'N/A' : '—');
-
-          // ATA: actual, yoksa tahmini
-          const actualATA   = isDep ? e.toTime : isArrival ? e.lndTime : e.ata;
-          const autoATA     = !actualATA ? getAutoATA(wpt, idx) : null;
-          const deviation   = getDeviation(wpt);
-          const devFmt      = fmtDev(deviation);
-
-          // Bu satırdan SONRA uçak simgesi eklenecek mi?
+          const fuelAtDest = getFuelAtWpt(wpt);
+          const fuelColor  = getFuelDestColor(fuelAtDest);
+          const rowBg      = isDivArpt ? 'rgba(255,149,0,0.08)' : skipped ? '#1e1e1e' : isDone ? '#1f2a1f' : isActive ? 'rgba(26,155,196,0.06)' : '#242424';
+          const borderLeft = isDivArpt ? '3px solid #e8731a' : isActive ? '3px solid #1a9bc4' : isDone ? '3px solid #2d9e5f' : '3px solid transparent';
+          const nameColor  = isDivArpt ? '#e8731a' : isDep||isDest ? '#1a9bc4' : isDone ? '#2d9e5f' : isActive ? '#1a9bc4' : wpt.custom ? '#ff9500' : '#666';
+          const rvsmDisp   = e.rvsm ? e.rvsm.split('/')[0] + '…' : (isDep || isArrival ? 'N/A' : '—');
+          const actualATA  = isDep ? e.toTime : isArrival ? e.lndTime : e.ata;
+          const autoATA    = !actualATA ? getAutoATA(wpt, idx) : null;
+          const deviation  = getDeviation(wpt);
+          const devFmt     = fmtDev(deviation);
           const showAcAfter = gpsActive && acPosition && acPosition.prev === wpt.uid && acPosition.next;
 
           return (
@@ -813,14 +770,16 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
               <div onClick={() => !skipped && setModal(wpt.uid)}
                 style={{ display:'grid', gridTemplateColumns:'70px 50px 50px 45px 60px 60px 60px 1fr', padding:'10px', borderBottom:'1px solid #383838', background:rowBg, borderLeft, cursor: skipped ? 'default' : 'pointer', opacity: skipped ? 0.3 : 1, alignItems:'center' }}>
                 <div>
-                  <div style={{ fontSize:12, fontWeight:700, fontFamily:'monospace', color: nameColor }}>
-                    {wpt.name}
-                  </div>
+                  <div style={{ fontSize:12, fontWeight:700, fontFamily:'monospace', color: nameColor }}>{wpt.name}</div>
                   {isDivArpt && <div style={{ fontSize:8, color:'#e8731a', marginTop:1 }}>DIVERT</div>}
                   {wpt.custom && !isDivArpt && <div style={{ fontSize:8, color:'#ff9500', marginTop:1 }}>ADDED</div>}
                   {directTo?.from === wpt.uid && directTo?.to && <div style={{ fontSize:9, color:'#ff9500', marginTop:1 }}>→ {waypoints.find(w=>w.uid===directTo.to)?.name}</div>}
                 </div>
-                <div style={{ fontSize:11, color:'#555', fontFamily:'monospace' }}>{wpt.eta}</div>
+                {/* ETA kolonu — planlanan saat */}
+                <div style={{ fontSize:11, color: wpt.eta !== '—' ? '#888' : '#444', fontFamily:'monospace' }}>
+                  {wpt.eta}
+                </div>
+                {/* ATA kolonu — actual veya tahmini */}
                 <div style={{ fontSize:11, fontFamily:'monospace' }}>
                   {actualATA ? (
                     <div>
@@ -854,9 +813,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
                           <span style={{ color:'#555', fontStyle:'italic' }}>{autoFuelNum.toLocaleString()}</span>
                           <span style={{ fontSize:8, color:'#444', marginLeft:2 }}>est</span>
                         </div>
-                      ) : (
-                        <span style={{ color:'#333' }}>—</span>
-                      )}
+                      ) : <span style={{ color:'#333' }}>—</span>}
                     </div>
                   );
                 })()}
@@ -871,8 +828,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
                   : <span style={{ fontSize:9, color:'#444' }}>Pending</span>}
                 </div>
               </div>
-
-              {/* ✈ Uçak pozisyon satırı — prev'den sonra, next'ten önce */}
               {showAcAfter && (
                 <div style={{ display:'flex', alignItems:'center', padding:'6px 10px', background:'rgba(45,158,95,0.07)', borderBottom:'1px solid rgba(45,158,95,0.2)', borderLeft:'3px solid #2d9e5f' }}>
                   <span style={{ fontSize:16, marginRight:8 }}>✈</span>
@@ -882,16 +837,13 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
                     </span>
                     <span style={{ fontSize:10, color:'#555', marginLeft:8 }}>±{pos ? Math.round(pos.acc) : '—'}m</span>
                   </div>
-                  <span style={{ fontSize:9, fontWeight:700, color:'#2d9e5f', background:'rgba(45,158,95,0.15)', padding:'2px 8px', borderRadius:3 }}>
-                    AIRCRAFT
-                  </span>
+                  <span style={{ fontSize:9, fontWeight:700, color:'#2d9e5f', background:'rgba(45,158,95,0.15)', padding:'2px 8px', borderRadius:3 }}>AIRCRAFT</span>
                 </div>
               )}
             </React.Fragment>
           );
         })}
 
-        {/* Sadece ⚠ Add Divert ARPT */}
         {!flightClosed && (
           <div style={{ padding:'10px' }}>
             <button onClick={() => setShowDivert(true)}
@@ -907,7 +859,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         )}
       </div>
 
-      {/* GPS NOT FOR NAVIGATION uyarısı */}
       {showGpsWarning && (
         <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
           <div style={{ background:'#1a1a1a', border:'2px solid #e8731a', borderRadius:12, width:340, overflow:'hidden' }}>
@@ -929,9 +880,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
                 Cancel
               </button>
               <button onClick={() => {
-                setGpsWarningAccepted(true);
-                setShowGpsWarning(false);
-                startGPS();
+                setGpsWarningAccepted(true); setShowGpsWarning(false); startGPS();
                 logEvent(activePlan?.id, 'GPS_ACTIVATED', { notice: 'NOT_FOR_NAVIGATION_acknowledged' });
               }}
                 style={{ flex:2, background:'#e8731a', border:'none', borderRadius:7, padding:10, fontSize:12, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>
@@ -947,18 +896,15 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
       {modal === dep && (
         <DepModal dep={dep} onClose={() => setModal(null)} onSave={handleDepSave} initial={entries[dep] || {}} />
       )}
-
       {modal && modal !== dep && modalWpt && (modalWpt.type === 'dest' || modalWpt.type === 'divert-arpt') && (
         <ArrivalModal
-          wptName={modalWpt.name}
-          isDivert={modalWpt.type === 'divert-arpt'}
+          wptName={modalWpt.name} isDivert={modalWpt.type === 'divert-arpt'}
           onClose={() => setModal(null)}
           onSave={(data) => handleArrivalSave(modal, data)}
           onDivert={handleDivert}
           initial={entries[modal] || {}}
         />
       )}
-
       {modal && modal !== dep && modalWpt && modalWpt.type === 'wpt' && (() => {
         const wptIdx   = waypoints.findIndex(w => w.uid === modal);
         const afterWpt = waypoints.filter((w, i) => i > wptIdx && w.type !== 'dest' && w.type !== 'divert-arpt');
@@ -967,21 +913,17 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         const planFuel = getPlanFuelAt(modalWpt);
         return (
           <WptModal
-            wpt={modalWpt}
-            onClose={() => setModal(null)}
+            wpt={modalWpt} onClose={() => setModal(null)}
             onSave={(data) => handleWptSave(modal, data)}
             onDirectTo={(toUid) => handleDirectTo(modal, toUid)}
             onAddWpt={(newWpt, position) => handleAddWptAt(newWpt, position, modal)}
             onDelete={() => handleDeleteWpt(modal)}
             initial={entries[modal] || {}}
             wptList={afterWpt}
-            estimatedATA={estATA}
-            estimatedFuel={estFuel}
-            plannedFuel={planFuel}
+            estimatedATA={estATA} estimatedFuel={estFuel} plannedFuel={planFuel}
           />
         );
       })()}
-
       {showDivert && <DivertArptModal onClose={() => setShowDivert(false)} onAdd={handleAddDivertArpt} />}
     </div>
   );
