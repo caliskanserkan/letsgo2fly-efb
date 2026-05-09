@@ -7,34 +7,30 @@ import { AdminEditsHistory } from './AdminPanel';
 function Sep() {
   return <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />;
 }
-
 function Title({ t }) {
   return <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>{t}</div>;
 }
-
 function AutoRow({ label, value, valueColor, big }) {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
       <span style={{ fontSize:12.5, color:'#666' }}>{label}</span>
-      <span style={{ fontSize: big ? 16 : 12.5, fontWeight: big ? 700 : 400, color: valueColor || '#999', fontFamily:'monospace' }}>{value}</span>
+      <span style={{ fontSize:big?16:12.5, fontWeight:big?700:400, color:valueColor||'#999', fontFamily:'monospace' }}>{value}</span>
     </div>
   );
 }
-
 function TimeRow({ label, value, auto }) {
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background: auto ? '#2a2a2a' : '#2e2e2e', borderBottom:'1px solid #383838' }}>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:auto?'#2a2a2a':'#2e2e2e', borderBottom:'1px solid #383838' }}>
       <div>
-        <div style={{ fontSize:12.5, color: auto ? '#666' : '#e8e8e8', fontWeight: auto ? 400 : 600 }}>{label}</div>
+        <div style={{ fontSize:12.5, color:auto?'#666':'#e8e8e8', fontWeight:auto?400:600 }}>{label}</div>
         {auto && <div style={{ fontSize:10, color:'#444', marginTop:1 }}>From NAV LOG</div>}
       </div>
-      <span style={{ fontSize:15, fontWeight:700, color: auto ? (value ? '#1a9bc4' : '#444') : '#999', fontFamily:'monospace' }}>
+      <span style={{ fontSize:15, fontWeight:700, color:auto?(value?'#1a9bc4':'#444'):'#999', fontFamily:'monospace' }}>
         {value || '—'}
       </span>
     </div>
   );
 }
-
 function InputRow({ label, hint, value, onChange, unit, suffix }) {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838', minHeight:52 }}>
@@ -43,8 +39,8 @@ function InputRow({ label, hint, value, onChange, unit, suffix }) {
         {hint && <div style={{ fontSize:10, color:'#555', marginTop:2 }}>{hint}</div>}
       </div>
       <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-        <input value={value} onChange={e => onChange(e.target.value)} placeholder="—"
-          style={{ background:'#1a1a1a', border:'1.5px solid #1a9bc4', borderRadius:6, padding:'7px 10px', fontSize:14, fontWeight:700, color:'#1a9bc4', fontFamily:'monospace', outline:'none', textAlign:'right', width:90 }} />
+        <input value={value} onChange={e=>onChange(e.target.value)} placeholder="—"
+          style={{ background:'#1a1a1a', border:'1.5px solid #1a9bc4', borderRadius:6, padding:'7px 10px', fontSize:14, fontWeight:700, color:'#1a9bc4', fontFamily:'monospace', outline:'none', textAlign:'right', width:90 }}/>
         {unit   && <span style={{ fontSize:11, color:'#555', minWidth:20 }}>{unit}</span>}
         {suffix && <span style={{ fontSize:11, color:'#2d9e5f', fontWeight:600 }}>{suffix}</span>}
       </div>
@@ -57,35 +53,68 @@ function toMins(t) {
   const [h, m] = t.split(':').map(Number);
   return h * 60 + m;
 }
-
 function fromMins(m) {
   if (m === null || m < 0) return '—';
-  return String(Math.floor(m / 60)).padStart(2,'0') + ':' + String(m % 60).padStart(2,'0');
+  return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0');
+}
+
+// date string → YYYY-MM-DD (handles multiple PPS formats)
+function toIsoDate(dateStr) {
+  if (!dateStr) return new Date().toISOString().split('T')[0];
+
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+
+  // DD-MM-YYYY or DD/MM/YYYY
+  const dmy = dateStr.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+  if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+
+  // DDMMM YY or DDMMMYY  e.g. 08MAY26 or 08MAY2026
+  const pps = dateStr.match(/^(\d{2})\s*([A-Z]{3})\s*(\d{2,4})$/i);
+  if (pps) {
+    const months = {JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',
+                    JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12'};
+    const mon = months[pps[2].toUpperCase()];
+    const yr  = pps[3].length === 2 ? `20${pps[3]}` : pps[3];
+    if (mon) return `${yr}-${mon}-${pps[1]}`;
+  }
+
+  // JS fallback  e.g. "08 May 2026"
+  const parsed = new Date(dateStr);
+  if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
+
+  return new Date().toISOString().split('T')[0];
+}
+
+// HH:MM + YYYY-MM-DD → ISO timestamp string
+function makeTimestamp(hhmm, isoDate) {
+  if (!hhmm || !isoDate) return null;
+  const ts = new Date(`${isoDate}T${hhmm}:00.000Z`);
+  return isNaN(ts.getTime()) ? null : ts.toISOString();
 }
 
 function parseDestCoords(rawText) {
-  if (!rawText) return { lat: null, lon: null };
+  if (!rawText) return { lat:null, lon:null };
   const m = rawText.match(/^DEST\s+\S+\s+.*?N(\d+):(\d+\.?\d*)\s+E(\d+):(\d+\.?\d*)/m);
-  if (!m) return { lat: null, lon: null };
-  return {
-    lat: parseFloat(m[1]) + parseFloat(m[2]) / 60,
-    lon: parseFloat(m[3]) + parseFloat(m[4]) / 60,
-  };
+  if (!m) return { lat:null, lon:null };
+  return { lat: parseFloat(m[1]) + parseFloat(m[2])/60, lon: parseFloat(m[3]) + parseFloat(m[4])/60 };
 }
 
 function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
-  const [pax,              setPax]              = usePersistedState('efb_endflt_pax',      '');
-  const [cycles,           setCycles]           = usePersistedState('efb_endflt_cycles',   '1');
-  const [archived,         setArchived]         = usePersistedState('efb_endflt_archived', false);
+  const planKey = activePlan?.id || 'default';
+
+  const [pax,              setPax]              = usePersistedState(`efb_endflt_pax_${planKey}`,      '');
+  const [cycles,           setCycles]           = usePersistedState(`efb_endflt_cycles_${planKey}`,   '1');
+  const [archived,         setArchived]         = usePersistedState(`efb_endflt_archived_${planKey}`, false);
   const [archiving,        setArchiving]        = React.useState(false);
-  const [archivedFlightId, setArchivedFlightId] = React.useState(null); // admin edit geçmişi için
+  const [archivedFlightId, setArchivedFlightId] = React.useState(null);
 
   const { offBlock, takeoffTime, landingTime, onBlock, takeoffFuel, remainingFuel } = flightData;
   const divert = divertData.active;
 
   const dep    = activePlan?.dep     || '—';
   const dest   = activePlan?.dest    || '—';
-  const date   = activePlan?.date    || '—';
+  const date   = activePlan?.date    || '';
   const reg    = activePlan?.reg     || '—';
   const acType = activePlan?.ac_type || '—';
 
@@ -95,31 +124,26 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
     return isNaN(p) ? null : p;
   }
 
-  const finalRes = n(activePlan?.reserve_fuel) || 1447;
-
+  const finalRes   = n(activePlan?.reserve_fuel) || 1447;
   const flightMins = toMins(landingTime) !== null && toMins(takeoffTime) !== null
     ? toMins(landingTime) - toMins(takeoffTime) : null;
   const blockMins  = toMins(onBlock) !== null && toMins(offBlock) !== null
     ? toMins(onBlock) - toMins(offBlock) : null;
-
   const toFuelNum  = takeoffFuel   ? parseInt(takeoffFuel.replace(/,/g,''))   : null;
   const remFuelNum = remainingFuel ? parseInt(remainingFuel.replace(/,/g,'')) : null;
   const burnoff    = toFuelNum && remFuelNum ? toFuelNum - remFuelNum : null;
   const remColor   = remFuelNum === null ? '#999' : remFuelNum < finalRes ? '#e02020' : '#2d9e5f';
-
-  const destIcao = divert && divertData.icao ? divertData.icao : dest;
-  const timesOk  = !!(landingTime && onBlock && takeoffTime && offBlock);
-  const fuelOk   = !!remainingFuel;
+  const destIcao   = divert && divertData.icao ? divertData.icao : dest;
+  const timesOk    = !!(landingTime && onBlock && takeoffTime && offBlock);
+  const fuelOk     = !!remainingFuel;
 
   // Daha önce archive edilmişse archived_flight id'yi yükle
   useEffect(() => {
     if (!archived || !activePlan?.id || archivedFlightId) return;
     (async () => {
       const { data } = await supabase
-        .from('archived_flights')
-        .select('id')
-        .eq('plan_id', activePlan.id)
-        .single();
+        .from('archived_flights').select('id')
+        .eq('plan_id', activePlan.id).single();
       if (data) setArchivedFlightId(data.id);
     })();
   }, [archived, activePlan?.id, archivedFlightId]);
@@ -136,14 +160,14 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
     if (!activePlan?.id) return;
     setArchiving(true);
     try {
-      await supabase
-        .from('plans')
-        .update({ status: 'archived', archived_at: new Date().toISOString() })
+      await supabase.from('plans')
+        .update({ status:'archived', archived_at:new Date().toISOString() })
         .eq('id', activePlan.id);
 
-      const { lat: destLat, lon: destLon } = parseDestCoords(rawText);
+      const { lat:destLat, lon:destLon } = parseDestCoords(rawText);
+      const isoDate = toIsoDate(date); // YYYY-MM-DD — robust parsing
 
-      const { data: afData, error: archiveError } = await supabase
+      const { data:afData, error:archiveError } = await supabase
         .from('archived_flights')
         .insert({
           plan_id:          activePlan.id,
@@ -152,10 +176,11 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
           pf_id:            activePlan.pf_pilot,
           departure_icao:   dep,
           destination_icao: destIcao,
-          off_blocks:       offBlock    ? new Date(`${date}T${offBlock}:00Z`)    : null,
-          on_blocks:        onBlock     ? new Date(`${date}T${onBlock}:00Z`)     : null,
-          takeoff_time:     takeoffTime ? new Date(`${date}T${takeoffTime}:00Z`) : null,
-          landing_time:     landingTime ? new Date(`${date}T${landingTime}:00Z`) : null,
+          // timestamps — properly constructed from YYYY-MM-DD + HH:MM
+          off_blocks:       makeTimestamp(offBlock,    isoDate),
+          on_blocks:        makeTimestamp(onBlock,     isoDate),
+          takeoff_time:     makeTimestamp(takeoffTime, isoDate),
+          landing_time:     makeTimestamp(landingTime, isoDate),
           block_minutes:    blockMins,
           airborne_minutes: flightMins,
           landing_count:    parseInt(cycles) || 1,
@@ -171,18 +196,11 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
         .single();
 
       if (archiveError) throw archiveError;
-
-      // Yeni oluşturulan archived_flight id'sini kaydet
       if (afData?.id) setArchivedFlightId(afData.id);
 
       logEvent(activePlan.id, 'FLIGHT_ARCHIVED', {
-        dep,
-        dest:             destIcao,
-        block_minutes:    blockMins,
-        airborne_minutes: flightMins,
-        landing_count:    parseInt(cycles) || 1,
-        dest_lat:         destLat,
-        dest_lon:         destLon,
+        dep, dest:destIcao, block_minutes:blockMins,
+        airborne_minutes:flightMins, landing_count:parseInt(cycles)||1,
       });
 
       setArchived(true);
@@ -198,37 +216,34 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
         <div style={{ background:'rgba(255,149,0,0.1)', borderBottom:'1px solid rgba(255,149,0,0.3)', padding:'10px 16px', display:'flex', alignItems:'center', gap:10 }}>
           <span style={{ fontSize:16 }}>⚠</span>
           <div>
-            <div style={{ fontSize:12, fontWeight:700, color:'#e8731a' }}>DIVERT ACTIVE — {divertData.icao || '—'}</div>
-            <div style={{ fontSize:10, color:'#888', marginTop:1 }}>RWY {divertData.rwy || '—'} · {divertData.len || '—'} ft</div>
+            <div style={{ fontSize:12, fontWeight:700, color:'#e8731a' }}>DIVERT ACTIVE — {divertData.icao||'—'}</div>
+            <div style={{ fontSize:10, color:'#888', marginTop:1 }}>RWY {divertData.rwy||'—'}</div>
           </div>
         </div>
       )}
 
-      <Title t="Flight Summary" />
-      <AutoRow label="Route"    value={`${dep} → ${dest}`}   valueColor="#1a9bc4" />
-      <AutoRow label="Date"     value={date}                  valueColor="#e8e8e8" />
-      <AutoRow label="Aircraft" value={`${reg} / ${acType}`} valueColor="#e8e8e8" />
+      <Title t="Flight Summary"/>
+      <AutoRow label="Route"    value={`${dep} → ${dest}`}   valueColor="#1a9bc4"/>
+      <AutoRow label="Date"     value={date}                  valueColor="#e8e8e8"/>
+      <AutoRow label="Aircraft" value={`${reg} / ${acType}`} valueColor="#e8e8e8"/>
 
-      <Sep />
+      <Sep/>
+      <Title t="Block & Flight Times"/>
+      <TimeRow label="Off Block"    value={offBlock}    auto/>
+      <TimeRow label="T/O Time"     value={takeoffTime} auto/>
+      <TimeRow label="Landing Time" value={landingTime} auto/>
+      <TimeRow label="On Block"     value={onBlock}     auto/>
 
-      <Title t="Block & Flight Times" />
-      <TimeRow label="Off Block"    value={offBlock}    auto />
-      <TimeRow label="T/O Time"     value={takeoffTime} auto />
-      <TimeRow label="Landing Time" value={landingTime} auto />
-      <TimeRow label="On Block"     value={onBlock}     auto />
+      <Sep/>
+      <Title t="Calculated"/>
+      <AutoRow label="Flight Time" value={fromMins(flightMins)} valueColor={flightMins?'#e8e8e8':'#444'} big/>
+      <AutoRow label="Block Time"  value={fromMins(blockMins)}  valueColor={blockMins?'#e8e8e8':'#444'}  big/>
+      <AutoRow label="Landings"    value={cycles||'1'}          valueColor="#e8e8e8"/>
+      <AutoRow label="Destination" value={destIcao}             valueColor={divert?'#e8731a':'#1a9bc4'}/>
 
-      <Sep />
-
-      <Title t="Calculated" />
-      <AutoRow label="Flight Time"  value={fromMins(flightMins)} valueColor={flightMins ? '#e8e8e8' : '#444'} big />
-      <AutoRow label="Block Time"   value={fromMins(blockMins)}  valueColor={blockMins  ? '#e8e8e8' : '#444'} big />
-      <AutoRow label="Landings"     value="1"        valueColor="#e8e8e8" />
-      <AutoRow label="Destination"  value={destIcao} valueColor={divert ? '#e8731a' : '#1a9bc4'} />
-
-      <Sep />
-
-      <Title t="Fuel Summary" />
-      <AutoRow label="T/O Fuel" value={toFuelNum ? toFuelNum.toLocaleString() + ' lb' : '—'} />
+      <Sep/>
+      <Title t="Fuel Summary"/>
+      <AutoRow label="T/O Fuel" value={toFuelNum?toFuelNum.toLocaleString()+' lb':'—'}/>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
         <div>
           <div style={{ fontSize:12.5, color:'#666' }}>Remaining Fuel</div>
@@ -238,46 +253,42 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
             </div>
           )}
         </div>
-        <span style={{ fontSize:16, fontWeight:700, color: remColor, fontFamily:'monospace' }}>
-          {remFuelNum ? remFuelNum.toLocaleString() + ' lb' : '—'}
+        <span style={{ fontSize:16, fontWeight:700, color:remColor, fontFamily:'monospace' }}>
+          {remFuelNum ? remFuelNum.toLocaleString()+' lb' : '—'}
         </span>
       </div>
-      <AutoRow label="Fuel Used (Burnoff)" value={burnoff ? burnoff.toLocaleString() + ' lb' : '—'} valueColor={burnoff ? '#e8e8e8' : '#444'} big />
+      <AutoRow label="Fuel Used (Burnoff)" value={burnoff?burnoff.toLocaleString()+' lb':'—'} valueColor={burnoff?'#e8e8e8':'#444'} big/>
 
-      <Sep />
+      <Sep/>
+      <Title t="Tech Data"/>
+      <InputRow label="PAX"    value={pax}    onChange={setPax}    unit="pax"/>
+      <InputRow label="Cycles" hint="+1 auto added" value={cycles} onChange={setCycles} suffix="cycle(s)"/>
 
-      <Title t="Tech Data" />
-      <InputRow label="PAX"    value={pax}    onChange={setPax}    unit="pax" />
-      <InputRow label="Cycles" hint="+1 auto added" value={cycles} onChange={setCycles} suffix="cycle(s)" />
-
-      <Sep />
-
+      <Sep/>
       {divert && (
         <div style={{ margin:'10px 16px', border:'1px solid rgba(255,149,0,0.3)', borderRadius:8, overflow:'hidden' }}>
           <div style={{ background:'rgba(255,149,0,0.12)', padding:'8px 14px', borderBottom:'1px solid rgba(255,149,0,0.2)' }}>
             <span style={{ fontSize:10, color:'#e8731a', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase' }}>Reason for Divert</span>
           </div>
           <div style={{ padding:'12px 14px', background:'#1e1e1e' }}>
-            <textarea value={divertData.reason} onChange={() => {}} placeholder="Enter reason for divert..." rows={4}
-              style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #e8731a', borderRadius:6, padding:'10px 12px', fontSize:13, color:'#e8e8e8', fontFamily:'inherit', outline:'none', resize:'vertical', lineHeight:1.6 }} />
+            <textarea value={divertData.reason||''} onChange={()=>{}} placeholder="Enter reason for divert..." rows={4}
+              style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #e8731a', borderRadius:6, padding:'10px 12px', fontSize:13, color:'#e8e8e8', fontFamily:'inherit', outline:'none', resize:'vertical', lineHeight:1.6 }}/>
           </div>
         </div>
       )}
-
-      <Sep />
+      <Sep/>
 
       <div style={{ margin:'12px 16px 4px' }}>
         {!archived ? (
           <>
-            <button onClick={handleArchive} disabled={archiving || !timesOk}
-              style={{ width:'100%', background: timesOk ? 'rgba(45,158,95,0.12)' : '#1e1e1e', border:'1px solid ' + (timesOk ? '#2d9e5f' : '#333'), borderRadius:10, padding:14, fontSize:14, fontWeight:700, color: timesOk ? '#2d9e5f' : '#444', cursor: timesOk ? 'pointer' : 'not-allowed', fontFamily:'inherit' }}>
+            <button onClick={handleArchive} disabled={archiving||!timesOk}
+              style={{ width:'100%', background:timesOk?'rgba(45,158,95,0.12)':'#1e1e1e', border:'1px solid '+(timesOk?'#2d9e5f':'#333'), borderRadius:10, padding:14, fontSize:14, fontWeight:700, color:timesOk?'#2d9e5f':'#444', cursor:timesOk?'pointer':'not-allowed', fontFamily:'inherit' }}>
               {archiving ? '⏳ Archiving...' : '📁 Archive Flight'}
             </button>
             {!timesOk && <div style={{ fontSize:10, color:'#555', textAlign:'center', marginTop:6 }}>Complete flight times to archive</div>}
           </>
         ) : (
           <>
-            {/* Archive başarılı mesajı */}
             <div style={{ padding:'12px 14px', borderRadius:8, background:'rgba(45,158,95,0.1)', border:'1px solid rgba(45,158,95,0.3)', display:'flex', alignItems:'center', gap:10 }}>
               <span style={{ fontSize:20 }}>✅</span>
               <div>
@@ -285,18 +296,16 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
                 <div style={{ fontSize:10, color:'#555', marginTop:2 }}>Plan moved to archive — read only</div>
               </div>
             </div>
-
-            {/* Admin edit geçmişi — read only, sadece archivedFlightId varsa göster */}
             {archivedFlightId && (
               <div style={{ marginTop:12, borderRadius:8, overflow:'hidden', border:'1px solid #2a3040' }}>
-                <AdminEditsHistory archivedFlightId={archivedFlightId} readOnly={true} />
+                <AdminEditsHistory archivedFlightId={archivedFlightId} readOnly={true}/>
               </div>
             )}
           </>
         )}
       </div>
 
-      <SyncButton />
+      <SyncButton/>
     </div>
   );
 }
