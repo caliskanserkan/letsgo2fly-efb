@@ -137,6 +137,8 @@ function TakeoffData({ setStatus, activePlan }) {
 
   useEffect(() => {
     if (icao.length === 4) fetchRunways(icao.toUpperCase());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [icao]);
 
   const runwayOk = !!(selRwy || manualRwy);
