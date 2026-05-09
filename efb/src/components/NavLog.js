@@ -38,26 +38,24 @@ function fmtDev(dev) {
   return { label:`${dev}`, color:'#2d9e5f' };
 }
 
-// ─── PPS Air Support OFP Parser ───────────────────────────────────────────────
-// Format:
-//   Line 1: [AWY] [WPT] [FIR] ... ___/___   [S/BURN]   [TFREM]
-//   Line 2: [MORA] [FL] ... [DTG]   [ATM H:MM]   ___/___
-//
-// TFREM = last 3-5 digit number on Line 1  (AFTER ___/___)
-// ATM   = first H:MM on Line 2             (cumulative time from STD)
+// ─── PPS OFP Parser ───────────────────────────────────────────────────────────
+// Line 1: AWY WPT FIR ... ___/___  S/BURN  TFREM
+// Line 2: MORA FL ... DTG  ATM(H:MM)  ___/___
+// TFREM = last 3-5 digit number on Line 1
+// ATM   = first H:MM on Line 2
 // ETA   = STD + ATM
 function parseWaypoints(rawText, dep, dest, std) {
   if (!rawText || !dep || !dest) return [];
   const stdMins = toMins(std);
   const lines   = rawText.split('\n');
+  const SKIP    = new Set(['MORA','FIR','AWY','WPT','FREQ','DEP','DEST','ALT']);
 
-  // ── Step 1: Coordinate section → WPT names + coords ──────────────────────
-  const depPat      = new RegExp(`DEP\\s+${dep}\\/\\S+[^\\n]*\\n([\\s\\S]*?)(?=DEST\\s+${dest}\\/)`, 'i');
-  const coordSec    = rawText.match(depPat)?.[1] || '';
-  const depCoordStr = rawText.match(new RegExp(`DEP\\s+${dep}\\/\\S+[^\\n]*(N\\d+:\\d+\\.?\\d*\\s*E\\d+:\\d+\\.?\\d*)`, 'i'))?.[1] || '';
-  const destLineStr = rawText.match(new RegExp(`DEST\\s+${dest}\\/\\S+[^\\n]*`, 'i'))?.[0] || '';
-  const depCoord    = parseCoord(depCoordStr);
-  const destCoord   = parseCoord(destLineStr);
+  // Step 1: coordinate section
+  const depPat   = new RegExp(`DEP\\s+${dep}\\/\\S+[^\\n]*\\n([\\s\\S]*?)(?=DEST\\s+${dest}\\/)`, 'i');
+  const coordSec = rawText.match(depPat)?.[1] || '';
+  const depCoord = parseCoord(rawText.match(new RegExp(`DEP\\s+${dep}\\/\\S+[^\\n]*(N\\d+:\\d+\\.?\\d*\\s*E\\d+:\\d+\\.?\\d*)`, 'i'))?.[1]);
+  const destLine = rawText.match(new RegExp(`DEST\\s+${dest}\\/\\S+[^\\n]*`, 'i'))?.[0] || '';
+  const destCoord = parseCoord(destLine);
 
   const coordWpts = [];
   for (const line of coordSec.split('\n')) {
@@ -66,40 +64,29 @@ function parseWaypoints(rawText, dep, dest, std) {
     if (m) coordWpts.push({ name: m[1], coord: parseCoord(line) });
   }
 
-  // ── Step 2: Route section → ATM + TFREM per WPT ──────────────────────────
+  // Step 2: route section → ATM + TFREM
   const routeData = {};
-  const SKIP = new Set(['MORA','FIR','AWY','WPT','FREQ','DEP','DEST','ALT']);
-
   for (let i = 0; i < lines.length - 1; i++) {
     const line1 = lines[i];
-    let rawName  = null;
+    let rawName = null;
 
-    // Strategy A: line contains ___/___ (PPS blank field — most reliable)
     if (line1.includes('___/___')) {
       const tokens = line1.trim().split(/\s+/);
-      // tokens[0]=AWY, tokens[1]=WPT name
-      if (tokens.length >= 2 && !SKIP.has(tokens[1])) {
-        const cand = tokens[1];
-        // WPT name: starts with letter, 2-6 alphanumeric chars
-        if (/^[A-Z][A-Z0-9]{1,5}$/.test(cand)) rawName = cand;
+      if (tokens.length >= 2 && !SKIP.has(tokens[1]) && /^[A-Z][A-Z0-9]{1,5}$/.test(tokens[1])) {
+        rawName = tokens[1];
       }
-    }
-    // Strategy B: AWY WPT FIR(4 uppercase letters) fallback
-    else {
+    } else {
       const m = line1.match(/\b(\S+)\s+([A-Z][A-Z0-9]{1,5})\s+([A-Z]{4})\s/);
       if (m && !SKIP.has(m[1]) && !SKIP.has(m[2])) rawName = m[2];
     }
 
-    if (!rawName || SKIP.has(rawName)) continue;
-    // Skip TOC/TOD markers
-    if (rawName.includes('TOC') || rawName.includes('TOD')) continue;
+    if (!rawName || SKIP.has(rawName) || rawName.includes('TOC') || rawName.includes('TOD')) continue;
 
-    // TFREM: last 3-5 digit number on line1 (this is after ___/___)
-    // e.g. "... ___/___   422   6578" → 6578
+    // TFREM = last 3-5 digit number on line1 (after ___/___)
     const tfNums = [...line1.matchAll(/\b(\d{3,5})\b/g)];
-    const planFuel = tfNums.length > 0 ? parseInt(tfNums[tfNums.length - 1][1]) : null;
+    const planFuel = tfNums.length > 0 ? parseInt(tfNums[tfNums.length-1][1]) : null;
 
-    // ATM: search next 1-4 lines for first H:MM pattern (e.g. 0:09, 1:23)
+    // ATM = first H:MM on next 1-4 lines
     let atmMins = null;
     for (let j = i+1; j <= Math.min(i+4, lines.length-1); j++) {
       const m = lines[j].match(/\b(\d+:\d{2})\b/);
@@ -107,37 +94,25 @@ function parseWaypoints(rawText, dep, dest, std) {
     }
 
     if (atmMins === null || stdMins === null) continue;
-    // Keep first occurrence only (avoid alternate section overwriting)
-    if (!routeData[rawName]) {
-      routeData[rawName] = { eta: fromMins(stdMins + atmMins), planFuel };
-    }
+    if (!routeData[rawName]) routeData[rawName] = { eta: fromMins(stdMins + atmMins), planFuel };
   }
 
-  // Fuzzy name match: coord section "C3558" ↔ route section "C3558F"
+  // Fuzzy match: "C3558" ↔ "C3558F"
   const getRD = name => {
     if (routeData[name]) return routeData[name];
     const k = Object.keys(routeData).find(k => k.startsWith(name) || name.startsWith(k));
     return k ? routeData[k] : {};
   };
 
-  // ── Step 3: Assemble waypoints array ─────────────────────────────────────
+  // Step 3: assemble
   const destRD = getRD(dest);
   const result = [];
-
-  result.push({ uid:dep,  name:dep,  type:'dep',  eta:std||'—', fl:'—',
-    planFuel:null, custom:false, coord:depCoord });
-
+  result.push({ uid:dep,  name:dep,  type:'dep',  eta:std||'—', fl:'—', planFuel:null, custom:false, coord:depCoord });
   coordWpts.forEach(w => {
     const rd = getRD(w.name);
-    result.push({ uid:w.name, name:w.name, type:'wpt',
-      eta:rd.eta||'—', fl:'—', planFuel:rd.planFuel||null,
-      custom:false, coord:w.coord });
+    result.push({ uid:w.name, name:w.name, type:'wpt', eta:rd.eta||'—', fl:'—', planFuel:rd.planFuel||null, custom:false, coord:w.coord });
   });
-
-  result.push({ uid:dest, name:dest, type:'dest',
-    eta:destRD.eta||'—', fl:'—', planFuel:destRD.planFuel||null,
-    custom:false, coord:destCoord });
-
+  result.push({ uid:dest, name:dest, type:'dest', eta:destRD.eta||'—', fl:'—', planFuel:destRD.planFuel||null, custom:false, coord:destCoord });
   return result;
 }
 
@@ -154,39 +129,24 @@ function useGPS() {
     );
   };
   const stop = () => {
-    if (watchId.current !== null) {
-      navigator.geolocation.clearWatch(watchId.current);
-      watchId.current = null; setPos(null); setError(null);
-    }
+    if (watchId.current !== null) { navigator.geolocation.clearWatch(watchId.current); watchId.current=null; setPos(null); setError(null); }
   };
   useEffect(() => () => stop(), []); // eslint-disable-line
   return { pos, error, active: watchId.current !== null, start, stop };
 }
 
-function getFuelColor(fuel) {
-  if (!fuel) return '#999';
-  if (fuel < 4000) return '#e02020';
-  if (fuel < 5000) return '#e8731a';
-  if (fuel < 6000) return '#f0c040';
-  return '#2d9e5f';
-}
-
 function TimeBox({ value, onChange, placeholder }) {
-  const h = e => { let v=e.target.value.replace(/[^0-9]/g,'').slice(0,4); if(v.length>2) v=v.slice(0,2)+':'+v.slice(2); onChange(v); };
+  const h = e => { let v=e.target.value.replace(/[^0-9]/g,'').slice(0,4); if(v.length>2)v=v.slice(0,2)+':'+v.slice(2); onChange(v); };
   return <input value={value} onChange={h} placeholder={placeholder||'HH:MM'} maxLength={5}
     style={{width:'100%',background:'#1a1a1a',border:'1.5px solid #1a9bc4',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#1a9bc4',fontFamily:'monospace',outline:'none',textAlign:'center'}}/>;
 }
-
 function FuelBox({ value, onChange, placeholder }) {
   return <input value={value} onChange={e=>onChange(e.target.value.replace(/[^0-9,]/g,''))} placeholder={placeholder||'lb'}
     style={{width:'100%',background:'#1a1a1a',border:'1.5px solid #1a9bc4',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#1a9bc4',fontFamily:'monospace',outline:'none',textAlign:'center'}}/>;
 }
-
 function RvsmBoxes({ value, onChange }) {
-  const parts=(value||'//').split('/');
-  const pri1=parts[0]||'', sby=parts[1]||'', pri2=parts[2]||'';
-  const ref2=useRef(null), ref3=useRef(null);
-  const u=(p1,p2,p3)=>onChange(`${p1}/${p2}/${p3}`);
+  const parts=(value||'//').split('/'); const pri1=parts[0]||'',sby=parts[1]||'',pri2=parts[2]||'';
+  const ref2=useRef(null),ref3=useRef(null); const u=(p1,p2,p3)=>onChange(`${p1}/${p2}/${p3}`);
   return(
     <div style={{display:'flex',flexDirection:'column',gap:8}}>
       {[
@@ -237,7 +197,7 @@ function ArrivalModal({ wptName, isDivert, onClose, onSave, onDivert, initial })
   const [doDiv,setDoDiv]=useState(false);
   const [divIcao,setDivIcao]=useState('');
   const [divRwy,setDivRwy]=useState('');
-  const save=()=>{if(doDiv&&divIcao.length===4&&onDivert)onDivert({icao:divIcao,rwy:divRwy});onSave({lndTime,onBlock,remFuel});};
+  const save=()=>{ if(doDiv&&divIcao.length===4&&onDivert)onDivert({icao:divIcao,rwy:divRwy}); onSave({lndTime,onBlock,remFuel}); };
   return(
     <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100}}>
       <div style={{background:'#252525',border:`1px solid ${isDivert?'#e8731a55':'#383838'}`,borderRadius:12,width:320,overflow:'hidden',maxHeight:'90vh',overflowY:'auto'}}>
@@ -253,19 +213,17 @@ function ArrivalModal({ wptName, isDivert, onClose, onSave, onDivert, initial })
             <div style={{borderTop:'1px solid #383838',paddingTop:12}}>
               <div onClick={()=>setDoDiv(!doDiv)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer',padding:'8px 10px',borderRadius:7,background:doDiv?'rgba(255,149,0,0.1)':'#1f1f1f',border:`1px solid ${doDiv?'rgba(255,149,0,0.4)':'#383838'}`}}>
                 <span style={{fontSize:12,fontWeight:700,color:doDiv?'#e8731a':'#555'}}>⚠ DIVERT</span>
-                <div style={{width:36,height:20,background:doDiv?'#e8731a':'#333',borderRadius:10,position:'relative',transition:'background 0.2s'}}>
+                <div style={{width:36,height:20,background:doDiv?'#e8731a':'#333',borderRadius:10,position:'relative'}}>
                   <div style={{position:'absolute',width:16,height:16,background:'#fff',borderRadius:8,top:2,left:doDiv?18:2,transition:'left 0.2s'}}/>
                 </div>
               </div>
               {doDiv&&(
                 <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:10}}>
-                  <div>
-                    <div style={{fontSize:10,color:'#e8731a',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Divert ICAO *</div>
+                  <div><div style={{fontSize:10,color:'#e8731a',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Divert ICAO *</div>
                     <input value={divIcao} onChange={e=>setDivIcao(e.target.value.toUpperCase().replace(/[^A-Z]/g,'').slice(0,4))} placeholder="ICAO" maxLength={4}
                       style={{width:'100%',background:'#1a1a1a',border:'1.5px solid #e8731a',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#e8731a',fontFamily:'monospace',outline:'none',textAlign:'center',letterSpacing:2}}/>
                   </div>
-                  <div>
-                    <div style={{fontSize:10,color:'#e8731a',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Runway</div>
+                  <div><div style={{fontSize:10,color:'#e8731a',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Runway</div>
                     <input value={divRwy} onChange={e=>setDivRwy(e.target.value.toUpperCase())} placeholder="e.g. 05"
                       style={{width:'100%',background:'#1a1a1a',border:'1.5px solid #e8731a',borderRadius:6,padding:'9px 12px',fontSize:14,fontWeight:700,color:'#e8731a',fontFamily:'monospace',outline:'none',textAlign:'center'}}/>
                   </div>
@@ -294,11 +252,14 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
   const [showAdd,setShowAdd]=useState(false);
   const [addPos,setAddPos]=useState('after');
   const [addName,setAddName]=useState('');
-  const doAdd=()=>{
-    if(addName.length<2)return;
-    onAddWpt({uid:`${addName}_${Date.now()}`,name:addName,type:'wpt',custom:true,eta:'—',fl:'—',planFuel:null,coord:null},addPos);
-    setAddName('');setShowAdd(false);
-  };
+  const doAdd=()=>{ if(addName.length<2)return; onAddWpt({uid:`${addName}_${Date.now()}`,name:addName,type:'wpt',custom:true,eta:'—',fl:'—',planFuel:null,coord:null},addPos); setAddName('');setShowAdd(false); };
+
+  // Live fuel deviation preview inside modal
+  const fuelNum = fuel ? parseInt(fuel.replace(/,/g,'')) : null;
+  const fuelDevNum = (fuelNum && plannedFuel) ? fuelNum - plannedFuel : null;
+  const fuelDevColor = fuelDevNum === null ? '#555' : Math.abs(fuelDevNum) < 50 ? '#2d9e5f' : fuelDevNum > 0 ? '#2d9e5f' : '#e02020';
+  const fuelDevLabel = fuelDevNum === null ? null : Math.abs(fuelDevNum) < 50 ? '±0' : fuelDevNum > 0 ? `+${fuelDevNum.toLocaleString()}` : fuelDevNum.toLocaleString();
+
   return(
     <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100}}>
       <div style={{background:'#252525',border:'1px solid #383838',borderRadius:12,width:320,overflow:'hidden',maxHeight:'92vh',overflowY:'auto'}}>
@@ -308,11 +269,14 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
         </div>
         <div style={{padding:'14px 16px',display:'flex',flexDirection:'column',gap:14}}>
 
-          {/* OFP Plan info */}
+          {/* OFP plan reference */}
           {(wpt.eta!=='—'||wpt.planFuel)&&(
-            <div style={{background:'#1a1a1a',borderRadius:6,padding:'8px 12px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              {wpt.eta!=='—'&&<div><div style={{fontSize:9,color:'#555',marginBottom:2}}>ETA PLAN</div><div style={{fontSize:13,fontWeight:700,color:'#888',fontFamily:'monospace'}}>{wpt.eta} UTC</div></div>}
-              {wpt.planFuel&&<div><div style={{fontSize:9,color:'#555',marginBottom:2}}>FUEL PLAN</div><div style={{fontSize:13,fontWeight:700,color:'#888',fontFamily:'monospace'}}>{wpt.planFuel.toLocaleString()} lb</div></div>}
+            <div style={{background:'#1e1e1e',borderRadius:6,padding:'8px 12px',border:'1px solid #2a2a2a'}}>
+              <div style={{fontSize:9,color:'#555',fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:6}}>OFP Plan</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                {wpt.eta!=='—'&&<div><div style={{fontSize:9,color:'#555',marginBottom:2}}>ETA</div><div style={{fontSize:14,fontWeight:700,color:'#888',fontFamily:'monospace'}}>{wpt.eta} UTC</div></div>}
+                {wpt.planFuel&&<div><div style={{fontSize:9,color:'#555',marginBottom:2}}>FUEL</div><div style={{fontSize:14,fontWeight:700,color:'#888',fontFamily:'monospace'}}>{wpt.planFuel.toLocaleString()} lb</div></div>}
+              </div>
             </div>
           )}
 
@@ -330,10 +294,10 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
             <TimeBox value={ata} onChange={setAta} placeholder={estimatedATA||'HH:MM'}/>
           </div>
 
-          {/* Fuel */}
+          {/* Actual fuel + live deviation */}
           <div>
             <div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span>ACTUAL FUEL REM</span>
+              <span>ACTUAL FUEL</span>
               {estimatedFuel&&!fuel&&(
                 <span style={{fontSize:10,color:'#555',fontStyle:'italic'}}>
                   Est: <span style={{color:'#888',fontFamily:'monospace'}}>{estimatedFuel.toLocaleString()}</span>
@@ -341,13 +305,14 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
                 </span>
               )}
             </div>
-            <FuelBox value={fuel} onChange={setFuel} placeholder={estimatedFuel?String(estimatedFuel):'lb'}/>
-            {fuel&&plannedFuel&&(()=>{
-              const dev=parseInt(fuel.replace(/,/g,''))-plannedFuel;
-              const color=Math.abs(dev)<50?'#2d9e5f':dev>0?'#2d9e5f':'#e02020';
-              const label=Math.abs(dev)<50?'±0':dev>0?`+${dev.toLocaleString()}`:dev.toLocaleString();
-              return <div style={{marginTop:6,textAlign:'right',fontSize:11,fontWeight:700,color,fontFamily:'monospace'}}>vs plan: {label} lb</div>;
-            })()}
+            <FuelBox value={fuel} onChange={setFuel} placeholder={plannedFuel?`plan: ${plannedFuel.toLocaleString()}`:'lb'}/>
+            {/* Live deviation — shows as you type */}
+            {fuelDevLabel&&(
+              <div style={{marginTop:8,padding:'8px 12px',borderRadius:6,background:fuelDevNum>0?'rgba(45,158,95,0.1)':Math.abs(fuelDevNum)<50?'rgba(45,158,95,0.08)':'rgba(224,32,32,0.1)',border:`1px solid ${fuelDevNum>0?'rgba(45,158,95,0.3)':Math.abs(fuelDevNum)<50?'rgba(45,158,95,0.2)':'rgba(224,32,32,0.3)'}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:11,color:'#666',fontFamily:'monospace'}}>vs OFP plan ({wpt.planFuel?.toLocaleString()} lb)</span>
+                <span style={{fontSize:16,fontWeight:700,color:fuelDevColor,fontFamily:'monospace'}}>{fuelDevLabel} lb</span>
+              </div>
+            )}
           </div>
 
           {/* RVSM */}
@@ -360,47 +325,33 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
           {wptList.length>0&&(
             <div>
               <button onClick={()=>setShowDT(!showDT)} style={{width:'100%',background:'rgba(255,149,0,0.1)',border:'1px solid rgba(255,149,0,0.3)',borderRadius:6,padding:'9px',fontSize:12,fontWeight:700,color:'#ff9500',cursor:'pointer',fontFamily:'inherit'}}>✈ Direct To...</button>
-              {showDT&&(
-                <div style={{marginTop:8,background:'#1e1e1e',borderRadius:6,overflow:'hidden',border:'1px solid #383838'}}>
-                  {wptList.map(w=>(
-                    <div key={w.uid} onClick={()=>onDirectTo(w.uid)} style={{padding:'10px 12px',borderBottom:'1px solid #383838',cursor:'pointer',fontSize:12,fontFamily:'monospace',display:'flex',justifyContent:'space-between'}}>
-                      <span style={{color:w.custom?'#ff9500':'#999'}}>{w.name}</span>
-                      <span style={{color:'#555'}}>ETA {w.eta}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {showDT&&<div style={{marginTop:8,background:'#1e1e1e',borderRadius:6,overflow:'hidden',border:'1px solid #383838'}}>
+                {wptList.map(w=><div key={w.uid} onClick={()=>onDirectTo(w.uid)} style={{padding:'10px 12px',borderBottom:'1px solid #383838',cursor:'pointer',fontSize:12,fontFamily:'monospace',display:'flex',justifyContent:'space-between'}}>
+                  <span style={{color:w.custom?'#ff9500':'#999'}}>{w.name}</span>
+                  <span style={{color:'#555'}}>ETA {w.eta}</span>
+                </div>)}
+              </div>}
             </div>
           )}
 
-          {/* Add Before/After */}
+          {/* Add waypoint */}
           <div style={{borderTop:'1px solid #2a2a2a',paddingTop:12}}>
             <button onClick={()=>setShowAdd(!showAdd)} style={{width:'100%',background:showAdd?'rgba(255,149,0,0.1)':'#1f1f1f',border:`1px solid ${showAdd?'rgba(255,149,0,0.4)':'#383838'}`,borderRadius:6,padding:'9px',fontSize:12,fontWeight:700,color:showAdd?'#ff9500':'#555',cursor:'pointer',fontFamily:'inherit'}}>
               {showAdd?'✕ Cancel':'+ Add Waypoint'}
             </button>
-            {showAdd&&(
-              <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:10}}>
-                <div style={{display:'flex',gap:6}}>
-                  {['before','after'].map(p=>(
-                    <button key={p} onClick={()=>setAddPos(p)} style={{flex:1,background:addPos===p?'rgba(255,149,0,0.15)':'#1f1f1f',border:`1px solid ${addPos===p?'#ff9500':'#383838'}`,borderRadius:6,padding:'7px',fontSize:11,fontWeight:700,color:addPos===p?'#ff9500':'#555',cursor:'pointer',fontFamily:'inherit',textTransform:'uppercase'}}>
-                      {p==='before'?'↑ Before':'↓ After'}
-                    </button>
-                  ))}
-                </div>
-                <input value={addName} onChange={e=>setAddName(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6))} placeholder="WPT NAME" maxLength={6}
-                  style={{width:'100%',background:'#1a1a1a',border:'1.5px solid #ff9500',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#ff9500',fontFamily:'monospace',outline:'none',textAlign:'center',letterSpacing:2,boxSizing:'border-box'}}/>
-                <button onClick={doAdd} disabled={addName.length<2} style={{width:'100%',background:addName.length>=2?'#ff9500':'#2a2a2a',border:'none',borderRadius:7,padding:'9px',fontSize:13,fontWeight:700,color:addName.length>=2?'#fff':'#444',cursor:addName.length>=2?'pointer':'not-allowed',fontFamily:'inherit'}}>
-                  Add {addPos==='before'?'Before':'After'} {wpt.name}
-                </button>
+            {showAdd&&<div style={{marginTop:10,display:'flex',flexDirection:'column',gap:10}}>
+              <div style={{display:'flex',gap:6}}>
+                {['before','after'].map(p=><button key={p} onClick={()=>setAddPos(p)} style={{flex:1,background:addPos===p?'rgba(255,149,0,0.15)':'#1f1f1f',border:`1px solid ${addPos===p?'#ff9500':'#383838'}`,borderRadius:6,padding:'7px',fontSize:11,fontWeight:700,color:addPos===p?'#ff9500':'#555',cursor:'pointer',fontFamily:'inherit',textTransform:'uppercase'}}>{p==='before'?'↑ Before':'↓ After'}</button>)}
               </div>
-            )}
+              <input value={addName} onChange={e=>setAddName(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6))} placeholder="WPT NAME" maxLength={6}
+                style={{width:'100%',background:'#1a1a1a',border:'1.5px solid #ff9500',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#ff9500',fontFamily:'monospace',outline:'none',textAlign:'center',letterSpacing:2,boxSizing:'border-box'}}/>
+              <button onClick={doAdd} disabled={addName.length<2} style={{width:'100%',background:addName.length>=2?'#ff9500':'#2a2a2a',border:'none',borderRadius:7,padding:'9px',fontSize:13,fontWeight:700,color:addName.length>=2?'#fff':'#444',cursor:addName.length>=2?'pointer':'not-allowed',fontFamily:'inherit'}}>Add {addPos==='before'?'Before':'After'} {wpt.name}</button>
+            </div>}
           </div>
 
-          {wpt.custom&&(
-            <div style={{borderTop:'1px solid #2a2a2a',paddingTop:12}}>
-              <button onClick={onDelete} style={{width:'100%',background:'rgba(224,32,32,0.08)',border:'1px solid rgba(224,32,32,0.3)',borderRadius:6,padding:'9px',fontSize:12,fontWeight:700,color:'#e02020',cursor:'pointer',fontFamily:'inherit'}}>🗑 Delete Waypoint</button>
-            </div>
-          )}
+          {wpt.custom&&<div style={{borderTop:'1px solid #2a2a2a',paddingTop:12}}>
+            <button onClick={onDelete} style={{width:'100%',background:'rgba(224,32,32,0.08)',border:'1px solid rgba(224,32,32,0.3)',borderRadius:6,padding:'9px',fontSize:12,fontWeight:700,color:'#e02020',cursor:'pointer',fontFamily:'inherit'}}>🗑 Delete Waypoint</button>
+          </div>}
         </div>
         <div style={{padding:'0 16px 16px',display:'flex',gap:8}}>
           <button onClick={onClose} style={{flex:1,background:'#2a2a2a',border:'1px solid #383838',borderRadius:7,padding:10,fontSize:13,color:'#666',cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
@@ -438,19 +389,19 @@ function DivertArptModal({ onClose, onAdd }) {
 // ─── NavLog Main ──────────────────────────────────────────────────────────────
 function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert }) {
   const planKey = activePlan?.id || 'default';
-  const [entries,      setEntries]      = usePersistedState(`efb_navlog_entries_${planKey}`,      {});
-  const [waypoints,    setWaypoints]    = usePersistedState(`efb_navlog_waypoints_${planKey}`,    []);
-  const [directTo,     setDirectTo]     = usePersistedState(`efb_navlog_directTo_${planKey}`,     null);
+  const [entries,      setEntries]      = usePersistedState(`efb_navlog_entries_${planKey}`, {});
+  const [waypoints,    setWaypoints]    = usePersistedState(`efb_navlog_waypoints_${planKey}`, []);
+  const [directTo,     setDirectTo]     = usePersistedState(`efb_navlog_directTo_${planKey}`, null);
   const [flightClosed, setFlightClosed] = usePersistedState(`efb_navlog_flightClosed_${planKey}`, false);
-  const [lastCheck,    setLastCheck]    = usePersistedState(`efb_navlog_lastCheck_${planKey}`,    null);
+  const [lastCheck,    setLastCheck]    = usePersistedState(`efb_navlog_lastCheck_${planKey}`, null);
   const [modal,        setModal]        = useState(null);
   const [showDivert,   setShowDivert]   = useState(false);
   const [alert50,      setAlert50]      = useState(false);
   const [acPos,        setAcPos]        = useState(null);
-  const { pos,error:gpsErr,active:gpsActive,start:startGPS,stop:stopGPS } = useGPS();
-  const [gpsOk,setGpsOk]=useState(false);
-  const [showGpsWarn,setShowGpsWarn]=useState(false);
-  const handleStartGPS=()=>{ if(!gpsOk){setShowGpsWarn(true);return;} startGPS(); };
+  const { pos, error:gpsErr, active:gpsActive, start:startGPS, stop:stopGPS } = useGPS();
+  const [gpsOk, setGpsOk]               = useState(false);
+  const [showGpsWarn, setShowGpsWarn]   = useState(false);
+  const handleStartGPS = () => { if(!gpsOk){setShowGpsWarn(true);return;} startGPS(); };
 
   const dep  = activePlan?.dep  || 'DEP';
   const dest = activePlan?.dest || 'DEST';
@@ -469,8 +420,8 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   useEffect(()=>{
     if(!activePlan?.id){
       if(!waypoints.length) setWaypoints([
-        {uid:dep, name:dep, type:'dep',  eta:std||'—', fl:'—', planFuel:null, custom:false, coord:null},
-        {uid:dest,name:dest,type:'dest', eta:'—',      fl:'—', planFuel:null, custom:false, coord:null},
+        {uid:dep,name:dep,type:'dep',eta:std||'—',fl:'—',planFuel:null,custom:false,coord:null},
+        {uid:dest,name:dest,type:'dest',eta:'—',fl:'—',planFuel:null,custom:false,coord:null},
       ]);
       return;
     }
@@ -479,7 +430,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         const{data}=await supabase.from('plan_versions').select('raw_text')
           .eq('plan_id',activePlan.id).order('version_no',{ascending:false}).limit(1).single();
         if(data?.raw_text){
-          const wpts=parseWaypoints(data.raw_text, dep, dest, std);
+          const wpts=parseWaypoints(data.raw_text,dep,dest,std);
           if(wpts.length>=2){
             const customs=waypoints.filter(w=>w.custom);
             const destIdx=wpts.findIndex(w=>w.type==='dest');
@@ -489,10 +440,10 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           }
         }
       }catch(e){
-        console.warn('[NavLog] fetch:',e);
+        console.warn('[NavLog]',e);
         if(!waypoints.length) setWaypoints([
-          {uid:dep, name:dep, type:'dep',  eta:std||'—', fl:'—', planFuel:null, custom:false, coord:null},
-          {uid:dest,name:dest,type:'dest', eta:'—',      fl:'—', planFuel:null, custom:false, coord:null},
+          {uid:dep,name:dep,type:'dep',eta:std||'—',fl:'—',planFuel:null,custom:false,coord:null},
+          {uid:dest,name:dest,type:'dest',eta:'—',fl:'—',planFuel:null,custom:false,coord:null},
         ]);
       }
     })();
@@ -518,18 +469,16 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   const upd=(uid,d)=>setEntries(p=>({...p,[uid]:{...(p[uid]||{}),...d}}));
 
   const onDepSave=d=>{
-    upd(dep,d);
-    updateFlight('offBlock',d.offBlock); updateFlight('takeoffTime',d.toTime); updateFlight('takeoffFuel',d.toFuel);
+    upd(dep,d); updateFlight('offBlock',d.offBlock); updateFlight('takeoffTime',d.toTime); updateFlight('takeoffFuel',d.toFuel);
     setLastCheck(Date.now());
     if(d.offBlock) logEvent(activePlan?.id,'OFF_BLOCKS',{time:d.offBlock,role:'PIC'});
-    if(d.toTime)   logEvent(activePlan?.id,'TAKEOFF',   {time:d.toTime,  role:'PIC',fuel_lb:d.toFuel});
+    if(d.toTime)   logEvent(activePlan?.id,'TAKEOFF',{time:d.toTime,role:'PIC',fuel_lb:d.toFuel});
     setModal(null);
   };
   const onArrSave=(uid,d)=>{
-    upd(uid,d);
-    updateFlight('landingTime',d.lndTime); updateFlight('onBlock',d.onBlock); updateFlight('remainingFuel',d.remFuel);
-    if(d.lndTime) logEvent(activePlan?.id,'LANDING',       {time:d.lndTime,role:'PIC'});
-    if(d.onBlock) logEvent(activePlan?.id,'ON_BLOCKS',     {time:d.onBlock,role:'PIC'});
+    upd(uid,d); updateFlight('landingTime',d.lndTime); updateFlight('onBlock',d.onBlock); updateFlight('remainingFuel',d.remFuel);
+    if(d.lndTime) logEvent(activePlan?.id,'LANDING',{time:d.lndTime,role:'PIC'});
+    if(d.onBlock) logEvent(activePlan?.id,'ON_BLOCKS',{time:d.onBlock,role:'PIC'});
     if(d.remFuel) logEvent(activePlan?.id,'FUEL_REMAINING',{fuel_lb:d.remFuel});
     setModal(null);
   };
@@ -539,45 +488,21 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     if(d.rvsm) logEvent(activePlan?.id,'RVSM_CHECK',{waypoint:waypoints.find(w=>w.uid===uid)?.name,rvsm:d.rvsm,ata:d.ata,fuel_lb:d.fuel});
     setModal(null);
   };
-  const onDirTo =(f,t)=>{ setDirectTo({from:f,to:t}); setModal(null); };
-  const onDelWpt=uid=>{
-    setWaypoints(p=>p.filter(w=>w.uid!==uid));
-    setEntries(p=>{const n={...p};delete n[uid];return n;});
-    if(directTo?.from===uid||directTo?.to===uid) setDirectTo(null);
-    setModal(null);
-  };
-  const onAddAt=(nw,pos2,rel)=>{
-    setWaypoints(p=>{const i=p.findIndex(w=>w.uid===rel);if(i===-1)return p;const u=[...p];u.splice(pos2==='before'?i:i+1,0,nw);return u;});
-    setModal(null);
-  };
-  const onAddDiv=icao=>{
-    const uid=`${icao}_d_${Date.now()}`;
-    setWaypoints(p=>[...p,{uid,name:icao,type:'divert-arpt',custom:true,eta:'—',fl:'—',planFuel:null,coord:null}]);
-    setFlightClosed(true);
-    if(updateDivert){updateDivert('active',true);updateDivert('icao',icao);}
-    setShowDivert(false);
-  };
+  const onDirTo=(f,t)=>{ setDirectTo({from:f,to:t}); setModal(null); };
+  const onDelWpt=uid=>{ setWaypoints(p=>p.filter(w=>w.uid!==uid)); setEntries(p=>{const n={...p};delete n[uid];return n;}); if(directTo?.from===uid||directTo?.to===uid)setDirectTo(null); setModal(null); };
+  const onAddAt=(nw,p2,rel)=>{ setWaypoints(p=>{const i=p.findIndex(w=>w.uid===rel);if(i===-1)return p;const u=[...p];u.splice(p2==='before'?i:i+1,0,nw);return u;}); setModal(null); };
+  const onAddDiv=icao=>{ const uid=`${icao}_d_${Date.now()}`; setWaypoints(p=>[...p,{uid,name:icao,type:'divert-arpt',custom:true,eta:'—',fl:'—',planFuel:null,coord:null}]); setFlightClosed(true); if(updateDivert){updateDivert('active',true);updateDivert('icao',icao);} setShowDivert(false); };
 
-  const isSk=(wpt,idx)=>{
-    if(!directTo)return false;
-    const fi=waypoints.findIndex(w=>w.uid===directTo.from);
-    const ti=waypoints.findIndex(w=>w.uid===directTo.to);
-    return idx>fi&&idx<ti;
-  };
+  const isSk=(wpt,idx)=>{ if(!directTo)return false; const fi=waypoints.findIndex(w=>w.uid===directTo.from),ti=waypoints.findIndex(w=>w.uid===directTo.to); return idx>fi&&idx<ti; };
 
-  // Auto ATA: T/O actual + planned offset
+  // Auto ATA: offset from last actual entry
   const autoATA=(wpt,idx)=>{
     if(!wpt.eta||wpt.eta==='—')return null;
     const pE=toMins(wpt.eta); if(pE===null)return null;
     let rA=null,rP=null;
     const de=entries[dep]||{};
     if(de.toTime){const p=toMins(std),a=toMins(de.toTime);if(p!==null&&a!==null){rA=a;rP=p;}}
-    for(let i=1;i<idx;i++){
-      const w=waypoints[i]; if(!w.eta||w.eta==='—')continue;
-      const e=entries[w.uid]||{}; if(!e.ata)continue;
-      const a=toMins(e.ata),p=toMins(w.eta);
-      if(a!==null&&p!==null){rA=a;rP=p;}
-    }
+    for(let i=1;i<idx;i++){const w=waypoints[i];if(!w.eta||w.eta==='—')continue;const e=entries[w.uid]||{};if(!e.ata)continue;const a=toMins(e.ata),p=toMins(w.eta);if(a!==null&&p!==null){rA=a;rP=p;}}
     if(rA===null)return null;
     return fromMins(pE+(rA-rP));
   };
@@ -592,45 +517,39 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
     return a-p;
   };
 
-  const burnRate=()=>{
-    const tf=activePlan?.trip_fuel?parseInt(activePlan.trip_fuel):null;
-    const tm=toMins(activePlan?.eta)-toMins(std);
-    if(!tf||!tm||tm<=0)return null; return tf/tm;
-  };
+  const burnRate=()=>{ const tf=activePlan?.trip_fuel?parseInt(activePlan.trip_fuel):null,tm=toMins(activePlan?.eta)-toMins(std); if(!tf||!tm||tm<=0)return null; return tf/tm; };
 
-  // planFuelAt: use OFP TFREM (most accurate) or burn rate fallback
+  // planFuelAt: OFP TFREM first, then burn rate fallback
   const planFuelAt=wpt=>{
     if(wpt.planFuel) return wpt.planFuel;
     if(!wpt.eta||wpt.eta==='—')return null;
-    const de=entries[dep]||{}; const toF=de.toFuel?parseInt(de.toFuel.replace(/,/g,'')):null;
+    const de=entries[dep]||{},toF=de.toFuel?parseInt(de.toFuel.replace(/,/g,'')):null;
     if(!toF)return null; const br=burnRate(); if(!br)return null;
     const el=toMins(wpt.eta)-toMins(std); if(!el||el<=0)return null;
     return Math.round(toF-br*el);
   };
 
+  // Auto fuel estimate from burn rate
   const autoFuel=(wpt,idx)=>{
     if(!wpt.eta||wpt.eta==='—')return null;
     const wM=toMins(wpt.eta); if(wM===null)return null;
     const br=burnRate(); if(!br)return null;
     const de=entries[dep]||{};
-    let lF=de.toFuel?parseInt(de.toFuel.replace(/,/g,'')):null, lM=toMins(std||'');
-    for(let i=1;i<idx;i++){
-      const w=waypoints[i]; if(!w.eta||w.eta==='—')continue;
-      const e=entries[w.uid]||{}; if(!e.fuel)continue;
-      const fn=parseInt(e.fuel.replace(/,/g,'')),em=toMins(w.eta);
-      if(!isNaN(fn)&&em!==null){lF=fn;lM=em;}
-    }
+    let lF=de.toFuel?parseInt(de.toFuel.replace(/,/g,'')):null,lM=toMins(std||'');
+    for(let i=1;i<idx;i++){const w=waypoints[i];if(!w.eta||w.eta==='—')continue;const e=entries[w.uid]||{};if(!e.fuel)continue;const fn=parseInt(e.fuel.replace(/,/g,'')),em=toMins(w.eta);if(!isNaN(fn)&&em!==null){lF=fn;lM=em;}}
     if(lF===null||lM===null)return null;
     const el=wM-lM; if(el<=0)return null;
     const est=Math.round(lF-br*el); return est>0?est:null;
   };
 
-  const fuelDev=(wpt,actN)=>{ if(!actN)return null; const pl=planFuelAt(wpt); if(!pl)return null; return actN-pl; };
-  const fmtFD=dev=>{
+  // Fuel deviation actual vs plan
+  const fuelDeviation=(wpt,actN)=>{ if(!actN)return null; const pl=planFuelAt(wpt); if(!pl)return null; return actN-pl; };
+  const fuelDevStyle=dev=>{
     if(dev===null||dev===undefined)return null;
-    if(Math.abs(dev)<50)return{label:'±0',color:'#2d9e5f'};
-    if(dev>0) return{label:`+${dev.toLocaleString()}`,color:'#2d9e5f'};
-    return{label:dev.toLocaleString(),color:'#e02020'};
+    const abs=Math.abs(dev);
+    if(abs<50)  return{label:'±0',     color:'#2d9e5f', bg:'rgba(45,158,95,0.1)'};
+    if(dev>0)   return{label:`+${dev.toLocaleString()}`,color:'#2d9e5f', bg:'rgba(45,158,95,0.1)'};
+    return            {label:dev.toLocaleString(),       color:'#e02020', bg:'rgba(224,32,32,0.1)'};
   };
 
   const toFuelNum=(()=>{const d=entries[dep];return d?.toFuel?parseInt(d.toFuel.replace(/,/g,'')):null;})();
@@ -664,7 +583,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         </div>
       )}
 
-      {/* Summary bar */}
+      {/* Summary */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:1,background:'#383838',borderBottom:'1px solid #383838',flexShrink:0}}>
         {[
           {label:'T/O Fuel',  value:toFuelNum?`${toFuelNum.toLocaleString()} lb`:'—', color:'#e8e8e8'},
@@ -679,13 +598,12 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
       </div>
 
       {/* Column headers */}
-      <div style={{display:'grid',gridTemplateColumns:'68px 48px 58px 40px 58px 50px 62px 1fr',background:'#1a1a1a',borderBottom:'1px solid #383838',padding:'5px 10px',flexShrink:0}}>
-        {['WPT','ETA','ATA +/-','FL','FUEL ACT','RVSM','FUEL DEV','STATUS'].map(h=>(
+      <div style={{display:'grid',gridTemplateColumns:'62px 44px 56px 36px 70px 46px 70px 1fr',background:'#1a1a1a',borderBottom:'1px solid #383838',padding:'5px 10px',flexShrink:0}}>
+        {['WPT','ETA','ATA +/-','FL','FUEL ACT','RVSM','FUEL ±PLAN','STATUS'].map(h=>(
           <div key={h} style={{fontSize:9,color:'#555',fontWeight:700,letterSpacing:0.5}}>{h}</div>
         ))}
       </div>
 
-      {/* Waypoint rows */}
       <div style={{flex:1,overflowY:'auto'}}>
         {!waypoints.length&&<div style={{padding:20,textAlign:'center',color:'#444',fontSize:12}}>Loading waypoints...</div>}
 
@@ -705,57 +623,68 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
 
           const actATA = isDep?e.toTime:isArr?e.lndTime:e.ata;
           const estATA = !actATA?autoATA(wpt,idx):null;
-          const dev    = devTime(wpt), df=fmtDev(dev);
-          const showAc = gpsActive&&acPos&&acPos.prev===wpt.uid&&acPos.next;
+          const tDev   = devTime(wpt), tDf=fmtDev(tDev);
 
           const actFS  = isDep?e.toFuel:isArr?e.remFuel:e.fuel;
           const actFN  = actFS?parseInt(actFS.replace(/,/g,'')):null;
           const estFN  = !actFN&&!isDep?autoFuel(wpt,idx):null;
           const pF     = planFuelAt(wpt);
-          const fd     = !isDep&&!isArr?fmtFD(fuelDev(wpt,actFN)):null;
+
+          // Fuel deviation: actual vs OFP plan
+          const fDev   = (!isDep&&!isArr&&actFN) ? fuelDeviation(wpt,actFN) : null;
+          const fDS    = fuelDevStyle(fDev);
+
+          const showAc = gpsActive&&acPos&&acPos.prev===wpt.uid&&acPos.next;
 
           return(
             <React.Fragment key={wpt.uid}>
               <div onClick={()=>!sk&&setModal(wpt.uid)}
-                style={{display:'grid',gridTemplateColumns:'68px 48px 58px 40px 58px 50px 62px 1fr',padding:'9px 10px',borderBottom:'1px solid #383838',background:bg,borderLeft:bl,cursor:sk?'default':'pointer',opacity:sk?0.3:1,alignItems:'center'}}>
+                style={{display:'grid',gridTemplateColumns:'62px 44px 56px 36px 70px 46px 70px 1fr',padding:'9px 10px',borderBottom:'1px solid #383838',background:bg,borderLeft:bl,cursor:sk?'default':'pointer',opacity:sk?0.3:1,alignItems:'center'}}>
 
-                {/* WPT name */}
+                {/* WPT */}
                 <div>
                   <div style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:nc}}>{wpt.name}</div>
                   {isDivA&&<div style={{fontSize:8,color:'#e8731a',marginTop:1}}>DIVERT</div>}
                   {wpt.custom&&!isDivA&&<div style={{fontSize:8,color:'#ff9500',marginTop:1}}>ADDED</div>}
                 </div>
 
-                {/* ETA (planned) */}
+                {/* ETA plan */}
                 <div style={{fontSize:11,color:wpt.eta!=='—'?'#777':'#333',fontFamily:'monospace'}}>{wpt.eta}</div>
 
-                {/* ATA + time deviation */}
+                {/* ATA actual + time deviation */}
                 <div style={{fontSize:11,fontFamily:'monospace'}}>
                   {actATA?(
                     <div>
                       <span style={{color:'#2d9e5f',fontWeight:700}}>{actATA}</span>
-                      {df&&<span style={{fontSize:9,color:df.color,marginLeft:3,fontWeight:700}}>{df.label}</span>}
+                      {tDf&&<span style={{fontSize:9,color:tDf.color,marginLeft:3,fontWeight:700}}>{tDf.label}</span>}
                     </div>
                   ):estATA?(
-                    <div>
-                      <span style={{color:'#555',fontStyle:'italic'}}>{estATA}</span>
-                      <span style={{fontSize:8,color:'#444',marginLeft:2}}>est</span>
-                    </div>
+                    <div><span style={{color:'#555',fontStyle:'italic'}}>{estATA}</span><span style={{fontSize:8,color:'#444',marginLeft:2}}>est</span></div>
                   ):<span style={{color:'#333'}}>—</span>}
                 </div>
 
                 {/* FL */}
                 <div style={{fontSize:11,color:'#777',fontFamily:'monospace'}}>{wpt.fl}</div>
 
-                {/* Actual fuel */}
+                {/* FUEL ACT — actual green, estimated italic, plan gray */}
                 <div style={{fontSize:11,fontFamily:'monospace'}}>
                   {actFN?(
                     <div>
                       <span style={{color:'#2d9e5f',fontWeight:700}}>{actFN.toLocaleString()}</span>
-                      {pF&&!isDep&&!isArr&&<div style={{fontSize:9,color:'#444'}}>p:{pF.toLocaleString()}</div>}
+                      {pF&&!isDep&&!isArr&&<div style={{fontSize:9,color:'#555',marginTop:1}}>p:{pF.toLocaleString()}</div>}
                     </div>
                   ):estFN?(
-                    <span style={{color:'#555',fontStyle:'italic'}}>{estFN.toLocaleString()}<span style={{fontSize:8,color:'#444',marginLeft:2}}>est</span></span>
+                    <div>
+                      <span style={{color:'#555',fontStyle:'italic'}}>{estFN.toLocaleString()}</span>
+                      <span style={{fontSize:8,color:'#444',marginLeft:2}}>est</span>
+                      {pF&&!isDep&&!isArr&&<div style={{fontSize:9,color:'#555',marginTop:1}}>p:{pF.toLocaleString()}</div>}
+                    </div>
+                  ):pF&&!isDep&&!isArr?(
+                    // No actual yet: show plan value in gray
+                    <div>
+                      <span style={{color:'#888',fontFamily:'monospace'}}>{pF.toLocaleString()}</span>
+                      <span style={{fontSize:8,color:'#666',marginLeft:3}}>plan</span>
+                    </div>
                   ):<span style={{color:'#333'}}>—</span>}
                 </div>
 
@@ -764,16 +693,25 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
                   {e.rvsm?e.rvsm.split('/')[0]+'…':(isDep||isArr?'N/A':'—')}
                 </div>
 
-                {/* Fuel deviation vs OFP plan */}
+                {/* FUEL ±PLAN — deviation with color badge */}
                 <div style={{fontSize:11,fontFamily:'monospace'}}>
-                  {fd?(
-                    <span style={{color:fd.color,fontWeight:700,fontSize:10}}>{fd.label}</span>
-                  ):!isDep&&!isArr&&pF&&!actFN?(
-                    <span style={{color:'#333',fontSize:10}}>p:{pF.toLocaleString()}</span>
+                  {fDS?(
+                    <span style={{
+                      display:'inline-block',
+                      padding:'1px 6px',
+                      borderRadius:4,
+                      background:fDS.bg,
+                      color:fDS.color,
+                      fontWeight:700,
+                      fontSize:11,
+                    }}>{fDS.label}</span>
+                  ):pF&&!isDep&&!isArr&&!actFN?(
+                    // Show plan as reference when no actual yet
+                    <span style={{color:'#444',fontSize:10}}>—</span>
                   ):<span style={{color:'#333'}}>—</span>}
                 </div>
 
-                {/* Status badge */}
+                {/* Status */}
                 <div style={{textAlign:'right'}}>
                   {sk    ?<span style={{fontSize:9,color:'#444'}}>SKIP</span>
                   :done  ?<span style={{fontSize:10,fontWeight:700,color:'#2d9e5f',background:'rgba(45,158,95,0.12)',padding:'2px 6px',borderRadius:3}}>✓ DONE</span>
@@ -782,7 +720,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
                 </div>
               </div>
 
-              {/* Aircraft position marker */}
               {showAc&&(
                 <div style={{display:'flex',alignItems:'center',padding:'6px 10px',background:'rgba(45,158,95,0.07)',borderBottom:'1px solid rgba(45,158,95,0.2)',borderLeft:'3px solid #2d9e5f'}}>
                   <span style={{fontSize:16,marginRight:8}}>✈</span>
@@ -795,36 +732,20 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           );
         })}
 
-        {!flightClosed&&(
-          <div style={{padding:'10px'}}>
-            <button onClick={()=>setShowDivert(true)} style={{width:'100%',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.3)',borderRadius:7,padding:'10px',fontSize:11,fontWeight:700,color:'#e8731a',cursor:'pointer',fontFamily:'inherit'}}>⚠ Add Divert ARPT</button>
-          </div>
-        )}
-        {flightClosed&&(
-          <div style={{margin:'10px',padding:'8px 12px',borderRadius:6,background:'rgba(255,149,0,0.08)',border:'1px solid rgba(255,149,0,0.2)',fontSize:11,color:'#e8731a',textAlign:'center'}}>⚠ Flight closed at divert airport</div>
-        )}
+        {!flightClosed&&<div style={{padding:'10px'}}><button onClick={()=>setShowDivert(true)} style={{width:'100%',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.3)',borderRadius:7,padding:'10px',fontSize:11,fontWeight:700,color:'#e8731a',cursor:'pointer',fontFamily:'inherit'}}>⚠ Add Divert ARPT</button></div>}
+        {flightClosed&&<div style={{margin:'10px',padding:'8px 12px',borderRadius:6,background:'rgba(255,149,0,0.08)',border:'1px solid rgba(255,149,0,0.2)',fontSize:11,color:'#e8731a',textAlign:'center'}}>⚠ Flight closed at divert airport</div>}
       </div>
 
-      {/* GPS not-for-navigation warning */}
       {showGpsWarn&&(
         <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}}>
           <div style={{background:'#1a1a1a',border:'2px solid #e8731a',borderRadius:12,width:340,overflow:'hidden'}}>
             <div style={{background:'rgba(232,115,26,0.15)',padding:'14px 16px',borderBottom:'1px solid #e8731a',display:'flex',alignItems:'center',gap:10}}>
-              <span style={{fontSize:22}}>⚠️</span>
-              <div>
-                <div style={{fontSize:13,fontWeight:700,color:'#e8731a'}}>NOT FOR NAVIGATION</div>
-                <div style={{fontSize:10,color:'#888',marginTop:2}}>AMC 20-25 Compliance Notice</div>
-              </div>
+              <span style={{fontSize:22}}>⚠️</span><div><div style={{fontSize:13,fontWeight:700,color:'#e8731a'}}>NOT FOR NAVIGATION</div><div style={{fontSize:10,color:'#888',marginTop:2}}>AMC 20-25</div></div>
             </div>
-            <div style={{padding:'16px',fontSize:12,color:'#ccc',lineHeight:1.8}}>
-              GPS display is for situational awareness only — <b style={{color:'#fff'}}>NOT for primary navigation</b>. Per EASA AMC 20-25, navigate using certified aircraft systems only.
-            </div>
+            <div style={{padding:'16px',fontSize:12,color:'#ccc',lineHeight:1.8}}>GPS display is for situational awareness only — <b style={{color:'#fff'}}>NOT for primary navigation</b>. Per EASA AMC 20-25.</div>
             <div style={{padding:'0 16px 16px',display:'flex',gap:8}}>
               <button onClick={()=>setShowGpsWarn(false)} style={{flex:1,background:'#2a2a2a',border:'1px solid #383838',borderRadius:7,padding:10,fontSize:12,color:'#666',cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
-              <button onClick={()=>{setGpsOk(true);setShowGpsWarn(false);startGPS();logEvent(activePlan?.id,'GPS_ACTIVATED',{notice:'acknowledged'});}}
-                style={{flex:2,background:'#e8731a',border:'none',borderRadius:7,padding:10,fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit'}}>
-                I Understand — Activate GPS
-              </button>
+              <button onClick={()=>{setGpsOk(true);setShowGpsWarn(false);startGPS();logEvent(activePlan?.id,'GPS_ACTIVATED',{notice:'acknowledged'});}} style={{flex:2,background:'#e8731a',border:'none',borderRadius:7,padding:10,fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit'}}>I Understand — Activate GPS</button>
             </div>
           </div>
         </div>
@@ -832,32 +753,16 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
 
       <SyncButton/>
 
-      {modal===dep&&(
-        <DepModal dep={dep} onClose={()=>setModal(null)} onSave={onDepSave} initial={entries[dep]||{}}/>
-      )}
+      {modal===dep&&<DepModal dep={dep} onClose={()=>setModal(null)} onSave={onDepSave} initial={entries[dep]||{}}/>}
 
       {modal&&modal!==dep&&mWpt&&(mWpt.type==='dest'||mWpt.type==='divert-arpt')&&(
-        <ArrivalModal wptName={mWpt.name} isDivert={mWpt.type==='divert-arpt'}
-          onClose={()=>setModal(null)} onSave={d=>onArrSave(modal,d)}
-          onDivert={onDiv} initial={entries[modal]||{}}/>
+        <ArrivalModal wptName={mWpt.name} isDivert={mWpt.type==='divert-arpt'} onClose={()=>setModal(null)} onSave={d=>onArrSave(modal,d)} onDivert={onDiv} initial={entries[modal]||{}}/>
       )}
 
       {modal&&modal!==dep&&mWpt&&mWpt.type==='wpt'&&(()=>{
-        const wi = waypoints.findIndex(w=>w.uid===modal);
-        const af = waypoints.filter((w,i)=>i>wi&&w.type!=='dest'&&w.type!=='divert-arpt');
-        return(
-          <WptModal wpt={mWpt} onClose={()=>setModal(null)}
-            onSave={d=>onWptSave(modal,d)}
-            onDirectTo={t=>onDirTo(modal,t)}
-            onAddWpt={(nw,p2)=>onAddAt(nw,p2,modal)}
-            onDelete={()=>onDelWpt(modal)}
-            initial={entries[modal]||{}}
-            wptList={af}
-            estimatedATA={autoATA(mWpt,wi)}
-            estimatedFuel={autoFuel(mWpt,wi)}
-            plannedFuel={planFuelAt(mWpt)}
-          />
-        );
+        const wi=waypoints.findIndex(w=>w.uid===modal);
+        const af=waypoints.filter((w,i)=>i>wi&&w.type!=='dest'&&w.type!=='divert-arpt');
+        return <WptModal wpt={mWpt} onClose={()=>setModal(null)} onSave={d=>onWptSave(modal,d)} onDirectTo={t=>onDirTo(modal,t)} onAddWpt={(nw,p2)=>onAddAt(nw,p2,modal)} onDelete={()=>onDelWpt(modal)} initial={entries[modal]||{}} wptList={af} estimatedATA={autoATA(mWpt,wi)} estimatedFuel={autoFuel(mWpt,wi)} plannedFuel={planFuelAt(mWpt)}/>;
       })()}
 
       {showDivert&&<DivertArptModal onClose={()=>setShowDivert(false)} onAdd={onAddDiv}/>}
