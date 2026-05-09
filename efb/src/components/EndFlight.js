@@ -26,7 +26,7 @@ function TimeRow({ label, value, auto }) {
         {auto && <div style={{ fontSize:10, color:'#444', marginTop:1 }}>From NAV LOG</div>}
       </div>
       <span style={{ fontSize:15, fontWeight:700, color:auto?(value?'#1a9bc4':'#444'):'#999', fontFamily:'monospace' }}>
-        {value || '—'}
+        {value||'—'}
       </span>
     </div>
   );
@@ -51,55 +51,99 @@ function InputRow({ label, hint, value, onChange, unit, suffix }) {
 function toMins(t) {
   if (!t || !t.includes(':')) return null;
   const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
+  return h*60+m;
 }
 function fromMins(m) {
-  if (m === null || m < 0) return '—';
-  return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0');
+  if (m===null||m<0) return '—';
+  return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
 }
 
-// date string → YYYY-MM-DD (handles multiple PPS formats)
+// Robust PPS date → YYYY-MM-DD
 function toIsoDate(dateStr) {
   if (!dateStr) return new Date().toISOString().split('T')[0];
-
-  // Already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-
-  // DD-MM-YYYY or DD/MM/YYYY
-  const dmy = dateStr.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+  const dmy = dateStr.match(/^(\d{2})[/-](\d{2})[/-](\d{4})$/);
   if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
-
-  // DDMMM YY or DDMMMYY  e.g. 08MAY26 or 08MAY2026
   const pps = dateStr.match(/^(\d{2})\s*([A-Z]{3})\s*(\d{2,4})$/i);
   if (pps) {
-    const months = {JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',
-                    JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12'};
+    const months={JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12'};
     const mon = months[pps[2].toUpperCase()];
-    const yr  = pps[3].length === 2 ? `20${pps[3]}` : pps[3];
+    const yr  = pps[3].length===2?`20${pps[3]}`:pps[3];
     if (mon) return `${yr}-${mon}-${pps[1]}`;
   }
-
-  // JS fallback  e.g. "08 May 2026"
   const parsed = new Date(dateStr);
   if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
-
   return new Date().toISOString().split('T')[0];
 }
 
-// HH:MM + YYYY-MM-DD → ISO timestamp string
 function makeTimestamp(hhmm, isoDate) {
-  if (!hhmm || !isoDate) return null;
+  if (!hhmm||!isoDate) return null;
   const ts = new Date(`${isoDate}T${hhmm}:00.000Z`);
   return isNaN(ts.getTime()) ? null : ts.toISOString();
 }
 
 function parseDestCoords(rawText) {
-  if (!rawText) return { lat:null, lon:null };
+  if (!rawText) return {lat:null,lon:null};
   const m = rawText.match(/^DEST\s+\S+\s+.*?N(\d+):(\d+\.?\d*)\s+E(\d+):(\d+\.?\d*)/m);
-  if (!m) return { lat:null, lon:null };
-  return { lat: parseFloat(m[1]) + parseFloat(m[2])/60, lon: parseFloat(m[3]) + parseFloat(m[4])/60 };
+  if (!m) return {lat:null,lon:null};
+  return { lat: parseFloat(m[1])+parseFloat(m[2])/60, lon: parseFloat(m[3])+parseFloat(m[4])/60 };
 }
 
+// ─── 2-Step Archive Confirmation Modal ────────────────────────────────────────
+function ArchiveConfirmModal({ onConfirm, onCancel }) {
+  const [step, setStep] = React.useState(1); // 1=sync check, 2=save confirm
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
+      <div style={{ background:'#1a1a1a', border:'1px solid #2a3040', borderRadius:14, width:300, overflow:'hidden' }}>
+
+        {/* Step 1: Sync check */}
+        {step === 1 && (
+          <>
+            <div style={{ background:'rgba(26,155,196,0.1)', padding:'16px 20px', borderBottom:'1px solid #2a3040' }}>
+              <div style={{ fontSize:11, color:'#1a9bc4', fontWeight:700, letterSpacing:1.5, textTransform:'uppercase', marginBottom:4 }}>⇄ Sync Check</div>
+              <div style={{ fontSize:14, color:'#e8e8e8', fontWeight:600 }}>Did you sync the flight data?</div>
+              <div style={{ fontSize:11, color:'#555', marginTop:4 }}>Make sure all data is synced before archiving.</div>
+            </div>
+            <div style={{ padding:'16px 20px', display:'flex', gap:10 }}>
+              <button onClick={onCancel}
+                style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:8, padding:'11px 0', fontSize:13, fontWeight:700, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>
+                NO
+              </button>
+              <button onClick={() => setStep(2)}
+                style={{ flex:2, background:'#1a9bc4', border:'none', borderRadius:8, padding:'11px 0', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>
+                YES — SYNCED ✓
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Step 2: Save confirm */}
+        {step === 2 && (
+          <>
+            <div style={{ background:'rgba(45,158,95,0.1)', padding:'16px 20px', borderBottom:'1px solid #2a3040' }}>
+              <div style={{ fontSize:11, color:'#2d9e5f', fontWeight:700, letterSpacing:1.5, textTransform:'uppercase', marginBottom:4 }}>📁 Archive Flight</div>
+              <div style={{ fontSize:14, color:'#e8e8e8', fontWeight:600 }}>Save and archive this flight?</div>
+              <div style={{ fontSize:11, color:'#555', marginTop:4 }}>This will finalize the flight record. Cannot be undone.</div>
+            </div>
+            <div style={{ padding:'16px 20px', display:'flex', gap:10 }}>
+              <button onClick={onCancel}
+                style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:8, padding:'11px 0', fontSize:13, fontWeight:700, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>
+                NO
+              </button>
+              <button onClick={onConfirm}
+                style={{ flex:2, background:'#2d9e5f', border:'none', borderRadius:8, padding:'11px 0', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>
+                YES — SAVE ✓
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── EndFlight ────────────────────────────────────────────────────────────────
 function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
   const planKey = activePlan?.id || 'default';
 
@@ -108,6 +152,26 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
   const [archived,         setArchived]         = usePersistedState(`efb_endflt_archived_${planKey}`, false);
   const [archiving,        setArchiving]        = React.useState(false);
   const [archivedFlightId, setArchivedFlightId] = React.useState(null);
+  const [showConfirm,      setShowConfirm]      = React.useState(false);
+
+  // ── Read T/O data from TakeoffData persisted state ────────────────────────
+  const [tkofSelRwy,    ] = usePersistedState('efb_tkof_selRwy',    null);
+  const [tkofManualRwy, ] = usePersistedState('efb_tkof_manualRwy', '');
+  const [tkofDepAtis,   ] = usePersistedState('efb_tkof_depAtis',   '');
+  const [tkofSid,       ] = usePersistedState('efb_tkof_sid',       '');
+  const [tkofFl,        ] = usePersistedState('efb_tkof_fl',        '');
+  const [tkofSq,        ] = usePersistedState('efb_tkof_sq',        '');
+
+  // ── Read LND data from LandingData persisted state ────────────────────────
+  const [lndSelRwy,    ] = usePersistedState('efb_lnd_selRwy',    null);
+  const [lndManualRwy, ] = usePersistedState('efb_lnd_manualRwy', '');
+  const [lndArrAtis,   ] = usePersistedState('efb_lnd_arrAtis',   '');
+  const [lndActualLw,  ] = usePersistedState('efb_lnd_actualLw',  '');
+  const [lndVref,      ] = usePersistedState('efb_lnd_vref',      '');
+  const [lndReqLnd,    ] = usePersistedState('efb_lnd_reqLnd',    '');
+
+  const depRwy = tkofSelRwy || tkofManualRwy || null;
+  const arrRwy = lndSelRwy  || lndManualRwy  || null;
 
   const { offBlock, takeoffTime, landingTime, onBlock, takeoffFuel, remainingFuel } = flightData;
   const divert = divertData.active;
@@ -125,25 +189,22 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
   }
 
   const finalRes   = n(activePlan?.reserve_fuel) || 1447;
-  const flightMins = toMins(landingTime) !== null && toMins(takeoffTime) !== null
+  const flightMins = toMins(landingTime)!==null && toMins(takeoffTime)!==null
     ? toMins(landingTime) - toMins(takeoffTime) : null;
-  const blockMins  = toMins(onBlock) !== null && toMins(offBlock) !== null
+  const blockMins  = toMins(onBlock)!==null && toMins(offBlock)!==null
     ? toMins(onBlock) - toMins(offBlock) : null;
   const toFuelNum  = takeoffFuel   ? parseInt(takeoffFuel.replace(/,/g,''))   : null;
   const remFuelNum = remainingFuel ? parseInt(remainingFuel.replace(/,/g,'')) : null;
   const burnoff    = toFuelNum && remFuelNum ? toFuelNum - remFuelNum : null;
-  const remColor   = remFuelNum === null ? '#999' : remFuelNum < finalRes ? '#e02020' : '#2d9e5f';
+  const remColor   = remFuelNum===null?'#999':remFuelNum<finalRes?'#e02020':'#2d9e5f';
   const destIcao   = divert && divertData.icao ? divertData.icao : dest;
   const timesOk    = !!(landingTime && onBlock && takeoffTime && offBlock);
   const fuelOk     = !!remainingFuel;
 
-  // Daha önce archive edilmişse archived_flight id'yi yükle
   useEffect(() => {
-    if (!archived || !activePlan?.id || archivedFlightId) return;
+    if (!archived||!activePlan?.id||archivedFlightId) return;
     (async () => {
-      const { data } = await supabase
-        .from('archived_flights').select('id')
-        .eq('plan_id', activePlan.id).single();
+      const {data} = await supabase.from('archived_flights').select('id').eq('plan_id',activePlan.id).single();
       if (data) setArchivedFlightId(data.id);
     })();
   }, [archived, activePlan?.id, archivedFlightId]);
@@ -159,13 +220,14 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
   const handleArchive = async () => {
     if (!activePlan?.id) return;
     setArchiving(true);
+    setShowConfirm(false);
     try {
       await supabase.from('plans')
         .update({ status:'archived', archived_at:new Date().toISOString() })
         .eq('id', activePlan.id);
 
       const { lat:destLat, lon:destLon } = parseDestCoords(rawText);
-      const isoDate = toIsoDate(date); // YYYY-MM-DD — robust parsing
+      const isoDate = toIsoDate(date);
 
       const { data:afData, error:archiveError } = await supabase
         .from('archived_flights')
@@ -176,14 +238,14 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
           pf_id:            activePlan.pf_pilot,
           departure_icao:   dep,
           destination_icao: destIcao,
-          // timestamps — properly constructed from YYYY-MM-DD + HH:MM
+          // Timestamps — properly constructed
           off_blocks:       makeTimestamp(offBlock,    isoDate),
           on_blocks:        makeTimestamp(onBlock,     isoDate),
           takeoff_time:     makeTimestamp(takeoffTime, isoDate),
           landing_time:     makeTimestamp(landingTime, isoDate),
           block_minutes:    blockMins,
           airborne_minutes: flightMins,
-          landing_count:    parseInt(cycles) || 1,
+          landing_count:    parseInt(cycles)||1,
           dest_lat:         destLat,
           dest_lon:         destLon,
           is_night_landing: false,
@@ -191,6 +253,16 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
           remaining_fuel:   remFuelNum || null,
           pax:              pax ? parseInt(pax) : null,
           archived_at:      new Date().toISOString(),
+          // T/O Data
+          dep_rwy:          depRwy     || null,
+          sid:              tkofSid    || null,
+          dep_atis:         tkofDepAtis|| null,
+          // LND Data
+          arr_rwy:          arrRwy     || null,
+          arr_atis:         lndArrAtis || null,
+          actual_lw:        lndActualLw ? parseInt(lndActualLw.replace(/,/g,'')) : null,
+          vref:             lndVref    ? parseInt(lndVref) : null,
+          req_landing_dist: lndReqLnd  ? parseInt(lndReqLnd.replace(/[^0-9]/g,'')) : null,
         })
         .select('id')
         .single();
@@ -201,6 +273,7 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
       logEvent(activePlan.id, 'FLIGHT_ARCHIVED', {
         dep, dest:destIcao, block_minutes:blockMins,
         airborne_minutes:flightMins, landing_count:parseInt(cycles)||1,
+        dep_rwy:depRwy, arr_rwy:arrRwy, sid:tkofSid,
       });
 
       setArchived(true);
@@ -236,10 +309,10 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
 
       <Sep/>
       <Title t="Calculated"/>
-      <AutoRow label="Flight Time" value={fromMins(flightMins)} valueColor={flightMins?'#e8e8e8':'#444'} big/>
-      <AutoRow label="Block Time"  value={fromMins(blockMins)}  valueColor={blockMins?'#e8e8e8':'#444'}  big/>
-      <AutoRow label="Landings"    value={cycles||'1'}          valueColor="#e8e8e8"/>
-      <AutoRow label="Destination" value={destIcao}             valueColor={divert?'#e8731a':'#1a9bc4'}/>
+      <AutoRow label="Flight Time"  value={fromMins(flightMins)} valueColor={flightMins?'#e8e8e8':'#444'} big/>
+      <AutoRow label="Block Time"   value={fromMins(blockMins)}  valueColor={blockMins?'#e8e8e8':'#444'}  big/>
+      <AutoRow label="Landings"     value={cycles||'1'}          valueColor="#e8e8e8"/>
+      <AutoRow label="Destination"  value={destIcao}             valueColor={divert?'#e8731a':'#1a9bc4'}/>
 
       <Sep/>
       <Title t="Fuel Summary"/>
@@ -247,7 +320,7 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
         <div>
           <div style={{ fontSize:12.5, color:'#666' }}>Remaining Fuel</div>
-          {remFuelNum !== null && remFuelNum < finalRes && (
+          {remFuelNum!==null && remFuelNum<finalRes && (
             <div style={{ fontSize:10, color:'#e02020', marginTop:2, fontWeight:700 }}>
               ⚠ Below final reserve ({finalRes.toLocaleString()} lb)
             </div>
@@ -260,9 +333,24 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
       <AutoRow label="Fuel Used (Burnoff)" value={burnoff?burnoff.toLocaleString()+' lb':'—'} valueColor={burnoff?'#e8e8e8':'#444'} big/>
 
       <Sep/>
+      <Title t="T/O Data Summary"/>
+      <AutoRow label="DEP RWY"   value={depRwy    || '—'} valueColor={depRwy?'#e8e8e8':'#444'}/>
+      <AutoRow label="SID"       value={tkofSid   || '—'} valueColor={tkofSid?'#e8e8e8':'#444'}/>
+      <AutoRow label="FL"        value={tkofFl    || '—'} valueColor={tkofFl?'#e8e8e8':'#444'}/>
+      <AutoRow label="SQ"        value={tkofSq    || '—'} valueColor={tkofSq?'#e8e8e8':'#444'}/>
+      <AutoRow label="DEP ATIS"  value={tkofDepAtis||'—'} valueColor={tkofDepAtis?'#e8e8e8':'#444'}/>
+
+      <Sep/>
+      <Title t="LND Data Summary"/>
+      <AutoRow label="ARR RWY"   value={arrRwy      || '—'} valueColor={arrRwy?'#e8e8e8':'#444'}/>
+      <AutoRow label="ARR ATIS"  value={lndArrAtis  || '—'} valueColor={lndArrAtis?'#e8e8e8':'#444'}/>
+      <AutoRow label="Actual LW" value={lndActualLw ? parseInt(lndActualLw.replace(/,/g,'')).toLocaleString()+' lb' : '—'} valueColor={lndActualLw?'#e8e8e8':'#444'}/>
+      <AutoRow label="Vref"      value={lndVref     ? lndVref+' kt' : '—'} valueColor={lndVref?'#e8e8e8':'#444'}/>
+
+      <Sep/>
       <Title t="Tech Data"/>
       <InputRow label="PAX"    value={pax}    onChange={setPax}    unit="pax"/>
-      <InputRow label="Cycles" hint="+1 auto added" value={cycles} onChange={setCycles} suffix="cycle(s)"/>
+      <InputRow label="Cycles" hint="+1 auto" value={cycles} onChange={setCycles} suffix="cycle(s)"/>
 
       <Sep/>
       {divert && (
@@ -281,7 +369,9 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
       <div style={{ margin:'12px 16px 4px' }}>
         {!archived ? (
           <>
-            <button onClick={handleArchive} disabled={archiving||!timesOk}
+            <button
+              onClick={() => { if (timesOk) setShowConfirm(true); }}
+              disabled={archiving||!timesOk}
               style={{ width:'100%', background:timesOk?'rgba(45,158,95,0.12)':'#1e1e1e', border:'1px solid '+(timesOk?'#2d9e5f':'#333'), borderRadius:10, padding:14, fontSize:14, fontWeight:700, color:timesOk?'#2d9e5f':'#444', cursor:timesOk?'pointer':'not-allowed', fontFamily:'inherit' }}>
               {archiving ? '⏳ Archiving...' : '📁 Archive Flight'}
             </button>
@@ -306,6 +396,14 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
       </div>
 
       <SyncButton/>
+
+      {/* 2-Step Archive Confirmation */}
+      {showConfirm && (
+        <ArchiveConfirmModal
+          onConfirm={handleArchive}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
     </div>
   );
 }
