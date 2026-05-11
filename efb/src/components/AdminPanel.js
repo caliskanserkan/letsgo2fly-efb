@@ -1417,24 +1417,76 @@ function Statistics(){
       <div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`}}>
         <span style={{...S.label,fontSize:10}}>{filtered.length} FLIGHTS</span>
       </div>
-      <table style={S.table}>
-        <thead><tr>{['DATE','DEP','DEST','REG','BLOCK','FLIGHT','LANDINGS','NIGHT'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
-        <tbody>
-          {filtered.map(f=>(
-            <tr key={f.id}>
-              <td style={S.td}>{f.archived_at?new Date(f.archived_at).toLocaleDateString('en-GB'):'—'}</td>
-              <td style={{...S.td,color:C.accent}}>{f.departure_icao||f.plans?.dep||'—'}</td>
-              <td style={{...S.td,color:C.accent}}>{f.destination_icao||f.plans?.dest||'—'}</td>
-              <td style={S.td}>{f.plans?.reg||'—'}</td>
-              <td style={S.td}>{fmt(f.block_minutes)}</td>
-              <td style={S.td}>{fmt(f.airborne_minutes)}</td>
-              <td style={S.td}>{f.landing_count||'—'}</td>
-              <td style={S.td}>{f.is_night_landing?<span style={S.badge('blue')}>NIGHT</span>:'—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <SortableTable flights={filtered} fmt={fmt}/>
     </div>
+  );
+}
+
+function SortableTable({flights, fmt}){
+  const[sortKey,setSortKey]=useState('archived_at');
+  const[sortDir,setSortDir]=useState('desc'); // default: newest first
+
+  const COLS=[
+    {key:'archived_at',  label:'DATE'},
+    {key:'dep',          label:'DEP'},
+    {key:'dest',         label:'DEST'},
+    {key:'reg',          label:'REG'},
+    {key:'block_minutes',label:'BLOCK'},
+    {key:'airborne_minutes',label:'FLIGHT'},
+    {key:'landing_count',label:'LANDINGS'},
+    {key:'is_night_landing',label:'NIGHT'},
+  ];
+
+  const toggle=(key)=>{
+    if(sortKey===key) setSortDir(d=>d==='asc'?'desc':'asc');
+    else{setSortKey(key);setSortDir('asc');}
+  };
+
+  const getValue=(f,key)=>{
+    if(key==='dep')  return f.departure_icao||f.plans?.dep||'';
+    if(key==='dest') return f.destination_icao||f.plans?.dest||'';
+    if(key==='reg')  return f.plans?.reg||'';
+    return f[key]??'';
+  };
+
+  const sorted=[...flights].sort((a,b)=>{
+    const av=getValue(a,sortKey), bv=getValue(b,sortKey);
+    const dir=sortDir==='asc'?1:-1;
+    if(typeof av==='number'&&typeof bv==='number') return (av-bv)*dir;
+    return String(av).localeCompare(String(bv))*dir;
+  });
+
+  const icon=(key)=>{
+    if(sortKey!==key) return <span style={{color:'#333',marginLeft:4}}>⇅</span>;
+    return <span style={{color:C.accent,marginLeft:4}}>{sortDir==='asc'?'↑':'↓'}</span>;
+  };
+
+  return(
+    <table style={S.table}>
+      <thead>
+        <tr>
+          {COLS.map(c=>(
+            <th key={c.key} style={{...S.th,cursor:'pointer',userSelect:'none'}} onClick={()=>toggle(c.key)}>
+              {c.label}{icon(c.key)}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {sorted.map(f=>(
+          <tr key={f.id}>
+            <td style={S.td}>{f.archived_at?new Date(f.archived_at).toLocaleDateString('en-GB'):'—'}</td>
+            <td style={{...S.td,color:C.accent}}>{f.departure_icao||f.plans?.dep||'—'}</td>
+            <td style={{...S.td,color:C.accent}}>{f.destination_icao||f.plans?.dest||'—'}</td>
+            <td style={S.td}>{f.plans?.reg||'—'}</td>
+            <td style={S.td}>{fmt(f.block_minutes)}</td>
+            <td style={S.td}>{fmt(f.airborne_minutes)}</td>
+            <td style={S.td}>{f.landing_count||'—'}</td>
+            <td style={S.td}>{f.is_night_landing?<span style={S.badge('blue')}>NIGHT</span>:'—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
