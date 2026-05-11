@@ -637,7 +637,14 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
           }
         } catch {}
         onActivate(plan);
-        logEvent(plan.id, 'PLAN_DOWNLOADED', {
+        logEvent(plan.id, "PLAN_ACTIVATED", {
+          dep: plan.dep,
+          dest: plan.dest,
+          reg: plan.reg,
+          dispatch_no: plan.dispatch_no,
+          activated_at: new Date().toISOString(),
+        });
+        logEvent(plan.id, "PLAN_DOWNLOADED", {
           dep: plan.dep,
           dest: plan.dest,
           dispatch_no: plan.dispatch_no,
