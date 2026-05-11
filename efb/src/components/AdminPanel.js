@@ -114,7 +114,7 @@ function FlightTimeline({ planId, live=false }) {
     if (!planId) return;
     const { data } = await supabase
       .from('flight_logs')
-      .select('*')
+      .select('*,profiles(full_name,code)')
       .eq('plan_id', planId)
       .order('created_at', { ascending: true });
     setLogs(data || []);
@@ -187,7 +187,7 @@ function FlightTimeline({ planId, live=false }) {
 }
 
 // ─── Collapsible Edit Box (Archived FLTs) ─────────────────────────────────────
-function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, toast, user }) {
+function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, toast, user, pilots=[] }) {
   const [open,    setOpen]    = useState(false);
   const [editing, setEditing] = useState(false);
   const [form,    setForm]    = useState({});
@@ -285,6 +285,10 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
               {fields.map(f => {
                 let val = flight[f.key];
                 if (f.type === 'time' && val) val = fmtTime(val);
+                if (f.type === 'pilot' && val) {
+                  const p = pilots.find(x=>x.id===val);
+                  val = p ? `${p.code} — ${p.full_name}` : val.slice(0,8)+'...';
+                }
                 return (
                   <div key={f.key} style={{display:'flex',justifyContent:'space-between',padding:'3px 0'}}>
                     <span style={{fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace"}}>{f.label}</span>
@@ -307,10 +311,19 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
                 {fields.map(f => (
                   <div key={f.key}>
                     <div style={{fontSize:10,color:C.t3,fontFamily:"'Courier New',monospace",marginBottom:3}}>{f.label}</div>
-                    <input style={{...S.input,fontSize:13,padding:'6px 8px'}}
-                      value={form[f.key]||''}
-                      placeholder={f.type==='time'?'HH:MM':'—'}
-                      onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}/>
+                    {f.type==='pilot'?(
+                      <select style={{...S.select,fontSize:13,padding:'6px 8px'}}
+                        value={form[f.key]||''}
+                        onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}>
+                        <option value="">— Select —</option>
+                        {pilots.map(p=><option key={p.id} value={p.id}>{p.code} — {p.full_name}</option>)}
+                      </select>
+                    ):(
+                      <input style={{...S.input,fontSize:13,padding:'6px 8px'}}
+                        value={form[f.key]||''}
+                        placeholder={f.type==='time'?'HH:MM':'—'}
+                        onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}/>
+                    )}
                   </div>
                 ))}
               </div>
@@ -379,6 +392,17 @@ function ActiveFlts({toast}){
   const [loading,setLoading]=useState(true);
   const [selected,setSelected]=useState(null);
   const [detailTab,setDetailTab]=useState('details'); // 'details' | 'timeline'
+  const [pilots,setPilots]=useState([]);
+
+  useEffect(()=>{
+    supabase.from('profiles').select('id,full_name,code').then(({data})=>setPilots(data||[]));
+  },[]);
+
+  const pilotName = id => {
+    if (!id) return '—';
+    const p = pilots.find(x=>x.id===id);
+    return p ? `${p.code} — ${p.full_name}` : id.slice(0,8)+'...';
+  };
 
   useEffect(()=>{
     const load=async()=>{
@@ -444,8 +468,8 @@ function ActiveFlts({toast}){
               <DetailRow label="Dispatch No"  value={sel.dispatch_no}/>
               <DetailRow label="STD"          value={sel.std}/>
               <DetailRow label="ETA"          value={sel.eta}/>
-              <DetailRow label="PF Pilot"     value={sel.pf_pilot}/>
-              <DetailRow label="PM Pilot"     value={sel.pm_pilot}/>
+              <DetailRow label="PF Pilot"     value={pilotName(sel.pf_pilot)}/>
+              <DetailRow label="PM Pilot"     value={pilotName(sel.pm_pilot)}/>
             </div>
           )}
 
@@ -470,6 +494,18 @@ function ArchivedFlts({toast,user}){
   const[deleteReason,setDeleteReason]=useState('');
   const[saving,setSaving]=useState(false);
   const[planLogs,setPlanLogs]=useState([]);
+  const[pilots,setPilots]=useState([]);
+
+  useEffect(()=>{
+    supabase.from('profiles').select('id,full_name,code').order('full_name').then(({data})=>setPilots(data||[]));
+  },[]);
+
+  // eslint-disable-next-line no-unused-vars
+  const pilotName = id => {
+    if (!id) return '—';
+    const p = pilots.find(x=>x.id===id);
+    return p ? `${p.code} — ${p.full_name}` : id.slice(0,8)+'...';
+  };
 
   const load=useCallback(async()=>{
     setLoading(true);
@@ -631,14 +667,17 @@ function ArchivedFlts({toast,user}){
             <CollapsibleEditBox
               title="Flight Crew" icon="**" color="#1a9bc4"
               logs={logsByCategory.crew}
-              fields={[]}
-              flight={sel} onSave={load} toast={toast} user={user}
+              fields={[
+                {key:'pf_id',  label:'PF Pilot', type:'pilot'},
+                {key:'sic_id', label:'PM Pilot', type:'pilot'},
+              ]}
+              flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}
             />
             <CollapsibleEditBox
               title="Mandatory" icon="OK" color="#2d9e5f"
               logs={logsByCategory.mandatory}
               fields={[]}
-              flight={sel} onSave={load} toast={toast} user={user}
+              flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}
             />
             <CollapsibleEditBox
               title="Fuel" icon="F" color="#2d9e5f"
@@ -647,13 +686,13 @@ function ArchivedFlts({toast,user}){
                 {key:'takeoff_fuel',   label:'T/O Fuel (lb)',  type:'text'},
                 {key:'remaining_fuel', label:'Rem Fuel (lb)',  type:'text'},
               ]}
-              flight={sel} onSave={load} toast={toast} user={user}
+              flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}
             />
             <CollapsibleEditBox
               title="Accept & Sign" icon="SIG" color="#e8a020"
               logs={logsByCategory.accepted}
               fields={[]}
-              flight={sel} onSave={load} toast={toast} user={user}
+              flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}
             />
             <CollapsibleEditBox
               title="T/O Data" icon="T/O" color="#e8a020"
@@ -663,7 +702,7 @@ function ArchivedFlts({toast,user}){
                 {key:'dep_atis',  label:'DEP ATIS', type:'text'},
                 {key:'sid',       label:'SID',      type:'text'},
               ]}
-              flight={sel} onSave={load} toast={toast} user={user}
+              flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}
             />
             <CollapsibleEditBox
               title="NAV LOG" icon="NAV" color="#1a9bc4"
@@ -676,7 +715,7 @@ function ArchivedFlts({toast,user}){
                 {key:'takeoff_fuel', label:'T/O Fuel (lb)',       type:'text'},
                 {key:'remaining_fuel',label:'Rem Fuel (lb)',      type:'text'},
               ]}
-              flight={sel} onSave={load} toast={toast} user={user}
+              flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}
             />
             <CollapsibleEditBox
               title="LND Data" icon="LND" color="#1a9bc4"
@@ -688,7 +727,7 @@ function ArchivedFlts({toast,user}){
                 {key:'vref',             label:'Vref (kt)',      type:'text'},
                 {key:'req_landing_dist', label:'Req LND Dist',   type:'text'},
               ]}
-              flight={sel} onSave={load} toast={toast} user={user}
+              flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}
             />
           </div>
 
