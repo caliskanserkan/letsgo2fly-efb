@@ -1182,8 +1182,6 @@ function Crews({toast}){
                   <option value="admin">Admin</option>
                   <option value="dispatcher">Dispatcher</option>
                   <option value="admin_pilot">Admin + Pilot</option>
-                  <option value="admin_pilot">Admin + Pilot</option>
-                  <option value="admin_pilot">Admin + Pilot</option>
                 </select>
               </div>
               <div style={{display:'flex',gap:8}}>
@@ -1238,8 +1236,6 @@ function Crews({toast}){
               <option value="pilot">Pilot</option>
               <option value="admin">Admin</option>
               <option value="dispatcher">Dispatcher</option>
-                  <option value="admin_pilot">Admin + Pilot</option>
-                  <option value="admin_pilot">Admin + Pilot</option>
                   <option value="admin_pilot">Admin + Pilot</option>
             </select>
           </div>
@@ -1329,25 +1325,86 @@ function Crews({toast}){
 }
 // ─── 5. Statistics ────────────────────────────────────────────────────────────
 function Statistics(){
-  const[stats,setStats]=useState(null);const[flights,setFlights]=useState([]);
-  const[filter,setFilter]=useState({dep:'',dest:''});const[loading,setLoading]=useState(true);
+  const[flights,setFlights]=useState([]);
+  const[pilots,setPilots]=useState([]);
+  const[aircraft,setAircraft]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[filterReg,setFilterReg]=useState('');
+  const[filterCrew,setFilterCrew]=useState('');
+
   useEffect(()=>{
     (async()=>{
       setLoading(true);
-      const{data}=await supabase.from('archived_flights').select('*,plans(dep,dest,reg,ac_type)').order('archived_at',{ascending:false});
-      const arr=data||[];setFlights(arr);
-      setStats({totalFlightMins:arr.reduce((s,f)=>s+(f.airborne_minutes||0),0),totalBlockMins:arr.reduce((s,f)=>s+(f.block_minutes||0),0),totalLandings:arr.reduce((s,f)=>s+(f.landing_count||0),0),nightLandings:arr.filter(f=>f.is_night_landing).length,total:arr.length});
+      const[{data:f},{data:p},{data:a}]=await Promise.all([
+        supabase.from('archived_flights').select('*,plans(dep,dest,reg,ac_type,pf_pilot,pm_pilot)').order('archived_at',{ascending:false}),
+        supabase.from('profiles').select('id,full_name,code').in('role',['pilot','admin_pilot']).order('full_name'),
+        supabase.from('aircraft').select('registration').order('registration'),
+      ]);
+      setFlights(f||[]);setPilots(p||[]);setAircraft(a||[]);
       setLoading(false);
     })();
   },[]);
+
   const fmt=m=>m?`${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`:'0:00';
-  const filtered=flights.filter(f=>(!filter.dep||(f.departure_icao||f.plans?.dep||'').toLowerCase().includes(filter.dep.toLowerCase()))&&(!filter.dest||(f.destination_icao||f.plans?.dest||'').toLowerCase().includes(filter.dest.toLowerCase())));
+
+  const filtered=flights.filter(f=>{
+    const reg=f.plans?.reg||'';
+    const pfId=f.plans?.pf_pilot||f.pf_id||'';
+    const pmId=f.plans?.pm_pilot||f.sic_id||'';
+    const regOk=!filterReg||reg===filterReg;
+    const crewOk=!filterCrew||(pfId===filterCrew||pmId===filterCrew);
+    return regOk&&crewOk;
+  });
+
+  const calcStats=arr=>({
+    total:arr.length,
+    totalFlightMins:arr.reduce((s,f)=>s+(f.airborne_minutes||0),0),
+    totalBlockMins:arr.reduce((s,f)=>s+(f.block_minutes||0),0),
+    totalLandings:arr.reduce((s,f)=>s+(f.landing_count||0),0),
+    nightLandings:arr.filter(f=>f.is_night_landing).length,
+  });
+  const stats=calcStats(filtered);
+
+  const selPilot=pilots.find(p=>p.id===filterCrew);
+  const title=filterReg&&filterCrew
+    ? `${filterReg} · ${selPilot?.code||''}`
+    : filterReg ? filterReg
+    : filterCrew ? `${selPilot?.code} — ${selPilot?.full_name}`
+    : 'ALL FLIGHTS';
+
   return(
     <div style={{flex:1,overflowY:'auto'}}>
+      {/* Filter bar */}
+      <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',background:C.bg3}}>
+        <span style={S.label}>FILTER:</span>
+        <select style={{...S.select,width:140}} value={filterReg} onChange={e=>setFilterReg(e.target.value)}>
+          <option value="">All Aircraft</option>
+          {aircraft.filter(a=>a.registration).map(a=>(
+            <option key={a.registration} value={a.registration}>{a.registration}</option>
+          ))}
+        </select>
+        <select style={{...S.select,width:200}} value={filterCrew} onChange={e=>setFilterCrew(e.target.value)}>
+          <option value="">All Crew</option>
+          {pilots.map(p=>(
+            <option key={p.id} value={p.id}>{p.code} — {p.full_name}</option>
+          ))}
+        </select>
+        {(filterReg||filterCrew)&&(
+          <button style={{...S.btnSecondary,fontSize:11,padding:'5px 12px'}} onClick={()=>{setFilterReg('');setFilterCrew('');}}>
+            CLEAR
+          </button>
+        )}
+        <span style={{...S.label,marginLeft:'auto',color:C.accent}}>{title}</span>
+      </div>
+
+      {/* Stats cards */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:1,background:C.border,borderBottom:`1px solid ${C.border}`}}>
-        {loading?<div style={{padding:24,color:C.t3,fontSize:11,gridColumn:'1/-1',textAlign:'center'}}>LOADING...</div>:stats&&[
-          {label:'Total Flights',value:stats.total},{label:'Flight Hours',value:fmt(stats.totalFlightMins)},
-          {label:'Block Hours',value:fmt(stats.totalBlockMins)},{label:'Total Landings',value:stats.totalLandings},{label:'Night Landings',value:stats.nightLandings},
+        {loading?<div style={{padding:24,color:C.t3,fontSize:11,gridColumn:'1/-1',textAlign:'center'}}>LOADING...</div>:[
+          {label:'Total Flights',  value:stats.total},
+          {label:'Flight Hours',   value:fmt(stats.totalFlightMins)},
+          {label:'Block Hours',    value:fmt(stats.totalBlockMins)},
+          {label:'Total Landings', value:stats.totalLandings},
+          {label:'Night Landings', value:stats.nightLandings},
         ].map(({label,value})=>(
           <div key={label} style={{background:C.bg2,padding:'16px 20px'}}>
             <div style={S.label}>{label}</div>
@@ -1355,12 +1412,10 @@ function Statistics(){
           </div>
         ))}
       </div>
-      <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',gap:10,alignItems:'center'}}>
-        <span style={S.label}>FILTER:</span>
-        <input placeholder="DEP" value={filter.dep} onChange={e=>setFilter(p=>({...p,dep:e.target.value}))} style={{...S.input,width:100}}/>
-        <span style={{color:C.t3}}>{'→'}</span>
-        <input placeholder="DEST" value={filter.dest} onChange={e=>setFilter(p=>({...p,dest:e.target.value}))} style={{...S.input,width:100}}/>
-        <span style={{...S.label,marginLeft:'auto'}}>{filtered.length} FLIGHTS</span>
+
+      {/* Flights table */}
+      <div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`}}>
+        <span style={{...S.label,fontSize:10}}>{filtered.length} FLIGHTS</span>
       </div>
       <table style={S.table}>
         <thead><tr>{['DATE','DEP','DEST','REG','BLOCK','FLIGHT','LANDINGS','NIGHT'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
@@ -1371,7 +1426,8 @@ function Statistics(){
               <td style={{...S.td,color:C.accent}}>{f.departure_icao||f.plans?.dep||'—'}</td>
               <td style={{...S.td,color:C.accent}}>{f.destination_icao||f.plans?.dest||'—'}</td>
               <td style={S.td}>{f.plans?.reg||'—'}</td>
-              <td style={S.td}>{fmt(f.block_minutes)}</td><td style={S.td}>{fmt(f.airborne_minutes)}</td>
+              <td style={S.td}>{fmt(f.block_minutes)}</td>
+              <td style={S.td}>{fmt(f.airborne_minutes)}</td>
               <td style={S.td}>{f.landing_count||'—'}</td>
               <td style={S.td}>{f.is_night_landing?<span style={S.badge('blue')}>NIGHT</span>:'—'}</td>
             </tr>
