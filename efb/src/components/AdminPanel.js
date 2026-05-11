@@ -1183,6 +1183,7 @@ function Crews({toast}){
                   <option value="dispatcher">Dispatcher</option>
                   <option value="admin_pilot">Admin + Pilot</option>
                   <option value="admin_pilot">Admin + Pilot</option>
+                  <option value="admin_pilot">Admin + Pilot</option>
                 </select>
               </div>
               <div style={{display:'flex',gap:8}}>
@@ -1237,6 +1238,7 @@ function Crews({toast}){
               <option value="pilot">Pilot</option>
               <option value="admin">Admin</option>
               <option value="dispatcher">Dispatcher</option>
+                  <option value="admin_pilot">Admin + Pilot</option>
                   <option value="admin_pilot">Admin + Pilot</option>
                   <option value="admin_pilot">Admin + Pilot</option>
             </select>
