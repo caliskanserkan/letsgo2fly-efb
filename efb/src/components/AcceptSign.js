@@ -1,12 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
-import { logEvent } from '../supabaseClient';
-
-const pilots = [
-  { code: 'AAK', name: 'Capt. Ahmet Akpinar' },
-  { code: 'SEL', name: 'Capt. Selcuk Ekinci' },
-  { code: 'SCL', name: 'Capt. Serkan Caliskan' },
-];
+import { supabase, logEvent } from '../supabaseClient';
 
 function StatusRow({ label, ok, inProgress, value }) {
   const color = ok ? '#2d9e5f' : inProgress ? '#ff9500' : '#555';
@@ -33,22 +27,47 @@ const nowUTC = () => {
 };
 
 function AcceptSign({ setStatus, pageStatus, activePlan }) {
-  const [preflightPilot, setPreflightPilot] = usePersistedState('efb_accept_pilot',     'AAK');
-  const [accepted,       setAccepted]       = usePersistedState('efb_accept_accepted',   false);
-  const [acceptedAt,     setAcceptedAt]     = usePersistedState('efb_accept_acceptedAt', '');
-  const [synced,         setSynced]         = usePersistedState('efb_accept_synced',      false);
-  const [syncedAt,       setSyncedAt]       = usePersistedState('efb_accept_syncedAt',   '');
+  const planKey = activePlan?.id || 'default';
 
-  const [signed,  setSigned]  = useState(false);
-  const [drawing, setDrawing] = useState(false);
+  const [preflightPilotId, setPreflightPilotId] = usePersistedState(`efb_accept_pilot_${planKey}`,      null);
+  const [accepted,         setAccepted]          = usePersistedState(`efb_accept_accepted_${planKey}`,  false);
+  const [acceptedAt,       setAcceptedAt]        = usePersistedState(`efb_accept_acceptedAt_${planKey}`,'');
+  const [synced,           setSynced]            = usePersistedState(`efb_accept_synced_${planKey}`,    false);
+  const [syncedAt,         setSyncedAt]          = usePersistedState(`efb_accept_syncedAt_${planKey}`,  '');
+
+  // Read PF/PM UUIDs from FlightCrew
+  const [pfId] = usePersistedState('efb_crew_pf', null);
+  const [pmId] = usePersistedState('efb_crew_pm', null);
+
+  const [crewPilots, setCrewPilots] = useState([]);
+  const [signed,     setSigned]     = useState(false);
+  const [drawing,    setDrawing]    = useState(false);
   const canvasRef = useRef(null);
   const ps = pageStatus || {};
 
+  // Fetch pilot profiles by UUID
+  useEffect(() => {
+    const ids = [pfId, pmId].filter(Boolean);
+    if (!ids.length) { setCrewPilots([]); return; }
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, code')
+        .in('id', ids);
+      if (data) {
+        const ordered = [];
+        if (pfId) { const p = data.find(d => d.id === pfId); if (p) ordered.push({ ...p, role:'PF' }); }
+        if (pmId) { const p = data.find(d => d.id === pmId); if (p) ordered.push({ ...p, role:'PM' }); }
+        setCrewPilots(ordered);
+      }
+    })();
+  }, [pfId, pmId]);
+
   const statuses = [
-    { label:'Flight & crew assigned', ok: ps['flt-crew']==='green',  inProgress: ps['flt-crew']==='amber',  value: ps['flt-crew']==='green'  ? 'Complete' : ps['flt-crew']==='amber'  ? 'In Progress…' : 'Pending' },
-    { label:'Mandatory / Preflight',  ok: ps['mandatory']==='green', inProgress: ps['mandatory']==='amber', value: ps['mandatory']==='green' ? 'Complete' : ps['mandatory']==='amber' ? 'In Progress…' : 'Pending' },
-    { label:'eFP documents loaded',   ok: ps['efp']==='green',       inProgress: ps['efp']==='amber',       value: ps['efp']==='green'       ? 'Loaded ✓' : ps['efp']==='amber'       ? 'In Progress…' : 'Not viewed' },
-    { label:'FUEL uplift entered',    ok: ps['fuel']==='green',      inProgress: ps['fuel']==='amber',      value: ps['fuel']==='green'      ? 'Complete' : ps['fuel']==='amber'      ? 'In Progress…' : 'Pending' },
+    { label:'Flight & crew assigned', ok: ps['flt-crew']==='green',  inProgress: ps['flt-crew']==='amber',  value: ps['flt-crew']==='green'  ? 'Complete'     : ps['flt-crew']==='amber'  ? 'In Progress…' : 'Pending' },
+    { label:'Mandatory / Preflight',  ok: ps['mandatory']==='green', inProgress: ps['mandatory']==='amber', value: ps['mandatory']==='green' ? 'Complete'     : ps['mandatory']==='amber' ? 'In Progress…' : 'Pending' },
+    { label:'eFP documents loaded',   ok: ps['efp']==='green',       inProgress: ps['efp']==='amber',       value: ps['efp']==='green'       ? 'Loaded ✓'    : ps['efp']==='amber'       ? 'In Progress…' : 'Not viewed' },
+    { label:'FUEL uplift entered',    ok: ps['fuel']==='green',      inProgress: ps['fuel']==='amber',      value: ps['fuel']==='green'      ? 'Complete'     : ps['fuel']==='amber'      ? 'In Progress…' : 'Pending' },
   ];
 
   const allOk = statuses.every(s => s.ok);
@@ -102,15 +121,18 @@ function AcceptSign({ setStatus, pageStatus, activePlan }) {
     setSigned(false);
   };
 
+  const selectedPilot = crewPilots.find(p => p.id === preflightPilotId);
+
   const handleAccept = () => {
     if (!signed || !allOk) return;
     const t = nowUTC();
     setAccepted(true);
     setAcceptedAt(t);
     logEvent(activePlan?.id, 'PLAN_ACCEPTED', {
-      accepted_at: t,
-      preflight_by: preflightPilot,
-      preflight_pilot_name: pilots.find(p => p.code === preflightPilot)?.name,
+      accepted_at:   t,
+      preflight_by:  preflightPilotId,
+      pilot_code:    selectedPilot?.code,
+      pilot_name:    selectedPilot?.full_name,
     });
   };
 
@@ -145,16 +167,28 @@ function AcceptSign({ setStatus, pageStatus, activePlan }) {
         <div style={{ background:'#1f1f1f', color:'#555', padding:'7px 12px', fontSize:10, fontWeight:700, letterSpacing:0.8, borderBottom:'1px solid #383838', textTransform:'uppercase' }}>
           Select pilot who performed pre-flight inspection
         </div>
-        {pilots.map(p => {
-          const selected = preflightPilot === p.code;
+
+        {crewPilots.length === 0 && (
+          <div style={{ padding:'12px 16px', fontSize:11, color:'#555' }}>
+            No pilots assigned — go to Flight & Crew first.
+          </div>
+        )}
+
+        {crewPilots.map(p => {
+          const sel = preflightPilotId === p.id;
           return (
-            <div key={p.code} onClick={() => !accepted && setPreflightPilot(p.code)}
-              style={{ display:'flex', alignItems:'center', padding:'11px 12px', borderBottom:'1px solid rgba(255,255,255,0.04)', cursor: accepted ? 'default' : 'pointer', background: selected ? 'rgba(26,155,196,0.08)' : 'transparent', borderLeft: selected ? '2px solid #1a9bc4' : '2px solid transparent', gap:10 }}>
-              <div style={{ width:18, height:18, borderRadius:9, border:`2px solid ${selected ? '#1a9bc4' : '#444'}`, background: selected ? '#1a9bc4' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                {selected && <div style={{ width:6, height:6, background:'#fff', borderRadius:3 }} />}
+            <div key={p.id} onClick={() => !accepted && setPreflightPilotId(p.id)}
+              style={{ display:'flex', alignItems:'center', padding:'11px 12px', borderBottom:'1px solid rgba(255,255,255,0.04)', cursor: accepted ? 'default' : 'pointer', background: sel ? 'rgba(26,155,196,0.08)' : 'transparent', borderLeft: sel ? '2px solid #1a9bc4' : '2px solid transparent', gap:10 }}>
+              <div style={{ width:18, height:18, borderRadius:9, border:`2px solid ${sel ? '#1a9bc4' : '#444'}`, background: sel ? '#1a9bc4' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                {sel && <div style={{ width:6, height:6, background:'#fff', borderRadius:3 }} />}
               </div>
-              <span style={{ fontSize:12.5, color: selected ? '#e8e8e8' : '#666', flex:1 }}>{p.code} — {p.name}</span>
-              {selected && <span style={{ fontSize:10, fontWeight:700, color:'#1a9bc4', background:'rgba(26,155,196,0.15)', padding:'2px 8px', borderRadius:4 }}>Selected ✓</span>}
+              <span style={{ fontSize:12.5, color: sel ? '#e8e8e8' : '#666', flex:1 }}>{p.code} — {p.full_name}</span>
+              <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:4,
+                background: p.role==='PF' ? 'rgba(26,155,196,0.2)' : 'rgba(142,142,147,0.15)',
+                color:      p.role==='PF' ? '#1a9bc4' : '#888' }}>
+                {p.role}
+              </span>
+              {sel && <span style={{ fontSize:10, fontWeight:700, color:'#1a9bc4', background:'rgba(26,155,196,0.15)', padding:'2px 8px', borderRadius:4 }}>Selected ✓</span>}
             </div>
           );
         })}
@@ -179,7 +213,7 @@ function AcceptSign({ setStatus, pageStatus, activePlan }) {
         <canvas
           ref={canvasRef}
           width={450} height={120}
-          style={{ display:'block', width:'100%', background: accepted ? '#111' : '#1a1a1a', cursor: accepted ? 'default' : 'crosshair' }}
+          style={{ display:'block', width:'100%', background: accepted ? '#111' : '#1a1a1a', cursor: accepted ? 'default' : 'crosshair', touchAction:'none' }}
           onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
           onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}
         />
@@ -190,7 +224,7 @@ function AcceptSign({ setStatus, pageStatus, activePlan }) {
         )}
         {!signed && !accepted && (
           <div style={{ padding:'8px', fontSize:11, color:'#444', textAlign:'center', borderTop:'1px dashed #333' }}>
-            ✍ Sign with mouse or Apple Pencil
+            Sign with mouse or Apple Pencil
           </div>
         )}
       </div>
@@ -201,7 +235,7 @@ function AcceptSign({ setStatus, pageStatus, activePlan }) {
         <>
           {!allOk && (
             <div style={{ margin:'8px 16px', padding:'10px 12px', borderRadius:6, background:'rgba(255,149,0,0.08)', borderLeft:'3px solid #ff9500', fontSize:11, color:'#c4882a' }}>
-              ⚠ Complete all pending items before accepting.
+              Complete all pending items before accepting.
             </div>
           )}
           <button onClick={handleAccept} disabled={!signed || !allOk}
@@ -216,19 +250,19 @@ function AcceptSign({ setStatus, pageStatus, activePlan }) {
             <div style={{ flex:1 }}>
               <div style={{ fontSize:13, fontWeight:700, color:'#2d9e5f' }}>Accepted & Signed</div>
               <div style={{ fontSize:10, color:'#555', marginTop:2 }}>
-                {acceptedAt} · {pilots.find(p => p.code === preflightPilot)?.name}
+                {acceptedAt} · {selectedPilot ? `${selectedPilot.code} — ${selectedPilot.full_name}` : '—'}
               </div>
             </div>
             <button onClick={handleReEvaluate}
               style={{ background:'transparent', border:'1px solid #555', borderRadius:6, padding:'5px 10px', fontSize:10, fontWeight:700, color:'#777', cursor:'pointer', fontFamily:'inherit' }}>
-              ↺ Re-evaluate
+              Re-evaluate
             </button>
           </div>
 
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', margin:'8px 16px 4px' }}>
             <button onClick={handleSync} disabled={synced}
               style={{ width:'100%', background: synced ? '#2d9e5f' : '#e8731a', border:'none', borderRadius:10, padding:14, fontSize:14, fontWeight:700, color:'#fff', cursor: synced ? 'default' : 'pointer', fontFamily:'inherit' }}>
-              {synced ? '✓ Synced to PM' : '⇄ Sync to PM'}
+              {synced ? '✓ Synced to PM' : 'Sync to PM'}
             </button>
             {syncedAt && <div style={{ fontSize:10, color:'#555', marginTop:5 }}>Last sync: {syncedAt}</div>}
           </div>
