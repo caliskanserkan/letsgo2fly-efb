@@ -804,20 +804,148 @@ function ArchivedFlts({toast,user}){
   );
 }
 
+// ─── AIRCRAFT DATABASE ───────────────────────────────────────────────────────
+const AIRCRAFT_DB = {
+  'Gulfstream': [
+    {model:'G200',  ac_type:'G200'}, {model:'G280',  ac_type:'G280'},
+    {model:'G300',  ac_type:'GLF3'}, {model:'G350',  ac_type:'GLF4'},
+    {model:'G400',  ac_type:'GLF4'}, {model:'G450',  ac_type:'GLF4'},
+    {model:'G500',  ac_type:'GLF5'}, {model:'G550',  ac_type:'GLF5'},
+    {model:'G600',  ac_type:'GLF6'}, {model:'G650',  ac_type:'GLF6'},
+    {model:'G700',  ac_type:'G700'},
+  ],
+  'Falcon (Dassault)': [
+    {model:'Falcon 6X',    ac_type:'F6X'},  {model:'Falcon 7X',    ac_type:'F7X'},
+    {model:'Falcon 8X',    ac_type:'F8X'},  {model:'Falcon 900',   ac_type:'F900'},
+    {model:'Falcon 2000',  ac_type:'F2TH'}, {model:'Falcon 2000S', ac_type:'F2TH'},
+    {model:'Falcon 2000LX',ac_type:'F2TH'},
+  ],
+  'Bombardier': [
+    {model:'Challenger 300',ac_type:'CL30'}, {model:'Challenger 350',ac_type:'CL35'},
+    {model:'Challenger 604',ac_type:'CL60'}, {model:'Challenger 605',ac_type:'CL60'},
+    {model:'Challenger 650',ac_type:'CL60'}, {model:'Global 5000',  ac_type:'GL5T'},
+    {model:'Global 6000',  ac_type:'GL6T'}, {model:'Global 7500',  ac_type:'GL7T'},
+    {model:'Learjet 45',   ac_type:'LJ45'},  {model:'Learjet 75',   ac_type:'LJ75'},
+  ],
+  'Hawker': [
+    {model:'Hawker 400XP',ac_type:'BE40'}, {model:'Hawker 750',  ac_type:'H25B'},
+    {model:'Hawker 800XP',ac_type:'H25B'}, {model:'Hawker 900XP',ac_type:'H25B'},
+    {model:'Hawker 4000', ac_type:'HA4T'},
+  ],
+  'Embraer': [
+    {model:'Phenom 100',  ac_type:'E50P'}, {model:'Phenom 300',  ac_type:'E55P'},
+    {model:'Legacy 450',  ac_type:'E45X'}, {model:'Legacy 500',  ac_type:'E50P'},
+    {model:'Legacy 600',  ac_type:'E135'}, {model:'Legacy 650',  ac_type:'E135'},
+    {model:'Praetor 500', ac_type:'E55P'}, {model:'Praetor 600', ac_type:'E50P'},
+  ],
+};
+
+// Shared Aircraft Form (Add + Edit)
+function AircraftForm({form, setForm, onSave, onCancel, saveLabel='SAVE'}){
+  const manufacturers = Object.keys(AIRCRAFT_DB);
+  const models = form.manufacturer && AIRCRAFT_DB[form.manufacturer] ? AIRCRAFT_DB[form.manufacturer] : null;
+
+  const handleManufacturer = (mfr) => {
+    setForm(p=>({...p, manufacturer:mfr, model:'', ac_type:''}));
+  };
+  const handleModel = (modelStr) => {
+    const entry = models?.find(m=>m.model===modelStr);
+    setForm(p=>({...p, model:modelStr, ac_type:entry?.ac_type||p.ac_type}));
+  };
+
+  return (
+    <div>
+      <div style={S.formGroup}>
+        <label style={S.formLabel}>REGISTRATION *</label>
+        <input style={S.input} placeholder="TC-REC" value={form.registration||''} onChange={e=>setForm(p=>({...p,registration:e.target.value.toUpperCase()}))}/>
+      </div>
+      <div style={S.formGroup}>
+        <label style={S.formLabel}>MANUFACTURER</label>
+        <select style={S.select} value={form.manufacturer||''}
+          onChange={e=>handleManufacturer(e.target.value)}>
+          <option value="">— Select —</option>
+          {manufacturers.map(m=><option key={m} value={m}>{m}</option>)}
+          <option value="__other__">Other</option>
+        </select>
+        {form.manufacturer==='__other__'&&(
+          <input style={{...S.input,marginTop:8}} placeholder="Manufacturer name" value={form._mfrCustom||''}
+            onChange={e=>setForm(p=>({...p,_mfrCustom:e.target.value,manufacturer:e.target.value}))}/>
+        )}
+      </div>
+      <div style={S.formGroup}>
+        <label style={S.formLabel}>MODEL</label>
+        {models ? (
+          <select style={S.select} value={form.model||''} onChange={e=>handleModel(e.target.value)}>
+            <option value="">— Select model —</option>
+            {models.map(m=><option key={m.model} value={m.model}>{m.model}</option>)}
+            <option value="__other__">Other</option>
+          </select>
+        ) : (
+          <input style={S.input} placeholder="Model name" value={form.model||''} onChange={e=>setForm(p=>({...p,model:e.target.value}))}/>
+        )}
+        {form.model==='__other__'&&(
+          <input style={{...S.input,marginTop:8}} placeholder="Model name" value={form._modelCustom||''}
+            onChange={e=>setForm(p=>({...p,_modelCustom:e.target.value,model:e.target.value}))}/>
+        )}
+      </div>
+      <div style={S.formGroup}>
+        <label style={S.formLabel}>ICAO TYPE CODE *</label>
+        <input style={S.input} placeholder="e.g. GLF4" value={form.ac_type||''} onChange={e=>setForm(p=>({...p,ac_type:e.target.value.toUpperCase()}))}/>
+        {form.ac_type&&<div style={{fontSize:10,color:C.t3,marginTop:4,fontFamily:"'Courier New',monospace"}}>Auto-filled from model selection. Edit if needed.</div>}
+      </div>
+      <div style={S.formGroup}>
+        <label style={S.formLabel}>LANDING CATEGORY</label>
+        <select style={S.select} value={form.landing_cat||'CAT1'} onChange={e=>setForm(p=>({...p,landing_cat:e.target.value}))}>
+          <option value="CAT1">CAT I</option><option value="CAT2">CAT II</option><option value="CAT3">CAT III</option>
+        </select>
+      </div>
+      <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:20}}>
+        <button style={S.btnSecondary} onClick={onCancel}>CANCEL</button>
+        <button style={S.btnPrimary} onClick={onSave}>{saveLabel}</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── 3. Aircrafts ─────────────────────────────────────────────────────────────
 function Aircrafts({toast}){
   const[list,setList]=useState([]);const[loading,setLoading]=useState(true);
   const[showAdd,setShowAdd]=useState(false);const[selected,setSelected]=useState(null);
+  const[editing,setEditing]=useState(false);
   const[form,setForm]=useState({registration:'',manufacturer:'',model:'',ac_type:'',landing_cat:'CAT1'});
-  const fetch=useCallback(async()=>{setLoading(true);const{data}=await supabase.from('aircraft').select('*').order('registration');setList(data||[]);setLoading(false);},[]);
-  useEffect(()=>{fetch();},[fetch]);
+  const[editForm,setEditForm]=useState({});
+  const[saving,setSaving]=useState(false);
+
+  const load=useCallback(async()=>{setLoading(true);const{data}=await supabase.from('aircraft').select('*').order('registration');setList(data||[]);setLoading(false);},[]);
+  useEffect(()=>{load();},[load]);
+
+  const sel=list.find(a=>a.id===selected);
+
   const handleAdd=async()=>{
     if(!form.registration||!form.ac_type){toast('Registration and type required.','error');return;}
-    const{error}=await supabase.from('aircraft').insert(form);
+    const{registration,manufacturer,model,ac_type,landing_cat}=form;
+    const{error}=await supabase.from('aircraft').insert({registration,manufacturer,model,ac_type,landing_cat});
     if(error){toast(error.message,'error');return;}
-    toast('Aircraft added.','success');setShowAdd(false);setForm({registration:'',manufacturer:'',model:'',ac_type:'',landing_cat:'CAT1'});fetch();
+    toast('Aircraft added.','success');
+    setShowAdd(false);setForm({registration:'',manufacturer:'',model:'',ac_type:'',landing_cat:'CAT1'});load();
   };
-  const sel=list.find(a=>a.id===selected);
+
+  const openEdit=()=>{
+    if(!sel)return;
+    setEditForm({registration:sel.registration||'',manufacturer:sel.manufacturer||'',model:sel.model||'',ac_type:sel.ac_type||'',landing_cat:sel.landing_cat||'CAT1'});
+    setEditing(true);
+  };
+
+  const handleSaveEdit=async()=>{
+    if(!editForm.registration||!editForm.ac_type){toast('Registration and type required.','error');return;}
+    setSaving(true);
+    const{registration,manufacturer,model,ac_type,landing_cat}=editForm;
+    const{error}=await supabase.from('aircraft').update({registration,manufacturer,model,ac_type,landing_cat}).eq('id',sel.id);
+    if(error){toast(error.message,'error');}
+    else{toast('Aircraft updated.','success');setEditing(false);load();}
+    setSaving(false);
+  };
+
   return(
     <div style={{display:'flex',flex:1,overflow:'hidden'}}>
       <div style={{flex:1,overflowY:'auto'}}>
@@ -830,7 +958,7 @@ function Aircrafts({toast}){
           <thead><tr>{['REGISTRATION','MANUFACTURER','MODEL','TYPE','CAT','HOURS','CYCLES','STATUS'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
           <tbody>
             {list.map(a=>(
-              <tr key={a.id} onClick={()=>setSelected(a.id===selected?null:a.id)} style={{cursor:'pointer',background:selected===a.id?`${C.accent}08`:'transparent'}}>
+              <tr key={a.id} onClick={()=>{setSelected(a.id===selected?null:a.id);setEditing(false);}} style={{cursor:'pointer',background:selected===a.id?`${C.accent}08`:'transparent'}}>
                 <td style={{...S.td,color:C.accent,fontWeight:700}}>{a.registration}</td>
                 <td style={S.td}>{a.manufacturer||'—'}</td><td style={S.td}>{a.model||'—'}</td>
                 <td style={S.td}>{a.ac_type||'—'}</td>
@@ -842,60 +970,151 @@ function Aircrafts({toast}){
           </tbody>
         </table>
       </div>
-      {sel&&(<DetailPanel title="Aircraft Detail" onClose={()=>setSelected(null)}>
-        <DetailRow label="Registration" value={sel.registration} accent/><DetailRow label="Manufacturer" value={sel.manufacturer}/>
-        <DetailRow label="Model" value={sel.model}/><DetailRow label="Type" value={sel.ac_type}/>
-        <DetailRow label="Landing Cat" value={sel.landing_cat}/><DetailRow label="Total Hours" value={sel.total_hours}/>
-        <DetailRow label="Total Cycles" value={sel.total_cycles}/><DetailRow label="Status" value={sel.active?'Active':'Inactive'}/>
-      </DetailPanel>)}
+
+      {sel&&!editing&&(
+        <DetailPanel title="Aircraft Detail" onClose={()=>setSelected(null)}>
+          <DetailRow label="Registration" value={sel.registration} accent/>
+          <DetailRow label="Manufacturer"  value={sel.manufacturer}/>
+          <DetailRow label="Model"         value={sel.model}/>
+          <DetailRow label="ICAO Type"     value={sel.ac_type}/>
+          <DetailRow label="Landing Cat"   value={sel.landing_cat}/>
+          <DetailRow label="Total Hours"   value={sel.total_hours}/>
+          <DetailRow label="Total Cycles"  value={sel.total_cycles}/>
+          <DetailRow label="Status"        value={sel.active?'Active':'Inactive'}/>
+          <div style={{padding:'12px 16px'}}>
+            <button style={{...S.btnPrimary,width:'100%'}} onClick={openEdit}>EDIT AIRCRAFT</button>
+          </div>
+        </DetailPanel>
+      )}
+
+      {sel&&editing&&(
+        <DetailPanel title={`EDIT — ${sel.registration}`} onClose={()=>setEditing(false)} width={380}>
+          <div style={{padding:'12px 16px',overflowY:'auto'}}>
+            <AircraftForm
+              form={editForm} setForm={setEditForm}
+              onSave={handleSaveEdit} onCancel={()=>setEditing(false)}
+              saveLabel={saving?'SAVING...':'SAVE CHANGES'}
+            />
+          </div>
+        </DetailPanel>
+      )}
+
       {showAdd&&(
-        <Modal title="ADD AIRCRAFT" onClose={()=>setShowAdd(false)}>
-          {[{key:'registration',label:'REGISTRATION *',ph:'TC-REC'},{key:'manufacturer',label:'MANUFACTURER',ph:'Gulfstream'},{key:'model',label:'MODEL',ph:'G450'},{key:'ac_type',label:'ICAO TYPE *',ph:'GLF4'}].map(({key,label,ph})=>(
-            <div key={key} style={S.formGroup}><label style={S.formLabel}>{label}</label><input style={S.input} placeholder={ph} value={form[key]} onChange={e=>setForm(p=>({...p,[key]:e.target.value}))}/></div>
-          ))}
-          <div style={S.formGroup}><label style={S.formLabel}>LANDING CATEGORY</label>
-            <select style={S.select} value={form.landing_cat} onChange={e=>setForm(p=>({...p,landing_cat:e.target.value}))}>
-              <option value="CAT1">CAT I</option><option value="CAT2">CAT II</option><option value="CAT3">CAT III</option>
-            </select>
-          </div>
-          <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:20}}>
-            <button style={S.btnSecondary} onClick={()=>setShowAdd(false)}>CANCEL</button>
-            <button style={S.btnPrimary} onClick={handleAdd}>SAVE</button>
-          </div>
+        <Modal title="ADD AIRCRAFT" onClose={()=>setShowAdd(false)} width={480}>
+          <AircraftForm
+            form={form} setForm={setForm}
+            onSave={handleAdd} onCancel={()=>setShowAdd(false)}
+            saveLabel="ADD AIRCRAFT"
+          />
         </Modal>
       )}
     </div>
   );
 }
-
 // ─── 4. Crews ─────────────────────────────────────────────────────────────────
 function Crews({toast}){
   const[pilots,setPilots]=useState([]);const[quals,setQuals]=useState([]);
   const[loading,setLoading]=useState(true);const[selected,setSelected]=useState(null);
   const[showQual,setShowQual]=useState(false);const[showEfb,setShowEfb]=useState(false);
+  const[editingCrew,setEditingCrew]=useState(false);
+  const[crewEditForm,setCrewEditForm]=useState({});
+  const[showAdd,setShowAdd]=useState(false);
+  const[deleteModal,setDeleteModal]=useState(false);
+  const[deleteTarget,setDeleteTarget]=useState(null);
+  const[deleteConfirm,setDeleteConfirm]=useState(false);
+  const[saving,setSaving]=useState(false);
+  const[addForm,setAddForm]=useState({full_name:'',code:'',email:'',role:'pilot',password:''});
   const[qualForm,setQualForm]=useState({ac_type:'',seat:'CPT',hand:'BOTH',landing_cat:'CAT1',valid_from:'',valid_until:''});
   const[efbForm,setEfbForm]=useState({efb_training_date:'',efb_training_valid_until:'',efb_training_type:'Initial',efb_trained_by:''});
-  const fetch=useCallback(async()=>{
+
+  const load=useCallback(async()=>{
     setLoading(true);
-    const[{data:p},{data:q}]=await Promise.all([supabase.from('profiles').select('*').order('full_name'),supabase.from('crew_qualifications').select('*')]);
+    const[{data:p},{data:q}]=await Promise.all([
+      supabase.from('profiles').select('*').order('full_name'),
+      supabase.from('crew_qualifications').select('*')
+    ]);
     setPilots(p||[]);setQuals(q||[]);setLoading(false);
   },[]);
-  useEffect(()=>{fetch();},[fetch]);
+  useEffect(()=>{load();},[load]);
+
   const sel=pilots.find(p=>p.id===selected);
   const selQuals=quals.filter(q=>q.pilot_id===selected);
   const efbRecord=selQuals.find(q=>q.efb_training_date);
+
+  // Add crew — creates auth user via Supabase admin REST API
+  const handleAddCrew=async()=>{
+    if(!addForm.full_name||!addForm.code||!addForm.email||!addForm.password){
+      toast('All fields required.','error');return;
+    }
+    setSaving(true);
+    try{
+      // Create auth user via Supabase admin API
+      const url=`${process.env.REACT_APP_SUPABASE_URL}/auth/v1/admin/users`;
+      const svcKey=process.env.REACT_APP_SUPABASE_SERVICE_KEY;
+      if(!svcKey){toast('REACT_APP_SUPABASE_SERVICE_KEY not set in .env','error');setSaving(false);return;}
+      const res=await fetch(url,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':svcKey,'Authorization':`Bearer ${svcKey}`},
+        body:JSON.stringify({email:addForm.email,password:addForm.password,email_confirm:true,user_metadata:{full_name:addForm.full_name,code:addForm.code}})
+      });
+      const authUser=await res.json();
+      if(!res.ok){toast(authUser.msg||'Auth user creation failed','error');setSaving(false);return;}
+      // Upsert profile
+      const{error:profErr}=await supabase.from('profiles').upsert({
+        id:authUser.id,full_name:addForm.full_name,code:addForm.code.toUpperCase(),
+        email:addForm.email,role:addForm.role
+      },{onConflict:'id'});
+      if(profErr){toast(`Profile error: ${profErr.message}`,'error');setSaving(false);return;}
+      toast(`${addForm.full_name} added successfully.`,'success');
+      setShowAdd(false);
+      setAddForm({full_name:'',code:'',email:'',role:'pilot',password:''});
+      load();
+    }catch(e){toast(e.message,'error');}
+    setSaving(false);
+  };
+
+  // Delete crew — two step confirmation
+  const handleDeleteStep1=(pilot)=>{setDeleteTarget(pilot);setDeleteModal(true);setDeleteConfirm(false);};
+  const handleDeleteConfirm=async()=>{
+    if(!deleteTarget)return;
+    setSaving(true);
+    try{
+      // Delete auth user via admin API
+      const url=`${process.env.REACT_APP_SUPABASE_URL}/auth/v1/admin/users/${deleteTarget.id}`;
+      const svcKey=process.env.REACT_APP_SUPABASE_SERVICE_KEY;
+      await fetch(url,{method:'DELETE',headers:{'apikey':svcKey,'Authorization':`Bearer ${svcKey}`}});
+      // Delete profile (cascade should handle qualifications)
+      await supabase.from('crew_qualifications').delete().eq('pilot_id',deleteTarget.id);
+      await supabase.from('profiles').delete().eq('id',deleteTarget.id);
+      toast(`${deleteTarget.full_name} deleted.`,'success');
+      setDeleteModal(false);setDeleteTarget(null);setSelected(null);load();
+    }catch(e){toast(e.message,'error');}
+    setSaving(false);
+  };
+
   const handleAddQual=async()=>{
     if(!qualForm.ac_type){toast('Aircraft type required.','error');return;}
     const{error}=await supabase.from('crew_qualifications').upsert({pilot_id:selected,...qualForm});
     if(error){toast(error.message,'error');return;}
-    toast('Qualification saved.','success');setShowQual(false);fetch();
+    toast('Qualification saved.','success');setShowQual(false);load();
+  };
+
+  const handleSaveCrew=async()=>{
+    if(!crewEditForm.full_name||!crewEditForm.code){toast('Name and code required.','error');return;}
+    const{error}=await supabase.from('profiles').update({
+      full_name:crewEditForm.full_name,
+      code:crewEditForm.code.toUpperCase(),
+      role:crewEditForm.role,
+    }).eq('id',sel.id);
+    if(error){toast(error.message,'error');return;}
+    toast('Crew updated.','success');setEditingCrew(false);load();
   };
   const handleSaveEfb=async()=>{
     if(!efbForm.efb_training_date){toast('Training date required.','error');return;}
     const existing=selQuals[0];
     if(existing){await supabase.from('crew_qualifications').update(efbForm).eq('id',existing.id);}
     else{await supabase.from('crew_qualifications').insert({pilot_id:selected,ac_type:'EFB',seat:'BOTH',hand:'BOTH',landing_cat:'CAT1',...efbForm});}
-    toast('EFB training record saved.','success');setShowEfb(false);fetch();
+    toast('EFB training record saved.','success');setShowEfb(false);load();
   };
   const efbStatus=rec=>{
     if(!rec?.efb_training_date)return{color:'#e02020',label:'NO RECORD'};
@@ -905,10 +1124,17 @@ function Crews({toast}){
     if(d<30)return{color:'#e8731a',label:`${d}d LEFT`};
     return{color:'#2d9e5f',label:'CURRENT'};
   };
+
   return(
     <div style={{display:'flex',flex:1,overflow:'hidden'}}>
       <div style={{flex:1,overflowY:'auto'}}>
-        <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`}}><span style={S.label}>{pilots.length} CREW MEMBERS</span></div>
+        <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={S.label}>{pilots.length} CREW MEMBERS</span>
+          <div style={{display:'flex',gap:8}}>
+            <button style={S.btnPrimary} onClick={()=>setShowAdd(true)}>+ ADD CREW</button>
+            {selected&&<button style={S.btnDanger} onClick={()=>handleDeleteStep1(sel)}>DELETE CREW</button>}
+          </div>
+        </div>
         {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}
         <table style={S.table}>
           <thead><tr>{['CODE','FULL NAME','ROLE','EMAIL','QUALIFICATIONS','EFB TRAINING','PWD'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
@@ -930,10 +1156,40 @@ function Crews({toast}){
           </tbody>
         </table>
       </div>
+
       {sel&&(
-        <DetailPanel title={`${sel.code} — ${sel.full_name}`} onClose={()=>setSelected(null)}>
-          <DetailRow label="Code" value={sel.code} accent/><DetailRow label="Full Name" value={sel.full_name}/>
-          <DetailRow label="Email" value={sel.email}/><DetailRow label="Role" value={sel.role}/>
+        <DetailPanel title={`${sel.code} — ${sel.full_name}`} onClose={()=>{setSelected(null);setEditingCrew(false);}}>
+          {!editingCrew ? (<>
+            <DetailRow label="Code" value={sel.code} accent/><DetailRow label="Full Name" value={sel.full_name}/>
+            <DetailRow label="Email" value={sel.email}/><DetailRow label="Role" value={sel.role}/>
+            <div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`}}>
+              <button style={{...S.btnSecondary,width:'100%'}} onClick={()=>{setCrewEditForm({full_name:sel.full_name||'',code:sel.code||'',role:sel.role||'pilot'});setEditingCrew(true);}}>
+                EDIT PROFILE
+              </button>
+            </div>
+          </>) : (<>
+            <div style={{padding:'12px 16px',borderBottom:`1px solid ${C.border}`}}>
+              <div style={{...S.label,marginBottom:12}}>EDIT CREW PROFILE</div>
+              <div style={S.formGroup}><label style={S.formLabel}>FULL NAME *</label>
+                <input style={S.input} value={crewEditForm.full_name} onChange={e=>setCrewEditForm(p=>({...p,full_name:e.target.value}))}/>
+              </div>
+              <div style={S.formGroup}><label style={S.formLabel}>CODE *</label>
+                <input style={S.input} maxLength={5} value={crewEditForm.code} onChange={e=>setCrewEditForm(p=>({...p,code:e.target.value.toUpperCase()}))}/>
+              </div>
+              <div style={S.formGroup}><label style={S.formLabel}>ROLE</label>
+                <select style={S.select} value={crewEditForm.role} onChange={e=>setCrewEditForm(p=>({...p,role:e.target.value}))}>
+                  <option value="pilot">Pilot</option>
+                  <option value="admin">Admin</option>
+                  <option value="dispatcher">Dispatcher</option>
+                  <option value="admin_pilot">Admin + Pilot</option>
+                </select>
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <button style={{...S.btnSecondary,flex:1}} onClick={()=>setEditingCrew(false)}>CANCEL</button>
+                <button style={{...S.btnPrimary,flex:2}} onClick={handleSaveCrew}>SAVE</button>
+              </div>
+            </div>
+          </>)}
           <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`}}>
             <div style={{...S.label,marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span>EFB Training</span>
@@ -962,6 +1218,68 @@ function Crews({toast}){
           </div>
         </DetailPanel>
       )}
+
+      {/* Add Crew Modal */}
+      {showAdd&&(
+        <Modal title="ADD CREW MEMBER" onClose={()=>setShowAdd(false)} width={480}>
+          <div style={{fontSize:11,color:'#e8731a',marginBottom:16,padding:'8px 12px',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.2)'}}>
+            REACT_APP_SUPABASE_SERVICE_KEY must be set in .env for user creation.
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+            <div style={S.formGroup}><label style={S.formLabel}>FULL NAME *</label><input style={S.input} placeholder="Capt. Ali Veli" value={addForm.full_name} onChange={e=>setAddForm(p=>({...p,full_name:e.target.value}))}/></div>
+            <div style={S.formGroup}><label style={S.formLabel}>CODE *</label><input style={S.input} placeholder="AAK" maxLength={5} value={addForm.code} onChange={e=>setAddForm(p=>({...p,code:e.target.value.toUpperCase()}))}/></div>
+            <div style={S.formGroup}><label style={S.formLabel}>EMAIL *</label><input style={S.input} placeholder="pilot@airline.com" type="email" value={addForm.email} onChange={e=>setAddForm(p=>({...p,email:e.target.value}))}/></div>
+            <div style={S.formGroup}><label style={S.formLabel}>TEMP PASSWORD *</label><input style={S.input} placeholder="Min 8 chars" type="password" value={addForm.password} onChange={e=>setAddForm(p=>({...p,password:e.target.value}))}/></div>
+          </div>
+          <div style={S.formGroup}><label style={S.formLabel}>ROLE</label>
+            <select style={S.select} value={addForm.role} onChange={e=>setAddForm(p=>({...p,role:e.target.value}))}>
+              <option value="pilot">Pilot</option>
+              <option value="admin">Admin</option>
+              <option value="dispatcher">Dispatcher</option>
+                  <option value="admin_pilot">Admin + Pilot</option>
+            </select>
+          </div>
+          <div style={{fontSize:11,color:C.t3,marginTop:4,fontFamily:"'Courier New',monospace",lineHeight:1.6}}>
+            After creation, add qualifications from the crew detail panel. Pilot will appear in flight crew selection only for plans matching their qualified aircraft type.
+          </div>
+          <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:16}}>
+            <button style={S.btnSecondary} onClick={()=>setShowAdd(false)}>CANCEL</button>
+            <button style={S.btnPrimary} onClick={handleAddCrew} disabled={saving}>{saving?'CREATING...':'CREATE CREW MEMBER'}</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Crew Modal — Step 1: which crew */}
+      {deleteModal&&deleteTarget&&!deleteConfirm&&(
+        <Modal title="DELETE CREW MEMBER" onClose={()=>{setDeleteModal(false);setDeleteTarget(null);}}>
+          <div style={{fontSize:12,color:'#e02020',marginBottom:16,padding:'10px 12px',background:'rgba(224,32,32,0.08)',border:'1px solid rgba(224,32,32,0.2)'}}>
+            This will permanently delete the crew member and all their qualifications.
+          </div>
+          <DetailRow label="Name"  value={deleteTarget.full_name} accent/>
+          <DetailRow label="Code"  value={deleteTarget.code}/>
+          <DetailRow label="Email" value={deleteTarget.email}/>
+          <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:20}}>
+            <button style={S.btnSecondary} onClick={()=>{setDeleteModal(false);setDeleteTarget(null);}}>CANCEL</button>
+            <button style={S.btnDanger} onClick={()=>setDeleteConfirm(true)}>CONTINUE</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Crew Modal — Step 2: confirm */}
+      {deleteModal&&deleteTarget&&deleteConfirm&&(
+        <Modal title="CONFIRM DELETION" onClose={()=>{setDeleteModal(false);setDeleteTarget(null);setDeleteConfirm(false);}}>
+          <div style={{fontSize:14,color:'#fff',textAlign:'center',padding:'20px 0'}}>
+            Are you sure you want to delete<br/>
+            <span style={{color:'#e02020',fontWeight:700}}>{deleteTarget.full_name}</span>?<br/>
+            <span style={{fontSize:11,color:C.t3}}>This action cannot be undone.</span>
+          </div>
+          <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:16}}>
+            <button style={S.btnSecondary} onClick={()=>{setDeleteModal(false);setDeleteTarget(null);setDeleteConfirm(false);}}>NO — CANCEL</button>
+            <button style={S.btnDanger} onClick={handleDeleteConfirm} disabled={saving}>{saving?'DELETING...':'YES — DELETE'}</button>
+          </div>
+        </Modal>
+      )}
+
       {showEfb&&selected&&(
         <Modal title="EFB TRAINING RECORD — AMC 20-25" onClose={()=>setShowEfb(false)}>
           <div style={S.formGroup}><label style={S.formLabel}>TRAINING TYPE</label>
@@ -1005,7 +1323,6 @@ function Crews({toast}){
     </div>
   );
 }
-
 // ─── 5. Statistics ────────────────────────────────────────────────────────────
 function Statistics(){
   const[stats,setStats]=useState(null);const[flights,setFlights]=useState([]);
@@ -1037,7 +1354,7 @@ function Statistics(){
       <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',gap:10,alignItems:'center'}}>
         <span style={S.label}>FILTER:</span>
         <input placeholder="DEP" value={filter.dep} onChange={e=>setFilter(p=>({...p,dep:e.target.value}))} style={{...S.input,width:100}}/>
-        <span style={{color:C.t3}}>-></span>
+        <span style={{color:C.t3}}>{'→'}</span>
         <input placeholder="DEST" value={filter.dest} onChange={e=>setFilter(p=>({...p,dest:e.target.value}))} style={{...S.input,width:100}}/>
         <span style={{...S.label,marginLeft:'auto'}}>{filtered.length} FLIGHTS</span>
       </div>
