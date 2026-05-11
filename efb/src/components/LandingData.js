@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import SyncButton from './SyncButton';
 import { usePersistedState } from '../hooks/usePersistedState';
+import { logEvent } from '../supabaseClient';
 
 function getStopMarginColor(margin) {
   if (margin === null) return '#999';
@@ -15,7 +16,6 @@ const iStyle = {
   padding:'7px 10px', fontSize:14, fontWeight:700, color:'#1a9bc4',
   fontFamily:'monospace', outline:'none',
 };
-
 const iAmber = {
   background:'#1a1a1a', border:'1.5px solid #e8731a', borderRadius:6,
   padding:'7px 10px', fontSize:14, fontWeight:700, color:'#e8731a',
@@ -25,11 +25,9 @@ const iAmber = {
 function Sep() {
   return <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />;
 }
-
 function Title({ t }) {
   return <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>{t}</div>;
 }
-
 function AutoRow({ label, value }) {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
@@ -38,7 +36,6 @@ function AutoRow({ label, value }) {
     </div>
   );
 }
-
 function EntryRow({ label, value, onChange, unit, placeholder }) {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838', minHeight:52 }}>
@@ -51,7 +48,6 @@ function EntryRow({ label, value, onChange, unit, placeholder }) {
     </div>
   );
 }
-
 function AtisRow({ label, value, onChange, photo, onPhoto }) {
   return (
     <div style={{ background:'#2e2e2e', borderBottom:'1px solid #383838', padding:'10px 16px' }}>
@@ -59,7 +55,7 @@ function AtisRow({ label, value, onChange, photo, onPhoto }) {
         <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600 }}>{label}</span>
         <button onClick={onPhoto}
           style={{ background: photo ? 'rgba(45,158,95,0.15)' : '#2a2a2a', border:`1px solid ${photo ? '#2d9e5f' : '#444'}`, borderRadius:6, padding:'4px 10px', fontSize:10, fontWeight:700, color: photo ? '#2d9e5f' : '#777', cursor:'pointer', fontFamily:'inherit' }}>
-          {photo ? '✓ Photo' : '📷 ATIS Photo'}
+          {photo ? 'Photo OK' : 'ATIS Photo'}
         </button>
       </div>
       <input style={{ ...iStyle, width:'100%' }} value={value} onChange={e => onChange(e.target.value)} placeholder="Enter ATIS information..." />
@@ -81,8 +77,40 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
   const [runways, setRunways] = useState([]);
   const [loading, setLoading] = useState(false);
   const [noData,  setNoData]  = useState(false);
-
   const divert = divertData.active;
+
+  // ── logEvent refs ─────────────────────────────────────────────────────────
+  const atisTimer  = useRef(null);
+  const perfLogged = useRef(false);
+
+  // Log: runway selected
+  useEffect(() => {
+    if (!selRwy || !activePlan?.id) return;
+    logEvent(activePlan.id, 'LND_RWY_SELECTED', { rwy: selRwy });
+  }, [selRwy]); // eslint-disable-line
+
+  // Log: ARR ATIS (debounced 2s)
+  useEffect(() => {
+    if (!arrAtis || !activePlan?.id) return;
+    clearTimeout(atisTimer.current);
+    atisTimer.current = setTimeout(() => {
+      logEvent(activePlan.id, 'LND_ATIS_ENTERED', { arr_atis: arrAtis });
+    }, 2000);
+    return () => clearTimeout(atisTimer.current);
+  }, [arrAtis]); // eslint-disable-line
+
+  // Log: perf data (once, when actualLw or vref set)
+  useEffect(() => {
+    if (!actualLw && !vref) { perfLogged.current = false; return; }
+    if (!activePlan?.id || perfLogged.current) return;
+    perfLogged.current = true;
+    logEvent(activePlan.id, 'LND_PERF_DATA', {
+      actual_lw:    actualLw,
+      vref:         vref,
+      req_lnd_dist: reqLnd,
+    });
+  }, [actualLw, vref, reqLnd]); // eslint-disable-line
+  // ── end logEvent ──────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (activePlan?.dest) setIcao(activePlan.dest);
@@ -90,10 +118,7 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
   }, [activePlan?.dest]);
 
   const fetchRunways = async (code) => {
-    setLoading(true);
-    setNoData(false);
-    setRunways([]);
-    setSelRwy(null);
+    setLoading(true); setNoData(false); setRunways([]); setSelRwy(null);
     try {
       const url = `https://corsproxy.io/?https://ourairports.com/airports/${code}/runways.csv`;
       const resp = await fetch(url);
@@ -140,22 +165,15 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
   const reqLndNum    = reqLnd ? parseInt(reqLnd.replace(/[^0-9]/g,'')) : null;
   const stopMargin   = activeLenFt && reqLndNum ? activeLenFt - reqLndNum : null;
   const marginColor  = getStopMarginColor(stopMargin);
-
-  // OFP verilerinden max LWT
-  const planLw  = activePlan?.zfw ? `${parseInt(activePlan.zfw).toLocaleString()} lb` : '—';
-  const maxLwt  = '66,000 lb';
-
-  // Actual LW vs Max LWT kontrol
-  const actualLwNum = actualLw ? parseInt(actualLw.replace(/[^0-9]/g,'')) : null;
-  const lwExceeded  = actualLwNum && actualLwNum > 66000;
+  const planLw       = activePlan?.zfw ? `${parseInt(activePlan.zfw).toLocaleString()} lb` : '—';
+  const actualLwNum  = actualLw ? parseInt(actualLw.replace(/[^0-9]/g,'')) : null;
+  const lwExceeded   = actualLwNum && actualLwNum > 66000;
 
   return (
     <div>
       <Title t="ATIS" />
       <AtisRow label="Arrival ATIS" value={arrAtis} onChange={setArrAtis} photo={arrPhoto} onPhoto={() => setArrPhoto(!arrPhoto)} />
-
       <Sep />
-
       <div style={{ opacity: divert ? 0.3 : 1, pointerEvents: divert ? 'none' : 'auto' }}>
         <Title t="Landing Aerodrome & Runway" />
         <div style={{ background:'#2e2e2e', borderBottom:'1px solid #383838', padding:'10px 16px', display:'flex', alignItems:'center', gap:10 }}>
@@ -164,7 +182,6 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
             style={{ ...iStyle, width:90, textAlign:'center', letterSpacing:2 }} />
           {loading && <span style={{ fontSize:10, color:'#555' }}>Loading...</span>}
         </div>
-
         {runways.length > 0 && (
           <div style={{ background:'#2a2a2a', borderBottom:'1px solid #383838', padding:'10px 16px' }}>
             <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', marginBottom:8 }}>Select Runway</div>
@@ -178,39 +195,26 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
             </div>
           </div>
         )}
-
         {noData && (
           <div style={{ background:'#2a2a2a', borderBottom:'1px solid #383838', padding:'10px 16px' }}>
             <div style={{ marginBottom:8, padding:'8px 10px', borderRadius:5, background:'rgba(255,149,0,0.08)', borderLeft:'3px solid #ff9500', fontSize:11, color:'#c4882a' }}>
-              ⚠ No runway data available. Enter manually.
+              No runway data available. Enter manually.
             </div>
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-              <input value={manualRwy} onChange={e => setManualRwy(e.target.value.toUpperCase())} placeholder="RWY"
-                style={{ ...iStyle, width:80, textAlign:'center' }} />
-              <input value={manualLen} onChange={e => setManualLen(e.target.value)} placeholder="Length (ft)"
-                style={{ ...iStyle, flex:1, textAlign:'center' }} />
+              <input value={manualRwy} onChange={e => setManualRwy(e.target.value.toUpperCase())} placeholder="RWY" style={{ ...iStyle, width:80, textAlign:'center' }} />
+              <input value={manualLen} onChange={e => setManualLen(e.target.value)} placeholder="Length (ft)" style={{ ...iStyle, flex:1, textAlign:'center' }} />
             </div>
           </div>
         )}
       </div>
-
       <Sep />
-
       <Title t="OFP — Landing Weights" />
       <AutoRow label="Plan Landing Weight (ZFW)" value={planLw} />
-      <AutoRow label="Max LWT"                   value={maxLwt} />
-
-      {/* Actual LW — pilot girişi */}
-      <EntryRow
-        label="Actual Landing Weight"
-        value={actualLw}
-        onChange={setActualLw}
-        unit="lb"
-        placeholder="——"
-      />
+      <AutoRow label="Max LWT"                   value="66,000 lb" />
+      <EntryRow label="Actual Landing Weight" value={actualLw} onChange={setActualLw} unit="lb" placeholder="——" />
       {lwExceeded && (
         <div style={{ margin:'0 16px 4px', padding:'8px 12px', borderRadius:6, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020', fontWeight:700 }}>
-          ⚠ ACTUAL LW EXCEEDS MAX LWT (66,000 lb)
+          ACTUAL LW EXCEEDS MAX LWT (66,000 lb)
         </div>
       )}
       {actualLwNum && !lwExceeded && (
@@ -218,18 +222,8 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
           LW OK — Margin: {(66000 - actualLwNum).toLocaleString()} lb below Max LWT
         </div>
       )}
-
-      {/* Vref — pilot girişi */}
-      <EntryRow
-        label="Vref"
-        value={vref}
-        onChange={setVref}
-        unit="kt"
-        placeholder="——"
-      />
-
+      <EntryRow label="Vref" value={vref} onChange={setVref} unit="kt" placeholder="——" />
       <Sep />
-
       <Title t="Performance" />
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838' }}>
         <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600 }}>Req Landing Distance</span>
@@ -238,58 +232,45 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
           <span style={{ fontSize:11, color:'#555', width:16 }}>ft</span>
         </div>
       </div>
-
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
         <span style={{ fontSize:12.5, color:'#666' }}>
-          Stop Margin {divert && divertData.rwy ? `(DIVERT RWY ${divertData.rwy})`
-                     : selectedRwy ? `(RWY ${selectedRwy.id})`
-                     : manualRwy ? `(RWY ${manualRwy})` : ''}
+          Stop Margin {divert && divertData.rwy ? `(DIVERT RWY ${divertData.rwy})` : selectedRwy ? `(RWY ${selectedRwy.id})` : manualRwy ? `(RWY ${manualRwy})` : ''}
         </span>
         <span style={{ fontSize:15, fontWeight:700, color: marginColor, fontFamily:'monospace' }}>
           {stopMargin !== null ? `${stopMargin.toLocaleString()} ft` : '—'}
         </span>
       </div>
-
       <Sep />
-
       <div style={{ margin:'10px 16px', border:`1px solid ${divert ? 'rgba(255,149,0,0.3)' : '#333'}`, borderRadius:8, overflow:'hidden' }}>
         <div onClick={() => updateDivert('active', !divert)}
           style={{ background: divert ? 'rgba(255,149,0,0.1)' : '#1f1f1f', padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', borderBottom: divert ? '1px solid rgba(255,149,0,0.2)' : 'none' }}>
-          <span style={{ fontSize:12, fontWeight:700, color: divert ? '#e8731a' : '#555' }}>⚠ DIVERT</span>
+          <span style={{ fontSize:12, fontWeight:700, color: divert ? '#e8731a' : '#555' }}>DIVERT</span>
           <div style={{ width:38, height:22, background: divert ? '#e8731a' : '#333', borderRadius:11, position:'relative', transition:'background 0.2s' }}>
             <div style={{ position:'absolute', width:18, height:18, background:'#fff', borderRadius:9, top:2, left: divert ? 18 : 2, transition:'left 0.2s' }} />
           </div>
         </div>
-
         {divert && (
           <div style={{ background:'#1e1e1e', padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
-            <div style={{ fontSize:10, color:'#e8731a', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', marginBottom:2 }}>
-              Divert Aerodrome — Pilot Entry
-            </div>
+            <div style={{ fontSize:10, color:'#e8731a', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', marginBottom:2 }}>Divert Aerodrome — Pilot Entry</div>
             <div style={{ display:'flex', gap:8 }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, color:'#555', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>ICAO</div>
-                <input value={divertData.icao} onChange={e => updateDivert('icao', e.target.value.toUpperCase())} placeholder="ICAO" maxLength={4}
-                  style={{ ...iAmber, width:'100%', textAlign:'center', letterSpacing:2 }} />
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, color:'#555', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>Runway</div>
-                <input value={divertData.rwy} onChange={e => updateDivert('rwy', e.target.value.toUpperCase())} placeholder="RWY"
-                  style={{ ...iAmber, width:'100%', textAlign:'center' }} />
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, color:'#555', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>Length</div>
-                <input value={divertData.len} onChange={e => updateDivert('len', e.target.value)} placeholder="ft"
-                  style={{ ...iAmber, width:'100%', textAlign:'center' }} />
-              </div>
+              {[
+                { label:'ICAO', val:divertData.icao, upd:(v)=>updateDivert('icao',v.toUpperCase()), max:4, ph:'ICAO', ls:2 },
+                { label:'Runway', val:divertData.rwy, upd:(v)=>updateDivert('rwy',v.toUpperCase()), ph:'RWY' },
+                { label:'Length', val:divertData.len, upd:(v)=>updateDivert('len',v), ph:'ft' },
+              ].map(f=>(
+                <div key={f.label} style={{ flex:1 }}>
+                  <div style={{ fontSize:9, color:'#555', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>{f.label}</div>
+                  <input value={f.val} onChange={e=>f.upd(e.target.value)} placeholder={f.ph} maxLength={f.max}
+                    style={{ ...iAmber, width:'100%', textAlign:'center', letterSpacing:f.ls||0 }}/>
+                </div>
+              ))}
             </div>
             <div style={{ padding:'8px 10px', borderRadius:5, background:'rgba(255,149,0,0.08)', borderLeft:'3px solid #e8731a', fontSize:11, color:'#c4882a' }}>
-              ⚠ Divert activated — destination updates across all pages.
+              Divert activated — destination updates across all pages.
             </div>
           </div>
         )}
       </div>
-
       <SyncButton />
     </div>
   );

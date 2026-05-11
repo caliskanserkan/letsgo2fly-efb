@@ -1,4 +1,4 @@
-// AdminPanel.js — GO2 eFB Admin Panel v2
+// AdminPanel.js — GO2 eFB Admin Panel v3
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 
@@ -33,7 +33,7 @@ const S = {
 function Toast({msg,type,onClose}){
   useEffect(()=>{const t=setTimeout(onClose,3500);return()=>clearTimeout(t);},[onClose]);
   if(!msg)return null;
-  return <div style={S.toast(type)}>{type==='error'?'⚠ ':'✓ '}{msg}</div>;
+  return <div style={S.toast(type)}>{type==='error'?'! ':'OK '}{msg}</div>;
 }
 function Modal({title,children,onClose,width}){
   return(
@@ -41,20 +41,20 @@ function Modal({title,children,onClose,width}){
       <div style={{...S.modalBox,...(width?{minWidth:width}:{})}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,paddingBottom:10,borderBottom:`1px solid ${C.border}`}}>
           <span style={{fontSize:11,color:C.accent,letterSpacing:3,fontWeight:700,fontFamily:"'Courier New',monospace",textTransform:'uppercase'}}>{title}</span>
-          <button onClick={onClose} style={{background:'none',border:'none',color:C.t3,cursor:'pointer',fontSize:18}}>✕</button>
+          <button onClick={onClose} style={{background:'none',border:'none',color:C.t3,cursor:'pointer',fontSize:18}}>x</button>
         </div>
         {children}
       </div>
     </div>
   );
 }
-function DetailPanel({title,children,onClose}){
+function DetailPanel({title,children,onClose,width}){
   if(!children)return null;
   return(
-    <div style={{width:340,background:C.bg2,borderLeft:`1px solid ${C.border}`,display:'flex',flexDirection:'column',flexShrink:0,overflow:'hidden'}}>
+    <div style={{width:width||360,background:C.bg2,borderLeft:`1px solid ${C.border}`,display:'flex',flexDirection:'column',flexShrink:0,overflow:'hidden'}}>
       <div style={{padding:'12px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <span style={{fontSize:10,color:C.accent,fontWeight:700,letterSpacing:2,fontFamily:"'Courier New',monospace",textTransform:'uppercase'}}>{title}</span>
-        <button onClick={onClose} style={{background:'none',border:'none',color:C.t3,cursor:'pointer',fontSize:16}}>✕</button>
+        <button onClick={onClose} style={{background:'none',border:'none',color:C.t3,cursor:'pointer',fontSize:16}}>x</button>
       </div>
       <div style={{flex:1,overflowY:'auto'}}>{children}</div>
     </div>
@@ -69,31 +69,287 @@ function DetailRow({label,value,accent}){
   );
 }
 
-// ─── AdminEditsHistory — export edildi — EndFlight.js import eder ─────────────
-export function AdminEditsHistory({archivedFlightId, readOnly=false}){
-  const [edits,   setEdits]   = useState([]);
+// ─── ACTION META (tüm log tipleri) ────────────────────────────────────────────
+const ACTION_META = {
+  PLAN_RELEASED:              {icon:'>>',label:'Plan Released',          color:'#e8a020'},
+  PLAN_DOWNLOADED:            {icon:'<<',label:'Plan Downloaded',        color:'#1a9bc4'},
+  CREW_ASSIGNED:              {icon:'**',label:'Crew Assigned',          color:'#1a9bc4'},
+  PREFLIGHT_MANDATORY_COMPLETE:{icon:'OK',label:'Mandatory Complete',    color:'#2d9e5f'},
+  MANDATORY_CHECK_DONE:       {icon:'[x]',label:'Check Done',            color:'#2d9e5f'},
+  MANDATORY_CHECK_UNDONE:     {icon:'[ ]',label:'Check Undone',          color:'#e8731a'},
+  MANDATORY_SIGNED:           {icon:'///',label:'Mandatory Signed',      color:'#2d9e5f'},
+  FUEL_CHECKED:               {icon:'F',  label:'Fuel Checked',          color:'#2d9e5f'},
+  PLAN_ACCEPTED:              {icon:'SIG',label:'Plan Accepted & Signed',color:'#2d9e5f'},
+  PLAN_ACCEPTANCE_REVOKED:    {icon:'REV',label:'Acceptance Revoked',    color:'#e02020'},
+  SYNC_TO_PM:                 {icon:'<>',label:'Synced to PM',           color:'#1a9bc4'},
+  // T/O Data
+  TKOF_RWY_SELECTED:          {icon:'RWY',label:'T/O Runway Selected',  color:'#1a9bc4'},
+  TKOF_ATIS_ENTERED:          {icon:'ATI',label:'DEP ATIS Entered',      color:'#1a9bc4'},
+  TKOF_SPEEDS_ENTERED:        {icon:'V',  label:'T/O Speeds (V1/VR/V2)',color:'#e8a020'},
+  TKOF_ATC_CLR:               {icon:'ATC',label:'ATC Clearance',         color:'#1a9bc4'},
+  TKOF_RVSM_GROUND:           {icon:'RVG',label:'RVSM Ground Check',     color:'#2d9e5f'},
+  // NavLog
+  OFF_BLOCKS:                 {icon:'OFB',label:'Off Blocks',            color:'#e8a020'},
+  TAKEOFF:                    {icon:'T/O',label:'Takeoff',               color:'#e8a020'},
+  RVSM_CHECK:                 {icon:'RVC',label:'RVSM Check',            color:'#1a9bc4'},
+  GPS_ACTIVATED:              {icon:'GPS',label:'GPS Activated',         color:'#2d9e5f'},
+  LANDING:                    {icon:'LND',label:'Landing',               color:'#e8a020'},
+  ON_BLOCKS:                  {icon:'ONB',label:'On Blocks',             color:'#e8a020'},
+  FUEL_REMAINING:             {icon:'FR', label:'Fuel Remaining',        color:'#2d9e5f'},
+  // LND Data
+  LND_RWY_SELECTED:           {icon:'RWY',label:'LND Runway Selected',  color:'#1a9bc4'},
+  LND_ATIS_ENTERED:           {icon:'ATI',label:'ARR ATIS Entered',      color:'#1a9bc4'},
+  LND_PERF_DATA:              {icon:'LW', label:'LND Perf Data',         color:'#e8a020'},
+  // Archive
+  FLIGHT_ARCHIVED:            {icon:'ARC',label:'Flight Archived',       color:'#2d9e5f'},
+  ADMIN_EDIT:                 {icon:'EDT',label:'Admin Edit',            color:'#e02020'},
+};
+
+// ─── Flight Timeline ──────────────────────────────────────────────────────────
+function FlightTimeline({ planId, live=false }) {
+  const [logs,    setLogs]    = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!planId) return;
+    const { data } = await supabase
+      .from('flight_logs')
+      .select('*,profiles(full_name,code)')
+      .eq('plan_id', planId)
+      .order('created_at', { ascending: true });
+    setLogs(data || []);
+    setLoading(false);
+  }, [planId]);
+
+  useEffect(() => {
+    load();
+    if (!live) return;
+    const iv = setInterval(load, 30000);
+    return () => clearInterval(iv);
+  }, [load, live]);
+
+  const fmtTime = iso => {
+    const d = new Date(iso);
+    return `${d.toLocaleDateString('en-GB')} ${d.toTimeString().slice(0,8)} UTC`;
+  };
+  const detailStr = details => {
+    if (!details) return '';
+    return Object.entries(details)
+      .filter(([k]) => !['platform','timestamp_utc'].includes(k))
+      .map(([k,v]) => `${k}: ${v}`)
+      .join('  ·  ');
+  };
+
+  if (loading) return <div style={{padding:20,color:C.t3,fontSize:11,textAlign:'center',fontFamily:"'Courier New',monospace"}}>LOADING TIMELINE...</div>;
+  if (!logs.length) return <div style={{padding:20,color:C.t3,fontSize:11,textAlign:'center',fontFamily:"'Courier New',monospace"}}>NO LOG ENTRIES</div>;
+
+  return (
+    <div style={{padding:'12px 16px'}}>
+      {live && (
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:12}}>
+          <div style={{width:7,height:7,borderRadius:4,background:'#40d080',boxShadow:'0 0 6px rgba(64,208,128,0.6)'}}/>
+          <span style={{fontSize:10,color:'#40d080',fontFamily:"'Courier New',monospace",letterSpacing:1}}>LIVE — 30s refresh</span>
+          <span style={{marginLeft:'auto',fontSize:10,color:C.t3,fontFamily:"'Courier New',monospace"}}>{logs.length} entries</span>
+        </div>
+      )}
+      {logs.map((l, idx) => {
+        const meta = ACTION_META[l.action] || { icon:'·', label: l.action, color: C.t3 };
+        const isLast = idx === logs.length - 1;
+        return (
+          <div key={l.id} style={{display:'flex',gap:10}}>
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',width:28,flexShrink:0}}>
+              <div style={{width:26,height:26,borderRadius:13,background:`${meta.color}20`,border:`2px solid ${meta.color}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:meta.color,fontWeight:700,flexShrink:0,fontFamily:"'Courier New',monospace"}}>
+                {meta.icon}
+              </div>
+              {!isLast && <div style={{width:2,flex:1,background:C.border,minHeight:12,margin:'2px 0'}}/>}
+            </div>
+            <div style={{flex:1,paddingBottom:12}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:2}}>
+                <span style={{fontSize:12,fontWeight:700,color:meta.color,fontFamily:"'Courier New',monospace"}}>{meta.label}</span>
+                <span style={{fontSize:9,color:C.t3,fontFamily:"'Courier New',monospace",whiteSpace:'nowrap',marginLeft:8}}>{fmtTime(l.created_at)}</span>
+              </div>
+              {l.profiles && (
+                <div style={{fontSize:10,color:C.t1,marginBottom:2,fontFamily:"'Courier New',monospace"}}>
+                  <span style={{color:C.accent,fontWeight:700}}>{l.profiles.code}</span>{' · '}{l.profiles.full_name}
+                </div>
+              )}
+              {l.details && Object.keys(l.details).filter(k=>!['platform','timestamp_utc'].includes(k)).length > 0 && (
+                <div style={{fontSize:10,color:C.t3,fontFamily:"'Courier New',monospace",background:C.bg3,padding:'4px 8px',borderLeft:`2px solid ${meta.color}40`,lineHeight:1.7}}>
+                  {detailStr(l.details)}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Collapsible Edit Box (Archived FLTs) ─────────────────────────────────────
+function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, toast, user }) {
+  const [open,    setOpen]    = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [form,    setForm]    = useState({});
+  const [reason,  setReason]  = useState('');
+  const [saving,  setSaving]  = useState(false);
+
+  const openEdit = () => {
+    const init = {};
+    (fields||[]).forEach(f => {
+      let val = flight[f.key];
+      if (f.type === 'time' && val) val = new Date(val).toISOString().slice(11,16);
+      init[f.key] = val != null ? String(val) : '';
+    });
+    setForm(init);
+    setReason('');
+    setEditing(true);
+  };
+
+  const handleSave = async () => {
+    if (!reason.trim()) { toast('Reason is mandatory.', 'error'); return; }
+    if (!fields || !fields.length) return;
+    setSaving(true);
+    const changes = fields.filter(f => String(form[f.key]||'') !== String(flight[f.key]??''));
+    if (!changes.length) { toast('No changes detected.', 'error'); setSaving(false); return; }
+    const updateObj = {};
+    changes.forEach(f => { updateObj[f.key] = form[f.key] || null; });
+    const { error: upErr } = await supabase.from('archived_flights').update(updateObj).eq('id', flight.id);
+    if (upErr) { toast(`Update failed: ${upErr.message}`, 'error'); setSaving(false); return; }
+    for (const f of changes) {
+      await supabase.from('admin_edits').insert({
+        archived_flight_id: flight.id,
+        plan_id:            flight.plan_id,
+        field_name:         f.key,
+        old_value:          String(flight[f.key]??''),
+        new_value:          String(form[f.key]||''),
+        reason,
+        edit_type:         'EDIT',
+        edited_by:          user?.id ?? null,
+      });
+    }
+    toast(`${changes.length} field(s) updated.`, 'success');
+    setSaving(false);
+    setEditing(false);
+    onSave();
+  };
+
+  const fmtTime = iso => iso ? new Date(iso).toISOString().slice(11,16) + ' Z' : null;
+
+  return (
+    <div style={{borderBottom:`1px solid ${C.border}`}}>
+      {/* Header */}
+      <div onClick={() => setOpen(o=>!o)}
+        style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 16px',cursor:'pointer',background:open?`${color}08`:'transparent',borderLeft:`3px solid ${open?color:'transparent'}`}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:12,color:color,fontWeight:700,fontFamily:"'Courier New',monospace",width:30}}>{icon}</span>
+          <span style={{fontSize:12,color:open?color:C.t3,fontWeight:700,fontFamily:"'Courier New',monospace",letterSpacing:1,textTransform:'uppercase'}}>{title}</span>
+          {logs && logs.length > 0 && (
+            <span style={{fontSize:9,color:C.t3,background:C.bg3,padding:'1px 6px',borderRadius:3,fontFamily:"'Courier New',monospace"}}>{logs.length}</span>
+          )}
+        </div>
+        <span style={{fontSize:12,color:C.t3}}>{open?'v':'^'}</span>
+      </div>
+
+      {open && (
+        <div style={{background:C.bg3}}>
+          {/* Log entries for this category */}
+          {logs && logs.length > 0 && (
+            <div style={{borderBottom:`1px solid ${C.border}`}}>
+              {logs.map(l => {
+                const meta = ACTION_META[l.action] || { icon:'·', label: l.action, color: C.t3 };
+                return (
+                  <div key={l.id} style={{padding:'7px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',gap:10,alignItems:'flex-start'}}>
+                    <span style={{fontSize:9,color:meta.color,fontWeight:700,fontFamily:"'Courier New',monospace",width:28,flexShrink:0,paddingTop:2}}>{meta.icon}</span>
+                    <div style={{flex:1}}>
+                      <div style={{display:'flex',justifyContent:'space-between'}}>
+                        <span style={{fontSize:11,color:meta.color,fontFamily:"'Courier New',monospace",fontWeight:700}}>{meta.label}</span>
+                        <span style={{fontSize:9,color:C.t3,fontFamily:"'Courier New',monospace"}}>{new Date(l.created_at).toLocaleTimeString('en-GB').slice(0,8)} UTC</span>
+                      </div>
+                      {l.details && (
+                        <div style={{fontSize:9,color:C.t3,fontFamily:"'Courier New',monospace",marginTop:2,lineHeight:1.7}}>
+                          {Object.entries(l.details).filter(([k])=>!['platform','timestamp_utc'].includes(k)).map(([k,v])=>`${k}: ${v}`).join('  ·  ')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Current archived values */}
+          {fields && fields.length > 0 && (
+            <div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`}}>
+              <div style={{fontSize:10,color:C.t3,fontWeight:700,letterSpacing:1,fontFamily:"'Courier New',monospace",marginBottom:6}}>CURRENT VALUES</div>
+              {fields.map(f => {
+                let val = flight[f.key];
+                if (f.type === 'time' && val) val = fmtTime(val);
+                return (
+                  <div key={f.key} style={{display:'flex',justifyContent:'space-between',padding:'3px 0'}}>
+                    <span style={{fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace"}}>{f.label}</span>
+                    <span style={{fontSize:11,color:val?C.t1:'#333',fontFamily:"'Courier New',monospace",fontWeight:700}}>{val||'—'}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Edit form */}
+          {fields && fields.length > 0 && !editing && (
+            <div style={{padding:'8px 16px'}}>
+              <button style={{...S.btnPrimary,fontSize:11,padding:'6px 14px'}} onClick={openEdit}>EDIT THIS SECTION</button>
+            </div>
+          )}
+          {editing && (
+            <div style={{padding:'10px 16px'}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+                {fields.map(f => (
+                  <div key={f.key}>
+                    <div style={{fontSize:10,color:C.t3,fontFamily:"'Courier New',monospace",marginBottom:3}}>{f.label}</div>
+                    <input style={{...S.input,fontSize:13,padding:'6px 8px'}}
+                      value={form[f.key]||''}
+                      placeholder={f.type==='time'?'HH:MM':'—'}
+                      onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}/>
+                  </div>
+                ))}
+              </div>
+              <div style={{marginBottom:8}}>
+                <div style={{fontSize:10,color:C.t3,fontFamily:"'Courier New',monospace",marginBottom:3}}>REASON *</div>
+                <textarea style={{...S.input,minHeight:56,resize:'vertical',fontSize:12}}
+                  value={reason} onChange={e=>setReason(e.target.value)} placeholder="Mandatory: explain why..."/>
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <button style={{...S.btnSecondary,fontSize:11,padding:'6px 12px'}} onClick={()=>setEditing(false)}>CANCEL</button>
+                <button style={{...S.btnPrimary,fontSize:11,padding:'6px 14px'}} onClick={handleSave} disabled={saving}>
+                  {saving?'SAVING...':'SAVE & LOG'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── AdminEditsHistory ────────────────────────────────────────────────────────
+export function AdminEditsHistory({archivedFlightId, readOnly=false}){
+  const [edits,setEdits]=useState([]);const[loading,setLoading]=useState(true);
   useEffect(()=>{
-    if(!archivedFlightId) return;
+    if(!archivedFlightId)return;
     (async()=>{
       setLoading(true);
-      const {data} = await supabase
-        .from('admin_edits')
-        .select('id,created_at,edit_type,field_name,old_value,new_value,reason')
-        .eq('archived_flight_id', archivedFlightId)
-        .order('created_at', {ascending:false});
-      setEdits(data||[]);
-      setLoading(false);
+      const{data}=await supabase.from('admin_edits').select('id,created_at,edit_type,field_name,old_value,new_value,reason').eq('archived_flight_id',archivedFlightId).order('created_at',{ascending:false});
+      setEdits(data||[]);setLoading(false);
     })();
   },[archivedFlightId]);
-
-  if(loading) return <div style={{padding:'10px 16px',fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace"}}>LOADING EDIT HISTORY...</div>;
-  if(edits.length===0) return <div style={{padding:'10px 16px',fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace"}}>NO ADMIN EDITS ON RECORD</div>;
+  if(loading)return<div style={{padding:'10px 16px',fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace"}}>LOADING EDIT HISTORY...</div>;
+  if(!edits.length)return<div style={{padding:'10px 16px',fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace"}}>NO ADMIN EDITS ON RECORD</div>;
   return(
     <div>
       <div style={{padding:'8px 16px',background:C.bg3,borderBottom:`1px solid ${C.border}`,borderTop:`1px solid ${C.border}`}}>
         <span style={{...S.label,color:readOnly?'#4a9bc4':C.accent}}>{readOnly?'ADMIN EDIT HISTORY — READ ONLY':'EDIT HISTORY'}</span>
-        {readOnly&&<div style={{fontSize:10,color:C.t3,marginTop:3,fontFamily:"'Courier New',monospace"}}>Maintained by operations administration.</div>}
       </div>
       {edits.map(e=>(
         <div key={e.id} style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,borderLeft:`3px solid ${e.edit_type==='DELETE'?C.red:C.accent}`}}>
@@ -104,7 +360,7 @@ export function AdminEditsHistory({archivedFlightId, readOnly=false}){
           {e.field_name!=='RECORD_DELETED'&&(
             <div style={{fontSize:11,color:C.t1,fontFamily:"'Courier New',monospace",marginBottom:3}}>
               <span style={{color:C.accent}}>{e.field_name}</span>{' '}
-              <span style={{color:C.t3}}>{String(e.old_value||'—').slice(0,25)}</span>{' → '}
+              <span style={{color:C.t3}}>{String(e.old_value||'—').slice(0,25)}</span>{' > '}
               <span style={{color:'#40d080'}}>{String(e.new_value||'—').slice(0,25)}</span>
             </div>
           )}
@@ -119,14 +375,27 @@ export function AdminEditsHistory({archivedFlightId, readOnly=false}){
 
 // ─── 1. Active FLTs ───────────────────────────────────────────────────────────
 function ActiveFlts({toast}){
-  const[plans,setPlans]=useState([]);
-  const[loading,setLoading]=useState(true);
-  const[selected,setSelected]=useState(null);
+  const [plans,setPlans]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [selected,setSelected]=useState(null);
+  const [detailTab,setDetailTab]=useState('details'); // 'details' | 'timeline'
+
   useEffect(()=>{
-    const load=async()=>{setLoading(true);const{data}=await supabase.from('plans').select('*').eq('status','active').order('created_at',{ascending:false});setPlans(data||[]);setLoading(false);};
+    const load=async()=>{
+      setLoading(true);
+      const{data}=await supabase.from('plans').select('*').eq('status','active').order('created_at',{ascending:false});
+      setPlans(data||[]);setLoading(false);
+    };
     load();const iv=setInterval(load,30000);return()=>clearInterval(iv);
   },[]);
+
   const sel=plans.find(p=>p.id===selected);
+
+  const handleSelect = (id) => {
+    setSelected(id===selected?null:id);
+    setDetailTab('details');
+  };
+
   return(
     <div style={{display:'flex',flex:1,overflow:'hidden'}}>
       <div style={{flex:1,overflowY:'auto'}}>
@@ -137,7 +406,7 @@ function ActiveFlts({toast}){
         {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11,letterSpacing:2}}>LOADING...</div>}
         {!loading&&plans.length===0&&<div style={{padding:48,textAlign:'center',color:C.t3,fontSize:11,letterSpacing:2}}>NO ACTIVE FLIGHTS</div>}
         {plans.map(p=>(
-          <div key={p.id} onClick={()=>setSelected(p.id===selected?null:p.id)}
+          <div key={p.id} onClick={()=>handleSelect(p.id)}
             style={{padding:'14px 16px',borderBottom:`1px solid ${C.border}`,cursor:'pointer',background:selected===p.id?`${C.accent}08`:'transparent',borderLeft:selected===p.id?`3px solid ${C.accent}`:'3px solid transparent'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
               <span style={{fontSize:14,fontWeight:700,color:C.accent,fontFamily:"'Courier New',monospace",letterSpacing:1}}>{p.dep} → {p.dest}</span>
@@ -151,16 +420,38 @@ function ActiveFlts({toast}){
           </div>
         ))}
       </div>
+
       {sel&&(
-        <DetailPanel title="Flight Detail" onClose={()=>setSelected(null)}>
-          <DetailRow label="Flight" value={`${sel.dep} → ${sel.dest}`} accent/>
-          <DetailRow label="Registration" value={sel.reg}/>
-          <DetailRow label="Type" value={sel.ac_type}/>
-          <DetailRow label="Dispatch No" value={sel.dispatch_no}/>
-          <DetailRow label="STD" value={sel.std}/>
-          <DetailRow label="ETA" value={sel.eta}/>
-          <DetailRow label="PF Pilot" value={sel.pf_pilot}/>
-          <DetailRow label="PM Pilot" value={sel.pm_pilot}/>
+        <DetailPanel title={`${sel.dep} → ${sel.dest}`} onClose={()=>setSelected(null)} width={400}>
+          {/* Tab bar */}
+          <div style={{display:'flex',borderBottom:`1px solid ${C.border}`,background:C.bg3}}>
+            {['details','timeline'].map(tab=>(
+              <div key={tab} onClick={()=>setDetailTab(tab)}
+                style={{flex:1,padding:'10px',textAlign:'center',cursor:'pointer',fontFamily:"'Courier New',monospace",fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',
+                  color:detailTab===tab?C.accent:C.t3,
+                  borderBottom:detailTab===tab?`2px solid ${C.accent}`:'2px solid transparent',
+                  background:detailTab===tab?`${C.accent}08`:'transparent'}}>
+                {tab==='timeline'?'TIMELINE':'DETAILS'}
+              </div>
+            ))}
+          </div>
+
+          {detailTab==='details'&&(
+            <div>
+              <DetailRow label="Route"       value={`${sel.dep} → ${sel.dest}`} accent/>
+              <DetailRow label="Registration" value={sel.reg}/>
+              <DetailRow label="Type"         value={sel.ac_type}/>
+              <DetailRow label="Dispatch No"  value={sel.dispatch_no}/>
+              <DetailRow label="STD"          value={sel.std}/>
+              <DetailRow label="ETA"          value={sel.eta}/>
+              <DetailRow label="PF Pilot"     value={sel.pf_pilot}/>
+              <DetailRow label="PM Pilot"     value={sel.pm_pilot}/>
+            </div>
+          )}
+
+          {detailTab==='timeline'&&(
+            <FlightTimeline planId={sel.id} live={true}/>
+          )}
         </DetailPanel>
       )}
     </div>
@@ -178,8 +469,9 @@ function ArchivedFlts({toast,user}){
   const[editForm,setEditForm]=useState({});
   const[deleteReason,setDeleteReason]=useState('');
   const[saving,setSaving]=useState(false);
+  const[planLogs,setPlanLogs]=useState([]);
 
-  const fetch=useCallback(async()=>{
+  const load=useCallback(async()=>{
     setLoading(true);
     const{data,error}=await supabase.from('archived_flights')
       .select('*,plans(dep,dest,date,reg,ac_type,dispatch_no,pf_pilot,pm_pilot)')
@@ -187,11 +479,33 @@ function ArchivedFlts({toast,user}){
     if(error)console.error('ArchivedFlts:',error);
     setFlights(data||[]);setLoading(false);
   },[]);
-  useEffect(()=>{fetch();},[fetch]);
+
+  useEffect(()=>{load();},[load]);
+
+  // Flight_logs for selected flight
+  useEffect(()=>{
+    const sel=flights.find(f=>f.id===selected);
+    if(!sel?.plan_id){setPlanLogs([]);return;}
+    supabase.from('flight_logs').select('*,profiles(full_name,code)')
+      .eq('plan_id', sel.plan_id)
+      .order('created_at',{ascending:true})
+      .then(({data})=>setPlanLogs(data||[]));
+  },[selected,flights]);
 
   const filtered=flights.filter(f=>{const p=f.plans||{};return!filter.route||`${p.dep}${p.dest}`.toLowerCase().includes(filter.route.toLowerCase());});
   const sel=flights.find(f=>f.id===selected);
   const fmtMins=m=>m?`${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`:'—';
+
+  // Group logs by category
+  const logsByCategory = {
+    crew:      planLogs.filter(l=>['CREW_ASSIGNED'].includes(l.action)),
+    mandatory: planLogs.filter(l=>['MANDATORY_CHECK_DONE','MANDATORY_CHECK_UNDONE','MANDATORY_SIGNED','PREFLIGHT_MANDATORY_COMPLETE'].includes(l.action)),
+    fuel:      planLogs.filter(l=>['FUEL_CHECKED'].includes(l.action)),
+    accepted:  planLogs.filter(l=>['PLAN_ACCEPTED','PLAN_ACCEPTANCE_REVOKED'].includes(l.action)),
+    tkof:      planLogs.filter(l=>['TKOF_RWY_SELECTED','TKOF_ATIS_ENTERED','TKOF_SPEEDS_ENTERED','TKOF_ATC_CLR','TKOF_RVSM_GROUND'].includes(l.action)),
+    navlog:    planLogs.filter(l=>['OFF_BLOCKS','TAKEOFF','RVSM_CHECK','GPS_ACTIVATED','LANDING','ON_BLOCKS','FUEL_REMAINING'].includes(l.action)),
+    lnd:       planLogs.filter(l=>['LND_RWY_SELECTED','LND_ATIS_ENTERED','LND_PERF_DATA'].includes(l.action)),
+  };
 
   const openEdit=f=>{
     setEditForm({
@@ -214,39 +528,33 @@ function ArchivedFlts({toast,user}){
     setSaving(true);
     const{reason,...fields}=editForm;
     const changes=Object.entries(fields).filter(([k,v])=>String(v)!==String(sel[k]==null?'':sel[k]));
-    if(changes.length===0){toast('No changes detected.','error');setSaving(false);return;}
+    if(!changes.length){toast('No changes detected.','error');setSaving(false);return;}
     const updateObj={};changes.forEach(([k,v])=>{updateObj[k]=v;});
     const{error:upErr}=await supabase.from('archived_flights').update(updateObj).eq('id',sel.id);
     if(upErr){toast(`Update failed: ${upErr.message}`,'error');setSaving(false);return;}
     for(const[k,v]of changes){
-      const{error:logErr}=await supabase.from('admin_edits').insert({
+      await supabase.from('admin_edits').insert({
         archived_flight_id:sel.id,plan_id:sel.plan_id,
         field_name:k,old_value:String(sel[k]??''),new_value:String(v),
         reason,edit_type:'EDIT',edited_by:user?.id??null,
       });
-      if(logErr){toast(`Log error (${k}): ${logErr.message}`,'error');setSaving(false);return;}
     }
     toast(`${changes.length} field(s) updated and logged.`,'success');
-    setEditModal(false);setSaving(false);fetch();
+    setEditModal(false);setSaving(false);load();
   };
 
   const handleDelete=async()=>{
     if(!deleteReason){toast('Reason is mandatory.','error');return;}
     setSaving(true);
-    const{error:logErr}=await supabase.from('admin_edits').insert({
+    await supabase.from('admin_edits').insert({
       archived_flight_id:sel.id,plan_id:sel.plan_id,
       field_name:'RECORD_DELETED',old_value:String(sel.id),new_value:'DELETED',
       reason:deleteReason,edit_type:'DELETE',edited_by:user?.id??null,
     });
-    if(logErr){toast(`Log failed: ${logErr.message}`,'error');setSaving(false);return;}
-    const{error:delErr}=await supabase.from('archived_flights').delete().eq('id',sel.id);
-    if(delErr){toast(`Delete failed: ${delErr.message}`,'error');setSaving(false);return;}
-    if(sel.plan_id){
-      const{error:planErr}=await supabase.from('plans').update({status:'deleted'}).eq('id',sel.plan_id);
-      if(planErr)toast(`Plan status warning: ${planErr.message}`,'error');
-    }
+    await supabase.from('archived_flights').delete().eq('id',sel.id);
+    if(sel.plan_id) await supabase.from('plans').update({status:'deleted'}).eq('id',sel.plan_id);
     toast('Record deleted and logged.','success');
-    setDeleteModal(false);setSelected(null);setDeleteReason('');setSaving(false);fetch();
+    setDeleteModal(false);setSelected(null);setDeleteReason('');setSaving(false);load();
   };
 
   const EF=({label,k,type='text'})=>(
@@ -288,7 +596,7 @@ function ArchivedFlts({toast,user}){
                   <td style={S.td}>{fmtMins(f.block_minutes)}</td>
                   <td style={S.td}>{fmtMins(f.airborne_minutes)}</td>
                   <td style={S.td}>{f.landing_count||'—'}</td>
-                  <td style={S.td}>{f.pf_id?f.pf_id.slice(0,8)+'…':'—'}</td>
+                  <td style={S.td}>{f.pf_id?f.pf_id.slice(0,8)+'...':'—'}</td>
                 </tr>
               );
             })}
@@ -297,11 +605,14 @@ function ArchivedFlts({toast,user}){
       </div>
 
       {sel&&(
-        <DetailPanel title="Archive Detail" onClose={()=>setSelected(null)}>
-          <DetailRow label="Route" value={`${sel.plans?.dep} → ${sel.plans?.dest}`} accent/>
-          <DetailRow label="Date" value={sel.plans?.date}/>
+        <DetailPanel title="Archive Detail" onClose={()=>setSelected(null)} width={400}>
+
+          {/* Basic flight data */}
+          <DetailRow label="Route"        value={`${sel.plans?.dep} → ${sel.plans?.dest}`} accent/>
+          <DetailRow label="Date"         value={sel.plans?.date}/>
           <DetailRow label="Registration" value={sel.plans?.reg}/>
-          <DetailRow label="Archived" value={sel.archived_at?new Date(sel.archived_at).toLocaleString('en-GB'):'—'}/>
+          <DetailRow label="Archived"     value={sel.archived_at?new Date(sel.archived_at).toLocaleString('en-GB'):'—'}/>
+
           <div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`,fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace",lineHeight:2}}>
             <div>OFF BLOCK: <span style={{color:C.t1}}>{sel.off_blocks?new Date(sel.off_blocks).toISOString().slice(11,16)+' Z':'—'}</span></div>
             <div>T/O TIME:  <span style={{color:C.t1}}>{sel.takeoff_time?new Date(sel.takeoff_time).toISOString().slice(11,16)+' Z':'—'}</span></div>
@@ -309,31 +620,94 @@ function ArchivedFlts({toast,user}){
             <div>ON BLOCK:  <span style={{color:C.t1}}>{sel.on_blocks?new Date(sel.on_blocks).toISOString().slice(11,16)+' Z':'—'}</span></div>
             <div>BLOCK:     <span style={{color:C.accent}}>{fmtMins(sel.block_minutes)}</span></div>
             <div>FLIGHT:    <span style={{color:C.accent}}>{fmtMins(sel.airborne_minutes)}</span></div>
-            <div>T/O FUEL:  <span style={{color:C.t1}}>{sel.takeoff_fuel||'—'} lb</span></div>
-            <div>REM FUEL:  <span style={{color:C.t1}}>{sel.remaining_fuel||'—'} lb</span></div>
-            <div>ACTUAL LW: <span style={{color:C.t1}}>{sel.actual_lw||'—'} lb</span></div>
-            <div>VREF:      <span style={{color:C.t1}}>{sel.vref||'—'} kt</span></div>
-            <div>DEP RWY:   <span style={{color:C.t1}}>{sel.dep_rwy||'—'}</span></div>
-            <div>ARR RWY:   <span style={{color:C.t1}}>{sel.arr_rwy||'—'}</span></div>
-            <div>SID:       <span style={{color:C.t1}}>{sel.sid||'—'}</span></div>
-            <div>DEP ATIS:  <span style={{color:C.t1}}>{sel.dep_atis||'—'}</span></div>
-            <div>ARR ATIS:  <span style={{color:C.t1}}>{sel.arr_atis||'—'}</span></div>
-            <div>PAX:       <span style={{color:C.t1}}>{sel.pax||'—'}</span></div>
-            <div>LANDINGS:  <span style={{color:C.t1}}>{sel.landing_count||'—'}</span></div>
-            <div>NIGHT LDG: <span style={{color:C.t1}}>{sel.is_night_landing?'YES':'NO'}</span></div>
           </div>
+
+          {/* ── Collapsible edit boxes ── */}
+          <div style={{borderTop:`1px solid ${C.border}`}}>
+            <div style={{padding:'7px 16px',background:C.bg3,fontSize:10,color:C.t3,fontWeight:700,letterSpacing:1.5,fontFamily:"'Courier New',monospace"}}>
+              FLIGHT DATA — CLICK TO EXPAND / EDIT
+            </div>
+
+            <CollapsibleEditBox
+              title="Flight Crew" icon="**" color="#1a9bc4"
+              logs={logsByCategory.crew}
+              fields={[]}
+              flight={sel} onSave={load} toast={toast} user={user}
+            />
+            <CollapsibleEditBox
+              title="Mandatory" icon="OK" color="#2d9e5f"
+              logs={logsByCategory.mandatory}
+              fields={[]}
+              flight={sel} onSave={load} toast={toast} user={user}
+            />
+            <CollapsibleEditBox
+              title="Fuel" icon="F" color="#2d9e5f"
+              logs={logsByCategory.fuel}
+              fields={[
+                {key:'takeoff_fuel',   label:'T/O Fuel (lb)',  type:'text'},
+                {key:'remaining_fuel', label:'Rem Fuel (lb)',  type:'text'},
+              ]}
+              flight={sel} onSave={load} toast={toast} user={user}
+            />
+            <CollapsibleEditBox
+              title="Accept & Sign" icon="SIG" color="#e8a020"
+              logs={logsByCategory.accepted}
+              fields={[]}
+              flight={sel} onSave={load} toast={toast} user={user}
+            />
+            <CollapsibleEditBox
+              title="T/O Data" icon="T/O" color="#e8a020"
+              logs={logsByCategory.tkof}
+              fields={[
+                {key:'dep_rwy',   label:'DEP RWY',  type:'text'},
+                {key:'dep_atis',  label:'DEP ATIS', type:'text'},
+                {key:'sid',       label:'SID',      type:'text'},
+              ]}
+              flight={sel} onSave={load} toast={toast} user={user}
+            />
+            <CollapsibleEditBox
+              title="NAV LOG" icon="NAV" color="#1a9bc4"
+              logs={logsByCategory.navlog}
+              fields={[
+                {key:'off_blocks',   label:'Off Blocks (HH:MM)',  type:'time'},
+                {key:'takeoff_time', label:'T/O Time (HH:MM)',    type:'time'},
+                {key:'landing_time', label:'Landing (HH:MM)',     type:'time'},
+                {key:'on_blocks',    label:'On Blocks (HH:MM)',   type:'time'},
+                {key:'takeoff_fuel', label:'T/O Fuel (lb)',       type:'text'},
+                {key:'remaining_fuel',label:'Rem Fuel (lb)',      type:'text'},
+              ]}
+              flight={sel} onSave={load} toast={toast} user={user}
+            />
+            <CollapsibleEditBox
+              title="LND Data" icon="LND" color="#1a9bc4"
+              logs={logsByCategory.lnd}
+              fields={[
+                {key:'arr_rwy',          label:'ARR RWY',        type:'text'},
+                {key:'arr_atis',         label:'ARR ATIS',       type:'text'},
+                {key:'actual_lw',        label:'Actual LW (lb)', type:'text'},
+                {key:'vref',             label:'Vref (kt)',      type:'text'},
+                {key:'req_landing_dist', label:'Req LND Dist',   type:'text'},
+              ]}
+              flight={sel} onSave={load} toast={toast} user={user}
+            />
+          </div>
+
+          {/* Admin edit history */}
           <AdminEditsHistory archivedFlightId={sel.id} readOnly={false}/>
+
+          {/* Action buttons */}
           <div style={{padding:'12px 16px',display:'flex',flexDirection:'column',gap:8}}>
-            <button style={S.btnPrimary} onClick={()=>openEdit(sel)}>✎ EDIT WITH REPORT</button>
-            <button style={S.btnDanger} onClick={()=>setDeleteModal(true)}>🗑 DELETE RECORD</button>
+            <button style={S.btnPrimary} onClick={()=>openEdit(sel)}>EDIT ALL FIELDS</button>
+            <button style={S.btnDanger}  onClick={()=>setDeleteModal(true)}>DELETE RECORD</button>
           </div>
         </DetailPanel>
       )}
 
+      {/* Edit All Fields Modal */}
       {editModal&&sel&&(
         <Modal title="EDIT ARCHIVED FLIGHT — REPORT REQUIRED" onClose={()=>setEditModal(false)} width={520}>
           <div style={{fontSize:11,color:'#e8731a',marginBottom:16,padding:'8px 12px',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.2)'}}>
-            ⚠ All edits are logged. Only changed fields will be updated.
+            All edits are logged. Only changed fields will be updated.
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
             <EF label="OFF BLOCK (HH:MM)" k="off_blocks"/>
@@ -368,12 +742,13 @@ function ArchivedFlts({toast,user}){
         </Modal>
       )}
 
+      {/* Delete Modal */}
       {deleteModal&&sel&&(
         <Modal title="DELETE ARCHIVED FLIGHT RECORD" onClose={()=>setDeleteModal(false)}>
           <div style={{fontSize:12,color:'#e02020',marginBottom:16,padding:'10px 12px',background:'rgba(224,32,32,0.08)',border:'1px solid rgba(224,32,32,0.2)'}}>
-            ⚠ Irreversible. Record will be permanently deleted and logged.
+            Irreversible. Record will be permanently deleted and logged.
           </div>
-          <DetailRow label="Flight" value={`${sel.plans?.dep} → ${sel.plans?.dest}`} accent/>
+          <DetailRow label="Flight"   value={`${sel.plans?.dep} → ${sel.plans?.dest}`} accent/>
           <DetailRow label="Archived" value={sel.archived_at?new Date(sel.archived_at).toLocaleString('en-GB'):'—'}/>
           <div style={{marginTop:16}}>
             <label style={S.formLabel}>REASON FOR DELETION *</label>
@@ -382,7 +757,7 @@ function ArchivedFlts({toast,user}){
           </div>
           <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:16}}>
             <button style={S.btnSecondary} onClick={()=>setDeleteModal(false)}>CANCEL</button>
-            <button style={S.btnDanger} onClick={handleDelete} disabled={saving}>{saving?'DELETING...':'🗑 CONFIRM DELETE'}</button>
+            <button style={S.btnDanger} onClick={handleDelete} disabled={saving}>{saving?'DELETING...':'CONFIRM DELETE'}</button>
           </div>
         </Modal>
       )}
@@ -479,8 +854,8 @@ function Crews({toast}){
   const handleSaveEfb=async()=>{
     if(!efbForm.efb_training_date){toast('Training date required.','error');return;}
     const existing=selQuals[0];
-    if(existing){const{error}=await supabase.from('crew_qualifications').update(efbForm).eq('id',existing.id);if(error){toast(error.message,'error');return;}}
-    else{const{error}=await supabase.from('crew_qualifications').insert({pilot_id:selected,ac_type:'EFB',seat:'BOTH',hand:'BOTH',landing_cat:'CAT1',...efbForm});if(error){toast(error.message,'error');return;}}
+    if(existing){await supabase.from('crew_qualifications').update(efbForm).eq('id',existing.id);}
+    else{await supabase.from('crew_qualifications').insert({pilot_id:selected,ac_type:'EFB',seat:'BOTH',hand:'BOTH',landing_cat:'CAT1',...efbForm});}
     toast('EFB training record saved.','success');setShowEfb(false);fetch();
   };
   const efbStatus=rec=>{
@@ -508,7 +883,7 @@ function Crews({toast}){
                   <td style={S.td}><span style={S.badge(p.role==='admin'?'':'blue')}>{(p.role||'—').toUpperCase()}</span></td>
                   <td style={S.td}>{p.email||'—'}</td>
                   <td style={S.td}>{pQ.filter(q=>q.ac_type!=='EFB').length===0?<span style={{color:C.t3}}>—</span>:pQ.filter(q=>q.ac_type!=='EFB').map(q=><span key={q.id} style={{...S.badge('blue'),marginRight:4}}>{q.ac_type} {q.seat} {q.landing_cat}</span>)}</td>
-                  <td style={S.td}><span style={{...S.badge(''),color:pS.color,background:`${pS.color}15`,border:`1px solid ${pS.color}40`}}>{pS.label}</span>{pE?.efb_training_date&&<div style={{fontSize:10,color:C.t3,marginTop:3}}>{pE.efb_training_date}</div>}</td>
+                  <td style={S.td}><span style={{...S.badge(''),color:pS.color,background:`${pS.color}15`,border:`1px solid ${pS.color}40`}}>{pS.label}</span></td>
                   <td style={S.td}><button style={S.btnSecondary} onClick={async e=>{e.stopPropagation();if(!p.email)return;const{error}=await supabase.auth.resetPasswordForEmail(p.email);if(error)toast(error.message,'error');else toast(`Reset sent to ${p.email}`,'success');}}>RESET PWD</button></td>
                 </tr>
               );
@@ -522,7 +897,7 @@ function Crews({toast}){
           <DetailRow label="Email" value={sel.email}/><DetailRow label="Role" value={sel.role}/>
           <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`}}>
             <div style={{...S.label,marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span>EFB Training — AMC 20-25</span>
+              <span>EFB Training</span>
               {(()=>{const st=efbStatus(efbRecord);return<span style={{...S.badge(''),color:st.color,background:`${st.color}15`,border:`1px solid ${st.color}40`}}>{st.label}</span>;})()}
             </div>
             {efbRecord?(<div style={{fontSize:12,color:C.t1,fontFamily:"'Courier New',monospace",lineHeight:2}}>
@@ -530,9 +905,9 @@ function Crews({toast}){
               <div>Date: {efbRecord.efb_training_date}</div>
               <div>Valid Until: {efbRecord.efb_training_valid_until||'—'}</div>
               <div>Trained By: {efbRecord.efb_trained_by||'—'}</div>
-            </div>):<div style={{fontSize:12,color:'#e02020',marginBottom:8}}>⚠ No EFB training record on file</div>}
+            </div>):<div style={{fontSize:12,color:'#e02020',marginBottom:8}}>No EFB training record on file</div>}
             <button style={{...S.btnPrimary,marginTop:10,width:'100%'}} onClick={()=>{setEfbForm({efb_training_date:efbRecord?.efb_training_date||'',efb_training_valid_until:efbRecord?.efb_training_valid_until||'',efb_training_type:efbRecord?.efb_training_type||'Initial',efb_trained_by:efbRecord?.efb_trained_by||''});setShowEfb(true);}}>
-              {efbRecord?'✎ UPDATE EFB TRAINING':'+ ADD EFB TRAINING'}
+              {efbRecord?'UPDATE EFB TRAINING':'ADD EFB TRAINING'}
             </button>
           </div>
           <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`}}>
@@ -541,7 +916,7 @@ function Crews({toast}){
             {selQuals.filter(q=>q.ac_type!=='EFB').map(q=>(
               <div key={q.id} style={{marginBottom:8,padding:'8px 10px',background:C.bg3,border:`1px solid ${C.border}`}}>
                 <div style={{fontSize:12,color:C.accent,fontWeight:700,fontFamily:"'Courier New',monospace"}}>{q.ac_type}</div>
-                <div style={{fontSize:11,color:C.t2,marginTop:3,fontFamily:"'Courier New',monospace"}}>{q.seat} · {q.hand} · {q.landing_cat}<br/>{q.valid_from&&`Valid: ${q.valid_from} → ${q.valid_until||'∞'}`}</div>
+                <div style={{fontSize:11,color:C.t2,marginTop:3,fontFamily:"'Courier New',monospace"}}>{q.seat} · {q.hand} · {q.landing_cat}</div>
               </div>
             ))}
             <button style={{...S.btnPrimary,marginTop:8,width:'100%'}} onClick={()=>setShowQual(true)}>+ ADD QUALIFICATION</button>
@@ -592,7 +967,7 @@ function Crews({toast}){
   );
 }
 
-// ─── 5. Statistics ─────────────────────────────────────────────────────────────
+// ─── 5. Statistics ────────────────────────────────────────────────────────────
 function Statistics(){
   const[stats,setStats]=useState(null);const[flights,setFlights]=useState([]);
   const[filter,setFilter]=useState({dep:'',dest:''});const[loading,setLoading]=useState(true);
@@ -606,7 +981,7 @@ function Statistics(){
     })();
   },[]);
   const fmt=m=>m?`${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`:'0:00';
-  const filtered=flights.filter(f=>(!filter.dep||(f.departure_icao||'').toLowerCase().includes(filter.dep.toLowerCase()))&&(!filter.dest||(f.destination_icao||'').toLowerCase().includes(filter.dest.toLowerCase())));
+  const filtered=flights.filter(f=>(!filter.dep||(f.departure_icao||f.plans?.dep||'').toLowerCase().includes(filter.dep.toLowerCase()))&&(!filter.dest||(f.destination_icao||f.plans?.dest||'').toLowerCase().includes(filter.dest.toLowerCase())));
   return(
     <div style={{flex:1,overflowY:'auto'}}>
       <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:1,background:C.border,borderBottom:`1px solid ${C.border}`}}>
@@ -623,7 +998,7 @@ function Statistics(){
       <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',gap:10,alignItems:'center'}}>
         <span style={S.label}>FILTER:</span>
         <input placeholder="DEP" value={filter.dep} onChange={e=>setFilter(p=>({...p,dep:e.target.value}))} style={{...S.input,width:100}}/>
-        <span style={{color:C.t3}}>→</span>
+        <span style={{color:C.t3}}>-></span>
         <input placeholder="DEST" value={filter.dest} onChange={e=>setFilter(p=>({...p,dest:e.target.value}))} style={{...S.input,width:100}}/>
         <span style={{...S.label,marginLeft:'auto'}}>{filtered.length} FLIGHTS</span>
       </div>
@@ -633,8 +1008,8 @@ function Statistics(){
           {filtered.map(f=>(
             <tr key={f.id}>
               <td style={S.td}>{f.archived_at?new Date(f.archived_at).toLocaleDateString('en-GB'):'—'}</td>
-              <td style={{...S.td,color:C.accent}}>{f.departure_icao||'—'}</td>
-              <td style={{...S.td,color:C.accent}}>{f.destination_icao||'—'}</td>
+              <td style={{...S.td,color:C.accent}}>{f.departure_icao||f.plans?.dep||'—'}</td>
+              <td style={{...S.td,color:C.accent}}>{f.destination_icao||f.plans?.dest||'—'}</td>
               <td style={S.td}>{f.plans?.reg||'—'}</td>
               <td style={S.td}>{fmt(f.block_minutes)}</td><td style={S.td}>{fmt(f.airborne_minutes)}</td>
               <td style={S.td}>{f.landing_count||'—'}</td>
@@ -711,18 +1086,12 @@ function StationInfo({toast}){
 }
 
 // ─── 7. FLT Logs & Times ─────────────────────────────────────────────────────
-const ACTION_META={PLAN_RELEASED:{icon:'📤',label:'Plan Released',color:'#e8a020'},PLAN_DOWNLOADED:{icon:'📥',label:'Plan Downloaded',color:'#1a9bc4'},CREW_ASSIGNED:{icon:'👨‍✈️',label:'Crew Assigned',color:'#1a9bc4'},PREFLIGHT_MANDATORY_COMPLETE:{icon:'✅',label:'Mandatory Complete',color:'#2d9e5f'},MANDATORY_CHECK_DONE:{icon:'☑',label:'Check Done',color:'#2d9e5f'},MANDATORY_CHECK_UNDONE:{icon:'☐',label:'Check Undone',color:'#e8731a'},FUEL_CHECKED:{icon:'⛽',label:'Fuel Checked',color:'#2d9e5f'},PLAN_ACCEPTED:{icon:'✍',label:'Plan Accepted & Signed',color:'#2d9e5f'},PLAN_ACCEPTANCE_REVOKED:{icon:'↺',label:'Acceptance Revoked',color:'#e02020'},SYNC_TO_PM:{icon:'⇄',label:'Synced to PM',color:'#1a9bc4'},OFF_BLOCKS:{icon:'🛫',label:'Off Blocks',color:'#e8a020'},TAKEOFF:{icon:'✈',label:'Takeoff',color:'#e8a020'},RVSM_CHECK:{icon:'📡',label:'RVSM Check',color:'#1a9bc4'},LANDING:{icon:'🛬',label:'Landing',color:'#e8a020'},ON_BLOCKS:{icon:'🅿',label:'On Blocks',color:'#e8a020'},FUEL_REMAINING:{icon:'⛽',label:'Fuel Remaining',color:'#2d9e5f'},FLIGHT_ARCHIVED:{icon:'📁',label:'Flight Archived',color:'#2d9e5f'},ADMIN_EDIT:{icon:'✎',label:'Admin Edit',color:'#e02020'}};
-
 function FltLogsAndTimes(){
   const[plans,setPlans]=useState([]);const[selected,setSelected]=useState(null);
-  const[logs,setLogs]=useState([]);const[loadingP,setLoadingP]=useState(true);const[loadingL,setLoadingL]=useState(false);
-  const[filter,setFilter]=useState({dep:'',dest:''});
-  useEffect(()=>{(async()=>{setLoadingP(true);const{data}=await supabase.from('plans').select('id,dep,dest,date,dispatch_no,reg,status,archived_at,created_at').in('status',['active','archived','available']).order('created_at',{ascending:false}).limit(200);setPlans(data||[]);setLoadingP(false);})();},[]);
-  useEffect(()=>{if(!selected){setLogs([]);return;}(async()=>{setLoadingL(true);const{data}=await supabase.from('flight_logs').select('*,profiles(full_name,code)').eq('plan_id',selected).order('created_at',{ascending:true});setLogs(data||[]);setLoadingL(false);})();},[selected]);
+  const[filter,setFilter]=useState({dep:'',dest:''});const[loadingP,setLoadingP]=useState(true);
+  useEffect(()=>{(async()=>{setLoadingP(true);const{data}=await supabase.from('plans').select('id,dep,dest,date,dispatch_no,reg,status,created_at').in('status',['active','archived','available']).order('created_at',{ascending:false}).limit(200);setPlans(data||[]);setLoadingP(false);})();},[]);
   const filteredPlans=plans.filter(p=>(!filter.dep||(p.dep||'').toLowerCase().includes(filter.dep.toLowerCase()))&&(!filter.dest||(p.dest||'').toLowerCase().includes(filter.dest.toLowerCase())));
   const selectedPlan=plans.find(p=>p.id===selected);
-  const fmtTime=iso=>{const d=new Date(iso);return`${d.toLocaleDateString('en-GB')}  ${d.toTimeString().slice(0,8)} UTC`;};
-  const detailStr=details=>{if(!details)return'';return Object.entries(details).filter(([k])=>!['platform','timestamp_utc'].includes(k)).map(([k,v])=>`${k}: ${v}`).join('  ·  ');};
   return(
     <div style={{display:'flex',flex:1,overflow:'hidden'}}>
       <div style={{width:280,borderRight:`1px solid ${C.border}`,display:'flex',flexDirection:'column',flexShrink:0}}>
@@ -749,39 +1118,16 @@ function FltLogsAndTimes(){
         </div>
       </div>
       <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-        {!selected&&<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:C.t3,fontSize:13,letterSpacing:2}}>← SELECT A FLIGHT</div>}
+        {!selected&&<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:C.t3,fontSize:13,letterSpacing:2}}>SELECT A FLIGHT</div>}
         {selected&&(<>
           <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,background:C.bg3,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div>
               <span style={{fontSize:14,fontWeight:700,color:C.accent,fontFamily:"'Courier New',monospace"}}>{selectedPlan?.dep} → {selectedPlan?.dest}</span>
-              <span style={{fontSize:11,color:C.t3,marginLeft:12,fontFamily:"'Courier New',monospace"}}>{selectedPlan?.date}  ·  {selectedPlan?.reg}  ·  {selectedPlan?.dispatch_no}</span>
+              <span style={{fontSize:11,color:C.t3,marginLeft:12,fontFamily:"'Courier New',monospace"}}>{selectedPlan?.date}  ·  {selectedPlan?.reg}</span>
             </div>
-            <span style={{...S.label,fontSize:11}}>{logs.length} LOG ENTRIES</span>
           </div>
-          <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
-            {loadingL&&<div style={{textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}
-            {!loadingL&&logs.length===0&&<div style={{textAlign:'center',color:C.t3,fontSize:11,letterSpacing:2,padding:32}}>NO LOGS FOR THIS FLIGHT</div>}
-            {logs.map((l,idx)=>{
-              const meta=ACTION_META[l.action]||{icon:'·',label:l.action,color:C.t3};const isLast=idx===logs.length-1;
-              return(
-                <div key={l.id} style={{display:'flex',gap:14}}>
-                  <div style={{display:'flex',flexDirection:'column',alignItems:'center',width:32,flexShrink:0}}>
-                    <div style={{width:28,height:28,borderRadius:14,background:`${meta.color}20`,border:`2px solid ${meta.color}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}>{meta.icon}</div>
-                    {!isLast&&<div style={{width:2,flex:1,background:C.border,minHeight:16,margin:'2px 0'}}/>}
-                  </div>
-                  <div style={{flex:1,paddingBottom:16}}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
-                      <span style={{fontSize:13,fontWeight:700,color:meta.color,fontFamily:"'Courier New',monospace"}}>{meta.label}</span>
-                      <span style={{fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace",whiteSpace:'nowrap',marginLeft:12}}>{fmtTime(l.created_at)}</span>
-                    </div>
-                    {l.profiles&&<div style={{fontSize:11,color:C.t1,marginBottom:3,fontFamily:"'Courier New',monospace"}}><span style={{color:C.accent,fontWeight:700}}>{l.profiles.code}</span>{' · '}{l.profiles.full_name}</div>}
-                    {l.details&&Object.keys(l.details).filter(k=>!['platform','timestamp_utc'].includes(k)).length>0&&(
-                      <div style={{fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace",background:C.bg3,padding:'6px 10px',borderLeft:`2px solid ${meta.color}40`,lineHeight:1.8}}>{detailStr(l.details)}</div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div style={{flex:1,overflow:'hidden'}}>
+            <FlightTimeline planId={selected} live={selectedPlan?.status==='active'}/>
           </div>
         </>)}
       </div>
@@ -795,10 +1141,7 @@ function EditReports(){
   useEffect(()=>{
     (async()=>{
       setLoading(true);
-      const{data,error}=await supabase.from('admin_edits')
-        .select('id,created_at,edit_type,field_name,old_value,new_value,reason,plan_id,plans:plan_id(dep,dest,date)')
-        .order('created_at',{ascending:false}).limit(500);
-      if(error)console.error('EditReports:',error);
+      const{data}=await supabase.from('admin_edits').select('id,created_at,edit_type,field_name,old_value,new_value,reason,plan_id,plans:plan_id(dep,dest,date)').order('created_at',{ascending:false}).limit(500);
       setReports(data||[]);setLoading(false);
     })();
   },[]);
@@ -832,7 +1175,16 @@ function EditReports(){
 }
 
 // ─── Nav + Main ───────────────────────────────────────────────────────────────
-const NAV=[{id:'active',icon:'●',label:'Active FLTs'},{id:'archived',icon:'◎',label:'Archived FLTs'},{id:'aircrafts',icon:'✈',label:'Aircrafts'},{id:'crews',icon:'◈',label:'Crews'},{id:'stats',icon:'▦',label:'Statistics'},{id:'stations',icon:'◉',label:'Station INFO'},{id:'logs',icon:'≡',label:'FLTs Logs & Times'},{id:'reports',icon:'📋',label:'Edit Reports'}];
+const NAV=[
+  {id:'active',  icon:'●',label:'Active FLTs'},
+  {id:'archived',icon:'◎',label:'Archived FLTs'},
+  {id:'aircrafts',icon:'✈',label:'Aircrafts'},
+  {id:'crews',   icon:'◈',label:'Crews'},
+  {id:'stats',   icon:'▦',label:'Statistics'},
+  {id:'stations',icon:'◉',label:'Station INFO'},
+  {id:'logs',    icon:'≡',label:'FLTs Logs & Times'},
+  {id:'reports', icon:'R',label:'Edit Reports'},
+];
 
 export default function AdminPanel({onBack}){
   const[tab,setTab]=useState('active');
@@ -856,11 +1208,11 @@ export default function AdminPanel({onBack}){
           <span style={{fontSize:11,color:C.accent,fontWeight:700,letterSpacing:3}}>GO2</span>
           <span style={{width:1,height:18,background:C.border}}/>
           <span style={{fontSize:10,color:C.t3,letterSpacing:2}}>ADMIN PANEL</span>
-          <span style={{...S.badge(''),fontSize:9}}>▲ ADMIN MODE</span>
+          <span style={{...S.badge(''),fontSize:9}}>ADMIN MODE</span>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:14}}>
           <span style={{fontSize:10,color:C.t3}}>{user?.email}</span>
-          <button style={S.btnSecondary} onClick={onBack}>← DASHBOARD</button>
+          <button style={S.btnSecondary} onClick={onBack}>DASHBOARD</button>
         </div>
       </div>
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
@@ -883,12 +1235,12 @@ export default function AdminPanel({onBack}){
             <span style={{fontSize:10,color:C.accent,fontWeight:700,letterSpacing:3}}>{tabTitle.toUpperCase()}</span>
           </div>
           <div style={{flex:1,display:'flex',overflow:'hidden'}}>
-            {tab==='active'    && <ActiveFlts      toast={showToast}/>}
-            {tab==='archived'  && <ArchivedFlts    toast={showToast} user={user}/>}
-            {tab==='aircrafts' && <Aircrafts        toast={showToast}/>}
-            {tab==='crews'     && <Crews            toast={showToast}/>}
+            {tab==='active'    && <ActiveFlts   toast={showToast}/>}
+            {tab==='archived'  && <ArchivedFlts toast={showToast} user={user}/>}
+            {tab==='aircrafts' && <Aircrafts    toast={showToast}/>}
+            {tab==='crews'     && <Crews        toast={showToast}/>}
             {tab==='stats'     && <Statistics/>}
-            {tab==='stations'  && <StationInfo      toast={showToast}/>}
+            {tab==='stations'  && <StationInfo  toast={showToast}/>}
             {tab==='logs'      && <FltLogsAndTimes/>}
             {tab==='reports'   && <EditReports/>}
           </div>
