@@ -114,7 +114,7 @@ function FlightTimeline({ planId, live=false }) {
     if (!planId) return;
     const { data } = await supabase
       .from('flight_logs')
-      .select('*,profiles(full_name,code)')
+      .select('*')
       .eq('plan_id', planId)
       .order('created_at', { ascending: true });
     setLogs(data || []);
@@ -486,7 +486,7 @@ function ArchivedFlts({toast,user}){
   useEffect(()=>{
     const sel=flights.find(f=>f.id===selected);
     if(!sel?.plan_id){setPlanLogs([]);return;}
-    supabase.from('flight_logs').select('*,profiles(full_name,code)')
+    supabase.from('flight_logs').select('*')
       .eq('plan_id', sel.plan_id)
       .order('created_at',{ascending:true})
       .then(({data})=>setPlanLogs(data||[]));
