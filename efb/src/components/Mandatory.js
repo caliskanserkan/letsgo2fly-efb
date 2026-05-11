@@ -1,13 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
-import { logEvent } from '../supabaseClient';
-
-// Same pilot list as FlightCrew.js
-const ALL_PILOTS = [
-  { code:'AAK', name:'Capt. Ahmet Akpinar'  },
-  { code:'SEL', name:'Capt. Selcuk Ekinci'  },
-  { code:'SCL', name:'Capt. Serkan Caliskan'},
-];
+import { supabase, logEvent } from '../supabaseClient';
 
 const INITIAL_CHECKS = [
   { id:1, label:'General remarks & photos reviewed', done:false },
@@ -26,7 +19,6 @@ function SectionHeader({ title }) {
   );
 }
 
-// ─── Signature Canvas ─────────────────────────────────────────────────────────
 function SignatureCanvas({ onSave, onClear }) {
   const canvasRef = useRef(null);
   const drawing   = useRef(false);
@@ -79,31 +71,44 @@ function SignatureCanvas({ onSave, onClear }) {
       </div>
       <button onClick={handleSave}
         style={{marginTop:8,width:'100%',background:'#1a9bc4',border:'none',borderRadius:8,padding:'12px',fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit'}}>
-        ✎ Save Signature
+        Save Signature
       </button>
     </div>
   );
 }
 
-// ─── Mandatory Main ───────────────────────────────────────────────────────────
 function Mandatory({ setStatus, activePlan }) {
   const planKey = activePlan?.id || 'default';
 
-  const [checks,         setChecks]         = usePersistedState(`efb_mandatory_checks_${planKey}`,     INITIAL_CHECKS);
-  const [selectedPilot,  setSelectedPilot]  = usePersistedState(`efb_mandatory_sel_pilot_${planKey}`,  null);
-  const [signedBy,       setSignedBy]       = usePersistedState(`efb_mandatory_signed_by_${planKey}`,  null);
-  const [signedAt,       setSignedAt]       = usePersistedState(`efb_mandatory_signed_at_${planKey}`,  null);
-  const [sigDataUrl,     setSigDataUrl]     = usePersistedState(`efb_mandatory_sig_${planKey}`,        null);
+  const [checks,        setChecks]        = usePersistedState(`efb_mandatory_checks_${planKey}`,    INITIAL_CHECKS);
+  const [selectedPilot, setSelectedPilot] = usePersistedState(`efb_mandatory_sel_pilot_${planKey}`, null);
+  const [signedBy,      setSignedBy]      = usePersistedState(`efb_mandatory_signed_by_${planKey}`, null);
+  const [signedAt,      setSignedAt]      = usePersistedState(`efb_mandatory_signed_at_${planKey}`, null);
+  const [sigDataUrl,    setSigDataUrl]    = usePersistedState(`efb_mandatory_sig_${planKey}`,       null);
 
-  // Read assigned crew codes from FlightCrew (same keys)
-  const [pfCode] = usePersistedState('efb_crew_pf', 'AAK');
-  const [pmCode] = usePersistedState('efb_crew_pm', 'SEL');
+  // Read PF/PM UUIDs from FlightCrew persisted state
+  const [pfId] = usePersistedState('efb_crew_pf', null);
+  const [pmId] = usePersistedState('efb_crew_pm', null);
 
-  // Build pilot list from assigned crew
-  const crewPilots = [pfCode, pmCode]
-    .filter(Boolean)
-    .map(code => ({ ...ALL_PILOTS.find(p => p.code === code), role: code === pfCode ? 'PF' : 'PM' }))
-    .filter(p => p.code);
+  const [crewPilots, setCrewPilots] = useState([]);
+
+  // Fetch pilot profiles by UUID
+  useEffect(() => {
+    const ids = [pfId, pmId].filter(Boolean);
+    if (!ids.length) { setCrewPilots([]); return; }
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, code')
+        .in('id', ids);
+      if (data) {
+        const ordered = [];
+        if (pfId) { const p = data.find(d => d.id === pfId); if (p) ordered.push({ ...p, role:'PF' }); }
+        if (pmId) { const p = data.find(d => d.id === pmId); if (p) ordered.push({ ...p, role:'PM' }); }
+        setCrewPilots(ordered);
+      }
+    })();
+  }, [pfId, pmId]);
 
   const toggle = (id) => {
     setChecks(prev => {
@@ -121,9 +126,9 @@ function Mandatory({ setStatus, activePlan }) {
 
   useEffect(() => {
     if (!setStatus) return;
-    if (allDone && signed)         setStatus('green');
+    if (allDone && signed)                        setStatus('green');
     else if (allDone || checks.some(c => c.done)) setStatus('amber');
-    else                           setStatus('pending');
+    else                                          setStatus('pending');
     if (allDone && signed) {
       logEvent(activePlan?.id, 'PREFLIGHT_MANDATORY_COMPLETE', {
         checks_count: checks.length, signed_by: signedBy,
@@ -134,19 +139,21 @@ function Mandatory({ setStatus, activePlan }) {
 
   const handleSaveSig = (dataUrl) => {
     if (!selectedPilot) return;
+    const pilot = crewPilots.find(p => p.id === selectedPilot);
     setSigDataUrl(dataUrl);
     setSignedBy(selectedPilot);
     setSignedAt(new Date().toISOString());
     logEvent(activePlan?.id, 'MANDATORY_SIGNED', {
-      pilot_code: selectedPilot,
-      pilot_name: ALL_PILOTS.find(p => p.code === selectedPilot)?.name,
+      pilot_id:   selectedPilot,
+      pilot_code: pilot?.code,
+      pilot_name: pilot?.full_name,
       signed_at:  new Date().toISOString(),
     });
   };
 
   const handleClearSig = () => { setSigDataUrl(null); setSignedBy(null); setSignedAt(null); };
 
-  const signingPilot = ALL_PILOTS.find(p => p.code === signedBy);
+  const signingPilot = crewPilots.find(p => p.id === signedBy);
 
   return (
     <div>
@@ -157,7 +164,6 @@ function Mandatory({ setStatus, activePlan }) {
       {checks.map(c => (
         <React.Fragment key={c.id}>
           {c.section && <SectionHeader title={c.section}/>}
-
           {c.isEfbConsolidated ? (
             <div onClick={()=>toggle(c.id)}
               style={{display:'flex',alignItems:'flex-start',padding:'14px 16px',background:'#2e2e2e',borderBottom:'1px solid #383838',gap:12,cursor:'pointer'}}>
@@ -190,20 +196,19 @@ function Mandatory({ setStatus, activePlan }) {
         </div>
       )}
 
-      {/* ── Sign-off Section ─────────────────────────────────────────────── */}
       <div style={{height:12,background:'#1e1e1e',borderTop:'1px solid #383838',borderBottom:'1px solid #383838'}}/>
       <div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.9,padding:'12px 16px 5px',textTransform:'uppercase'}}>
         Preflight Check Sign-off
       </div>
 
-      {/* Already signed — summary */}
+      {/* Signed summary */}
       {signed && (
         <div style={{margin:'8px 16px',padding:'12px 14px',borderRadius:8,background:'rgba(45,158,95,0.08)',border:'1px solid rgba(45,158,95,0.25)'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
             <div>
               <div style={{fontSize:13,fontWeight:700,color:'#2d9e5f'}}>✓ Preflight signed</div>
               <div style={{fontSize:11,color:'#555',marginTop:2}}>
-                {signingPilot ? `${signingPilot.code} — ${signingPilot.name}` : signedBy}
+                {signingPilot ? `${signingPilot.code} — ${signingPilot.full_name}` : signedBy}
                 {signedAt && <span style={{marginLeft:8,color:'#444'}}>{new Date(signedAt).toLocaleTimeString('en-GB').slice(0,5)} UTC</span>}
               </div>
             </div>
@@ -219,29 +224,33 @@ function Mandatory({ setStatus, activePlan }) {
         </div>
       )}
 
-      {/* Not yet signed — pilot selection + canvas */}
+      {/* Not signed — pilot selection + canvas */}
       {!signed && (
         <div style={{margin:'8px 16px'}}>
           <div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:8}}>
             Select pilot performing preflight:
           </div>
 
-          {/* PF and PM from FlightCrew */}
+          {crewPilots.length === 0 && (
+            <div style={{padding:'10px 12px',borderRadius:6,background:'rgba(255,149,0,0.08)',border:'1px solid rgba(255,149,0,0.2)',fontSize:11,color:'#c4882a'}}>
+              No pilots assigned. Go to Flight and Crew first.
+            </div>
+          )}
+
           {crewPilots.map(pilot => (
-            <div key={pilot.code} onClick={()=>setSelectedPilot(pilot.code)}
+            <div key={pilot.id} onClick={()=>setSelectedPilot(pilot.id)}
               style={{
                 display:'flex',alignItems:'center',gap:12,padding:'11px 12px',marginBottom:6,
                 borderRadius:7,cursor:'pointer',
-                background: selectedPilot===pilot.code ? 'rgba(26,155,196,0.1)' : '#2a2a2a',
-                border:`1px solid ${selectedPilot===pilot.code ? '#1a9bc4' : '#383838'}`,
+                background: selectedPilot===pilot.id ? 'rgba(26,155,196,0.1)' : '#2a2a2a',
+                border:`1px solid ${selectedPilot===pilot.id ? '#1a9bc4' : '#383838'}`,
               }}>
-              {/* Radio */}
-              <div style={{width:18,height:18,borderRadius:9,border:`2px solid ${selectedPilot===pilot.code?'#1a9bc4':'#444'}`,background:selectedPilot===pilot.code?'#1a9bc4':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                {selectedPilot===pilot.code && <div style={{width:6,height:6,borderRadius:3,background:'#fff'}}/>}
+              <div style={{width:18,height:18,borderRadius:9,border:`2px solid ${selectedPilot===pilot.id?'#1a9bc4':'#444'}`,background:selectedPilot===pilot.id?'#1a9bc4':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                {selectedPilot===pilot.id && <div style={{width:6,height:6,borderRadius:3,background:'#fff'}}/>}
               </div>
               <div style={{flex:1}}>
-                <div style={{fontSize:12.5,color:selectedPilot===pilot.code?'#e8e8e8':'#999',fontWeight:600}}>
-                  {pilot.code} — {pilot.name}
+                <div style={{fontSize:12.5,color:selectedPilot===pilot.id?'#e8e8e8':'#999',fontWeight:600}}>
+                  {pilot.code} — {pilot.full_name}
                 </div>
               </div>
               <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:4,letterSpacing:0.5,
@@ -252,12 +261,11 @@ function Mandatory({ setStatus, activePlan }) {
             </div>
           ))}
 
-          {/* Signature canvas — after pilot selected */}
           {selectedPilot && (
             <SignatureCanvas onSave={handleSaveSig} onClear={handleClearSig}/>
           )}
 
-          {!selectedPilot && (
+          {!selectedPilot && crewPilots.length > 0 && (
             <div style={{padding:'8px 0',fontSize:11,color:'#444',fontStyle:'italic'}}>
               Select a pilot above to sign.
             </div>
@@ -265,7 +273,6 @@ function Mandatory({ setStatus, activePlan }) {
         </div>
       )}
 
-      {/* Final status */}
       {allDone && signed && (
         <div style={{margin:'12px 16px 4px',padding:'10px 12px',borderRadius:6,background:'rgba(45,158,95,0.08)',borderLeft:'3px solid #2d9e5f',fontSize:11,color:'#6db890',lineHeight:1.6}}>
           ✓ All checks complete and signed off.
