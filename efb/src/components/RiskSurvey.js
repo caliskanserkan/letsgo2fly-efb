@@ -128,13 +128,14 @@ export function RiskSurvey({icao,airportName,airportCat,onClose,onSaved}){
     if(f.cat!=='A') summary.unshift('CAT '+f.cat+' aerodrome');
     const ops=result.risk==='HIGH'?'OPS MANAGER APPROVAL REQUIRED':result.risk==='MEDIUM'?'CAPTAIN REVIEW / DISPATCH COORDINATION':'DISPATCH OK';
     console.log('Saving to:', icao);
-    const{error,data}=await supabase.from('airport_risks').update({
+    const{error,data}=await supabase.from('airport_risks').upsert({
+      icao:icao.toUpperCase(),
       category:f.cat,ra_risk_level:result.risk,ra_risk_score:result.score,
       ra_risk_basis:JSON.stringify(result.basis),ra_key_drivers:JSON.stringify(result.drivers),
       ra_actions:JSON.stringify(result.actions),ra_briefing_items:JSON.stringify(summary),
       ra_assessment_date:today,ra_reassessment_due:due,ra_assessed_by:f.assessed_by||'Admin',
       ra_ops_approval:ops,updated_at:new Date().toISOString(),
-    }).eq('icao',icao.toUpperCase());
+    },{onConflict:'icao'});
     setSaving(false);
     console.log('Save result:', error, data);
     if(error){alert('Save error: '+error.message);}
