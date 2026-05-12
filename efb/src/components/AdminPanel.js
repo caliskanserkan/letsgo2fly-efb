@@ -1870,8 +1870,7 @@ function RiskAssessmentInline({icao, onClose}){
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           {!editing ? (
-            <button onClick={()=>setEditing(true)}
-              style={{...S.btnSecondary,fontSize:10,padding:'5px 12px'}} onClick={()=>setSurveyMode(true)}>EDIT SCORES</button>
+            <button style={{...S.btnSecondary,fontSize:10,padding:'5px 12px'}} onClick={()=>setSurveyMode(true)}>EDIT SCORES</button>
           ) : (
             <>
               <button onClick={()=>setEditing(false)}
