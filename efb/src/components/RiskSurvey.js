@@ -130,7 +130,7 @@ export function RiskSurvey({icao,airportName,airportCat,onClose,onSaved}){
     console.log('Saving to:', icao);
     const{error,data}=await supabase.from('airport_risks').upsert({
       icao:icao.toUpperCase(),
-      category:f.cat,ra_risk_level:result.risk,ra_risk_score:result.score,
+      category:f.cat,base_score:result.score,ra_risk_level:result.risk,ra_risk_score:result.score,
       ra_risk_basis:JSON.stringify(result.basis),ra_key_drivers:JSON.stringify(result.drivers),
       ra_actions:JSON.stringify(result.actions),ra_briefing_items:JSON.stringify(summary),
       ra_assessment_date:today,ra_reassessment_due:due,ra_assessed_by:f.assessed_by||'Admin',
