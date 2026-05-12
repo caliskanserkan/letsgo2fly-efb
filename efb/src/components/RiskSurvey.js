@@ -127,15 +127,24 @@ export function RiskSurvey({icao,airportName,airportCat,onClose,onSaved}){
     if(!prec) summary.unshift('No precision approach available');
     if(f.cat!=='A') summary.unshift('CAT '+f.cat+' aerodrome');
     const ops=result.risk==='HIGH'?'OPS MANAGER APPROVAL REQUIRED':result.risk==='MEDIUM'?'CAPTAIN REVIEW / DISPATCH COORDINATION':'DISPATCH OK';
-    const{error}=await supabase.from('airport_risks').update({
+    console.log('Saving to:', icao);
+    const{error,data}=await supabase.from('airport_risks').update({
       category:f.cat,ra_risk_level:result.risk,ra_risk_score:result.score,
       ra_risk_basis:JSON.stringify(result.basis),ra_key_drivers:JSON.stringify(result.drivers),
       ra_actions:JSON.stringify(result.actions),ra_briefing_items:JSON.stringify(summary),
       ra_assessment_date:today,ra_reassessment_due:due,ra_assessed_by:f.assessed_by||'Admin',
       ra_ops_approval:ops,updated_at:new Date().toISOString(),
-    }).eq('icao',icao);
+    }).eq('icao',icao.toUpperCase());
     setSaving(false);
-    if(error){alert(error.message);}else{onSaved&&onSaved();onClose();}
+    console.log('Save result:', error, data);
+    if(error){alert('Save error: '+error.message);}
+    else{
+      // Verify update worked
+      const check = await supabase.from('airport_risks').select('risk_level,updated_at').eq('icao',icao.toUpperCase()).single();
+      console.log('After save:', check.data);
+      alert('Saved! Risk: '+result.risk);
+      onSaved&&onSaved();onClose();
+    }
   };
 
   const rc=result?RC[result.risk]||RC.LOW:null;
