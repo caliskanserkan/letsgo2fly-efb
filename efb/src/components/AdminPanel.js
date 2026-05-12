@@ -1802,7 +1802,7 @@ function RiskAssessmentInline({icao, onClose}){
 
   if(loading) return <div style={{padding:32,textAlign:'center',color:'#555',fontFamily:"'Courier New',monospace"}}>LOADING {icao}...</div>;
   if(!ap) return <div style={{padding:16,color:'#e02020',fontFamily:"'Courier New',monospace"}}>Not found: {icao}</div>;
-  if(surveyMode) return <RiskSurvey icao={icao} airportName={ap.name} airportCat={ap.category} onClose={()=>setSurveyMode(false)} onSaved={()=>{setSurveyMode(false);supabase.from('airport_risks').select('*').eq('icao',icao).single().then(({data})=>setAp(data));supabase.from('airport_risks').select('icao,name,country,category,base_score,risk_level,ops_approval,ad_elev_ft,max_s,max_l,mitigation').order('icao').then(({data})=>setAirports(data||[]));}} />;
+  if(surveyMode) return <RiskSurvey icao={icao} airportName={ap.name} airportCat={ap.category} onClose={()=>setSurveyMode(false)} onSaved={()=>{setSurveyMode(false);supabase.from('airport_risks').select('*').eq('icao',icao).single().then(({data})=>setAp(data));}} />;
 
   // Compute from edit arrays when editing, else from DB
   const _ss = typeof ap.s_scores==='string'?JSON.parse(ap.s_scores):(ap.s_scores||[]);
