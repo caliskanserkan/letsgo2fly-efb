@@ -1591,7 +1591,7 @@ function SortableTable({flights, fmt}){
   );
 }
 
-// ─── 6. Station INFO ──────────────────────────────────────────────────────────
+// ─── 6. RASS ──────────────────────────────────────────────────────────
 function StationInfo({toast}){
   const [airports,   setAirports]   = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -2103,7 +2103,7 @@ const NAV=[
   {id:'aircrafts',icon:'✈',label:'Aircrafts'},
   {id:'crews',   icon:'◈',label:'Crews'},
   {id:'stats',   icon:'▦',label:'Statistics'},
-  {id:'stations',icon:'◉',label:'Station INFO'},
+  {id:'stations',icon:'◉',label:'RASS'},
   {id:'logs',    icon:'≡',label:'FLTs Logs & Times'},
   {id:'reports', icon:'R',label:'Edit Reports'},
 ];
