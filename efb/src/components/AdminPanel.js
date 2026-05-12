@@ -925,6 +925,18 @@ function AircraftForm({form, setForm, onSave, onCancel, saveLabel='SAVE'}){
           <option value="CAT1">CAT I</option><option value="CAT2">CAT II</option><option value="CAT3">CAT III</option>
         </select>
       </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+        <div style={S.formGroup}>
+          <label style={S.formLabel}>BASELINE HOURS</label>
+          <input style={S.input} placeholder="0" type="number" value={form.total_hours||''} onChange={e=>setForm(p=>({...p,total_hours:e.target.value}))}/>
+          <div style={{fontSize:10,color:C.t3,marginTop:4}}>Hours before app tracking started</div>
+        </div>
+        <div style={S.formGroup}>
+          <label style={S.formLabel}>BASELINE CYCLES</label>
+          <input style={S.input} placeholder="0" type="number" value={form.total_cycles||''} onChange={e=>setForm(p=>({...p,total_cycles:e.target.value}))}/>
+          <div style={{fontSize:10,color:C.t3,marginTop:4}}>Cycles before app tracking started</div>
+        </div>
+      </div>
       <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:20}}>
         <button style={S.btnSecondary} onClick={onCancel}>CANCEL</button>
         <button style={S.btnPrimary} onClick={onSave}>{saveLabel}</button>
@@ -938,35 +950,73 @@ function Aircrafts({toast}){
   const[list,setList]=useState([]);const[loading,setLoading]=useState(true);
   const[showAdd,setShowAdd]=useState(false);const[selected,setSelected]=useState(null);
   const[editing,setEditing]=useState(false);
-  const[form,setForm]=useState({registration:'',manufacturer:'',model:'',ac_type:'',landing_cat:'CAT1'});
+  const[form,setForm]=useState({registration:'',manufacturer:'',model:'',ac_type:'',landing_cat:'CAT1',total_hours:0,total_cycles:0});
   const[editForm,setEditForm]=useState({});
   const[saving,setSaving]=useState(false);
+  const[acStats,setAcStats]=useState({}); // reg → {hours, cycles} from archived_flights
 
-  const load=useCallback(async()=>{setLoading(true);const{data}=await supabase.from('aircraft').select('*').order('registration');setList(data||[]);setLoading(false);},[]);
+  const load=useCallback(async()=>{
+    setLoading(true);
+    const[{data:acData},{data:flData}]=await Promise.all([
+      supabase.from('aircraft').select('*').order('registration'),
+      supabase.from('archived_flights').select('airborne_minutes,landing_count,plans(reg)'),
+    ]);
+    setList(acData||[]);
+    // Aggregate hours/cycles per registration from archived_flights
+    const stats={};
+    (flData||[]).forEach(f=>{
+      const reg=f.plans?.reg;
+      if(!reg)return;
+      if(!stats[reg])stats[reg]={mins:0,cycles:0};
+      stats[reg].mins   +=(f.airborne_minutes||0);
+      stats[reg].cycles +=(f.landing_count||0);
+    });
+    setAcStats(stats);
+    setLoading(false);
+  },[]);
   useEffect(()=>{load();},[load]);
 
   const sel=list.find(a=>a.id===selected);
 
+  // Total = baseline (aircraft table) + accumulated (archived_flights)
+  const getTotals=(a)=>{
+    const s=acStats[a.registration]||{mins:0,cycles:0};
+    const baseMins=Math.round((parseFloat(a.total_hours)||0)*60);
+    const totalMins=baseMins+s.mins;
+    const totalHours=totalMins/60;
+    const totalCycles=(a.total_cycles||0)+s.cycles;
+    return{
+      hours: totalMins>0 ? `${Math.floor(totalHours)}:${String(Math.round((totalHours%1)*60)).padStart(2,'0')}` : '0:00',
+      cycles: totalCycles,
+      appMins: s.mins,
+      appCycles: s.cycles,
+    };
+  };
+
   const handleAdd=async()=>{
     if(!form.registration||!form.ac_type){toast('Registration and type required.','error');return;}
-    const{registration,manufacturer,model,ac_type,landing_cat}=form;
-    const{error}=await supabase.from('aircraft').insert({registration,manufacturer,model,ac_type,landing_cat});
+    const{registration,manufacturer,model,ac_type,landing_cat,total_hours,total_cycles}=form;
+    const{error}=await supabase.from('aircraft').insert({registration,manufacturer,model,ac_type,landing_cat,
+      total_hours:parseFloat(total_hours)||0, total_cycles:parseInt(total_cycles)||0});
     if(error){toast(error.message,'error');return;}
     toast('Aircraft added.','success');
-    setShowAdd(false);setForm({registration:'',manufacturer:'',model:'',ac_type:'',landing_cat:'CAT1'});load();
+    setShowAdd(false);setForm({registration:'',manufacturer:'',model:'',ac_type:'',landing_cat:'CAT1',total_hours:0,total_cycles:0});load();
   };
 
   const openEdit=()=>{
     if(!sel)return;
-    setEditForm({registration:sel.registration||'',manufacturer:sel.manufacturer||'',model:sel.model||'',ac_type:sel.ac_type||'',landing_cat:sel.landing_cat||'CAT1'});
+    setEditForm({registration:sel.registration||'',manufacturer:sel.manufacturer||'',model:sel.model||'',
+      ac_type:sel.ac_type||'',landing_cat:sel.landing_cat||'CAT1',
+      total_hours:sel.total_hours||0, total_cycles:sel.total_cycles||0});
     setEditing(true);
   };
 
   const handleSaveEdit=async()=>{
     if(!editForm.registration||!editForm.ac_type){toast('Registration and type required.','error');return;}
     setSaving(true);
-    const{registration,manufacturer,model,ac_type,landing_cat}=editForm;
-    const{error}=await supabase.from('aircraft').update({registration,manufacturer,model,ac_type,landing_cat}).eq('id',sel.id);
+    const{registration,manufacturer,model,ac_type,landing_cat,total_hours,total_cycles}=editForm;
+    const{error}=await supabase.from('aircraft').update({registration,manufacturer,model,ac_type,landing_cat,
+      total_hours:parseFloat(total_hours)||0, total_cycles:parseInt(total_cycles)||0}).eq('id',sel.id);
     if(error){toast(error.message,'error');}
     else{toast('Aircraft updated.','success');setEditing(false);load();}
     setSaving(false);
@@ -981,37 +1031,61 @@ function Aircrafts({toast}){
         </div>
         {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}
         <table style={S.table}>
-          <thead><tr>{['REGISTRATION','MANUFACTURER','MODEL','TYPE','CAT','HOURS','CYCLES','STATUS'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <thead><tr>{['REGISTRATION','MANUFACTURER','MODEL','TYPE','CAT','TOTAL HOURS','TOTAL CYCLES','STATUS'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
           <tbody>
-            {list.map(a=>(
+            {list.map(a=>{
+              const t=getTotals(a);
+              return(
               <tr key={a.id} onClick={()=>{setSelected(a.id===selected?null:a.id);setEditing(false);}} style={{cursor:'pointer',background:selected===a.id?`${C.accent}08`:'transparent'}}>
                 <td style={{...S.td,color:C.accent,fontWeight:700}}>{a.registration}</td>
                 <td style={S.td}>{a.manufacturer||'—'}</td><td style={S.td}>{a.model||'—'}</td>
                 <td style={S.td}>{a.ac_type||'—'}</td>
                 <td style={S.td}><span style={S.badge('blue')}>{a.landing_cat}</span></td>
-                <td style={S.td}>{a.total_hours||0}</td><td style={S.td}>{a.total_cycles||0}</td>
+                <td style={{...S.td,color:C.accent,fontWeight:700}}>{t.hours}</td>
+                <td style={{...S.td,color:C.accent,fontWeight:700}}>{t.cycles}</td>
                 <td style={S.td}><span style={S.badge(a.active?'green':'red')}>{a.active?'ACTIVE':'INACTIVE'}</span></td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      {sel&&!editing&&(
+      {sel&&!editing&&(()=>{
+        const t=getTotals(sel);
+        const appHours=t.appMins>0?`${Math.floor(t.appMins/60)}:${String(t.appMins%60).padStart(2,'0')}`:'0:00';
+        return(
         <DetailPanel title="Aircraft Detail" onClose={()=>setSelected(null)}>
           <DetailRow label="Registration" value={sel.registration} accent/>
           <DetailRow label="Manufacturer"  value={sel.manufacturer}/>
           <DetailRow label="Model"         value={sel.model}/>
           <DetailRow label="ICAO Type"     value={sel.ac_type}/>
           <DetailRow label="Landing Cat"   value={sel.landing_cat}/>
-          <DetailRow label="Total Hours"   value={sel.total_hours}/>
-          <DetailRow label="Total Cycles"  value={sel.total_cycles}/>
-          <DetailRow label="Status"        value={sel.active?'Active':'Inactive'}/>
+          <div style={{padding:'9px 16px',borderBottom:`1px solid ${C.border}`,background:C.bg3}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+              <span style={{fontSize:12,color:C.t3,fontFamily:"'Courier New',monospace"}}>TOTAL HOURS</span>
+              <span style={{fontSize:15,color:C.accent,fontFamily:"'Courier New',monospace",fontWeight:700}}>{t.hours}</span>
+            </div>
+            <div style={{fontSize:10,color:'#555',fontFamily:"'Courier New',monospace"}}>
+              Baseline: {sel.total_hours||0}h + App logged: {appHours}
+            </div>
+          </div>
+          <div style={{padding:'9px 16px',borderBottom:`1px solid ${C.border}`,background:C.bg3}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+              <span style={{fontSize:12,color:C.t3,fontFamily:"'Courier New',monospace"}}>TOTAL CYCLES</span>
+              <span style={{fontSize:15,color:C.accent,fontFamily:"'Courier New',monospace",fontWeight:700}}>{t.cycles}</span>
+            </div>
+            <div style={{fontSize:10,color:'#555',fontFamily:"'Courier New',monospace"}}>
+              Baseline: {sel.total_cycles||0} + App logged: {t.appCycles}
+            </div>
+          </div>
+          <DetailRow label="Status" value={sel.active?'Active':'Inactive'}/>
           <div style={{padding:'12px 16px'}}>
             <button style={{...S.btnPrimary,width:'100%'}} onClick={openEdit}>EDIT AIRCRAFT</button>
           </div>
         </DetailPanel>
-      )}
+        );
+      })()}
 
       {sel&&editing&&(
         <DetailPanel title={`EDIT — ${sel.registration}`} onClose={()=>setEditing(false)} width={380}>
