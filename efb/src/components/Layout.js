@@ -44,6 +44,7 @@ const PHASE = {
   'endflt':    { color: '#2d9e5f', type: 'border' },
   'docupload': { color: '#666666', type: 'tile'   },
   'freenote':  { color: '#666666', type: 'tile'   },
+  'rass':      { color: '#1a6b9c', type: 'tile'   },
 };
 
 const menuItems = [
@@ -57,6 +58,7 @@ const menuItems = [
   { id: 'landing',   num: '8',  label: 'LND Data'              },
   { id: 'endflt',    num: '9',  label: 'END FLT'               },
   { id: 'docupload', num: '10', label: 'DOC UPLOAD'            },
+  { id: 'rass',      num: '11', label: 'RASS'                  },
 ];
 
 // ── EFB FAILURE BACKUP PROCEDURE MODAL ───────────────────────
@@ -102,7 +104,6 @@ function EfbFailureModal({ onClose }) {
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500 }}>
       <div style={{ background:'#1a1a1a', border:'2px solid #e02020', borderRadius:12, width:460, maxHeight:'88vh', overflow:'hidden', display:'flex', flexDirection:'column' }}>
-        {/* Header */}
         <div style={{ background:'rgba(224,32,32,0.15)', padding:'14px 16px', borderBottom:'1px solid #e02020', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             <span style={{ fontSize:22 }}>🚨</span>
@@ -113,8 +114,6 @@ function EfbFailureModal({ onClose }) {
           </div>
           <span onClick={onClose} style={{ color:'#555', cursor:'pointer', fontSize:22, lineHeight:1 }}>×</span>
         </div>
-
-        {/* Content */}
         <div style={{ overflowY:'auto', padding:'14px 16px', display:'flex', flexDirection:'column', gap:12 }}>
           {steps.map(({ phase, color, items }) => (
             <div key={phase} style={{ border:`1px solid ${color}40`, borderRadius:8, overflow:'hidden' }}>
@@ -131,13 +130,10 @@ function EfbFailureModal({ onClose }) {
               </div>
             </div>
           ))}
-
           <div style={{ padding:'10px 12px', borderRadius:6, background:'rgba(26,155,196,0.08)', borderLeft:'3px solid #1a9bc4', fontSize:11, color:'#7bbdd4', lineHeight:1.7 }}>
             Per EASA AMC 20-25, operators must maintain backup means whenever EFB is used as primary information source. Post-flight reconciliation and event logging are mandatory for audit trail compliance.
           </div>
         </div>
-
-        {/* Footer */}
         <div style={{ padding:'12px 16px', borderTop:'1px solid #383838', flexShrink:0 }}>
           <button onClick={onClose}
             style={{ width:'100%', background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:11, fontSize:13, fontWeight:700, color:'#e8e8e8', cursor:'pointer', fontFamily:'inherit' }}>
@@ -184,7 +180,7 @@ function AboutEfbModal({ onClose }) {
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500 }}>
       <div style={{ background:'#1a1a1a', border:'1px solid #383838', borderRadius:12, width:360, overflow:'hidden' }}>
-        <div style={{ background:'#1f1f1f', padding:'12px 16px', borderBottom:'1px solid #383838', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div style={{ background:'#1f1f1f', borderBottom:'1px solid #383838', padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <div>
             <div style={{ fontSize:13, fontWeight:700, color:'#1a9bc4' }}>GO2 eFB</div>
             <div style={{ fontSize:10, color:'#555', marginTop:2 }}>Configuration — AMC 20-25 §7.11</div>
@@ -209,6 +205,7 @@ function AboutEfbModal({ onClose }) {
     </div>
   );
 }
+
 function Sidebar({ activePage, onNavigate, flightInfo, pageStatus, onEfbFailure, onAbout }) {
   return (
     <div style={{
@@ -380,7 +377,7 @@ function Layout({ activePage, onNavigate, title, children, flightInfo, pageStatu
             color: phase.color,
             letterSpacing: 0.5, textTransform: 'uppercase', flexShrink: 0
           }}>
-            {activePage === 'freenote' ? 'FREE NOTE' : activePage.replace(/-/g, ' ').toUpperCase()}
+            {activePage === 'freenote' ? 'FREE NOTE' : activePage === 'rass' ? 'RASS — RISK ASSESSMENT' : activePage.replace(/-/g, ' ').toUpperCase()}
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {children}

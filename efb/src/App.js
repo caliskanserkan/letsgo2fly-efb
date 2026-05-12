@@ -12,6 +12,7 @@ import LandingData from './components/LandingData';
 import EndFlight from './components/EndFlight';
 import DocUpload from './components/DocUpload';
 import FreeNote from './components/FreeNote';
+import RassView from './components/RassView';
 import { supabase, logEvent } from './supabaseClient';
 import * as pdfjsLib from 'pdfjs-dist';
 import AdminPanel from './components/AdminPanel';
@@ -45,8 +46,6 @@ function OfflineBanner({ offlineSince }) {
     </div>
   );
 }
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 // ─── LocalStorage helpers ─────────────────────────────────────────────────────
 const LS = {
@@ -779,12 +778,10 @@ function App() {
   const [adminPinError, setAdminPinError] = useState('');
   const [offlineSince, setOfflineSince]   = useState(null);
 
-  // ── Font init ─────────────────────────────────────────────────────────────
   useEffect(() => {
     applyFont(parseInt(localStorage.getItem(FONT_KEY) || FONT_DEF));
   }, []);
 
-  // ── Offline detection — AMC 20-25 §7.4 ───────────────────────────────────
   useEffect(() => {
     const handleOffline = () => setOfflineSince(Date.now());
     const handleOnline  = () => setOfflineSince(null);
@@ -976,7 +973,8 @@ function App() {
       {activePage === 'endflt'    && <EndFlight   flightData={flightData} divertData={divertData} setStatus={setStatusEndflt} activePlan={activePlan} rawText={rawText} />}
       {activePage === 'docupload' && <DocUpload   setStatus={setStatusDocupload} activePlan={activePlan} />}
       {activePage === 'freenote'  && <FreeNote />}
-      {!['flt-crew','mandatory','efp','fuel','accept','takeoff','navlog','landing','endflt','docupload','freenote'].includes(activePage) && (
+      {activePage === 'rass'      && <RassView />}
+      {!['flt-crew','mandatory','efp','fuel','accept','takeoff','navlog','landing','endflt','docupload','freenote','rass'].includes(activePage) && (
         <div style={{ padding:24, color:'var(--t3)', fontSize:13 }}>Page under construction...</div>
       )}
     </Layout>
