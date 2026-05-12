@@ -1592,63 +1592,248 @@ function SortableTable({flights, fmt}){
 
 // ─── 6. Station INFO ──────────────────────────────────────────────────────────
 function StationInfo({toast}){
-  const[stations,setStations]=useState([]);const[loading,setLoading]=useState(true);
-  const[selected,setSelected]=useState(null);const[showAdd,setShowAdd]=useState(false);
-  const[form,setForm]=useState({icao:'',name:'',country:'',handling_company:'',handling_contact:'',handling_vhf:'',catering_company:'',catering_contact:'',permit_required:false,permit_details:'',entry_requirements:'',risk_assessment:''});
-  const fetch=useCallback(async()=>{setLoading(true);const{data}=await supabase.from('stations').select('*').order('icao');setStations(data||[]);setLoading(false);},[]);
-  useEffect(()=>{fetch();},[fetch]);
-  const handleSave=async()=>{
-    if(!form.icao){toast('ICAO required.','error');return;}
-    const{error}=await supabase.from('stations').upsert({...form,updated_at:new Date().toISOString()});
-    if(error){toast(error.message,'error');return;}
-    toast('Station saved.','success');setShowAdd(false);fetch();
+  const [airports,   setAirports]   = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [search,     setSearch]     = useState('');
+  const [selected,   setSelected]   = useState(null);
+  const [riskModal,  setRiskModal]  = useState(null); // ICAO string
+
+  useEffect(()=>{
+    setLoading(true);
+    supabase.from('airport_risks').select('icao,name,country,category,base_score,risk_level,ops_approval,ad_elev_ft,max_s,max_l,mitigation')
+      .order('icao').then(({data})=>{setAirports(data||[]);setLoading(false);});
+  },[]);
+
+  const filtered = airports.filter(a =>
+    !search || a.icao.toLowerCase().includes(search.toLowerCase()) ||
+    (a.name||'').toLowerCase().includes(search.toLowerCase())
+  );
+
+  const sel = airports.find(a=>a.icao===selected);
+
+  const riskBadge = (level) => {
+    const textColors = {LOW:'#4a9bc4', MEDIUM:'#e8a320', HIGH:'#e8731a', EXTREME:'#e02020'};
+    return (
+      <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',
+        background: level==='LOW'?C.blueDim: level==='MEDIUM'?'#2a1a00': level==='HIGH'?'#1a0a00':'#1a0000',
+        color: textColors[level]||'#888',
+        border:`1px solid ${textColors[level]||'#444'}`}}>
+        {level||'—'}
+      </span>
+    );
   };
-  const sel=stations.find(s=>s.id===selected);
+
   return(
     <div style={{display:'flex',flex:1,overflow:'hidden'}}>
       <div style={{flex:1,overflowY:'auto'}}>
-        <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between'}}>
-          <span style={S.label}>{stations.length} STATIONS</span>
-          <button style={S.btnPrimary} onClick={()=>setShowAdd(true)}>+ ADD STATION</button>
+        <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',gap:10,alignItems:'center'}}>
+          <input placeholder="ICAO veya havalimanı adı..." value={search}
+            onChange={e=>setSearch(e.target.value.toUpperCase())}
+            style={{...S.input,width:260}}/>
+          <span style={{...S.label,marginLeft:'auto'}}>{filtered.length} AIRPORTS</span>
         </div>
         {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}
         <table style={S.table}>
-          <thead><tr>{['ICAO','NAME','COUNTRY','HANDLING','CATERING','PERMIT','RISK'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <thead><tr>{['ICAO','AIRPORT NAME','CAT','ELEV FT','BASE SCORE','RISK LEVEL','OPS APPROVAL'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
           <tbody>
-            {stations.map(s=>(
-              <tr key={s.id} onClick={()=>setSelected(s.id===selected?null:s.id)} style={{cursor:'pointer',background:selected===s.id?`${C.accent}08`:'transparent'}}>
-                <td style={{...S.td,color:C.accent,fontWeight:700}}>{s.icao}</td>
-                <td style={S.td}>{s.name||'—'}</td><td style={S.td}>{s.country||'—'}</td>
-                <td style={S.td}>{s.handling_company||'—'}</td><td style={S.td}>{s.catering_company||'—'}</td>
-                <td style={S.td}>{s.permit_required?<span style={S.badge('')}>REQ</span>:'—'}</td>
-                <td style={S.td}>{s.risk_assessment?<span style={S.badge('blue')}>ON FILE</span>:'—'}</td>
+            {filtered.map(a=>(
+              <tr key={a.icao} onClick={()=>setSelected(a.icao===selected?null:a.icao)}
+                style={{cursor:'pointer',background:selected===a.icao?`${C.accent}08`:'transparent'}}>
+                <td style={{...S.td,color:C.accent,fontWeight:700}}>{a.icao}</td>
+                <td style={S.td}>{a.name||'—'}</td>
+                <td style={S.td}><span style={S.badge('blue')}>{a.category||'B'}</span></td>
+                <td style={S.td}>{a.ad_elev_ft||'—'}</td>
+                <td style={{...S.td,color:C.accent,fontWeight:700}}>{a.base_score||0}</td>
+                <td style={S.td}>{riskBadge(a.risk_level)}</td>
+                <td style={{...S.td,fontSize:11,color:C.t3}}>{a.ops_approval||'—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {sel&&(<DetailPanel title={`${sel.icao}`} onClose={()=>setSelected(null)}>
-        <DetailRow label="ICAO" value={sel.icao} accent/><DetailRow label="Country" value={sel.country}/>
-        <DetailRow label="Handling" value={sel.handling_company}/><DetailRow label="Handling Tel" value={sel.handling_contact}/>
-        <DetailRow label="Handling VHF" value={sel.handling_vhf}/><DetailRow label="Catering" value={sel.catering_company}/>
-        <DetailRow label="Catering Tel" value={sel.catering_contact}/><DetailRow label="Permit Req" value={sel.permit_required?'YES':'NO'}/>
-      </DetailPanel>)}
-      {showAdd&&(
-        <Modal title="ADD / EDIT STATION" onClose={()=>setShowAdd(false)} width={500}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-            {[{key:'icao',label:'ICAO *',ph:'LTFM'},{key:'name',label:'AIRPORT NAME',ph:'Istanbul'},{key:'country',label:'COUNTRY',ph:'Turkey'},{key:'handling_company',label:'HANDLING CO.',ph:'Celebi'},{key:'handling_contact',label:'HANDLING TEL',ph:'+90...'},{key:'handling_vhf',label:'HANDLING VHF',ph:'130.675'},{key:'catering_company',label:'CATERING CO.',ph:'Do & Co'},{key:'catering_contact',label:'CATERING TEL',ph:'+90...'}].map(({key,label,ph})=>(
-              <div key={key} style={S.formGroup}><label style={S.formLabel}>{label}</label><input style={S.input} placeholder={ph} value={form[key]||''} onChange={e=>setForm(p=>({...p,[key]:e.target.value}))}/></div>
+
+      {sel&&(
+        <DetailPanel title={sel.icao} onClose={()=>setSelected(null)} width={360}>
+          <DetailRow label="ICAO"       value={sel.icao} accent/>
+          <DetailRow label="Name"       value={sel.name}/>
+          <DetailRow label="Category"   value={sel.category||'B'}/>
+          <DetailRow label="Elevation"  value={sel.ad_elev_ft ? `${sel.ad_elev_ft} ft` : '—'}/>
+          <DetailRow label="Base Score" value={sel.base_score||0}/>
+          <DetailRow label="Risk Level" value={sel.risk_level||'—'}/>
+          <DetailRow label="Max S"      value={sel.max_s||1}/>
+          <DetailRow label="Max L"      value={sel.max_l||1}/>
+          {sel.mitigation&&(
+            <div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`,fontSize:10,color:C.t3,lineHeight:1.7}}>
+              {sel.mitigation}
+            </div>
+          )}
+          <div style={{padding:'12px 16px'}}>
+            <button style={{...S.btnPrimary,width:'100%'}} onClick={()=>setRiskModal(sel.icao)}>
+              RISK ASSESSMENT MATRIX
+            </button>
+          </div>
+        </DetailPanel>
+      )}
+
+      {/* Risk Assessment Modal */}
+      {riskModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.9)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300,padding:20}}>
+          <div style={{background:'#111',border:'1px solid #2a2a2a',width:'100%',maxWidth:640,maxHeight:'90vh',overflowY:'auto',borderRadius:8}}>
+            <RiskAssessmentInline icao={riskModal} onClose={()=>setRiskModal(null)}/>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Inline version of Risk Assessment for AdminPanel (no external import)
+function RiskAssessmentInline({icao, onClose}){
+  const TOPICS_LIST = [
+    'Approach & Traffic Density','Obstacles / Terrain','Seasonal / Meteorology',
+    'ATC Phraseology / Language','Complex Taxi Routings','RWY Ops / Late Clearance',
+    'Security / Terror Threat','Handling / Fuel / Pax Support','Radio Nav / GNSS Reliability',
+    'Other Local Constraints',
+  ];
+  const ADDONS_LIST = [
+    {key:'night',label:'Night Ops',pts:1},{key:'xw',label:'Strong XW/Gust',pts:2},
+    {key:'wet',label:'RWY Wet/Contam',pts:2},{key:'lv',label:'Low Vis/TS',pts:2},
+    {key:'fam',label:'Crew Low FAM',pts:2},
+  ];
+  const RISK_C = {
+    LOW:    {bg:'rgba(26,155,196,0.12)',border:'#1a9bc4',text:'#1a9bc4'},
+    MEDIUM: {bg:'rgba(232,163,32,0.12)',border:'#e8a320',text:'#e8a320'},
+    HIGH:   {bg:'rgba(232,115,26,0.12)',border:'#e8731a',text:'#e8731a'},
+    EXTREME:{bg:'rgba(224,32,32,0.12)', border:'#e02020',text:'#e02020'},
+  };
+  const cellC = (score) => score>=20?{bg:'#3a0808',text:'#f06060'}:score>=12?{bg:'#2a1200',text:'#e8731a'}:score>=6?{bg:'#0a1a00',text:'#6db890'}:{bg:'#0a1a2a',text:'#4a9bc4'};
+  const sColor = (v) => v>=5?'#e02020':v>=4?'#e8731a':v>=3?'#e8a320':v>=2?'#1a9bc4':'#2d9e5f';
+  const getRisk = (t) => t<=6?'LOW':t<=9?'MEDIUM':t<=12?'HIGH':'EXTREME';
+
+  const [ap, setAp]       = useState(null);
+  const [loading,setLoad] = useState(true);
+  const [addons, setAd]   = useState({});
+  const [tab, setTab]     = useState('matrix');
+
+  useEffect(()=>{
+    supabase.from('airport_risks').select('*').eq('icao',icao).single()
+      .then(({data})=>{setAp(data);setLoad(false);});
+  },[icao]);
+
+  if(loading) return <div style={{padding:32,textAlign:'center',color:'#555',fontFamily:"'Courier New',monospace"}}>LOADING {icao}...</div>;
+  if(!ap) return <div style={{padding:16,color:'#e02020',fontFamily:"'Courier New',monospace"}}>Not found: {icao}</div>;
+
+  const s = ap.s_scores||[]; const l = ap.l_scores||[];
+  const adPts = ADDONS_LIST.reduce((s,a)=>s+(addons[a.key]?a.pts:0),0);
+  const total = (ap.base_score||0)+adPts;
+  const rl = getRisk(total);
+  const rc = RISK_C[rl]||RISK_C.LOW;
+  const maxS = ap.max_s||1; const maxL = ap.max_l||1;
+
+  const tabS = (t) => ({flex:1,padding:'8px 4px',textAlign:'center',cursor:'pointer',
+    fontFamily:"'Courier New',monospace",fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',
+    color:tab===t?'#1a9bc4':'#555',borderBottom:tab===t?'2px solid #1a9bc4':'2px solid transparent',background:'transparent',border:'none'});
+
+  return(
+    <div style={{fontFamily:"'Courier New',monospace",color:'#e8e8e8'}}>
+      {/* Header */}
+      <div style={{padding:'14px 18px',background:'#1a1a1a',borderBottom:'1px solid #2a2a2a',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+        <div>
+          <div style={{fontSize:20,fontWeight:700,color:'#e8a020',letterSpacing:2}}>{ap.icao}</div>
+          <div style={{fontSize:13,color:'#e8e8e8',marginTop:2}}>{ap.name}</div>
+          <div style={{fontSize:10,color:'#555',marginTop:3}}>CAT {ap.category||'B'}{ap.ad_elev_ft?` · ${ap.ad_elev_ft} ft`:''}</div>
+        </div>
+        <button onClick={onClose} style={{background:'none',border:'none',color:'#555',cursor:'pointer',fontSize:20}}>x</button>
+      </div>
+
+      {/* Score card */}
+      <div style={{display:'flex',gap:2,margin:'12px 12px 0',background:'#2a2a2a',padding:2}}>
+        <div style={{flex:1,background:rc.bg,border:`2px solid ${rc.border}`,padding:'12px 10px',textAlign:'center'}}>
+          <div style={{fontSize:36,fontWeight:800,color:rc.text,lineHeight:1}}>{total}</div>
+          <div style={{fontSize:9,color:rc.text,opacity:.7,marginTop:2}}>BASE {ap.base_score||0}{adPts>0?` + ${adPts}`:''}</div>
+        </div>
+        <div style={{flex:2,background:'#1a1a1a',border:`2px solid ${rc.border}`,padding:'12px 14px'}}>
+          <div style={{fontSize:18,fontWeight:800,color:rc.text}}>{rl}</div>
+          <div style={{fontSize:10,color:rc.text,opacity:.8,marginTop:4}}>
+            {total>12?'OPS MANAGER APPROVAL REQUIRED':total>9?ap.category==='C'?'OPS MANAGER APPROVAL REQUIRED':'CAPTAIN REVIEW / DISPATCH COORDINATION':'DISPATCH OK'}
+          </div>
+        </div>
+        <div style={{flex:2,background:'#1a1a1a',border:'2px solid #2a2a2a',padding:'12px 14px',fontSize:10,color:'#777',lineHeight:1.8}}>
+          <div>MAX S: <span style={{color:'#e8e8e8',fontWeight:700}}>{maxS}</span></div>
+          <div>MAX L: <span style={{color:'#e8e8e8',fontWeight:700}}>{maxL}</span></div>
+          {ap.mitigation&&<div style={{marginTop:4,color:'#555',fontSize:9}}>{ap.mitigation.slice(0,80)}</div>}
+        </div>
+      </div>
+
+      {/* Addons */}
+      <div style={{margin:'10px 12px 0',background:'#1a1a1a',border:'1px solid #2a2a2a',padding:'10px 12px'}}>
+        <div style={{fontSize:9,color:'#555',fontWeight:700,letterSpacing:1,marginBottom:8,textTransform:'uppercase'}}>Operasyonel Faktörler</div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+          {ADDONS_LIST.map(a=>(
+            <div key={a.key} onClick={()=>setAd(p=>({...p,[a.key]:!p[a.key]}))}
+              style={{cursor:'pointer',padding:'5px 10px',borderRadius:4,fontSize:10,fontWeight:700,
+                background:addons[a.key]?'rgba(232,115,26,0.2)':'#252525',
+                border:`1px solid ${addons[a.key]?'#e8731a':'#383838'}`,
+                color:addons[a.key]?'#e8731a':'#555'}}>
+              {addons[a.key]?'✓':'+'} {a.label} (+{a.pts})
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:'flex',margin:'10px 12px 0',borderBottom:'1px solid #2a2a2a'}}>
+        <button style={tabS('matrix')} onClick={()=>setTab('matrix')}>5×5 Matrix</button>
+        <button style={tabS('topics')} onClick={()=>setTab('topics')}>Topic Scores</button>
+        <button style={tabS('briefing')} onClick={()=>setTab('briefing')}>PPS Briefing</button>
+      </div>
+
+      <div style={{margin:'0 12px 12px',background:'#1a1a1a',border:'1px solid #2a2a2a',overflowX:'auto'}}>
+        {tab==='matrix'&&(
+          <div style={{padding:12}}>
+            <div style={{fontSize:9,color:'#555',marginBottom:8}}>Mevcut: S={maxS} × L={maxL} → Base {ap.base_score||0} · Total {total}</div>
+            <div style={{display:'grid',gridTemplateColumns:'24px repeat(5,1fr)',gap:2,marginBottom:2}}>
+              <div style={{fontSize:9,color:'#444',textAlign:'center'}}>L\S</div>
+              {[1,2,3,4,5].map(sv=><div key={sv} style={{fontSize:9,color:'#555',textAlign:'center',fontWeight:700}}>S{sv}</div>)}
+            </div>
+            {[5,4,3,2,1].map(lv=>(
+              <div key={lv} style={{display:'grid',gridTemplateColumns:'24px repeat(5,1fr)',gap:2,marginBottom:2}}>
+                <div style={{fontSize:9,color:'#555',textAlign:'center',fontWeight:700,alignSelf:'center'}}>L{lv}</div>
+                {[1,2,3,4,5].map(sv=>{
+                  const cs=lv*sv; const cc=cellC(cs); const isCur=lv===maxL&&sv===maxS;
+                  return <div key={sv} style={{background:cc.bg,border:isCur?`2px solid ${rc.border}`:'1px solid #2a2a2a',borderRadius:3,padding:'6px 0',textAlign:'center',fontSize:isCur?13:11,fontWeight:isCur?800:600,color:cc.text}}>
+                    {isCur?'▶':''}{cs}
+                  </div>;
+                })}
+              </div>
             ))}
           </div>
-          {[{key:'entry_requirements',label:'ENTRY REQUIREMENTS'},{key:'permit_details',label:'PERMIT DETAILS'},{key:'risk_assessment',label:'RISK ASSESSMENT'}].map(({key,label})=>(
-            <div key={key} style={S.formGroup}><label style={S.formLabel}>{label}</label><textarea style={{...S.input,minHeight:60,resize:'vertical'}} value={form[key]||''} onChange={e=>setForm(p=>({...p,[key]:e.target.value}))}/></div>
-          ))}
-          <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:20}}>
-            <button style={S.btnSecondary} onClick={()=>setShowAdd(false)}>CANCEL</button>
-            <button style={S.btnPrimary} onClick={handleSave}>SAVE</button>
+        )}
+        {tab==='topics'&&(
+          <div style={{padding:8}}>
+            {TOPICS_LIST.map((topic,i)=>{
+              const sv=parseFloat(s[i])||0; const lv=parseFloat(l[i])||0; const score=Math.round(sv*lv);
+              return <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',borderBottom:'1px solid #222'}}>
+                <div style={{flex:1,fontSize:10,color:'#999'}}>{i+1}. {topic}</div>
+                <div style={{background:sColor(sv),color:'#fff',borderRadius:3,padding:'2px 6px',fontSize:10,fontWeight:700,width:28,textAlign:'center'}}>S{sv}</div>
+                <div style={{fontSize:9,color:'#444'}}>×</div>
+                <div style={{background:sColor(lv),color:'#fff',borderRadius:3,padding:'2px 6px',fontSize:10,fontWeight:700,width:28,textAlign:'center'}}>L{lv}</div>
+                <div style={{fontSize:11,fontWeight:700,color:'#e8e8e8',width:24,textAlign:'right'}}>{score}</div>
+              </div>;
+            })}
           </div>
-        </Modal>
-      )}
+        )}
+        {tab==='briefing'&&(
+          <div style={{padding:12}}>
+            {[{title:'SECTION 1 — Traffic / ATC / Taxi / RWY Ops',key:'section1'},{title:'SECTION 2 — Meteorology / Wind',key:'section2'},{title:'SECTION 3 — Security / Handling / Nav',key:'section3'}].map(sec=>ap[sec.key]?(
+              <div key={sec.key} style={{marginBottom:12}}>
+                <div style={{fontSize:9,color:'#1a9bc4',fontWeight:700,letterSpacing:1,marginBottom:6,textTransform:'uppercase'}}>{sec.title}</div>
+                <div style={{fontSize:11,color:'#aaa',lineHeight:1.8,whiteSpace:'pre-line',padding:'8px 10px',background:'#151515',borderLeft:'2px solid rgba(26,155,196,0.2)'}}>{ap[sec.key]}</div>
+              </div>
+            ):null)}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1657,7 +1842,7 @@ function StationInfo({toast}){
 function FltLogsAndTimes(){
   const[plans,setPlans]=useState([]);const[selected,setSelected]=useState(null);
   const[filter,setFilter]=useState({dep:'',dest:''});const[loadingP,setLoadingP]=useState(true);
-  useEffect(()=>{(async()=>{setLoadingP(true);const{data}=await supabase.from('plans').select('id,dep,dest,date,dispatch_no,reg,status,created_at').eq('status','archived').order('created_at',{ascending:false}).limit(200);setPlans(data||[]);setLoadingP(false);})();},[]);
+  useEffect(()=>{(async()=>{setLoadingP(true);const{data}=await supabase.from('plans').select('id,dep,dest,date,dispatch_no,reg,status,created_at').in('status',['active','archived','available']).order('created_at',{ascending:false}).limit(200);setPlans(data||[]);setLoadingP(false);})();},[]);
   const filteredPlans=plans.filter(p=>(!filter.dep||(p.dep||'').toLowerCase().includes(filter.dep.toLowerCase()))&&(!filter.dest||(p.dest||'').toLowerCase().includes(filter.dest.toLowerCase())));
   const selectedPlan=plans.find(p=>p.id===selected);
   return(
