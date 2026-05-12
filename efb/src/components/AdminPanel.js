@@ -1709,30 +1709,89 @@ function RiskAssessmentInline({icao, onClose}){
   const cellC = (score) => score>=20?{bg:'#3a0808',text:'#f06060'}:score>=12?{bg:'#2a1200',text:'#e8731a'}:score>=6?{bg:'#0a1a00',text:'#6db890'}:{bg:'#0a1a2a',text:'#4a9bc4'};
   const sColor = (v) => v>=5?'#e02020':v>=4?'#e8731a':v>=3?'#e8a320':v>=2?'#1a9bc4':'#2d9e5f';
   const getRisk = (t) => t<=6?'LOW':t<=9?'MEDIUM':t<=12?'HIGH':'EXTREME';
+  const getOps  = (rl,cat) => rl==='EXTREME'?'OPS MANAGER APPROVAL REQUIRED':rl==='HIGH'&&cat==='C'?'OPS MANAGER APPROVAL REQUIRED':rl==='HIGH'?'CAPTAIN REVIEW / DISPATCH COORDINATION':'DISPATCH OK';
 
-  const [ap, setAp]       = useState(null);
-  const [loading,setLoad] = useState(true);
-  const [addons, setAd]   = useState({});
-  const [tab, setTab]     = useState('matrix');
+  const [ap,      setAp]    = useState(null);
+  const [loading, setLoad]  = useState(true);
+  const [addons,  setAd]    = useState({});
+  const [tab,     setTab]   = useState('matrix');
+  const [editing, setEditing]= useState(false);
+  const [saving,  setSaving] = useState(false);
+  // Edit form state
+  const [sEdit,   setSEdit]  = useState(Array(10).fill(1));
+  const [lEdit,   setLEdit]  = useState(Array(10).fill(1));
+  const [catEdit, setCatEdit]= useState('B');
+  const [mitEdit, setMitEdit]= useState('');
 
   useEffect(()=>{
     supabase.from('airport_risks').select('*').eq('icao',icao).single()
-      .then(({data})=>{setAp(data);setLoad(false);});
+      .then(({data})=>{
+        setAp(data);
+        if(data){
+          setSEdit((data.s_scores||[]).map(v=>parseFloat(v)||1));
+          setLEdit((data.l_scores||[]).map(v=>parseFloat(v)||1));
+          setCatEdit(data.category||'B');
+          setMitEdit(data.mitigation||'');
+        }
+        setLoad(false);
+      });
   },[icao]);
 
   if(loading) return <div style={{padding:32,textAlign:'center',color:'#555',fontFamily:"'Courier New',monospace"}}>LOADING {icao}...</div>;
   if(!ap) return <div style={{padding:16,color:'#e02020',fontFamily:"'Courier New',monospace"}}>Not found: {icao}</div>;
 
-  const s = ap.s_scores||[]; const l = ap.l_scores||[];
+  // Compute from edit arrays when editing, else from DB
+  const sArr = editing ? sEdit : (ap.s_scores||[]).map(v=>parseFloat(v)||0);
+  const lArr = editing ? lEdit : (ap.l_scores||[]).map(v=>parseFloat(v)||0);
+  // Max score = max of S×L per topic
+  const topicScores = sArr.map((sv,i)=>sv*(lArr[i]||0));
+  const baseScore   = editing ? Math.max(...topicScores,0) : (ap.base_score||0);
+  const maxSVal     = editing ? (sArr.reduce((a,b)=>Math.max(a,b),1)) : (ap.max_s||1);
+  const maxLVal     = editing ? (lArr.reduce((a,b)=>Math.max(a,b),1)) : (ap.max_l||1);
   const adPts = ADDONS_LIST.reduce((s,a)=>s+(addons[a.key]?a.pts:0),0);
-  const total = (ap.base_score||0)+adPts;
+  const total = baseScore + adPts;
   const rl = getRisk(total);
   const rc = RISK_C[rl]||RISK_C.LOW;
-  const maxS = ap.max_s||1; const maxL = ap.max_l||1;
+
+  const handleSave = async () => {
+    setSaving(true);
+    const newBase = Math.max(...topicScores, 0);
+    const newMaxS = sEdit.reduce((a,b)=>Math.max(a,b),1);
+    const newMaxL = lEdit.reduce((a,b)=>Math.max(a,b),1);
+    const newRL   = getRisk(newBase);
+    const newOps  = getOps(newRL, catEdit);
+    const {error} = await supabase.from('airport_risks').update({
+      s_scores:   JSON.stringify(sEdit),
+      l_scores:   JSON.stringify(lEdit),
+      base_score: newBase,
+      max_s:      newMaxS,
+      max_l:      newMaxL,
+      risk_level: newRL,
+      ops_approval: newOps,
+      category:   catEdit,
+      mitigation: mitEdit,
+      updated_at: new Date().toISOString(),
+    }).eq('icao', icao);
+    if(error){ alert(error.message); }
+    else {
+      // Refresh
+      const {data} = await supabase.from('airport_risks').select('*').eq('icao',icao).single();
+      setAp(data);
+      setEditing(false);
+    }
+    setSaving(false);
+  };
 
   const tabS = (t) => ({flex:1,padding:'8px 4px',textAlign:'center',cursor:'pointer',
     fontFamily:"'Courier New',monospace",fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',
     color:tab===t?'#1a9bc4':'#555',borderBottom:tab===t?'2px solid #1a9bc4':'2px solid transparent',background:'transparent',border:'none'});
+
+  const ScoreInput = ({val, onChange}) => (
+    <select value={val} onChange={e=>onChange(parseInt(e.target.value))}
+      style={{background:'#1a1a1a',border:'1px solid #383838',color:'#e8e8e8',fontSize:11,padding:'3px 6px',borderRadius:3,fontFamily:"'Courier New',monospace",width:44}}>
+      {[1,2,3,4,5].map(n=><option key={n} value={n}>{n}</option>)}
+    </select>
+  );
 
   return(
     <div style={{fontFamily:"'Courier New',monospace",color:'#e8e8e8'}}>
@@ -1741,27 +1800,52 @@ function RiskAssessmentInline({icao, onClose}){
         <div>
           <div style={{fontSize:20,fontWeight:700,color:'#e8a020',letterSpacing:2}}>{ap.icao}</div>
           <div style={{fontSize:13,color:'#e8e8e8',marginTop:2}}>{ap.name}</div>
-          <div style={{fontSize:10,color:'#555',marginTop:3}}>CAT {ap.category||'B'}{ap.ad_elev_ft?` · ${ap.ad_elev_ft} ft`:''}</div>
+          <div style={{fontSize:10,color:'#555',marginTop:3}}>CAT {editing?catEdit:ap.category||'B'}{ap.ad_elev_ft?` · ${ap.ad_elev_ft} ft`:''}</div>
         </div>
-        <button onClick={onClose} style={{background:'none',border:'none',color:'#555',cursor:'pointer',fontSize:20}}>x</button>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          {!editing ? (
+            <button onClick={()=>setEditing(true)}
+              style={{...S.btnSecondary,fontSize:10,padding:'5px 12px'}}>EDIT SCORES</button>
+          ) : (
+            <>
+              <button onClick={()=>setEditing(false)}
+                style={{...S.btnSecondary,fontSize:10,padding:'5px 12px'}}>CANCEL</button>
+              <button onClick={handleSave} disabled={saving}
+                style={{...S.btnPrimary,fontSize:10,padding:'5px 12px'}}>{saving?'SAVING...':'SAVE'}</button>
+            </>
+          )}
+          <button onClick={onClose} style={{background:'none',border:'none',color:'#555',cursor:'pointer',fontSize:20}}>x</button>
+        </div>
       </div>
+
+      {/* Category edit when editing */}
+      {editing && (
+        <div style={{padding:'8px 12px',background:'#161616',borderBottom:'1px solid #2a2a2a',display:'flex',gap:16,alignItems:'center'}}>
+          <div style={{fontSize:10,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:1}}>Category</div>
+          <select value={catEdit} onChange={e=>setCatEdit(e.target.value)}
+            style={{background:'#1a1a1a',border:'1px solid #383838',color:'#e8e8e8',fontSize:11,padding:'4px 8px',borderRadius:3}}>
+            <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+          </select>
+          <div style={{fontSize:10,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:1}}>Mitigation</div>
+          <input value={mitEdit} onChange={e=>setMitEdit(e.target.value)}
+            style={{...S.input,flex:1,fontSize:11}} placeholder="Brief mitigation note..."/>
+        </div>
+      )}
 
       {/* Score card */}
       <div style={{display:'flex',gap:2,margin:'12px 12px 0',background:'#2a2a2a',padding:2}}>
         <div style={{flex:1,background:rc.bg,border:`2px solid ${rc.border}`,padding:'12px 10px',textAlign:'center'}}>
           <div style={{fontSize:36,fontWeight:800,color:rc.text,lineHeight:1}}>{total}</div>
-          <div style={{fontSize:9,color:rc.text,opacity:.7,marginTop:2}}>BASE {ap.base_score||0}{adPts>0?` + ${adPts}`:''}</div>
+          <div style={{fontSize:9,color:rc.text,opacity:.7,marginTop:2}}>BASE {baseScore}{adPts>0?` + ${adPts}`:''}</div>
         </div>
         <div style={{flex:2,background:'#1a1a1a',border:`2px solid ${rc.border}`,padding:'12px 14px'}}>
           <div style={{fontSize:18,fontWeight:800,color:rc.text}}>{rl}</div>
-          <div style={{fontSize:10,color:rc.text,opacity:.8,marginTop:4}}>
-            {total>12?'OPS MANAGER APPROVAL REQUIRED':total>9?ap.category==='C'?'OPS MANAGER APPROVAL REQUIRED':'CAPTAIN REVIEW / DISPATCH COORDINATION':'DISPATCH OK'}
-          </div>
+          <div style={{fontSize:10,color:rc.text,opacity:.8,marginTop:4}}>{getOps(rl,editing?catEdit:ap.category)}</div>
         </div>
         <div style={{flex:2,background:'#1a1a1a',border:'2px solid #2a2a2a',padding:'12px 14px',fontSize:10,color:'#777',lineHeight:1.8}}>
-          <div>MAX S: <span style={{color:'#e8e8e8',fontWeight:700}}>{maxS}</span></div>
-          <div>MAX L: <span style={{color:'#e8e8e8',fontWeight:700}}>{maxL}</span></div>
-          {ap.mitigation&&<div style={{marginTop:4,color:'#555',fontSize:9}}>{ap.mitigation.slice(0,80)}</div>}
+          <div>MAX S: <span style={{color:'#e8e8e8',fontWeight:700}}>{maxSVal}</span></div>
+          <div>MAX L: <span style={{color:'#e8e8e8',fontWeight:700}}>{maxLVal}</span></div>
+          <div style={{marginTop:4,color:'#555',fontSize:9}}>{(editing?mitEdit:ap.mitigation||'').slice(0,60)}</div>
         </div>
       </div>
 
@@ -1783,15 +1867,16 @@ function RiskAssessmentInline({icao, onClose}){
 
       {/* Tabs */}
       <div style={{display:'flex',margin:'10px 12px 0',borderBottom:'1px solid #2a2a2a'}}>
-        <button style={tabS('matrix')} onClick={()=>setTab('matrix')}>5×5 Matrix</button>
-        <button style={tabS('topics')} onClick={()=>setTab('topics')}>Topic Scores</button>
+        <button style={tabS('matrix')}  onClick={()=>setTab('matrix')}>5×5 Matrix</button>
+        <button style={tabS('topics')}  onClick={()=>setTab('topics')}>{editing?'✏ Edit Scores':'Topic Scores'}</button>
         <button style={tabS('briefing')} onClick={()=>setTab('briefing')}>PPS Briefing</button>
       </div>
 
       <div style={{margin:'0 12px 12px',background:'#1a1a1a',border:'1px solid #2a2a2a',overflowX:'auto'}}>
+        {/* 5x5 Matrix */}
         {tab==='matrix'&&(
           <div style={{padding:12}}>
-            <div style={{fontSize:9,color:'#555',marginBottom:8}}>Mevcut: S={maxS} × L={maxL} → Base {ap.base_score||0} · Total {total}</div>
+            <div style={{fontSize:9,color:'#555',marginBottom:8}}>Mevcut: S={maxSVal} × L={maxLVal} → Base {baseScore} · Total {total}</div>
             <div style={{display:'grid',gridTemplateColumns:'24px repeat(5,1fr)',gap:2,marginBottom:2}}>
               <div style={{fontSize:9,color:'#444',textAlign:'center'}}>L\S</div>
               {[1,2,3,4,5].map(sv=><div key={sv} style={{fontSize:9,color:'#555',textAlign:'center',fontWeight:700}}>S{sv}</div>)}
@@ -1800,7 +1885,7 @@ function RiskAssessmentInline({icao, onClose}){
               <div key={lv} style={{display:'grid',gridTemplateColumns:'24px repeat(5,1fr)',gap:2,marginBottom:2}}>
                 <div style={{fontSize:9,color:'#555',textAlign:'center',fontWeight:700,alignSelf:'center'}}>L{lv}</div>
                 {[1,2,3,4,5].map(sv=>{
-                  const cs=lv*sv; const cc=cellC(cs); const isCur=lv===maxL&&sv===maxS;
+                  const cs=lv*sv; const cc=cellC(cs); const isCur=lv===maxLVal&&sv===maxSVal;
                   return <div key={sv} style={{background:cc.bg,border:isCur?`2px solid ${rc.border}`:'1px solid #2a2a2a',borderRadius:3,padding:'6px 0',textAlign:'center',fontSize:isCur?13:11,fontWeight:isCur?800:600,color:cc.text}}>
                     {isCur?'▶':''}{cs}
                   </div>;
@@ -1809,20 +1894,39 @@ function RiskAssessmentInline({icao, onClose}){
             ))}
           </div>
         )}
+
+        {/* Topic Scores — view or edit */}
         {tab==='topics'&&(
           <div style={{padding:8}}>
+            {editing && (
+              <div style={{padding:'6px 8px',marginBottom:4,background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.2)',fontSize:10,color:'#e8731a'}}>
+                S = Severity (1-5) · L = Likelihood (1-5) · Max score auto-calculated
+              </div>
+            )}
             {TOPICS_LIST.map((topic,i)=>{
-              const sv=parseFloat(s[i])||0; const lv=parseFloat(l[i])||0; const score=Math.round(sv*lv);
-              return <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',borderBottom:'1px solid #222'}}>
-                <div style={{flex:1,fontSize:10,color:'#999'}}>{i+1}. {topic}</div>
-                <div style={{background:sColor(sv),color:'#fff',borderRadius:3,padding:'2px 6px',fontSize:10,fontWeight:700,width:28,textAlign:'center'}}>S{sv}</div>
-                <div style={{fontSize:9,color:'#444'}}>×</div>
-                <div style={{background:sColor(lv),color:'#fff',borderRadius:3,padding:'2px 6px',fontSize:10,fontWeight:700,width:28,textAlign:'center'}}>L{lv}</div>
-                <div style={{fontSize:11,fontWeight:700,color:'#e8e8e8',width:24,textAlign:'right'}}>{score}</div>
-              </div>;
+              const sv = editing ? sEdit[i]||1 : parseFloat(sArr[i])||0;
+              const lv = editing ? lEdit[i]||1 : parseFloat(lArr[i])||0;
+              const score = Math.round(sv*lv);
+              return(
+                <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 8px',borderBottom:'1px solid #222'}}>
+                  <div style={{flex:1,fontSize:10,color:'#999'}}>{i+1}. {topic}</div>
+                  {editing ? (<>
+                    <ScoreInput val={sv} onChange={v=>setSEdit(p=>{const n=[...p];n[i]=v;return n;})}/>
+                    <div style={{fontSize:9,color:'#444'}}>×</div>
+                    <ScoreInput val={lv} onChange={v=>setLEdit(p=>{const n=[...p];n[i]=v;return n;})}/>
+                  </>) : (<>
+                    <div style={{background:sColor(sv),color:'#fff',borderRadius:3,padding:'2px 6px',fontSize:10,fontWeight:700,width:28,textAlign:'center'}}>S{sv}</div>
+                    <div style={{fontSize:9,color:'#444'}}>×</div>
+                    <div style={{background:sColor(lv),color:'#fff',borderRadius:3,padding:'2px 6px',fontSize:10,fontWeight:700,width:28,textAlign:'center'}}>L{lv}</div>
+                  </>)}
+                  <div style={{fontSize:11,fontWeight:700,color:sColor(Math.max(sv,lv)),width:28,textAlign:'right'}}>{score}</div>
+                </div>
+              );
             })}
           </div>
         )}
+
+        {/* PPS Briefing */}
         {tab==='briefing'&&(
           <div style={{padding:12}}>
             {[{title:'SECTION 1 — Traffic / ATC / Taxi / RWY Ops',key:'section1'},{title:'SECTION 2 — Meteorology / Wind',key:'section2'},{title:'SECTION 3 — Security / Handling / Nav',key:'section3'}].map(sec=>ap[sec.key]?(
