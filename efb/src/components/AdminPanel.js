@@ -1634,7 +1634,6 @@ function StationInfo({toast}){
             onChange={e=>setSearch(e.target.value.toUpperCase())}
             style={{...S.input,width:260}}/>
           <button style={S.btnPrimary} onClick={()=>setShowAddAirport(true)}>+ ADD AIRPORT</button>
-          <button style={S.btnPrimary} onClick={()=>setShowAddAirport(true)}>+ ADD AIRPORT</button>
           <span style={{...S.label,marginLeft:'auto'}}>{filtered.length} AIRPORTS</span>
         </div>
         {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}
