@@ -1728,8 +1728,10 @@ function RiskAssessmentInline({icao, onClose}){
       .then(({data})=>{
         setAp(data);
         if(data){
-          setSEdit((data.s_scores||[]).map(v=>parseFloat(v)||1));
-          setLEdit((data.l_scores||[]).map(v=>parseFloat(v)||1));
+          const ss = typeof data.s_scores==='string' ? JSON.parse(data.s_scores) : (data.s_scores||[]);
+          const ls = typeof data.l_scores==='string' ? JSON.parse(data.l_scores) : (data.l_scores||[]);
+          setSEdit(ss.map(v=>parseFloat(v)||1));
+          setLEdit(ls.map(v=>parseFloat(v)||1));
           setCatEdit(data.category||'B');
           setMitEdit(data.mitigation||'');
         }
