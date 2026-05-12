@@ -105,8 +105,21 @@ const ACTION_META = {
   ADMIN_EDIT:                 {icon:'EDT',label:'Admin Edit',            color:'#e02020'},
 };
 
+// Milestone events (ozet gorunum icin)
+const MILESTONE_ACTIONS = new Set([
+  'PLAN_RELEASED','PLAN_DOWNLOADED','PLAN_ACTIVATED',
+  'CREW_ASSIGNED',
+  'PREFLIGHT_MANDATORY_COMPLETE','MANDATORY_SIGNED',
+  'FUEL_CHECKED',
+  'PLAN_ACCEPTED','PLAN_ACCEPTANCE_REVOKED','SYNC_TO_PM',
+  'TKOF_SPEEDS_ENTERED','TKOF_RVSM_GROUND',
+  'OFF_BLOCKS','TAKEOFF','LANDING','ON_BLOCKS','FUEL_REMAINING',
+  'LND_PERF_DATA',
+  'FLIGHT_ARCHIVED',
+]);
+
 // ─── Flight Timeline ──────────────────────────────────────────────────────────
-function FlightTimeline({ planId, live=false }) {
+function FlightTimeline({ planId, live=false, milestoneOnly=false }) {
   const [logs,    setLogs]    = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -114,12 +127,13 @@ function FlightTimeline({ planId, live=false }) {
     if (!planId) return;
     const { data } = await supabase
       .from('flight_logs')
-      .select('*,profiles(full_name,code)')
+      .select('*')
       .eq('plan_id', planId)
       .order('created_at', { ascending: true });
-    setLogs(data || []);
+    const all = data || [];
+    setLogs(milestoneOnly ? all.filter(l=>MILESTONE_ACTIONS.has(l.action)) : all);
     setLoading(false);
-  }, [planId]);
+  }, [planId, milestoneOnly]);
 
   useEffect(() => {
     load();
@@ -474,7 +488,7 @@ function ActiveFlts({toast}){
           )}
 
           {detailTab==='timeline'&&(
-            <FlightTimeline planId={sel.id} live={true}/>
+            <FlightTimeline planId={sel.id} live={true} milestoneOnly={true}/>
           )}
         </DetailPanel>
       )}
@@ -533,14 +547,15 @@ function ArchivedFlts({toast,user}){
   const fmtMins=m=>m?`${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`:'—';
 
   // Group logs by category
+  // Milestone only — detay FLT Logs & Times'da
   const logsByCategory = {
-    crew:      planLogs.filter(l=>['CREW_ASSIGNED'].includes(l.action)),
-    mandatory: planLogs.filter(l=>['MANDATORY_CHECK_DONE','MANDATORY_CHECK_UNDONE','MANDATORY_SIGNED','PREFLIGHT_MANDATORY_COMPLETE'].includes(l.action)),
-    fuel:      planLogs.filter(l=>['FUEL_CHECKED'].includes(l.action)),
-    accepted:  planLogs.filter(l=>['PLAN_ACCEPTED','PLAN_ACCEPTANCE_REVOKED'].includes(l.action)),
-    tkof:      planLogs.filter(l=>['TKOF_RWY_SELECTED','TKOF_ATIS_ENTERED','TKOF_SPEEDS_ENTERED','TKOF_ATC_CLR','TKOF_RVSM_GROUND'].includes(l.action)),
-    navlog:    planLogs.filter(l=>['OFF_BLOCKS','TAKEOFF','RVSM_CHECK','GPS_ACTIVATED','LANDING','ON_BLOCKS','FUEL_REMAINING'].includes(l.action)),
-    lnd:       planLogs.filter(l=>['LND_RWY_SELECTED','LND_ATIS_ENTERED','LND_PERF_DATA'].includes(l.action)),
+    crew:      planLogs.filter(l=>['CREW_ASSIGNED'].includes(l.action)).slice(-1),
+    mandatory: planLogs.filter(l=>['PREFLIGHT_MANDATORY_COMPLETE','MANDATORY_SIGNED'].includes(l.action)).slice(-2),
+    fuel:      planLogs.filter(l=>['FUEL_CHECKED'].includes(l.action)).slice(-1),
+    accepted:  planLogs.filter(l=>['PLAN_ACCEPTED','PLAN_ACCEPTANCE_REVOKED','SYNC_TO_PM'].includes(l.action)),
+    tkof:      planLogs.filter(l=>['TKOF_RVSM_GROUND','TKOF_SPEEDS_ENTERED'].includes(l.action)).slice(-2),
+    navlog:    planLogs.filter(l=>['OFF_BLOCKS','TAKEOFF','LANDING','ON_BLOCKS','FUEL_REMAINING'].includes(l.action)),
+    lnd:       planLogs.filter(l=>['LND_PERF_DATA','LND_RWY_SELECTED'].includes(l.action)).slice(-2),
   };
 
   const openEdit=f=>{
@@ -649,6 +664,14 @@ function ArchivedFlts({toast,user}){
           <DetailRow label="Registration" value={sel.plans?.reg}/>
           <DetailRow label="Archived"     value={sel.archived_at?new Date(sel.archived_at).toLocaleString('en-GB'):'—'}/>
 
+          <div style={{padding:'9px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span style={{fontSize:14,color:'#fff',fontWeight:700,letterSpacing:1,fontFamily:"'Courier New',monospace",textTransform:'uppercase'}}>PF</span>
+            <span style={{fontSize:13,color:C.accent,fontFamily:"'Courier New',monospace",fontWeight:700}}>{pilotName(sel.pf_id||sel.plans?.pf_pilot)||'—'}</span>
+          </div>
+          <div style={{padding:'9px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span style={{fontSize:14,color:'#fff',fontWeight:700,letterSpacing:1,fontFamily:"'Courier New',monospace",textTransform:'uppercase'}}>PM</span>
+            <span style={{fontSize:13,color:'#aaa',fontFamily:"'Courier New',monospace",fontWeight:700}}>{pilotName(sel.sic_id||sel.plans?.pm_pilot)||'—'}</span>
+          </div>
           <div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`,fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace",lineHeight:2}}>
             <div>OFF BLOCK: <span style={{color:C.t1}}>{sel.off_blocks?new Date(sel.off_blocks).toISOString().slice(11,16)+' Z':'—'}</span></div>
             <div>T/O TIME:  <span style={{color:C.t1}}>{sel.takeoff_time?new Date(sel.takeoff_time).toISOString().slice(11,16)+' Z':'—'}</span></div>
