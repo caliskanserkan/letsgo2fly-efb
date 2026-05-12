@@ -1,6 +1,7 @@
 // AdminPanel.js — GO2 eFB Admin Panel v3
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { RiskSurvey } from './RiskSurvey';
 
 const C = {
   bg:'#0a0c10',bg2:'#0d1117',bg3:'#111620',border:'#1e2530',border2:'#2a3040',
@@ -1716,6 +1717,7 @@ function RiskAssessmentInline({icao, onClose}){
   const [addons,  setAd]    = useState({});
   const [tab,     setTab]   = useState('matrix');
   const [editing, setEditing]= useState(false);
+  const [surveyMode, setSurveyMode] = useState(false);
   const [saving,  setSaving] = useState(false);
   // Edit form state
   const [sEdit,   setSEdit]  = useState(Array(10).fill(1));
@@ -1741,6 +1743,7 @@ function RiskAssessmentInline({icao, onClose}){
 
   if(loading) return <div style={{padding:32,textAlign:'center',color:'#555',fontFamily:"'Courier New',monospace"}}>LOADING {icao}...</div>;
   if(!ap) return <div style={{padding:16,color:'#e02020',fontFamily:"'Courier New',monospace"}}>Not found: {icao}</div>;
+  if(surveyMode) return <RiskSurvey icao={icao} airportName={ap.name} airportCat={ap.category} onClose={()=>setSurveyMode(false)} onSaved={()=>{setSurveyMode(false);supabase.from('airport_risks').select('*').eq('icao',icao).single().then(({data})=>setAp(data));}} />;
 
   // Compute from edit arrays when editing, else from DB
   const _ss = typeof ap.s_scores==='string'?JSON.parse(ap.s_scores):(ap.s_scores||[]);
@@ -1809,7 +1812,7 @@ function RiskAssessmentInline({icao, onClose}){
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           {!editing ? (
             <button onClick={()=>setEditing(true)}
-              style={{...S.btnSecondary,fontSize:10,padding:'5px 12px'}}>EDIT SCORES</button>
+              style={{...S.btnSecondary,fontSize:10,padding:'5px 12px'}} onClick={()=>setSurveyMode(true)}>EDIT SCORES</button>
           ) : (
             <>
               <button onClick={()=>setEditing(false)}
