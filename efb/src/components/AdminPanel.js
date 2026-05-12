@@ -1743,8 +1743,10 @@ function RiskAssessmentInline({icao, onClose}){
   if(!ap) return <div style={{padding:16,color:'#e02020',fontFamily:"'Courier New',monospace"}}>Not found: {icao}</div>;
 
   // Compute from edit arrays when editing, else from DB
-  const sArr = editing ? sEdit : (ap.s_scores||[]).map(v=>parseFloat(v)||0);
-  const lArr = editing ? lEdit : (ap.l_scores||[]).map(v=>parseFloat(v)||0);
+  const _ss = typeof ap.s_scores==='string'?JSON.parse(ap.s_scores):(ap.s_scores||[]);
+  const _ls = typeof ap.l_scores==='string'?JSON.parse(ap.l_scores):(ap.l_scores||[]);
+  const sArr = editing ? sEdit : _ss.map(v=>parseFloat(v)||0);
+  const lArr = editing ? lEdit : _ls.map(v=>parseFloat(v)||0);
   // Max score = max of S×L per topic
   const topicScores = sArr.map((sv,i)=>sv*(lArr[i]||0));
   const baseScore   = editing ? Math.max(...topicScores,0) : (ap.base_score||0);
