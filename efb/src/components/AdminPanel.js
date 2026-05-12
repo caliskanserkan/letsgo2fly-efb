@@ -1597,7 +1597,9 @@ function StationInfo({toast}){
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState('');
   const [selected,   setSelected]   = useState(null);
-  const [riskModal,  setRiskModal]  = useState(null); // ICAO string
+  const [riskModal,  setRiskModal]  = useState(null);
+  const [showAddAirport, setShowAddAirport] = useState(false);
+  const [newAirport, setNewAirport] = useState({icao:'',name:'',category:'B'});
 
   useEffect(()=>{
     setLoading(true);
@@ -1631,6 +1633,7 @@ function StationInfo({toast}){
           <input placeholder="ICAO veya havalimanı adı..." value={search}
             onChange={e=>setSearch(e.target.value.toUpperCase())}
             style={{...S.input,width:260}}/>
+          <button style={S.btnPrimary} onClick={()=>setShowAddAirport(true)}>+ ADD AIRPORT</button>
           <span style={{...S.label,marginLeft:'auto'}}>{filtered.length} AIRPORTS</span>
         </div>
         {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}
@@ -1674,6 +1677,34 @@ function StationInfo({toast}){
             </button>
           </div>
         </DetailPanel>
+      )}
+
+      {/* Add Airport Modal */}
+      {showAddAirport&&(
+        <Modal title="ADD AIRPORT" onClose={()=>setShowAddAirport(false)} width={420}>
+          <div style={S.formGroup}><label style={S.formLabel}>ICAO CODE *</label>
+            <input style={S.input} placeholder="LTFM" maxLength={4} value={newAirport.icao} onChange={e=>setNewAirport(p=>({...p,icao:e.target.value.toUpperCase()}))}/>
+          </div>
+          <div style={S.formGroup}><label style={S.formLabel}>AIRPORT NAME</label>
+            <input style={S.input} placeholder="Istanbul Airport" value={newAirport.name} onChange={e=>setNewAirport(p=>({...p,name:e.target.value}))}/>
+          </div>
+          <div style={S.formGroup}><label style={S.formLabel}>CATEGORY</label>
+            <select style={S.select} value={newAirport.category} onChange={e=>setNewAirport(p=>({...p,category:e.target.value}))}>
+              <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+            </select>
+          </div>
+          <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:16}}>
+            <button style={S.btnSecondary} onClick={()=>setShowAddAirport(false)}>CANCEL</button>
+            <button style={S.btnPrimary} onClick={async()=>{
+              if(!newAirport.icao){return;}
+              const{error}=await supabase.from('airport_risks').upsert({icao:newAirport.icao,name:newAirport.name,category:newAirport.category,base_score:0,max_s:1,max_l:1,s_scores:'[]',l_scores:'[]'},{onConflict:'icao'});
+              if(error){alert(error.message);return;}
+              setShowAddAirport(false);
+              setNewAirport({icao:'',name:'',category:'B'});
+              supabase.from('airport_risks').select('icao,name,country,category,base_score,risk_level,ops_approval,ad_elev_ft,max_s,max_l,mitigation').order('icao').then(({data})=>setAirports(data||[]));
+            }}>ADD</button>
+          </div>
+        </Modal>
       )}
 
       {/* Risk Assessment Modal */}
