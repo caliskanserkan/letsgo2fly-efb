@@ -635,10 +635,12 @@ function ArchivedFlts({toast,user}){
         </div>
         {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}
         <table style={S.table}>
-          <thead><tr>{['ARCHIVED','ROUTE','REG','BLOCK','FLIGHT','LANDINGS','PF'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <thead><tr>{['ARCHIVED','ROUTE','REG','BLOCK','FLIGHT','LANDINGS','PF','PM'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
           <tbody>
             {filtered.map(f=>{
               const p=f.plans||{};
+              const pfPilot=pilots.find(x=>x.id===f.pf_id||x.id===p.pf_pilot);
+              const pmPilot=pilots.find(x=>x.id===f.sic_id||x.id===p.pm_pilot);
               return(
                 <tr key={f.id} onClick={()=>setSelected(f.id===selected?null:f.id)} style={{cursor:'pointer',background:selected===f.id?`${C.accent}08`:'transparent'}}>
                   <td style={S.td}>{f.archived_at?new Date(f.archived_at).toLocaleString('en-GB'):'—'}</td>
@@ -647,7 +649,8 @@ function ArchivedFlts({toast,user}){
                   <td style={S.td}>{fmtMins(f.block_minutes)}</td>
                   <td style={S.td}>{fmtMins(f.airborne_minutes)}</td>
                   <td style={S.td}>{f.landing_count||'—'}</td>
-                  <td style={S.td}>{f.pf_id?f.pf_id.slice(0,8)+'...':'—'}</td>
+                  <td style={{...S.td,color:'#1a9bc4'}}>{pfPilot?pfPilot.full_name:'—'}</td>
+                  <td style={{...S.td,color:'#888'}}>{pmPilot?pmPilot.full_name:'—'}</td>
                 </tr>
               );
             })}
