@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 // ─── Font size CSS variable helper ───────────────────────────────────────────
 const FONT_KEY  = 'efb_font_size';
@@ -103,7 +103,7 @@ function EfbFailureModal({ onClose }) {
 
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500 }}>
-      <div style={{ background:'#1a1a1a', border:'2px solid #e02020', borderRadius:12, width:460, maxHeight:'88vh', overflow:'hidden', display:'flex', flexDirection:'column' }}>
+      <div style={{ background:'#1a1a1a', border:'2px solid #e02020', borderRadius:12, width:'min(460px, 92vw)', maxHeight:'88vh', overflow:'hidden', display:'flex', flexDirection:'column' }}>
         <div style={{ background:'rgba(224,32,32,0.15)', padding:'14px 16px', borderBottom:'1px solid #e02020', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             <span style={{ fontSize:22 }}>🚨</span>
@@ -131,12 +131,11 @@ function EfbFailureModal({ onClose }) {
             </div>
           ))}
           <div style={{ padding:'10px 12px', borderRadius:6, background:'rgba(26,155,196,0.08)', borderLeft:'3px solid #1a9bc4', fontSize:11, color:'#7bbdd4', lineHeight:1.7 }}>
-            Per EASA AMC 20-25, operators must maintain backup means whenever EFB is used as primary information source. Post-flight reconciliation and event logging are mandatory for audit trail compliance.
+            Per EASA AMC 20-25, operators must maintain backup means whenever EFB is used as primary information source.
           </div>
         </div>
         <div style={{ padding:'12px 16px', borderTop:'1px solid #383838', flexShrink:0 }}>
-          <button onClick={onClose}
-            style={{ width:'100%', background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:11, fontSize:13, fontWeight:700, color:'#e8e8e8', cursor:'pointer', fontFamily:'inherit' }}>
+          <button onClick={onClose} style={{ width:'100%', background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:11, fontSize:13, fontWeight:700, color:'#e8e8e8', cursor:'pointer', fontFamily:'inherit' }}>
             Close
           </button>
         </div>
@@ -145,25 +144,20 @@ function EfbFailureModal({ onClose }) {
   );
 }
 
-// ── ABOUT EFB MODAL — AMC 20-25 §7.11 ───────────────────────
+// ── ABOUT EFB MODAL ───────────────────────────────────────────
 function AboutEfbModal({ onClose }) {
   const [info, setInfo] = React.useState(null);
-
   React.useEffect(() => {
     const fetch = async () => {
       try {
         const { createClient } = await import('@supabase/supabase-js');
-        const sb = createClient(
-          process.env.REACT_APP_SUPABASE_URL,
-          process.env.REACT_APP_SUPABASE_ANON_KEY
-        );
+        const sb = createClient(process.env.REACT_APP_SUPABASE_URL, process.env.REACT_APP_SUPABASE_ANON_KEY);
         const { data } = await sb.from('system_settings').select('*').single();
         setInfo(data);
       } catch { setInfo(null); }
     };
     fetch();
   }, []);
-
   const rows = [
     ['Application',       'GO2 eFB'],
     ['Version',           info?.app_version  || '2.0.0'],
@@ -176,10 +170,9 @@ function AboutEfbModal({ onClose }) {
     ['Platform',          /iPad/.test(navigator.userAgent) ? 'iPad' : 'Browser'],
     ['Connectivity',      navigator.onLine ? '✓ Online' : '⚠ Offline'],
   ];
-
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500 }}>
-      <div style={{ background:'#1a1a1a', border:'1px solid #383838', borderRadius:12, width:360, overflow:'hidden' }}>
+      <div style={{ background:'#1a1a1a', border:'1px solid #383838', borderRadius:12, width:'min(360px, 92vw)', overflow:'hidden' }}>
         <div style={{ background:'#1f1f1f', borderBottom:'1px solid #383838', padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <div>
             <div style={{ fontSize:13, fontWeight:700, color:'#1a9bc4' }}>GO2 eFB</div>
@@ -196,168 +189,182 @@ function AboutEfbModal({ onClose }) {
           ))}
         </div>
         <div style={{ padding:'12px 16px', borderTop:'1px solid #383838' }}>
-          <button onClick={onClose}
-            style={{ width:'100%', background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#e8e8e8', cursor:'pointer', fontFamily:'inherit' }}>
-            Close
-          </button>
+          <button onClick={onClose} style={{ width:'100%', background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#e8e8e8', cursor:'pointer', fontFamily:'inherit' }}>Close</button>
         </div>
       </div>
     </div>
   );
 }
 
-function Sidebar({ activePage, onNavigate, flightInfo, pageStatus, onEfbFailure, onAbout }) {
+// ── SIDEBAR ───────────────────────────────────────────────────
+function Sidebar({ activePage, onNavigate, flightInfo, pageStatus, onEfbFailure, onAbout, open, onClose }) {
   return (
-    <div style={{
-      width: 240, background: '#252525',
-      borderRight: '1px solid #383838',
-      display: 'flex', flexDirection: 'column',
-      flexShrink: 0, overflow: 'hidden'
-    }}>
-      {/* Header */}
+    <>
+      {/* Overlay — sadece mobil/tablet açıkken */}
+      {open && (
+        <div
+          onClick={onClose}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:98 }}
+        />
+      )}
+
+      {/* Sidebar panel */}
       <div style={{
-        padding: '10px 14px 8px',
-        borderBottom: '1px solid #383838',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+        width: 240,
+        background: '#252525',
+        borderRight: '1px solid #383838',
+        display: 'flex',
+        flexDirection: 'column',
+        flexShrink: 0,
+        overflow: 'hidden',
+        // Mobil/tablet: absolute overlay, desktop: normal flow
+        position: window.innerWidth < 900 ? 'fixed' : 'relative',
+        top: window.innerWidth < 900 ? 44 : 'auto',  // top bar yüksekliği
+        left: 0,
+        bottom: 0,
+        zIndex: 99,
+        transform: window.innerWidth < 900 && !open ? 'translateX(-100%)' : 'translateX(0)',
+        transition: 'transform 0.25s ease',
       }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: '#1a9bc4', letterSpacing: 1 }}>GO2 eFB</span>
-        <span style={{ fontSize: 10, color: '#555' }}>{flightInfo || 'LTAC → LTBA'}</span>
-      </div>
+        {/* Header */}
+        <div style={{ padding:'10px 14px 8px', borderBottom:'1px solid #383838', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontSize:11, fontWeight:700, color:'#1a9bc4', letterSpacing:1 }}>GO2 eFB</span>
+          <span style={{ fontSize:10, color:'#555' }}>{flightInfo || ''}</span>
+        </div>
 
-      {/* Menu */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {menuItems.map(item => {
-          const isActive   = activePage === item.id;
-          const status     = pageStatus && pageStatus[item.id];
-          const isGreen    = status === 'green';
-          const isAmber    = status === 'amber';
-          const phase      = PHASE[item.id] || { color: '#666', type: 'tile' };
-          const isTile     = phase.type === 'tile';
-          const phaseColor = phase.color;
+        {/* Menu */}
+        <div style={{ flex:1, overflowY:'auto' }}>
+          {menuItems.map(item => {
+            const isActive   = activePage === item.id;
+            const status     = pageStatus && pageStatus[item.id];
+            const isGreen    = status === 'green';
+            const isAmber    = status === 'amber';
+            const phase      = PHASE[item.id] || { color:'#666', type:'tile' };
+            const isTile     = phase.type === 'tile';
+            const phaseColor = phase.color;
 
-          const bg = isActive
-            ? isTile ? phaseColor : `${phaseColor}15`
-            : isGreen ? `${phaseColor}18`
-            : isAmber ? `${phaseColor}12`
-            : 'transparent';
+            const bg = isActive
+              ? isTile ? phaseColor : `${phaseColor}15`
+              : isGreen ? `${phaseColor}18`
+              : isAmber ? `${phaseColor}12`
+              : 'transparent';
 
-          const borderLeft = isActive
-            ? isTile ? `2px solid ${phaseColor}` : `3px solid ${phaseColor}`
-            : isGreen ? '2px solid #2d9e5f'
-            : isAmber ? '2px solid #ff9500'
-            : '2px solid transparent';
+            const borderLeft = isActive
+              ? isTile ? `2px solid ${phaseColor}` : `3px solid ${phaseColor}`
+              : isGreen ? '2px solid #2d9e5f'
+              : isAmber ? '2px solid #ff9500'
+              : '2px solid transparent';
 
-          const textColor = isActive
-            ? isTile ? '#fff' : phaseColor
-            : isGreen ? '#4a9e72'
-            : isAmber ? '#c47a2a'
-            : '#777';
+            const textColor = isActive
+              ? isTile ? '#fff' : phaseColor
+              : isGreen ? '#4a9e72'
+              : isAmber ? '#c47a2a'
+              : '#777';
 
-          const numColor = isActive
-            ? isTile ? 'rgba(255,255,255,0.7)' : phaseColor
-            : '#555';
+            const dotSize  = isGreen || isAmber ? 8 : 6;
+            const dotColor = isGreen ? '#2d9e5f' : isAmber ? '#ff9500' : '#383838';
 
-          const dotSize  = isGreen || isAmber ? 8 : 6;
-          const dotColor = isGreen ? '#2d9e5f' : isAmber ? '#ff9500' : '#383838';
+            return (
+              <div key={item.id}
+                onClick={() => { onNavigate(item.id); onClose(); }}
+                style={{ display:'flex', alignItems:'center', padding:'13px 14px', gap:10, borderBottom:'1px solid rgba(255,255,255,0.04)', cursor:'pointer', background:bg, borderLeft, transition:'background 0.15s' }}>
+                <span style={{ fontSize:10, color: isActive ? 'rgba(255,255,255,0.7)' : '#555', width:16, textAlign:'center', fontWeight:700 }}>
+                  {item.num}
+                </span>
+                <span style={{ fontSize:13, color:textColor, fontWeight: isActive || isGreen ? 600 : 400, flex:1 }}>
+                  {item.label}
+                </span>
+                <span style={{ width:dotSize, height:dotSize, borderRadius:dotSize/2, flexShrink:0, background:dotColor, boxShadow: isGreen ? '0 0 5px rgba(45,158,95,0.6)' : isAmber ? '0 0 5px rgba(255,149,0,0.5)' : 'none' }} />
+              </div>
+            );
+          })}
 
-          return (
-            <div key={item.id} onClick={() => onNavigate(item.id)}
-              style={{
-                display: 'flex', alignItems: 'center',
-                padding: '11px 14px', gap: 10,
-                borderBottom: '1px solid rgba(255,255,255,0.04)',
-                cursor: 'pointer',
-                background: bg,
-                borderLeft,
-                transition: 'background 0.15s',
-              }}>
-              <span style={{ fontSize: 10, color: numColor, width: 16, textAlign: 'center', fontWeight: 700 }}>
-                {item.num}
-              </span>
-              <span style={{ fontSize: 12.5, color: textColor, fontWeight: isActive || isGreen ? 600 : 400, flex: 1 }}>
-                {item.label}
-              </span>
-              <span style={{
-                width: dotSize, height: dotSize,
-                borderRadius: dotSize / 2,
-                flexShrink: 0,
-                background: dotColor,
-                boxShadow: isGreen ? '0 0 5px rgba(45,158,95,0.6)'
-                          : isAmber ? '0 0 5px rgba(255,149,0,0.5)'
-                          : 'none',
-              }} />
-            </div>
-          );
-        })}
+          {/* Free Note */}
+          <div style={{ height:1, background:'#333', margin:'8px 14px' }} />
+          <div
+            onClick={() => { onNavigate('freenote'); onClose(); }}
+            style={{ display:'flex', alignItems:'center', padding:'13px 14px', gap:10, borderBottom:'1px solid rgba(255,255,255,0.04)', cursor:'pointer', background: activePage === 'freenote' ? '#666666' : 'transparent', borderLeft: activePage === 'freenote' ? '2px solid #666666' : '2px solid transparent' }}>
+            <span style={{ fontSize:13, width:16, textAlign:'center' }}>✏</span>
+            <span style={{ fontSize:13, color: activePage === 'freenote' ? '#fff' : '#666', fontWeight: activePage === 'freenote' ? 600 : 400, flex:1 }}>Free Note</span>
+          </div>
+        </div>
 
-        {/* Free Note */}
-        <div style={{ height: 1, background: '#333', margin: '8px 14px' }} />
-        <div onClick={() => onNavigate('freenote')}
-          style={{
-            display: 'flex', alignItems: 'center',
-            padding: '11px 14px', gap: 10,
-            borderBottom: '1px solid rgba(255,255,255,0.04)',
-            cursor: 'pointer',
-            background: activePage === 'freenote' ? '#666666' : 'transparent',
-            borderLeft: activePage === 'freenote' ? '2px solid #666666' : '2px solid transparent',
-          }}>
-          <span style={{ fontSize: 13, width: 16, textAlign: 'center' }}>✏</span>
-          <span style={{ fontSize: 12.5, color: activePage === 'freenote' ? '#fff' : '#666', fontWeight: activePage === 'freenote' ? 600 : 400, flex: 1 }}>
-            Free Note
-          </span>
+        {/* Footer */}
+        <div style={{ padding:'8px 14px', borderTop:'1px solid #383838', background:'#1e1e1e' }}>
+          <div style={{ fontSize:9, color:'#444', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:4 }}>ATC Route</div>
+          <div style={{ fontSize:9, color:'#555', lineHeight:1.55, fontFamily:'monospace', marginBottom:8 }}>LTAC UMRUN G8 TOKER LTBA</div>
+          <div style={{ display:'flex', gap:6 }}>
+            <button onClick={onEfbFailure} style={{ flex:1, background:'rgba(224,32,32,0.1)', border:'1px solid rgba(224,32,32,0.4)', borderRadius:6, padding:'7px 6px', fontSize:11, fontWeight:700, color:'#e02020', cursor:'pointer', fontFamily:'inherit' }}>
+              🚨 EFB FAILURE
+            </button>
+            <button onClick={onAbout} style={{ width:36, background:'rgba(26,155,196,0.1)', border:'1px solid rgba(26,155,196,0.3)', borderRadius:6, fontSize:14, color:'#1a9bc4', cursor:'pointer' }}>
+              ⓘ
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* ATC Route */}
-      <div style={{ padding: '8px 14px', borderTop: '1px solid #383838', background: '#1e1e1e' }}>
-        <div style={{ fontSize: 9, color: '#444', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4 }}>
-          ATC Route
-        </div>
-        <div style={{ fontSize: 9, color: '#555', lineHeight: 1.55, fontFamily: 'monospace', marginBottom: 8 }}>
-          LTAC UMRUN G8 TOKER LTBA
-        </div>
-
-        {/* EFB FAILURE + About butonu */}
-        <div style={{ display:'flex', gap:6, marginTop:8 }}>
-          <button onClick={onEfbFailure}
-            style={{ flex:1, background:'rgba(224,32,32,0.1)', border:'1px solid rgba(224,32,32,0.4)', borderRadius:6, padding:'7px 6px', fontSize:11, fontWeight:700, color:'#e02020', cursor:'pointer', fontFamily:'inherit' }}>
-            🚨 EFB FAILURE
-          </button>
-          <button onClick={onAbout}
-            style={{ width:36, background:'rgba(26,155,196,0.1)', border:'1px solid rgba(26,155,196,0.3)', borderRadius:6, fontSize:14, color:'#1a9bc4', cursor:'pointer' }}>
-            ⓘ
-          </button>
-        </div>
-      </div>
-    </div>
+    </>
   );
 }
 
 // ── LAYOUT ────────────────────────────────────────────────────
 function Layout({ activePage, onNavigate, title, children, flightInfo, pageStatus }) {
+  const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [showEfbFailure, setShowEfbFailure] = useState(false);
   const [showAbout,      setShowAbout]      = useState(false);
-  const phase = PHASE[activePage] || { color: '#666', type: 'tile' };
+  const [isMobile,       setIsMobile]       = useState(window.innerWidth < 900);
+
+  useEffect(() => {
+    const handle = () => {
+      setIsMobile(window.innerWidth < 900);
+      if (window.innerWidth >= 900) setSidebarOpen(false);
+    };
+    window.addEventListener('resize', handle);
+    return () => window.removeEventListener('resize', handle);
+  }, []);
+
+  // Sayfa değişince sidebar kapat
+  useEffect(() => {
+    if (isMobile) setSidebarOpen(false);
+  }, [activePage, isMobile]);
+
+  const phase = PHASE[activePage] || { color:'#666', type:'tile' };
+
+  const pageTitle = activePage === 'freenote'
+    ? 'FREE NOTE'
+    : activePage === 'rass'
+    ? 'RASS — RISK ASSESSMENT'
+    : activePage.replace(/-/g, ' ').toUpperCase();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#1e1e1e' }}>
+    <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:'#1e1e1e' }}>
       {/* Top bar */}
-      <div style={{
-        background: '#1a1a1a', borderBottom: '1px solid #383838',
-        padding: '0 16px', height: 44,
-        display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0
-      }}>
-        <span style={{ fontSize: 14, color: '#1a9bc4', cursor: 'pointer' }} onClick={() => onNavigate('dashboard')}>
+      <div style={{ background:'#1a1a1a', borderBottom:'1px solid #383838', padding:'0 12px', height:44, display:'flex', alignItems:'center', gap:10, flexShrink:0, zIndex:100, position:'relative' }}>
+
+        {/* Hamburger — sadece mobil/tablet */}
+        {isMobile && (
+          <button
+            onClick={() => setSidebarOpen(o => !o)}
+            style={{ width:36, height:36, background:'transparent', border:'1px solid #383838', borderRadius:6, color:'#aaa', fontSize:20, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            {sidebarOpen ? '✕' : '☰'}
+          </button>
+        )}
+
+        {/* Back */}
+        <span style={{ fontSize:14, color:'#1a9bc4', cursor:'pointer', flexShrink:0 }} onClick={() => onNavigate('dashboard')}>
           ‹ Plans
         </span>
-        <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#e8e8e8' }}>
-          {title || 'GO2TCREC · LTAC-LTBA · 11 APR 09:00 Z'}
+
+        {/* Title */}
+        <span style={{ flex:1, textAlign:'center', fontSize:12, fontWeight:600, color:'#e8e8e8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+          {title || 'GO2 eFB'}
         </span>
+
         <FontControls />
       </div>
 
       {/* Body */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display:'flex', flex:1, overflow:'hidden', position:'relative' }}>
         <Sidebar
           activePage={activePage}
           onNavigate={onNavigate}
@@ -365,27 +372,38 @@ function Layout({ activePage, onNavigate, title, children, flightInfo, pageStatu
           pageStatus={pageStatus}
           onEfbFailure={() => setShowEfbFailure(true)}
           onAbout={() => setShowAbout(true)}
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
         />
-        <div style={{ flex: 1, background: '#242424', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* Content */}
+        <div style={{ flex:1, background:'#242424', display:'flex', flexDirection:'column', overflow:'hidden', minWidth:0 }}>
           {/* Page header */}
           <div style={{
             background: phase.type === 'tile' ? `${phase.color}22` : 'transparent',
             borderBottom: `2px solid ${phase.color}`,
             borderLeft: phase.type === 'border' ? `4px solid ${phase.color}` : 'none',
-            padding: '10px 16px',
-            fontSize: 12, fontWeight: 700,
+            padding:'10px 14px',
+            fontSize:12, fontWeight:700,
             color: phase.color,
-            letterSpacing: 0.5, textTransform: 'uppercase', flexShrink: 0
+            letterSpacing:0.5, textTransform:'uppercase', flexShrink:0,
+            display:'flex', alignItems:'center', gap:10,
           }}>
-            {activePage === 'freenote' ? 'FREE NOTE' : activePage === 'rass' ? 'RASS — RISK ASSESSMENT' : activePage.replace(/-/g, ' ').toUpperCase()}
+            {/* Aktif sayfa göstergesi — mobilde sidebar kapalıyken hangi sayfada olduğunu gösterir */}
+            {isMobile && (
+              <span style={{ fontSize:10, color: phase.color, opacity:0.7 }}>
+                {menuItems.find(m => m.id === activePage)?.num || ''}
+              </span>
+            )}
+            {pageTitle}
           </div>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+
+          <div style={{ flex:1, overflowY:'auto' }}>
             {children}
           </div>
         </div>
       </div>
 
-      {/* EFB Failure Modal */}
       {showEfbFailure && <EfbFailureModal onClose={() => setShowEfbFailure(false)} />}
       {showAbout      && <AboutEfbModal   onClose={() => setShowAbout(false)} />}
     </div>
