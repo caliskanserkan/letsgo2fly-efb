@@ -66,6 +66,144 @@ function calcRisk(s) {
   return {risk,score,basis,drivers:uniqueDrivers,actions:uniqueActions};
 }
 
+// ─── PPS Briefing Generator ────────────────────────────────────────────────────
+// Survey cevaplarından otomatik olarak PPS formatında brifing metni üretir.
+// Üç seksiyon: TRAFFIC/ATC/RWY OPS | METEOROLOGY/WIND | SECURITY/HANDLING/NAV
+function generatePpsBriefing(f, result, prec, bestRwy, rwyData) {
+  const lines1 = [];
+  const lines2 = [];
+  const lines3 = [];
+
+  // ── SECTION 1: TRAFFIC / ATC / TAXI / RWY OPS ────────────────────────────
+  // Runway ve yaklaşma
+  if (rwyData.length) {
+    const rwyList = rwyData.map(r => `RWY ${r.des} (${r.apr})`).join(', ');
+    lines1.push(`RUNWAYS: ${rwyList}`);
+  }
+  if (bestRwy) {
+    lines1.push(`BEST APPROACH: ${bestRwy.apr} — RWY ${bestRwy.des}${prec ? ' (PRECISION)' : ' (NON-PRECISION — confirm crew currency)'}`);
+  }
+  const angleMap = {
+    normal:       null,
+    slight:       'APPROACH ANGLE: Slightly elevated (3.0–3.49°) — crew awareness',
+    moderate_low: 'APPROACH ANGLE: Non-standard (3.5–3.89°) — brief glide path technique',
+    moderate:     'APPROACH ANGLE: Elevated (3.9–4.49°) — enhanced briefing required',
+    steep:        'APPROACH ANGLE: STEEP (≥4.5°) — dedicated crew briefing mandatory; verify certification',
+  };
+  if (angleMap[f.angle]) lines1.push(angleMap[f.angle]);
+  if (f.high_da)      lines1.push('MINIMA: DA/DH ≥ 400 ft (terrain-limited) — review published minima carefully');
+  if (f.offset)       lines1.push('LOCALIZER: Offset approach in use — brief technique; confirm crew familiar');
+  if (f.madem)        lines1.push('MISSED APPROACH: Above-standard climb gradient — brief in detail; confirm obstacle clearance');
+  if (f.oei_ma_brief) lines1.push('OEI GO-AROUND: Dedicated engine-out go-around briefing required');
+
+  // Pist fiziksel
+  const rwyWidthMap = { wide: null, medium: 'RWY WIDTH: Reduced (30–44 m) — crosswind awareness required', narrow: 'RWY WIDTH: Narrow (<30 m) — confirm crosswind limits; enhanced lateral awareness' };
+  if (rwyWidthMap[f.rwy_w]) lines1.push(rwyWidthMap[f.rwy_w]);
+  if (f.rwy_marg)  lines1.push('RWY LENGTH: Marginal — compute LDR/TODA with actual conditions before dispatch');
+  if (f.phys_comp) lines1.push('PHYSICAL: Slope / displaced threshold / offset LOC — brief aerodrome diagram');
+
+  // Kalkış
+  if (f.oei_sid)  lines1.push('DEP: Special OEI SID required — complete obstacle analysis; brief engine failure procedure');
+  if (f.oei_grad) lines1.push('DEP: Demanding OEI climb gradient — verify obstacle clearance margins');
+  if (f.perf_lim) lines1.push('DEP: Performance-limited departure — review WAT / CLG limits with actual data');
+
+  // ATC / operasyonel
+  const atcMap = { no: null, moderate: 'ATC: Moderate complexity — allow extra time margins; pre-brief taxi routing', significant: 'ATC: Significant sequencing complexity — coordinate slot; brief full taxi routing' };
+  if (atcMap[f.atc]) lines1.push(atcMap[f.atc]);
+  if (f.mil_traff) lines1.push('ATC: Military / mixed traffic possible — unusual phraseology; review local ATC procedures');
+
+  // Curfew
+  if (f.curfew) {
+    const win = f.curfew_open && f.curfew_close ? ` (${f.curfew_open}–${f.curfew_close} UTC)` : '';
+    lines1.push(`CURFEW: In effect${win} — plan operations within curfew window; late CLR contingency required`);
+  }
+
+  // NADP
+  if (f.nadp) {
+    const types = [f.nadp_n1 ? 'NADP 1' : null, f.nadp_n2 ? 'NADP 2' : null, f.nadp_pA ? 'Proc A' : null, f.nadp_pB ? 'Proc B' : null].filter(Boolean);
+    lines1.push(`NADP: Required${types.length ? ' — ' + types.join(', ') : ''} — brief thrust reduction profile; confirm crew familiarity`);
+  }
+
+  if (!lines1.length) lines1.push('RWY/ATC: No significant complexity identified for this aerodrome');
+
+  // ── SECTION 2: METEOROLOGY / WIND ────────────────────────────────────────
+  const lvpMap = {
+    no:        null,
+    sometimes: 'LVP: Occasional low visibility / fog — monitor TAF; verify LVP procedures current',
+    frequent:  'LVP: Frequent LVP / fog conditions — verify LVP procedures; confirm approach minima; alternate planning essential',
+  };
+  if (lvpMap[f.lvp]) lines2.push(lvpMap[f.lvp]);
+  if (f.xw_risk) lines2.push('WIND: Significant crosswind / windshear / contamination risk — review crosswind limits; brief windshear escape manoeuvre');
+  if (f.terr_hh) lines2.push('TERRAIN/ENVIRONMENT: Significant terrain / mountain wave / hot-high conditions — compute hot-high performance; enhanced TAWS awareness');
+
+  const msa = parseInt(f.msa_ft) || 0;
+  if (msa >= 12000)     lines2.push(`MSA: HIGH — ${msa} ft (${f.msa_sector}) — terrain escape procedure review required; enhanced GPWS/TAWS monitoring`);
+  else if (msa >= 8000) lines2.push(`MSA: ELEVATED — ${msa} ft (${f.msa_sector}) — verify terrain awareness; confirm missed approach obstacle clearance`);
+  else if (msa >= 5000) lines2.push(`MSA: MODERATE — ${msa} ft (${f.msa_sector}) — crew awareness; monitor TAWS`);
+  else if (msa > 0)     lines2.push(`MSA: ${msa} ft (${f.msa_sector})`);
+
+  if (!lines2.length) lines2.push('WEATHER: No significant seasonal or meteorological constraints identified for this aerodrome');
+
+  // ── SECTION 3: SECURITY / HANDLING / NAV ────────────────────────────────
+  const gnssMap = {
+    no:     null,
+    notam:  "GNSS: NOTAM'd interference expected — cross-check with raw data (VOR/ILS/DME); do not rely solely on GNSS",
+    active: 'GNSS: ACTIVE JAMMING/SPOOFING REPORTED — do NOT use GNSS for navigation; revert to raw data only',
+  };
+  if (gnssMap[f.gnss_risk]) lines3.push(gnssMap[f.gnss_risk]);
+
+  const polMap = {
+    no:      null,
+    caution: 'SECURITY: Caution advisories in effect — obtain current security briefing; review emergency/diversion protocols',
+    high:    'SECURITY: HIGH RISK — mandatory pre-flight security briefing; coordinate with security team; contingency plan required',
+  };
+  if (polMap[f.pol_risk]) lines3.push(polMap[f.pol_risk]);
+
+  const secMap = {
+    good:      null,
+    uncertain: 'HANDLING: Airport security/handling quality uncertain — coordinate with ground handler; enhance security measures',
+    poor:      'HANDLING: Poor airport security / handling standards — arrange alternative handler if possible; consult security team',
+  };
+  if (secMap[f.arpt_sec]) lines3.push(secMap[f.arpt_sec]);
+
+  const oversightMap = {
+    yes:     null,
+    partial: 'STATE OVERSIGHT: Partial ICAO compliance — verify company OM requirements; apply enhanced crew vigilance',
+    no:      'STATE OVERSIGHT: Inadequate — obtain relevant safety bulletins; strict adherence to company OM; crew vigilance essential',
+  };
+  if (oversightMap[f.st_oversight]) lines3.push(oversightMap[f.st_oversight]);
+
+  const altMap = {
+    yes:     null,
+    limited: 'ALTERNATE: Limited options in range — identify extended-range alternates; plan additional contingency fuel',
+    no:      'ALTERNATE: No adequate alternate available — reassess dispatch decision; carry maximum contingency fuel; notify OCC',
+  };
+  if (altMap[f.alt]) lines3.push(altMap[f.alt]);
+
+  const fuelMap = {
+    reliable: null,
+    uncertain: 'FUEL: Availability uncertain — confirm with handler minimum 48h before departure',
+    poor:      'FUEL: Poor ground handling / known fuel concerns — arrange alternative source; coordinate closely with handler',
+  };
+  if (fuelMap[f.fuel]) lines3.push(fuelMap[f.fuel]);
+
+  if (!f.crew_rec) lines3.push('CREW RECENCY: No recent experience at this aerodrome (<12 months) — review aerodrome-specific briefing material; consider simulator refresher');
+
+  if (f.sp_desig)    lines3.push('DESIGNATION: Special aerodrome designation applies — verify and comply with operator-specific procedures');
+  if (f.sp_crew)     lines3.push('QUALIFICATION: Special crew qualification required — verify before dispatch; do not proceed without confirmed qualification');
+  if (f.sp_approval) lines3.push('APPROVAL: Special operator approval required — obtain and file documentation before departure');
+
+  if (f.free_text && f.free_text.trim()) lines3.push(`REMARKS: ${f.free_text.trim()}`);
+
+  if (!lines3.length) lines3.push('SECURITY/HANDLING/NAV: No significant concerns identified for this aerodrome');
+
+  return {
+    section1: lines1.join('\n'),
+    section2: lines2.join('\n'),
+    section3: lines3.join('\n'),
+  };
+}
+
 const IS = {
   sel:{width:'100%',background:'#1a1a1a',border:'1px solid #383838',color:'#e8e8e8',fontSize:12,padding:'8px 10px',borderRadius:4,fontFamily:"'Courier New',monospace"},
   inp:{width:'100%',background:'#1a1a1a',border:'1px solid #383838',color:'#e8e8e8',fontSize:12,padding:'8px 10px',borderRadius:4,fontFamily:"'Courier New',monospace",boxSizing:'border-box'},
@@ -127,25 +265,39 @@ export function RiskSurvey({icao,airportName,airportCat,onClose,onSaved}){
     if(!prec) summary.unshift('No precision approach available');
     if(f.cat!=='A') summary.unshift('CAT '+f.cat+' aerodrome');
     const ops=result.risk==='HIGH'?'OPS MANAGER APPROVAL REQUIRED':result.risk==='MEDIUM'?'CAPTAIN REVIEW / DISPATCH COORDINATION':'DISPATCH OK';
-    console.log('Saving to:', icao);
-    const{error,data}=await supabase.from('airport_risks').upsert({
-      icao:icao.toUpperCase(),
-      category:f.cat,base_score:result.score,ra_risk_level:result.risk,ra_risk_score:result.score,
-      ra_risk_basis:JSON.stringify(result.basis),ra_key_drivers:JSON.stringify(result.drivers),
-      ra_actions:JSON.stringify(result.actions),ra_briefing_items:JSON.stringify(summary),
-      ra_assessment_date:today,ra_reassessment_due:due,ra_assessed_by:f.assessed_by||'Admin',
-      ra_ops_approval:ops,updated_at:new Date().toISOString(),
+
+    // ── PPS Briefing üret ──
+    const pps = generatePpsBriefing(f, result, prec, bestRwy, rwyData);
+
+    const{error}=await supabase.from('airport_risks').upsert({
+      icao:         icao.toUpperCase(),
+      category:     f.cat,
+      base_score:   result.score,
+      risk_level:   result.risk,
+      ops_approval: ops,
+      max_s:        5,
+      max_l:        5,
+      // RA alanları
+      ra_risk_level:      result.risk,
+      ra_risk_score:      result.score,
+      ra_risk_basis:      JSON.stringify(result.basis),
+      ra_key_drivers:     JSON.stringify(result.drivers),
+      ra_actions:         JSON.stringify(result.actions),
+      ra_briefing_items:  JSON.stringify(summary),
+      ra_assessment_date: today,
+      ra_reassessment_due: due,
+      ra_assessed_by:     f.assessed_by || 'Admin',
+      ra_ops_approval:    ops,
+      // PPS Briefing seksiyon metinleri
+      section1:     pps.section1,
+      section2:     pps.section2,
+      section3:     pps.section3,
+      updated_at:   new Date().toISOString(),
     },{onConflict:'icao'});
+
     setSaving(false);
-    console.log('Save result:', error, data);
-    if(error){alert('Save error: '+error.message);}
-    else{
-      // Verify update worked
-      const check = await supabase.from('airport_risks').select('risk_level,updated_at').eq('icao',icao.toUpperCase()).single();
-      console.log('After save:', check.data);
-      alert('Saved! Risk: '+result.risk);
-      onSaved&&onSaved();onClose();
-    }
+    if(error){ alert('Save error: '+error.message); }
+    else{ onSaved&&onSaved(); onClose(); }
   };
 
   const rc=result?RC[result.risk]||RC.LOW:null;
@@ -375,8 +527,27 @@ export function RiskSurvey({icao,airportName,airportCat,onClose,onSaved}){
                 {result.actions.map((a,i)=><div key={i} style={{fontSize:11,color:'#aaa',marginBottom:4}}>{i+1}. {a}</div>)}
               </div>
             )}
+
+            {/* PPS Preview */}
+            {(()=>{
+              const pps = generatePpsBriefing(f, result, prec, bestRwy, rwyData);
+              return (
+                <div style={{marginTop:12,padding:'10px 12px',background:'rgba(0,0,0,0.3)',borderRadius:4,borderLeft:'3px solid #1a9bc4'}}>
+                  <div style={{fontSize:10,color:'#1a9bc4',fontWeight:700,marginBottom:8,letterSpacing:1}}>PPS BRIEFING PREVIEW — will be saved to database</div>
+                  {[['SECTION 1 — TRAFFIC / ATC / TAXI / RWY OPS', pps.section1], ['SECTION 2 — METEOROLOGY / WIND', pps.section2], ['SECTION 3 — SECURITY / HANDLING / NAV', pps.section3]].map(([title, text]) => (
+                    <div key={title} style={{marginBottom:8}}>
+                      <div style={{fontSize:9,color:'#1a9bc4',fontWeight:700,letterSpacing:0.8,marginBottom:4}}>{title}</div>
+                      {text.split('\n').map((line,i)=>(
+                        <div key={i} style={{fontSize:10,color:'#888',lineHeight:1.7,paddingLeft:8}}>▸ {line}</div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             <button onClick={handleSave} disabled={saving} style={{width:'100%',background:'#2d9e5f',border:'none',color:'#fff',fontWeight:700,fontSize:13,padding:'12px',borderRadius:5,cursor:'pointer',fontFamily:"'Courier New',monospace",marginTop:12}}>
-              {saving?'SAVING...':'SAVE TO DATABASE'}
+              {saving?'SAVING...':'SAVE TO DATABASE (incl. PPS Briefing)'}
             </button>
           </div>
         )}
