@@ -52,13 +52,13 @@ const menuItems = [
   { id: 'mandatory', num: '2',  label: 'Mandatory / Preflight' },
   { id: 'efp',       num: '3',  label: 'eFP'                   },
   { id: 'fuel',      num: '4',  label: 'FUEL'                  },
-  { id: 'accept',    num: '5',  label: 'Accept & Sign'         },
-  { id: 'takeoff',   num: '6',  label: 'T/O Data'              },
-  { id: 'navlog',    num: '7',  label: 'NAV LOG'               },
-  { id: 'landing',   num: '8',  label: 'LND Data'              },
-  { id: 'endflt',    num: '9',  label: 'END FLT'               },
-  { id: 'docupload', num: '10', label: 'DOC UPLOAD'            },
-  { id: 'rass',      num: '11', label: 'RASS'                  },
+  { id: 'rass',      num: '5',  label: 'RASS'                  },
+  { id: 'accept',    num: '6',  label: 'Accept & Sign'         },
+  { id: 'takeoff',   num: '7',  label: 'T/O Data'              },
+  { id: 'navlog',    num: '8',  label: 'NAV LOG'               },
+  { id: 'landing',   num: '9',  label: 'LND Data'              },
+  { id: 'endflt',    num: '10', label: 'END FLT'               },
+  { id: 'docupload', num: '11', label: 'DOC UPLOAD'            },
 ];
 
 // ── EFB FAILURE BACKUP PROCEDURE MODAL ───────────────────────
