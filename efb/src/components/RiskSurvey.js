@@ -10,8 +10,7 @@ const isPrecision = (apr) => APPR_RANK[apr] >= 2;
 function scoreToMatrix(score) {
   if (!score || score <= 0) return { s:1, l:1 };
   const clamped = Math.min(Math.max(Math.round(score), 1), 25);
-  let best = { s:1, l:1 };
-  let bestDiff = Infinity;
+  let best = { s:1, l:1 }, bestDiff = Infinity;
   for (let s = 1; s <= 5; s++) {
     for (let l = 1; l <= 5; l++) {
       const diff = Math.abs(s * l - clamped);
@@ -294,41 +293,106 @@ const DEFAULT_STATE = {
   free_text:'',
 };
 
-export function RiskSurvey({icao, airportName, airportCat, existingData, onClose, onSaved}){
+// ─── Assessment History (pilot panelinde de kullanılır) ───────────────────────
+export function AssessmentHistory({ icao, compact=false }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    if(!icao) return;
+    supabase.from('rass_assessments')
+      .select('id,assessed_by,assessed_at,risk_level,risk_score,ops_approval')
+      .eq('icao', icao.toUpperCase())
+      .order('assessed_at', { ascending: false })
+      .limit(compact ? 3 : 20)
+      .then(({data})=>{ setHistory(data||[]); setLoading(false); });
+  },[icao, compact]);
+
+  const fmtDate = iso => {
+    const d = new Date(iso);
+    return `${d.toLocaleDateString('en-GB')} ${d.toISOString().slice(11,16)} UTC`;
+  };
+
+  const riskColor = r => r==='HIGH'?'#e02020':r==='MEDIUM'?'#e8a320':'#2d9e5f';
+
+  if(loading) return <div style={{fontSize:10,color:'#555',padding:'8px 16px',fontFamily:"'Courier New',monospace"}}>Loading history...</div>;
+  if(!history.length) return <div style={{fontSize:10,color:'#444',padding:'8px 16px',fontFamily:"'Courier New',monospace"}}>No assessment history</div>;
+
+  return(
+    <div>
+      {!compact && (
+        <div style={{padding:'6px 16px',background:'#0d1117',borderBottom:'1px solid #1e2530',fontSize:9,color:'#546e7a',fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>
+          Assessment History
+        </div>
+      )}
+      {history.map((h,i)=>(
+        <div key={h.id} style={{
+          padding: compact ? '6px 16px' : '9px 16px',
+          borderBottom:'1px solid #1e2530',
+          background: i===0 ? 'rgba(26,155,196,0.04)' : 'transparent',
+          display:'flex', alignItems:'center', gap:10,
+        }}>
+          {/* Risk badge */}
+          <span style={{
+            fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:3,
+            background:`${riskColor(h.risk_level)}15`,
+            border:`1px solid ${riskColor(h.risk_level)}40`,
+            color:riskColor(h.risk_level),
+            fontFamily:"'Courier New',monospace",
+            minWidth:44, textAlign:'center', flexShrink:0,
+          }}>{h.risk_level||'—'}</span>
+
+          {/* Info */}
+          <div style={{flex:1, minWidth:0}}>
+            <div style={{fontSize:11, color: i===0?'#e8e8e8':'#777', fontFamily:"'Courier New',monospace", fontWeight: i===0?700:400}}>
+              {h.assessed_by||'—'}
+              {i===0 && <span style={{fontSize:9,color:'#1a9bc4',marginLeft:6}}>← current</span>}
+            </div>
+            <div style={{fontSize:9, color:'#444', fontFamily:"'Courier New',monospace", marginTop:1}}>
+              {fmtDate(h.assessed_at)}
+              {h.risk_score!=null && <span style={{marginLeft:8}}>score: {h.risk_score}</span>}
+            </div>
+          </div>
+
+          {/* Ops approval */}
+          {!compact && (
+            <div style={{fontSize:9,color:'#555',fontFamily:"'Courier New',monospace",textAlign:'right',maxWidth:120}}>
+              {h.ops_approval?.replace(' APPROVAL REQUIRED','')?.replace(' COORDINATION','') || '—'}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
   const [open,setOpen]=useState({1:true,2:true,3:false,4:false,5:false,6:false,7:false,8:false,9:false,10:false});
   const [saving,setSaving]=useState(false);
   const [result,setResult]=useState(null);
   const [loading,setLoading]=useState(true);
+  const [lastAssessment,setLastAssessment]=useState(null);
   const APR=['--','CAT III','CAT II','ILS','GNSS','RNP AR','RNP','Non-Precision','Circling'];
 
   const [f,setF]=useState({...DEFAULT_STATE, cat: airportCat||'B'});
 
-  // Load existing survey_state on mount
   useEffect(()=>{
     const load = async () => {
       setLoading(true);
       try {
         const { data } = await supabase
           .from('airport_risks')
-          .select('survey_state, category')
+          .select('survey_state, category, ra_assessed_by, ra_assessment_date')
           .eq('icao', icao.toUpperCase())
           .single();
 
         if (data?.survey_state) {
-          // Mevcut state'i yükle, sadece assessed_by'ı temizle
-          setF({
-            ...DEFAULT_STATE,
-            ...data.survey_state,
-            assessed_by: '', // her seferinde boş gelsin
-            cat: data.category || airportCat || 'B',
-          });
+          setF({ ...DEFAULT_STATE, ...data.survey_state, assessed_by:'', cat: data.category||airportCat||'B' });
+          setLastAssessment({ by: data.ra_assessed_by, date: data.ra_assessment_date });
         } else {
-          // İlk kez — default state + category
           setF({...DEFAULT_STATE, cat: airportCat||'B'});
         }
-      } catch {
-        setF({...DEFAULT_STATE, cat: airportCat||'B'});
-      }
+      } catch { setF({...DEFAULT_STATE, cat: airportCat||'B'}); }
       setLoading(false);
     };
     load();
@@ -336,20 +400,14 @@ export function RiskSurvey({icao, airportName, airportCat, existingData, onClose
 
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
   const tog=(n)=>setOpen(p=>({...p,[n]:!p[n]}));
-
   const rwyData=f.rwy_data.filter(r=>r.des.trim());
   const bestRwy=rwyData.reduce((b,r)=>(!b||APPR_RANK[r.apr]>APPR_RANK[b.apr])?r:b,null);
   const prec=bestRwy&&APPR_RANK[bestRwy.apr]>=3;
   const precisionCount=rwyData.filter(r=>isPrecision(r.apr)).length;
 
   const RS=(scopeKey,rwysKey)=>(
-    <RwyScope
-      scopeVal={f[scopeKey]} onScope={v=>s(scopeKey,v)}
-      rwysVal={f[rwysKey]}   onRwys={v=>s(rwysKey,v)}
-      precisionCount={precisionCount}
-      show={true}
-      availableRwys={rwyData}
-    />
+    <RwyScope scopeVal={f[scopeKey]} onScope={v=>s(scopeKey,v)} rwysVal={f[rwysKey]} onRwys={v=>s(rwysKey,v)}
+      precisionCount={precisionCount} show={true} availableRwys={rwyData}/>
   );
 
   const handleCalc=()=>{
@@ -359,44 +417,51 @@ export function RiskSurvey({icao, airportName, airportCat, existingData, onClose
   };
 
   const handleSave=async()=>{
-    if(!result)return;
+    if(!result||!f.assessed_by) return;
     setSaving(true);
-    const today=new Date().toISOString().split('T')[0];
-    const due=new Date(Date.now()+365*86400000).toISOString().split('T')[0];
-    const ops=result.risk==='HIGH'?'OPS MANAGER APPROVAL REQUIRED':result.risk==='MEDIUM'?'CAPTAIN REVIEW / DISPATCH COORDINATION':'DISPATCH OK';
-    const pps=generatePpsBriefing(f,result,prec,bestRwy,rwyData);
-    const matrixPos=scoreToMatrix(result.score);
-
-    // Survey state'i kaydet (assessed_by dahil)
+    const now = new Date().toISOString();
+    const today = now.split('T')[0];
+    const due = new Date(Date.now()+365*86400000).toISOString().split('T')[0];
+    const ops = result.risk==='HIGH'?'OPS MANAGER APPROVAL REQUIRED':result.risk==='MEDIUM'?'CAPTAIN REVIEW / DISPATCH COORDINATION':'DISPATCH OK';
+    const pps = generatePpsBriefing(f,result,prec,bestRwy,rwyData);
+    const matrixPos = scoreToMatrix(result.score);
     const surveyState = { ...f };
 
-    const{error}=await supabase.from('airport_risks').upsert({
-      icao: icao.toUpperCase(),
-      category: f.cat,
-      base_score: Math.round(result.score),
-      risk_level: result.risk,
-      ops_approval: ops,
-      max_s: matrixPos.s,
-      max_l: matrixPos.l,
-      ra_risk_level: result.risk,
-      ra_risk_score: result.score,
+    // 1 — airport_risks güncelle (en güncel)
+    const { error: e1 } = await supabase.from('airport_risks').upsert({
+      icao: icao.toUpperCase(), category: f.cat,
+      base_score: Math.round(result.score), risk_level: result.risk, ops_approval: ops,
+      max_s: matrixPos.s, max_l: matrixPos.l,
+      ra_risk_level: result.risk, ra_risk_score: result.score,
       ra_risk_basis: JSON.stringify(result.basis),
       ra_key_drivers: JSON.stringify(result.drivers),
       ra_actions: JSON.stringify(result.actions),
-      ra_assessment_date: today,
-      ra_reassessment_due: due,
-      ra_assessed_by: f.assessed_by||'Admin',
-      ra_ops_approval: ops,
+      ra_assessment_date: today, ra_reassessment_due: due,
+      ra_assessed_by: f.assessed_by, ra_ops_approval: ops,
+      section1: pps.section1, section2: pps.section2, section3: pps.section3,
+      survey_state: surveyState,
+      updated_at: now,
+    },{onConflict:'icao'});
+
+    if(e1){ alert('Save error: '+e1.message); setSaving(false); return; }
+
+    // 2 — rass_assessments'a yeni satır ekle (geçmiş)
+    await supabase.from('rass_assessments').insert({
+      icao: icao.toUpperCase(),
+      assessed_by: f.assessed_by,
+      assessed_at: now,
+      risk_level: result.risk,
+      risk_score: result.score,
+      ops_approval: ops,
+      survey_state: surveyState,
       section1: pps.section1,
       section2: pps.section2,
       section3: pps.section3,
-      survey_state: surveyState,  // ← ham form state kaydedilir
-      updated_at: new Date().toISOString(),
-    },{onConflict:'icao'});
+    });
 
     setSaving(false);
-    if(error){ alert('Save error: '+error.message); }
-    else { onSaved&&onSaved(); onClose(); }
+    onSaved&&onSaved();
+    onClose();
   };
 
   const rc=result?RC[result.risk]||RC.LOW:null;
@@ -404,7 +469,7 @@ export function RiskSurvey({icao, airportName, airportCat, existingData, onClose
     ?`${precisionCount} precision/RNP runway${precisionCount>1?'s':''} — scope proportioning active`
     :'No precision runways — full score applies';
 
-  if (loading) return (
+  if(loading) return(
     <div style={{background:'#111',color:'#555',fontFamily:"'Courier New',monospace",padding:40,textAlign:'center',fontSize:11,letterSpacing:2}}>
       LOADING SURVEY DATA...
     </div>
@@ -416,9 +481,9 @@ export function RiskSurvey({icao, airportName, airportCat, existingData, onClose
         <div>
           <div style={{fontSize:18,fontWeight:700,color:'#e8a020',letterSpacing:2}}>{icao}</div>
           <div style={{fontSize:12,color:'#e8e8e8'}}>{airportName} — Risk Assessment Survey</div>
-          {existingData?.ra_assessment_date&&(
-            <div style={{fontSize:9,color:'#555',marginTop:2}}>
-              Last assessed: {existingData.ra_assessment_date} by {existingData.ra_assessed_by||'—'}
+          {lastAssessment?.date && (
+            <div style={{fontSize:9,color:'#555',marginTop:3}}>
+              Last assessed: {lastAssessment.date} — {lastAssessment.by||'—'}
             </div>
           )}
         </div>
@@ -427,11 +492,19 @@ export function RiskSurvey({icao, airportName, airportCat, existingData, onClose
 
       <div style={{flex:1,overflowY:'auto',padding:'12px 16px'}}>
 
-        {/* Assessed by — her zaman boş */}
+        {/* Assessment history — compact */}
+        <div style={{marginBottom:12,background:'#161616',border:'1px solid #2a2a2a',borderRadius:6,overflow:'hidden'}}>
+          <div style={{padding:'7px 12px',background:'#1a1a1a',fontSize:9,color:'#1a9bc4',fontWeight:700,letterSpacing:1,textTransform:'uppercase',borderBottom:'1px solid #2a2a2a'}}>
+            Assessment History
+          </div>
+          <AssessmentHistory icao={icao} compact={true}/>
+        </div>
+
+        {/* Assessed by */}
         <div style={{marginBottom:12}}>
-          <label style={IS.lbl}>Assessed by (required)</label>
+          <label style={IS.lbl}>Assessed by (required each time)</label>
           <input style={{...IS.inp, borderColor: !f.assessed_by ? '#e8731a' : '#383838'}}
-            placeholder="Capt. Name — enter each time..."
+            placeholder="Capt. Name..."
             value={f.assessed_by}
             onChange={e=>s('assessed_by',e.target.value)}/>
           {!f.assessed_by&&<div style={{fontSize:9,color:'#e8731a',marginTop:3}}>Required before saving</div>}
@@ -733,7 +806,7 @@ export function RiskSurvey({icao, airportName, airportCat, existingData, onClose
               );
             })()}
             <button onClick={handleSave} disabled={saving||!f.assessed_by}
-              style={{width:'100%',background: f.assessed_by?'#2d9e5f':'#2a2a2a',border:'none',color: f.assessed_by?'#fff':'#555',fontWeight:700,fontSize:13,padding:'12px',borderRadius:5,cursor:f.assessed_by?'pointer':'not-allowed',fontFamily:"'Courier New',monospace"}}>
+              style={{width:'100%',background:f.assessed_by?'#2d9e5f':'#2a2a2a',border:'none',color:f.assessed_by?'#fff':'#555',fontWeight:700,fontSize:13,padding:'12px',borderRadius:5,cursor:f.assessed_by?'pointer':'not-allowed',fontFamily:"'Courier New',monospace"}}>
               {saving?'SAVING...':(f.assessed_by?'SAVE TO DATABASE (incl. PPS Briefing)':'Enter "Assessed by" to save')}
             </button>
           </div>
