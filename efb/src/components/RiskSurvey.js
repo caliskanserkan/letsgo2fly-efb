@@ -1,37 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
-// ─── Approach rank ────────────────────────────────────────────────────────────
 const APPR_RANK = {
   'CAT III':7,'CAT II':6,'ILS':5,'RNP AR':4,'GNSS':3,'RNP':2,
   'Non-Precision':1,'Circling':0,'--':0
 };
 const isPrecision = (apr) => APPR_RANK[apr] >= 2;
 
-// ─── Score → 5x5 matrix position ─────────────────────────────────────────────
-// Weighted score 0-25+ arasında. Matrix 1-25 (S1..5 × L1..5)
-// score'u S×L çarpımına map ediyoruz: sqrt(score)*sqrt(score) = score
-// En yakın S×L çiftini bulalım (S>=L constraint ile)
 function scoreToMatrix(score) {
-  if (!score || score <= 0) return { s: 1, l: 1 };
-  // clamp 1-25
+  if (!score || score <= 0) return { s:1, l:1 };
   const clamped = Math.min(Math.max(Math.round(score), 1), 25);
-  // En yakın S×L çiftini bul (S >= L, her ikisi 1-5 arasında)
   let best = { s:1, l:1 };
   let bestDiff = Infinity;
   for (let s = 1; s <= 5; s++) {
     for (let l = 1; l <= 5; l++) {
       const diff = Math.abs(s * l - clamped);
-      if (diff < bestDiff || (diff === bestDiff && s >= l)) {
-        bestDiff = diff;
-        best = { s, l };
-      }
+      if (diff < bestDiff || (diff === bestDiff && s >= l)) { bestDiff = diff; best = { s, l }; }
     }
   }
   return best;
 }
 
-// ─── Scope multiplier ─────────────────────────────────────────────────────────
 function getScopeMultiplier(scope, precisionCount) {
   if (!precisionCount || precisionCount === 0) return 1.0;
   switch(scope) {
@@ -43,7 +32,6 @@ function getScopeMultiplier(scope, precisionCount) {
   }
 }
 
-// ─── Runway + Scope selector ──────────────────────────────────────────────────
 function RwyScope({ scopeVal, onScope, rwysVal, onRwys, precisionCount, show, availableRwys }) {
   if (!show) return null;
   const singleMult = precisionCount ? Math.max(1 / precisionCount, 0.25) : 1;
@@ -54,27 +42,19 @@ function RwyScope({ scopeVal, onScope, rwysVal, onRwys, precisionCount, show, av
     { id:'single',   label:'Single RWY', mult:singleMult, color:'#2d9e5f' },
   ];
   const filteredScope = precisionCount ? scopeOptions : [scopeOptions[0]];
-
   const toggleRwy = (rwyId) => {
     const current = rwysVal || [];
-    if (current.includes(rwyId)) {
-      onRwys(current.filter(r => r !== rwyId));
-    } else {
-      onRwys([...current, rwyId]);
-    }
+    onRwys(current.includes(rwyId) ? current.filter(r => r !== rwyId) : [...current, rwyId]);
   };
-
   return (
     <div style={{ marginTop:6, padding:'8px 10px', background:'#111', borderRadius:4, borderLeft:'2px solid #2a2a2a' }}>
-      {/* Scope */}
       {precisionCount > 0 && (
         <div style={{ marginBottom:6 }}>
           <span style={{ fontSize:9, color:'#555', marginRight:6 }}>SCOPE:</span>
           <div style={{ display:'inline-flex', gap:4, flexWrap:'wrap' }}>
             {filteredScope.map(o => (
               <button key={o.id} onClick={() => onScope(o.id)}
-                style={{ fontSize:9, padding:'2px 7px', borderRadius:3, cursor:'pointer',
-                  fontFamily:"'Courier New',monospace", fontWeight:700,
+                style={{ fontSize:9, padding:'2px 7px', borderRadius:3, cursor:'pointer', fontFamily:"'Courier New',monospace", fontWeight:700,
                   background: scopeVal===o.id ? `${o.color}20` : '#1a1a1a',
                   border: `1px solid ${scopeVal===o.id ? o.color : '#383838'}`,
                   color: scopeVal===o.id ? o.color : '#555' }}>
@@ -84,7 +64,6 @@ function RwyScope({ scopeVal, onScope, rwysVal, onRwys, precisionCount, show, av
           </div>
         </div>
       )}
-      {/* Runway selection */}
       {availableRwys && availableRwys.length > 0 && (
         <div>
           <span style={{ fontSize:9, color:'#555', marginRight:6 }}>RUNWAY(S):</span>
@@ -93,8 +72,7 @@ function RwyScope({ scopeVal, onScope, rwysVal, onRwys, precisionCount, show, av
               const selected = (rwysVal || []).includes(rwy.des);
               return (
                 <button key={rwy.des} onClick={() => toggleRwy(rwy.des)}
-                  style={{ fontSize:9, padding:'2px 8px', borderRadius:3, cursor:'pointer',
-                    fontFamily:"'Courier New',monospace", fontWeight:700,
+                  style={{ fontSize:9, padding:'2px 8px', borderRadius:3, cursor:'pointer', fontFamily:"'Courier New',monospace", fontWeight:700,
                     background: selected ? 'rgba(26,155,196,0.2)' : '#1a1a1a',
                     border: `1px solid ${selected ? '#1a9bc4' : '#383838'}`,
                     color: selected ? '#1a9bc4' : '#555' }}>
@@ -109,35 +87,24 @@ function RwyScope({ scopeVal, onScope, rwysVal, onRwys, precisionCount, show, av
   );
 }
 
-// ─── Risk calculation ─────────────────────────────────────────────────────────
 function calcRisk(s) {
   let score = 0, overrideHigh = false, overrideMedium = false;
   let overrideReasons = [], drivers = [], actions = [];
   const pc = s.precisionCount || 0;
   const sm = (scope) => getScopeMultiplier(scope, pc);
+  const add = (pts, d, a, mult=1) => { score += pts * mult; if(d) drivers.push(d); if(a) actions.push(a); };
 
-  const add = (pts, d, a, mult=1) => {
-    score += pts * mult;
-    if(d) drivers.push(d);
-    if(a) actions.push(a);
-  };
-
-  // Overrides
   if(s.cat==='C'){overrideHigh=true;overrideReasons.push('CAT C aerodrome (auto override)');}
   if(s.pol_risk==='high'){overrideHigh=true;overrideReasons.push('High security / political threat');}
-  if(!s.prec&&s.angle==='steep'&&s.oei_sid&&s.angle_scope==='all'&&s.oei_sid_scope==='all'){
-    overrideHigh=true;overrideReasons.push('No precision + steep approach + OEI SID (all runways)');
-  }
+  if(!s.prec&&s.angle==='steep'&&s.oei_sid&&s.angle_scope==='all'&&s.oei_sid_scope==='all'){overrideHigh=true;overrideReasons.push('No precision + steep approach + OEI SID (all runways)');}
   if(s.sp_approval){overrideMedium=true;overrideReasons.push('Special operator approval required');}
   if(s.lvp==='frequent'&&s.alt==='no'){overrideMedium=true;overrideReasons.push('Frequent LVP + no adequate alternate');}
 
-  // Block 1
   if(s.sp_desig) add(2,'Special aerodrome designation','Verify operator-specific procedures');
   if(s.sp_crew)  add(2,'Special crew qualification required','Verify crew qualification');
   if(s.sp_approval) add(2,'Special operator approval required','Obtain approval documentation');
   if(!s.prec) add(2,'No precision approach available','Confirm crew currency on non-precision approach');
 
-  // Block 2 — runway-scoped
   if(s.angle==='slight')        add(1,'Slightly elevated approach (3.0–3.49°)',null,sm(s.angle_scope));
   else if(s.angle==='moderate_low') add(2,'Non-standard approach (3.5–3.89°)','Brief glide path technique',sm(s.angle_scope));
   else if(s.angle==='moderate') add(2,'Elevated approach (3.9–4.49°)','Enhanced briefing required',sm(s.angle_scope));
@@ -150,18 +117,15 @@ function calcRisk(s) {
   if(s.madem)        add(2,'Demanding missed approach / gradient','Brief missed approach in detail',sm(s.madem_scope));
   if(s.oei_ma_brief) add(2,'Engine-out go-around dedicated briefing required',null,sm(s.oei_ma_scope));
 
-  // Block 3
   if(s.rwy_w==='narrow') add(3,'Narrow runway (<30m)','Confirm crosswind limits',sm(s.rwy_w_scope));
   else if(s.rwy_w==='medium') add(1,'Reduced runway width (30–44m)',null,sm(s.rwy_w_scope));
   if(s.rwy_marg)  add(2,'Marginal runway length','Compute performance with actual conditions',sm(s.rwy_marg_scope));
   if(s.phys_comp) add(2,'Physical runway complexity',null,sm(s.phys_comp_scope));
 
-  // Block 4
   if(s.oei_sid)  add(3,'Special OEI SID required','Complete OEI SID analysis; brief engine failure',sm(s.oei_sid_scope));
   if(s.oei_grad) add(2,'Demanding OEI climb gradient','Review obstacle clearance margins',sm(s.oei_grad_scope));
   if(s.perf_lim) add(1,'Performance-limited departure','Review WAT/CLG limits',sm(s.perf_lim_scope));
 
-  // Block 5
   if(s.lvp==='sometimes') add(1,'Occasional LVP / low ceiling');
   if(s.lvp==='frequent')  add(2,'Frequent LVP / fog / low visibility','Monitor forecast; verify LVP procedures');
   if(s.xw_risk) add(2,'Crosswind / windshear / contamination','Review limits; brief windshear escape');
@@ -173,43 +137,35 @@ function calcRisk(s) {
   if(msa>=8000&&(s.angle==='moderate'||s.angle==='steep')) add(1,'High MSA + elevated/steep approach');
   if(s.terr_hh) add(2,'Significant terrain / mountain wave / hot-high','Compute hot-high performance; enhanced TAWS awareness');
 
-  // Block 6
   if(s.atc==='moderate') add(1,'Moderate ATC / taxi complexity');
   if(s.atc==='significant') add(2,'Significant ATC / sequencing complexity','Allow extra margins; pre-brief complex taxi');
   if(s.mil_traff) add(2,'Military / mixed traffic / unusual phraseology','Review local ATC procedures');
 
-  // Block 7
   if(s.pol_risk==='caution') add(3,'Political / security caution advisories','Obtain security briefing; review emergency protocols');
   if(s.arpt_sec==='uncertain') add(3,'Airport security / handling uncertain','Coordinate with handler for enhanced measures');
   if(s.arpt_sec==='poor') add(4,'Poor airport security / handling','Consult security team; consider enhanced measures');
   if(s.st_oversight==='partial') add(2,'Partial state safety oversight');
   if(s.st_oversight==='no') add(4,'Inadequate state safety oversight','Verify OM requirements; obtain safety bulletins');
 
-  // Block 8
   if(s.alt==='limited') add(2,'Limited alternate options','Identify extended-range alternates; plan contingency fuel');
   if(s.alt==='no') add(3,'No adequate alternate','Reassess dispatch; carry contingency fuel; notify OCC');
   if(s.fuel==='uncertain') add(1,'Fuel / ground handling uncertain','Confirm availability 48h before departure');
   if(s.fuel==='poor') add(2,'Poor fuel / ground handling','Arrange alternative source; coordinate with handler');
   if(!s.crew_rec) add(1,'No recent crew experience (<12 months)','Brief aerodrome-specific material; consider refresher');
-
-  // Block 9/10
   if(s.curfew){ const t=s.curfew_open&&s.curfew_close?' ('+s.curfew_open+'–'+s.curfew_close+' UTC)':''; add(1,'Curfew in effect'+t,'Plan within curfew window'); }
   if(s.nadp){ const t=s.nadp_types&&s.nadp_types.length?' — '+s.nadp_types.join(', '):''; add(1,'NADP required'+t,'Brief NADP; ensure crew familiar with thrust reduction'); }
 
   score = Math.round(score * 10) / 10;
   const uniqueDrivers=[...new Set(drivers.filter(Boolean))];
   const uniqueActions=[...new Set(actions.filter(Boolean))];
-
   let risk,basis;
   if(overrideHigh){risk='HIGH';basis=overrideReasons;}
   else if(score>=10){risk='HIGH';basis=['Weighted risk score: '+score+' (threshold >= 10)',...overrideReasons];}
   else if(overrideMedium||score>=5){risk='MEDIUM';basis=overrideMedium?[...overrideReasons,...(score?['Score: '+score]:[])]:[`Weighted risk score: ${score} (threshold >= 5)`];}
   else{risk='LOW';basis=['Weighted risk score: '+score+' (threshold < 5)'];}
-
   return {risk,score,basis,drivers:uniqueDrivers,actions:uniqueActions};
 }
 
-// ─── PPS Briefing Generator ───────────────────────────────────────────────────
 function rwyLabel(rwys) {
   if (!rwys || rwys.length === 0) return '';
   return ' — RWY ' + rwys.join(', RWY ');
@@ -217,8 +173,6 @@ function rwyLabel(rwys) {
 
 function generatePpsBriefing(f, result, prec, bestRwy, rwyData) {
   const lines1=[],lines2=[],lines3=[];
-
-  // Scope label
   const sl=(scope,rwys)=>{
     const rwyPart = rwys && rwys.length ? rwyLabel(rwys) : '';
     if(!f.precisionCount) return rwyPart;
@@ -229,19 +183,12 @@ function generatePpsBriefing(f, result, prec, bestRwy, rwyData) {
   if(rwyData.length) lines1.push(`RUNWAYS: ${rwyData.map(r=>`RWY ${r.des} (${r.apr})`).join(', ')}`);
   if(bestRwy) lines1.push(`BEST APPROACH: ${bestRwy.apr} — RWY ${bestRwy.des}${prec?' (PRECISION)':' (NON-PRECISION — confirm crew currency)'}`);
 
-  const angleMap={
-    normal:null,
-    slight:`APPROACH ANGLE: Slightly elevated (3.0–3.49°)${sl(f.angle_scope,f.angle_rwys)} — crew awareness required`,
-    moderate_low:`APPROACH ANGLE: Non-standard (3.5–3.89°)${sl(f.angle_scope,f.angle_rwys)} — brief glide path technique`,
-    moderate:`APPROACH ANGLE: Elevated (3.9–4.49°)${sl(f.angle_scope,f.angle_rwys)} — enhanced briefing required`,
-    steep:`APPROACH ANGLE: STEEP (≥4.5°)${sl(f.angle_scope,f.angle_rwys)} — mandatory dedicated crew briefing`
-  };
+  const angleMap={normal:null,slight:`APPROACH ANGLE: Slightly elevated (3.0–3.49°)${sl(f.angle_scope,f.angle_rwys)} — crew awareness required`,moderate_low:`APPROACH ANGLE: Non-standard (3.5–3.89°)${sl(f.angle_scope,f.angle_rwys)} — brief glide path technique`,moderate:`APPROACH ANGLE: Elevated (3.9–4.49°)${sl(f.angle_scope,f.angle_rwys)} — enhanced briefing required`,steep:`APPROACH ANGLE: STEEP (≥4.5°)${sl(f.angle_scope,f.angle_rwys)} — mandatory dedicated crew briefing`};
   if(angleMap[f.angle]) lines1.push(angleMap[f.angle]);
   if(f.high_da)       lines1.push(`MINIMA: DA/DH ≥ 400 ft terrain-limited${sl(f.high_da_scope,f.high_da_rwys)} — review published minima`);
   if(f.offset)        lines1.push(`LOCALIZER: Offset approach${sl(f.offset_scope,f.offset_rwys)} — brief technique and go-around`);
   if(f.madem)         lines1.push(`MISSED APPROACH: Above-standard gradient${sl(f.madem_scope,f.madem_rwys)} — brief in detail`);
   if(f.oei_ma_brief)  lines1.push(`OEI GO-AROUND: Dedicated briefing required${sl(f.oei_ma_scope,f.oei_ma_rwys)}`);
-
   const rwm={wide:null,medium:`RWY WIDTH: Reduced (30–44m)${sl(f.rwy_w_scope,f.rwy_w_rwys)} — crosswind awareness`,narrow:`RWY WIDTH: Narrow (<30m)${sl(f.rwy_w_scope,f.rwy_w_rwys)} — confirm crosswind limits`};
   if(rwm[f.rwy_w]) lines1.push(rwm[f.rwy_w]);
   if(f.rwy_marg)  lines1.push(`RWY LENGTH: Marginal${sl(f.rwy_marg_scope,f.rwy_marg_rwys)} — compute with actual conditions`);
@@ -256,11 +203,10 @@ function generatePpsBriefing(f, result, prec, bestRwy, rwyData) {
   if(f.nadp){ const t=[f.nadp_n1?'NADP 1':null,f.nadp_n2?'NADP 2':null,f.nadp_pA?'Proc A':null,f.nadp_pB?'Proc B':null].filter(Boolean); lines1.push(`NADP: Required${t.length?' — '+t.join(', '):''}  — brief thrust reduction schedule`); }
   if(!lines1.length) lines1.push('RWY/ATC/DEP: No significant complexity identified');
 
-  // Section 2
   const lvpm={no:null,sometimes:'LVP: Occasional low visibility — monitor TAF; verify LVP procedures current',frequent:'LVP: Frequent LVP/fog — procedures mandatory; alternate selection essential'};
   if(lvpm[f.lvp]) lines2.push(lvpm[f.lvp]);
   if(f.xw_risk) lines2.push('WIND: Crosswind / windshear / contamination — review aircraft limits; brief escape manoeuvre');
-  if(f.terr_hh) lines2.push('TERRAIN: Significant terrain / mountain wave / hot-high performance — compute hot-high data');
+  if(f.terr_hh) lines2.push('TERRAIN: Significant terrain / mountain wave / hot-high — compute hot-high performance');
   const msa=parseInt(f.msa_ft)||0;
   if(msa>=12000) lines2.push(`MSA: HIGH — ${msa} ft (${f.msa_sector}) — mandatory terrain escape review; enhanced TAWS awareness`);
   else if(msa>=8000) lines2.push(`MSA: ELEVATED — ${msa} ft (${f.msa_sector}) — verify terrain awareness; confirm missed approach clearance`);
@@ -269,7 +215,6 @@ function generatePpsBriefing(f, result, prec, bestRwy, rwyData) {
   if(msa>=8000&&!prec) lines2.push('HIGH MSA + NON-PRECISION: Increased terrain-focused approach briefing required');
   if(!lines2.length) lines2.push('WEATHER/TERRAIN: No significant constraints identified');
 
-  // Section 3
   const gm={no:null,notam:"GNSS: NOTAM'd interference — cross-check raw data; do not rely solely on GNSS",active:'GNSS: ACTIVE JAMMING/SPOOFING — do NOT use GNSS navigation; revert to raw ILS/VOR/DME'};
   if(gm[f.gnss_risk]) lines3.push(gm[f.gnss_risk]);
   const pm={no:null,caution:'SECURITY: Caution advisories in effect — obtain pre-flight security briefing; review diversion protocols',high:'SECURITY: HIGH RISK — mandatory security briefing; contingency plan filed with OCC'};
@@ -282,7 +227,7 @@ function generatePpsBriefing(f, result, prec, bestRwy, rwyData) {
   if(am[f.alt]) lines3.push(am[f.alt]);
   const fm={reliable:null,uncertain:'FUEL: Availability uncertain — confirm quantities and quality 48h before departure',poor:'FUEL: Poor / known concerns — arrange alternative fuel source; coordinate with local handler'};
   if(fm[f.fuel]) lines3.push(fm[f.fuel]);
-  if(!f.crew_rec) lines3.push('CREW RECENCY: No operation at this aerodrome in last 12 months — conduct aerodrome-specific briefing; consider additional preparation');
+  if(!f.crew_rec) lines3.push('CREW RECENCY: No operation at this aerodrome in last 12 months — conduct aerodrome-specific briefing');
   if(f.sp_desig) lines3.push('DESIGNATION: Special aerodrome designation applies — verify all operator-specific procedures are current');
   if(f.sp_crew)  lines3.push('QUALIFICATION: Special crew qualification required — confirm both crew members hold required endorsement');
   if(f.sp_approval) lines3.push('APPROVAL: Special operator approval required — obtain and carry approval documentation');
@@ -292,7 +237,6 @@ function generatePpsBriefing(f, result, prec, bestRwy, rwyData) {
   return{section1:lines1.join('\n'),section2:lines2.join('\n'),section3:lines3.join('\n')};
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 const IS={
   sel:{width:'100%',background:'#1a1a1a',border:'1px solid #383838',color:'#e8e8e8',fontSize:12,padding:'8px 10px',borderRadius:4,fontFamily:"'Courier New',monospace"},
   inp:{width:'100%',background:'#1a1a1a',border:'1px solid #383838',color:'#e8e8e8',fontSize:12,padding:'8px 10px',borderRadius:4,fontFamily:"'Courier New',monospace",boxSizing:'border-box'},
@@ -325,46 +269,70 @@ function Blk({title,open,onToggle,children}){
   );
 }
 
-const RC={
-  'LOW': {bg:'rgba(45,158,95,0.12)',border:'#2d9e5f',text:'#2d9e5f'},
-  'MEDIUM':{bg:'rgba(232,163,32,0.12)',border:'#e8a320',text:'#e8a320'},
-  'HIGH': {bg:'rgba(224,32,32,0.12)',border:'#e02020',text:'#e02020'}
+const RC={'LOW':{bg:'rgba(45,158,95,0.12)',border:'#2d9e5f',text:'#2d9e5f'},'MEDIUM':{bg:'rgba(232,163,32,0.12)',border:'#e8a320',text:'#e8a320'},'HIGH':{bg:'rgba(224,32,32,0.12)',border:'#e02020',text:'#e02020'}};
+
+const DEFAULT_STATE = {
+  assessed_by:'', cat:'B', sp_desig:false, sp_crew:false, sp_approval:false,
+  rwy_data: Array(8).fill(null).map(()=>({des:'',apr:'--'})),
+  angle:'normal', angle_scope:'all', angle_rwys:[],
+  high_da:false, high_da_scope:'all', high_da_rwys:[],
+  offset:false, offset_scope:'all', offset_rwys:[],
+  madem:false, madem_scope:'all', madem_rwys:[],
+  oei_ma_brief:false, oei_ma_scope:'all', oei_ma_rwys:[],
+  rwy_w:'wide', rwy_w_scope:'all', rwy_w_rwys:[],
+  rwy_marg:false, rwy_marg_scope:'all', rwy_marg_rwys:[],
+  phys_comp:false, phys_comp_scope:'all', phys_comp_rwys:[],
+  oei_sid:false, oei_sid_scope:'all', oei_sid_rwys:[],
+  oei_grad:false, oei_grad_scope:'all', oei_grad_rwys:[],
+  perf_lim:false, perf_lim_scope:'all', perf_lim_rwys:[],
+  lvp:'no', xw_risk:false, terr_hh:false, msa_ft:0, msa_sector:'All sectors',
+  atc:'no', mil_traff:false, gnss_risk:'no',
+  pol_risk:'no', arpt_sec:'good', st_oversight:'yes',
+  alt:'yes', fuel:'reliable', crew_rec:true,
+  curfew:false, curfew_open:'', curfew_close:'',
+  nadp:false, nadp_n1:false, nadp_n2:false, nadp_pA:false, nadp_pB:false,
+  free_text:'',
 };
 
-const DEFAULT_SCOPES={
-  angle_scope:'all',angle_rwys:[],
-  high_da_scope:'all',high_da_rwys:[],
-  offset_scope:'all',offset_rwys:[],
-  madem_scope:'all',madem_rwys:[],
-  oei_ma_scope:'all',oei_ma_rwys:[],
-  rwy_w_scope:'all',rwy_w_rwys:[],
-  rwy_marg_scope:'all',rwy_marg_rwys:[],
-  phys_comp_scope:'all',phys_comp_rwys:[],
-  oei_sid_scope:'all',oei_sid_rwys:[],
-  oei_grad_scope:'all',oei_grad_rwys:[],
-  perf_lim_scope:'all',perf_lim_rwys:[],
-};
-
-export function RiskSurvey({icao,airportName,airportCat,onClose,onSaved}){
+export function RiskSurvey({icao, airportName, airportCat, existingData, onClose, onSaved}){
   const [open,setOpen]=useState({1:true,2:true,3:false,4:false,5:false,6:false,7:false,8:false,9:false,10:false});
   const [saving,setSaving]=useState(false);
   const [result,setResult]=useState(null);
+  const [loading,setLoading]=useState(true);
   const APR=['--','CAT III','CAT II','ILS','GNSS','RNP AR','RNP','Non-Precision','Circling'];
 
-  const [f,setF]=useState({
-    assessed_by:'',cat:airportCat||'B',sp_desig:false,sp_crew:false,sp_approval:false,
-    rwy_data:Array(8).fill(null).map(()=>({des:'',apr:'--'})),
-    angle:'normal',high_da:false,offset:false,madem:false,oei_ma_brief:false,
-    rwy_w:'wide',rwy_marg:false,phys_comp:false,
-    oei_sid:false,oei_grad:false,perf_lim:false,
-    lvp:'no',xw_risk:false,terr_hh:false,msa_ft:0,msa_sector:'All sectors',
-    atc:'no',mil_traff:false,gnss_risk:'no',
-    pol_risk:'no',arpt_sec:'good',st_oversight:'yes',
-    alt:'yes',fuel:'reliable',crew_rec:true,
-    curfew:false,curfew_open:'',curfew_close:'',
-    nadp:false,nadp_n1:false,nadp_n2:false,nadp_pA:false,nadp_pB:false,
-    free_text:'',...DEFAULT_SCOPES,
-  });
+  const [f,setF]=useState({...DEFAULT_STATE, cat: airportCat||'B'});
+
+  // Load existing survey_state on mount
+  useEffect(()=>{
+    const load = async () => {
+      setLoading(true);
+      try {
+        const { data } = await supabase
+          .from('airport_risks')
+          .select('survey_state, category')
+          .eq('icao', icao.toUpperCase())
+          .single();
+
+        if (data?.survey_state) {
+          // Mevcut state'i yükle, sadece assessed_by'ı temizle
+          setF({
+            ...DEFAULT_STATE,
+            ...data.survey_state,
+            assessed_by: '', // her seferinde boş gelsin
+            cat: data.category || airportCat || 'B',
+          });
+        } else {
+          // İlk kez — default state + category
+          setF({...DEFAULT_STATE, cat: airportCat||'B'});
+        }
+      } catch {
+        setF({...DEFAULT_STATE, cat: airportCat||'B'});
+      }
+      setLoading(false);
+    };
+    load();
+  }, [icao, airportCat]);
 
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
   const tog=(n)=>setOpen(p=>({...p,[n]:!p[n]}));
@@ -374,7 +342,6 @@ export function RiskSurvey({icao,airportName,airportCat,onClose,onSaved}){
   const prec=bestRwy&&APPR_RANK[bestRwy.apr]>=3;
   const precisionCount=rwyData.filter(r=>isPrecision(r.apr)).length;
 
-  // Scope/rwy shorthand
   const RS=(scopeKey,rwysKey)=>(
     <RwyScope
       scopeVal={f[scopeKey]} onScope={v=>s(scopeKey,v)}
@@ -396,39 +363,52 @@ export function RiskSurvey({icao,airportName,airportCat,onClose,onSaved}){
     setSaving(true);
     const today=new Date().toISOString().split('T')[0];
     const due=new Date(Date.now()+365*86400000).toISOString().split('T')[0];
-    const summary=[...result.drivers];
-    if(!prec) summary.unshift('No precision approach available');
-    if(f.cat!=='A') summary.unshift('CAT '+f.cat+' aerodrome');
     const ops=result.risk==='HIGH'?'OPS MANAGER APPROVAL REQUIRED':result.risk==='MEDIUM'?'CAPTAIN REVIEW / DISPATCH COORDINATION':'DISPATCH OK';
     const pps=generatePpsBriefing(f,result,prec,bestRwy,rwyData);
     const matrixPos=scoreToMatrix(result.score);
 
+    // Survey state'i kaydet (assessed_by dahil)
+    const surveyState = { ...f };
+
     const{error}=await supabase.from('airport_risks').upsert({
-      icao:icao.toUpperCase(),category:f.cat,
-      base_score:Math.round(result.score),
-      risk_level:result.risk,ops_approval:ops,
-      max_s:matrixPos.s, max_l:matrixPos.l,
-      ra_risk_level:result.risk,
-      ra_risk_score:result.score,
-      ra_risk_basis:JSON.stringify(result.basis),
-      ra_key_drivers:JSON.stringify(result.drivers),
-      ra_actions:JSON.stringify(result.actions),
-      ra_briefing_items:JSON.stringify(summary),
-      ra_assessment_date:today,ra_reassessment_due:due,
-      ra_assessed_by:f.assessed_by||'Admin',ra_ops_approval:ops,
-      section1:pps.section1,section2:pps.section2,section3:pps.section3,
-      updated_at:new Date().toISOString(),
+      icao: icao.toUpperCase(),
+      category: f.cat,
+      base_score: Math.round(result.score),
+      risk_level: result.risk,
+      ops_approval: ops,
+      max_s: matrixPos.s,
+      max_l: matrixPos.l,
+      ra_risk_level: result.risk,
+      ra_risk_score: result.score,
+      ra_risk_basis: JSON.stringify(result.basis),
+      ra_key_drivers: JSON.stringify(result.drivers),
+      ra_actions: JSON.stringify(result.actions),
+      ra_assessment_date: today,
+      ra_reassessment_due: due,
+      ra_assessed_by: f.assessed_by||'Admin',
+      ra_ops_approval: ops,
+      section1: pps.section1,
+      section2: pps.section2,
+      section3: pps.section3,
+      survey_state: surveyState,  // ← ham form state kaydedilir
+      updated_at: new Date().toISOString(),
     },{onConflict:'icao'});
 
     setSaving(false);
-    if(error){alert('Save error: '+error.message);}
-    else{onSaved&&onSaved();onClose();}
+    if(error){ alert('Save error: '+error.message); }
+    else { onSaved&&onSaved(); onClose(); }
   };
 
   const rc=result?RC[result.risk]||RC.LOW:null;
   const scopeInfo=precisionCount>0
     ?`${precisionCount} precision/RNP runway${precisionCount>1?'s':''} — scope proportioning active`
-    :'No precision runways — full score applies to all factors';
+    :'No precision runways — full score applies';
+
+  if (loading) return (
+    <div style={{background:'#111',color:'#555',fontFamily:"'Courier New',monospace",padding:40,textAlign:'center',fontSize:11,letterSpacing:2}}>
+      LOADING SURVEY DATA...
+    </div>
+  );
 
   return(
     <div style={{background:'#111',color:'#e8e8e8',fontFamily:"'Courier New',monospace",maxHeight:'90vh',display:'flex',flexDirection:'column'}}>
@@ -436,14 +416,25 @@ export function RiskSurvey({icao,airportName,airportCat,onClose,onSaved}){
         <div>
           <div style={{fontSize:18,fontWeight:700,color:'#e8a020',letterSpacing:2}}>{icao}</div>
           <div style={{fontSize:12,color:'#e8e8e8'}}>{airportName} — Risk Assessment Survey</div>
+          {existingData?.ra_assessment_date&&(
+            <div style={{fontSize:9,color:'#555',marginTop:2}}>
+              Last assessed: {existingData.ra_assessment_date} by {existingData.ra_assessed_by||'—'}
+            </div>
+          )}
         </div>
         <button onClick={onClose} style={{background:'none',border:'none',color:'#555',cursor:'pointer',fontSize:20}}>✕</button>
       </div>
 
       <div style={{flex:1,overflowY:'auto',padding:'12px 16px'}}>
+
+        {/* Assessed by — her zaman boş */}
         <div style={{marginBottom:12}}>
-          <label style={IS.lbl}>Assessed by</label>
-          <input style={IS.inp} placeholder="Capt. Name..." value={f.assessed_by} onChange={e=>s('assessed_by',e.target.value)}/>
+          <label style={IS.lbl}>Assessed by (required)</label>
+          <input style={{...IS.inp, borderColor: !f.assessed_by ? '#e8731a' : '#383838'}}
+            placeholder="Capt. Name — enter each time..."
+            value={f.assessed_by}
+            onChange={e=>s('assessed_by',e.target.value)}/>
+          {!f.assessed_by&&<div style={{fontSize:9,color:'#e8731a',marginTop:3}}>Required before saving</div>}
         </div>
 
         {/* Block 1 */}
@@ -484,7 +475,6 @@ export function RiskSurvey({icao,airportName,airportCat,onClose,onSaved}){
               ℹ {scopeInfo}
             </div>
           )}
-
           <div style={{marginBottom:10}}>
             <label style={IS.lbl}>Approach angle?</label>
             <select style={IS.sel} value={f.angle} onChange={e=>s('angle',e.target.value)}>
@@ -496,7 +486,6 @@ export function RiskSurvey({icao,airportName,airportCat,onClose,onSaved}){
             </select>
             {f.angle!=='normal'&&RS('angle_scope','angle_rwys')}
           </div>
-
           <CB label="Precision DA/DH ≥ 400 ft (terrain-limited minima)?" checked={f.high_da} onChange={v=>s('high_da',v)}>
             {RS('high_da_scope','high_da_rwys')}
           </CB>
@@ -743,9 +732,9 @@ export function RiskSurvey({icao,airportName,airportCat,onClose,onSaved}){
                 </div>
               );
             })()}
-            <button onClick={handleSave} disabled={saving}
-              style={{width:'100%',background:'#2d9e5f',border:'none',color:'#fff',fontWeight:700,fontSize:13,padding:'12px',borderRadius:5,cursor:'pointer',fontFamily:"'Courier New',monospace"}}>
-              {saving?'SAVING...':'SAVE TO DATABASE (incl. PPS Briefing)'}
+            <button onClick={handleSave} disabled={saving||!f.assessed_by}
+              style={{width:'100%',background: f.assessed_by?'#2d9e5f':'#2a2a2a',border:'none',color: f.assessed_by?'#fff':'#555',fontWeight:700,fontSize:13,padding:'12px',borderRadius:5,cursor:f.assessed_by?'pointer':'not-allowed',fontFamily:"'Courier New',monospace"}}>
+              {saving?'SAVING...':(f.assessed_by?'SAVE TO DATABASE (incl. PPS Briefing)':'Enter "Assessed by" to save')}
             </button>
           </div>
         )}
