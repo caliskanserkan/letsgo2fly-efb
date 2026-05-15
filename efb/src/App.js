@@ -894,6 +894,7 @@ function App() {
   const setStatusLanding   = useCallback((s) => setStatus('landing',   s), [setStatus]);
   const setStatusEndflt    = useCallback((s) => setStatus('endflt',    s), [setStatus]);
   const setStatusDocupload = useCallback((s) => setStatus('docupload', s), [setStatus]);
+  const setStatusRass      = useCallback((s) => setStatus('rass',      s), [setStatus]);
 
   const layoutTitle = activePlan
     ? `${activePlan.reg || 'GO2'} · ${activePlan.dep || '—'}-${activePlan.dest || '—'} · ${activePlan.date || ''} ${activePlan.std || ''} Z`
@@ -973,7 +974,7 @@ function App() {
       {activePage === 'endflt'    && <EndFlight   flightData={flightData} divertData={divertData} setStatus={setStatusEndflt} activePlan={activePlan} rawText={rawText} />}
       {activePage === 'docupload' && <DocUpload   setStatus={setStatusDocupload} activePlan={activePlan} />}
       {activePage === 'freenote'  && <FreeNote />}
-      {activePage === 'rass'      && <RassView />}
+      {activePage === 'rass'      && <RassView setStatus={setStatusRass} />}
       {!['flt-crew','mandatory','efp','fuel','accept','takeoff','navlog','landing','endflt','docupload','freenote','rass'].includes(activePage) && (
         <div style={{ padding:24, color:'var(--t3)', fontSize:13 }}>Page under construction...</div>
       )}
