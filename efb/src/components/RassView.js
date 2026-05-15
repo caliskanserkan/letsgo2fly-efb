@@ -1,6 +1,4 @@
 // RassView.js — GO2 eFB
-// Pilot tarafı read-only. PPS Briefing: survey'den gelen section1/2/3.
-
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
@@ -42,11 +40,11 @@ function PpsSection({ title, text, color }) {
   );
 }
 
-function AirportCard({ role, icao, data }) {
+function AirportCard({ role, icao, data, checked, onCheck }) {
   const rm = data ? getRiskMeta(data.risk_level) : { color:C.t3, bg:'transparent', border:C.border };
   const hasPps = data && (data.section1 || data.section2 || data.section3);
   return (
-    <div style={{ flex:1, minWidth:0, background:C.bg2, border:`1px solid ${rm.border}`, borderRadius:6, overflow:'hidden' }}>
+    <div style={{ flex:1, minWidth:0, background:C.bg2, border:`1px solid ${checked?'#2d9e5f':rm.border}`, borderRadius:6, overflow:'hidden', transition:'border-color 0.2s' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:rm.bg, borderBottom:`1px solid ${rm.border}` }}>
         <div>
           <div style={{ fontSize:9, color:C.t3, fontFamily:"'Courier New',monospace", letterSpacing:1.5, marginBottom:2 }}>{role}</div>
@@ -97,6 +95,28 @@ function AirportCard({ role, icao, data }) {
           NOT FOUND IN DATABASE — CONTACT DISPATCH
         </div>
       )}
+
+      {/* ── Pilot onay checkbox ── */}
+      <div onClick={() => onCheck && onCheck(!checked)}
+        style={{
+          display:'flex', alignItems:'center', gap:10, padding:'12px 14px',
+          background: checked ? 'rgba(45,158,95,0.10)' : 'rgba(255,255,255,0.02)',
+          borderTop:`1px solid ${checked ? '#2d9e5f' : C.border}`,
+          cursor:'pointer', transition:'background 0.15s',
+        }}>
+        <div style={{
+          width:20, height:20, borderRadius:4, flexShrink:0,
+          border:`2px solid ${checked ? '#2d9e5f' : '#444'}`,
+          background: checked ? '#2d9e5f' : 'transparent',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          transition:'all 0.15s',
+        }}>
+          {checked && <span style={{ color:'#fff', fontSize:13, lineHeight:1 }}>✓</span>}
+        </div>
+        <span style={{ fontSize:11, color: checked ? '#2d9e5f' : '#546e7a', fontFamily:"'Courier New',monospace", fontWeight: checked ? 700 : 400 }}>
+          {checked ? 'Risk assessment reviewed ✓' : 'I have reviewed this risk assessment'}
+        </span>
+      </div>
     </div>
   );
 }
@@ -124,11 +144,12 @@ function MissionRisk({ airports }) {
   );
 }
 
-export default function RassView() {
+export default function RassView({ setStatus }) {
   const [plan,    setPlan]    = useState(null);
   const [risks,   setRisks]   = useState({ dep:null, dest:null, altn:null });
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
+  const [checked, setChecked] = useState({ dep:false, dest:false, altn:false });
 
   useEffect(() => {
     (async () => {
@@ -149,10 +170,24 @@ export default function RassView() {
     })();
   }, []);
 
+  // Status güncelle — hepsi checked olunca green
+  useEffect(() => {
+    if (!setStatus || loading) return;
+    const altnIcao = parseIcao(plan?.alternate);
+    const required = altnIcao ? ['dep','dest','altn'] : ['dep','dest'];
+    const allChecked = required.every(k => checked[k]);
+    const anyChecked = required.some(k => checked[k]);
+    if (allChecked)      setStatus('green');
+    else if (anyChecked) setStatus('amber');
+    else                 setStatus('pending');
+  }, [checked, loading, plan, setStatus]);
+
   if (loading) return <div style={{ padding:40, textAlign:'center', color:C.t3, fontFamily:"'Courier New',monospace", fontSize:11, letterSpacing:2 }}>LOADING RASS DATA...</div>;
   if (error)   return <div style={{ padding:40, textAlign:'center', color:'#e02020', fontFamily:"'Courier New',monospace", fontSize:11, letterSpacing:2 }}>{error}</div>;
 
   const depIcao=parseIcao(plan?.dep), destIcao=parseIcao(plan?.dest), altnIcao=parseIcao(plan?.alternate);
+  const required = altnIcao ? ['dep','dest','altn'] : ['dep','dest'];
+  const allChecked = required.every(k => checked[k]);
 
   return (
     <div style={{ padding:'16px 16px 24px', fontFamily:"'Courier New',monospace" }}>
@@ -166,16 +201,37 @@ export default function RassView() {
           <div>{plan?.dispatch_no||'—'}</div>
         </div>
       </div>
+
       <MissionRisk airports={[risks.dep,risks.dest,risks.altn]}/>
+
       <div style={{ display:'flex', gap:10, marginBottom:10, alignItems:'flex-start' }}>
-        <AirportCard role="DEP — DEPARTURE"    icao={depIcao}  data={risks.dep}  />
-        <AirportCard role="DEST — DESTINATION" icao={destIcao} data={risks.dest} />
+        <AirportCard role="DEP — DEPARTURE"    icao={depIcao}  data={risks.dep}
+          checked={checked.dep}  onCheck={v=>setChecked(p=>({...p,dep:v}))}  />
+        <AirportCard role="DEST — DESTINATION" icao={destIcao} data={risks.dest}
+          checked={checked.dest} onCheck={v=>setChecked(p=>({...p,dest:v}))} />
       </div>
-      {altnIcao && <div style={{ marginBottom:10 }}><AirportCard role="ALTN — ALTERNATE" icao={altnIcao} data={risks.altn}/></div>}
-      <div style={{ marginTop:6, padding:'7px 12px', background:'rgba(26,155,196,0.04)', border:'1px solid rgba(26,155,196,0.12)', borderRadius:4, textAlign:'center' }}>
+
+      {altnIcao && (
+        <div style={{ marginBottom:10 }}>
+          <AirportCard role="ALTN — ALTERNATE" icao={altnIcao} data={risks.altn}
+            checked={checked.altn} onCheck={v=>setChecked(p=>({...p,altn:v}))} />
+        </div>
+      )}
+
+      <div style={{
+        marginTop:6, padding:'10px 14px', borderRadius:5,
+        background: allChecked ? 'rgba(45,158,95,0.08)' : 'rgba(26,155,196,0.04)',
+        border:`1px solid ${allChecked ? '#2d9e5f' : 'rgba(26,155,196,0.12)'}`,
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+      }}>
         <span style={{ fontSize:9, color:'#37474f', fontFamily:"'Courier New',monospace", letterSpacing:1.5 }}>
           READ-ONLY · MANAGED BY DISPATCH · REF: ICAO DOC 9859 / AMC 20-25
         </span>
+        {allChecked && (
+          <span style={{ fontSize:10, color:'#2d9e5f', fontFamily:"'Courier New',monospace", fontWeight:700 }}>
+            ✓ ALL REVIEWED
+          </span>
+        )}
       </div>
     </div>
   );
