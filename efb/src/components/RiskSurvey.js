@@ -542,6 +542,18 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
               </div>
             ))}
           </div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+            <button onClick={()=>s("rwy_data",[...f.rwy_data,...Array(8).fill(null).map(()=>({des:"",apr:"--"}))])}
+              style={{fontSize:10,padding:"4px 12px",background:"#1a1a1a",border:"1px solid #1a9bc4",color:"#1a9bc4",borderRadius:4,cursor:"pointer",fontFamily:"'Courier New',monospace"}}>
+              + ADD 8 MORE RUNWAYS ({f.rwy_data.length} slots)
+            </button>
+            {f.rwy_data.length > 8 && (
+              <button onClick={()=>s("rwy_data",f.rwy_data.slice(0,8))}
+                style={{fontSize:10,padding:"4px 10px",background:"#1a1a1a",border:"1px solid #383838",color:"#555",borderRadius:4,cursor:"pointer",fontFamily:"'Courier New',monospace"}}>
+                RESET TO 8
+              </button>
+            )}
+          </div>
           {bestRwy&&<div style={{fontSize:10,color:'#2d9e5f',marginBottom:4}}>Best approach: {bestRwy.apr} — RWY {bestRwy.des} {prec?'(PRECISION)':'(non-precision)'}</div>}
           {rwyData.length>0&&(
             <div style={{fontSize:9,color:precisionCount>0?'#1a9bc4':'#555',marginBottom:10,padding:'4px 8px',background:precisionCount>0?'rgba(26,155,196,0.08)':'rgba(80,80,80,0.08)',borderRadius:4}}>
