@@ -263,7 +263,7 @@ function UsersTab({ showToast }) {
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
-    let q = supabase.from('profiles').select('*, customers:customer_id(company_name, icao_code)').order('created_at', { ascending: false });
+    let q = supabase.from('profiles').select('*').order('created_at', { ascending: false });
     if (selectedCo !== 'all') q = q.eq('customer_id', selectedCo);
     const { data } = await q;
     setUsers(data || []);
