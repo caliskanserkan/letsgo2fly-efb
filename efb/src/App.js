@@ -862,9 +862,18 @@ function App() {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) { setUser(session.user); }
-      else { setUser(null); setPage('login'); }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session) {
+        setUser(session.user);
+        const { data: profile } = await supabase
+          .from('profiles').select('*').eq('id', session.user.id).single();
+        setUserProfile(profile);
+        if (profile?.role === 'superadmin') setPage('superadmin');
+        else setPage('dashboard');
+      } else {
+        setUser(null);
+        setPage('login');
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -898,7 +907,17 @@ function App() {
     </div>
   );
 
-  if (page === 'login')      return <Login onLogin={() => setPage('dashboard')} />;
+  if (page === 'login') return <Login onLogin={async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      setUser(session.user);
+      const { data: profile } = await supabase
+        .from('profiles').select('*').eq('id', session.user.id).single();
+      setUserProfile(profile);
+      if (profile?.role === 'superadmin') setPage('superadmin');
+      else setPage('dashboard');
+    }
+  }} />;
   if (page === 'admin')      return <AdminPanel onBack={() => setPage('dashboard')} />;
   if (page === 'superadmin') return <SuperAdmin user={user} profile={userProfile} onBack={() => setPage('dashboard')} />;
 
