@@ -16,6 +16,7 @@ import RassView from './components/RassView';
 import { supabase, logEvent } from './supabaseClient';
 import * as pdfjsLib from 'pdfjs-dist';
 import AdminPanel from './components/AdminPanel';
+import SuperAdmin from './components/SuperAdmin';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
@@ -771,12 +772,10 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 function App() {
-  const [page, setPage]                   = useState('loading');
-  const [user, setUser]                   = useState(null);
-  const [showAdminAuth, setShowAdminAuth] = useState(false);
-  const [adminPin, setAdminPin]           = useState('');
-  const [adminPinError, setAdminPinError] = useState('');
-  const [offlineSince, setOfflineSince]   = useState(null);
+  const [page, setPage]               = useState('loading');
+  const [user, setUser]               = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [offlineSince, setOfflineSince] = useState(null);
 
   useEffect(() => {
     applyFont(parseInt(localStorage.getItem(FONT_KEY) || FONT_DEF));
@@ -847,10 +846,17 @@ function App() {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
         setUser(session.user);
-        setPage('dashboard');
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        setUserProfile(profile);
+        if (profile?.role === 'superadmin') setPage('superadmin');
+        else setPage('dashboard');
       } else {
         setPage('login');
       }
@@ -864,20 +870,6 @@ function App() {
   }, []);
 
   const handleLogout = async () => { await supabase.auth.signOut(); };
-
-  const handleAdminAuth = async () => {
-    try {
-      const { data } = await supabase.from('system_settings').select('admin_password').single();
-      if (data?.admin_password === adminPin) {
-        setShowAdminAuth(false); setAdminPin(''); setAdminPinError('');
-        setPage('admin');
-      } else {
-        setAdminPinError('Incorrect password.');
-      }
-    } catch {
-      setAdminPinError('Could not verify. Check connection.');
-    }
-  };
 
   const navigate = (target) => {
     if (target === 'dashboard') { setPage('dashboard'); }
@@ -906,31 +898,9 @@ function App() {
     </div>
   );
 
-  if (page === 'login') return <Login onLogin={() => setPage('dashboard')} />;
-  if (page === 'admin') return <AdminPanel onBack={() => setPage('dashboard')} />;
-
-  if (showAdminAuth) return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
-      <div style={{ width:300, background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-        <div style={{ background:'#1f1f1f', borderBottom:'1px solid var(--border)', padding:'10px 18px', fontSize:10, color:'#e8a020', fontWeight:700, letterSpacing:2 }}>ADMIN ACCESS</div>
-        <div style={{ padding:'20px 18px' }}>
-          <label style={{ display:'block', fontSize:10, color:'#ffffff', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Admin Password</label>
-          <input type="password" value={adminPin} onChange={e => { setAdminPin(e.target.value); setAdminPinError(''); }}
-            onKeyDown={e => e.key === 'Enter' && handleAdminAuth()} placeholder="Enter password"
-            style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} />
-          {adminPinError && (
-            <div style={{ marginTop:8, padding:'7px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>{adminPinError}</div>
-          )}
-        </div>
-        <div style={{ padding:'0 18px 18px', display:'flex', gap:8 }}>
-          <button onClick={() => { setShowAdminAuth(false); setAdminPin(''); setAdminPinError(''); }}
-            style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
-          <button onClick={handleAdminAuth}
-            style={{ flex:1, background:'#e8a020', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#000', cursor:'pointer', fontFamily:'inherit' }}>Enter</button>
-        </div>
-      </div>
-    </div>
-  );
+  if (page === 'login')      return <Login onLogin={() => setPage('dashboard')} />;
+  if (page === 'admin')      return <AdminPanel onBack={() => setPage('dashboard')} />;
+  if (page === 'superadmin') return <SuperAdmin user={user} profile={userProfile} onBack={() => setPage('dashboard')} />;
 
   if (page === 'dashboard') return (
     <Dashboard
@@ -941,7 +911,10 @@ function App() {
       }}
       user={user}
       onLogout={handleLogout}
-      onAdmin={() => { setAdminPin(''); setAdminPinError(''); setShowAdminAuth(true); }}
+      onAdmin={() => {
+        if (userProfile?.role === 'superadmin') setPage('superadmin');
+        else setPage('admin');
+      }}
       onActivate={(plan) => {
         setActivePlan(plan);
         if (plan) { localStorage.setItem('activePlan', JSON.stringify(plan)); navigate('flt-crew'); }
