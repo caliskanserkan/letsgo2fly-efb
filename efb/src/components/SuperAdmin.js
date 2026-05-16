@@ -249,28 +249,32 @@ function CompaniesTab({ showToast }) {
 
 // ─── Users Tab ────────────────────────────────────────────────────────────────
 function UsersTab({ showToast }) {
+  const [users, setUsers]   = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ email: '', full_name: '', code: '', role: 'pilot', customer_id: '', aircraft_type: '' });
+  const [saving, setSaving] = useState(false);
   const [companies, setCompanies] = useState([]);
-  const [users, setUsers]         = useState([]);
   const [selectedCo, setSelectedCo] = useState('all');
-  const [loading, setLoading]     = useState(false);
-  const [showAdd, setShowAdd]     = useState(false);
-  const [form, setForm]           = useState({ email: '', full_name: '', code: '', role: 'pilot', customer_id: '', aircraft_type: '' });
-  const [saving, setSaving]       = useState(false);
+
+  const loadUsers = async (filter) => {
+    setLoading(true);
+    try {
+      let q = supabase.from('profiles').select('*').order('created_at', { ascending: false });
+      if (filter && filter !== 'all') q = q.eq('customer_id', filter);
+      const { data, error } = await q;
+      if (error) throw error;
+      setUsers(data || []);
+    } catch(e) {
+      showToast('Error: ' + e.message, 'error');
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
-    supabase.from('customers').select('id, company_name, icao_code').eq('active', true).then(({ data }) => setCompanies(data || []));
+    loadUsers('all');
+    supabase.from('customers').select('id, company_name, icao_code').then(({ data }) => setCompanies(data || []));
   }, []);
-
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    let q = supabase.from('profiles').select('*').order('created_at', { ascending: false });
-    if (selectedCo !== 'all') q = q.eq('customer_id', selectedCo);
-    const { data } = await q;
-    setUsers(data || []);
-    setLoading(false);
-  }, [selectedCo]);
-
-  useEffect(() => { loadUsers(); }, [loadUsers]);
 
   const inviteUser = async () => {
     if (!form.email || !form.role) return;
@@ -294,7 +298,7 @@ function UsersTab({ showToast }) {
       showToast(`Invite sent to ${form.email}`, 'success');
       setShowAdd(false);
       setForm({ email: '', full_name: '', code: '', role: 'pilot', customer_id: '', aircraft_type: '' });
-      loadUsers();
+      loadUsers(selectedCo);
     } catch (err) {
       showToast('Error: ' + err.message, 'error');
     }
@@ -304,7 +308,7 @@ function UsersTab({ showToast }) {
   const updateRole = async (userId, role) => {
     await supabase.from('profiles').update({ role }).eq('id', userId);
     showToast('Role updated', 'success');
-    loadUsers();
+    loadUsers(selectedCo);
   };
 
   const roleColor = (role) => {
