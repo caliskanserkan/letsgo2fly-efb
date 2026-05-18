@@ -20,7 +20,6 @@ import SuperAdmin from './components/SuperAdmin';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
-// ─── Global Font Size ─────────────────────────────────────────────────────────
 const FONT_KEY  = 'efb_font_size';
 const FONT_DEF  = 13;
 
@@ -48,7 +47,6 @@ function OfflineBanner({ offlineSince }) {
   );
 }
 
-// ─── LocalStorage helpers ─────────────────────────────────────────────────────
 const LS = {
   PLAN:    'efb_activePlan',
   PAGE:    'efb_activePage',
@@ -79,7 +77,6 @@ function lsClear() {
     .forEach(k => localStorage.removeItem(k));
 }
 
-// ─── Default state values ─────────────────────────────────────────────────────
 const DEFAULT_FLIGHT_DATA = {
   offBlock: '', takeoffTime: '', takeoffFuel: '',
   landingTime: '', onBlock: '', remainingFuel: '',
@@ -95,6 +92,20 @@ const DEFAULT_PAGE_STATUS = {
 const DEFAULT_DIVERT_DATA = {
   active: false, icao: '', rwy: '', len: '', reason: '',
 };
+
+// ─── Profile helper ───────────────────────────────────────────────────────────
+async function fetchProfile(userId) {
+  try {
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    return data || null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveRole(profile) {
+  return profile?.role === 'superadmin' ? 'superadmin' : 'dashboard';
+}
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
 function parseDispatchNo(text) {
@@ -466,7 +477,7 @@ function UploadPlanModal({ onClose, onUploaded }) {
   );
 }
 
-// ─── WX parser (from raw_text) ────────────────────────────────────────────────
+// ─── WX parser ────────────────────────────────────────────────────────────────
 function parseWxFromRawText(rawText, dep, dest, alt) {
   const wxIdx = rawText.search(/WX for flight|WX search performed/i);
   const wxEndIdx = rawText.search(/End of WX information/i);
@@ -525,7 +536,6 @@ function parseWxFromRawText(rawText, dep, dest, alt) {
   };
 }
 
-// ─── WXR Chart parser (from raw_text) ─────────────────────────────────────────
 function parseWxrChartsFromRawText(rawText) {
   const charts = [];
   const windRe = /WIND\/TEMPERATURE\s*\n\s*(FL \d+)\s*\n\s*PROGNOSTIC CHART\s*\n\s*(\S+ - \S+)\s*\n\s*VALID\s+([^\n]+)\s*\n\s*BASED ON ([^\n]+)\s*\n\s*(\d{2} UTC[^\n]+)/g;
@@ -638,17 +648,10 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
         } catch {}
         onActivate(plan);
         logEvent(plan.id, "PLAN_ACTIVATED", {
-          dep: plan.dep,
-          dest: plan.dest,
-          reg: plan.reg,
-          dispatch_no: plan.dispatch_no,
-          activated_at: new Date().toISOString(),
+          dep: plan.dep, dest: plan.dest, reg: plan.reg,
+          dispatch_no: plan.dispatch_no, activated_at: new Date().toISOString(),
         });
-        logEvent(plan.id, "PLAN_DOWNLOADED", {
-          dep: plan.dep,
-          dest: plan.dest,
-          dispatch_no: plan.dispatch_no,
-        });
+        logEvent(plan.id, "PLAN_DOWNLOADED", { dep: plan.dep, dest: plan.dest, dispatch_no: plan.dispatch_no });
       }
     } catch {}
     loadPlans();
@@ -656,12 +659,8 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
   };
 
   const deactivatePlan = async (planId) => {
-    try {
-      await supabase.from('plans').update({ status: 'available' }).eq('id', planId);
-    } catch {}
-    onDeactivate();
-    loadPlans();
-    setTab('available');
+    try { await supabase.from('plans').update({ status: 'available' }).eq('id', planId); } catch {}
+    onDeactivate(); loadPlans(); setTab('available');
   };
 
   const planCard = (p) => ({
@@ -846,45 +845,38 @@ function App() {
   };
 
   useEffect(() => {
+    // 8 saniye içinde yanıt gelmezse login'e yönlendir
+    const timeout = setTimeout(() => setPage('login'), 8000);
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      clearTimeout(timeout);
       if (session) {
         setUser(session.user);
-        try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+        const profile = await fetchProfile(session.user.id);
         setUserProfile(profile);
-        if (profile?.role === 'superadmin') setPage('superadmin');
-        else setPage('dashboard');
-      } catch {
-        setPage('dashboard');
-      }
+        setPage(resolveRole(profile));
       } else {
         setPage('login');
       }
+    }).catch(() => {
+      clearTimeout(timeout);
+      setPage('login');
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
         setUser(session.user);
-        try {
-          const { data: profile } = await supabase
-            .from('profiles').select('*').eq('id', session.user.id).single();
-          setUserProfile(profile);
-          if (profile?.role === 'superadmin') setPage('superadmin');
-          else setPage('dashboard');
-        } catch {
-          setPage('dashboard');
-        }
+        const profile = await fetchProfile(session.user.id);
+        setUserProfile(profile);
+        setPage(resolveRole(profile));
       } else {
         setUser(null);
         setPage('login');
       }
     });
-    return () => subscription.unsubscribe();
-  }, []);
+
+    return () => { clearTimeout(timeout); subscription.unsubscribe(); };
+  }, []); // eslint-disable-line
 
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
@@ -920,18 +912,17 @@ function App() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setUser(session.user);
-        const { data: profile } = await supabase
-          .from('profiles').select('*').eq('id', session.user.id).single();
+        const profile = await fetchProfile(session.user.id);
         setUserProfile(profile);
-        if (profile?.role === 'superadmin') setPage('superadmin');
-        else setPage('dashboard');
+        setPage(resolveRole(profile));
       } else {
-        setPage('login');
+        setPage('dashboard');
       }
     } catch {
       setPage('dashboard');
     }
   }} />;
+
   if (page === 'admin')      return <AdminPanel onBack={() => setPage('dashboard')} />;
   if (page === 'superadmin') return <SuperAdmin user={user} profile={userProfile} onBack={() => setPage('dashboard')} />;
 
