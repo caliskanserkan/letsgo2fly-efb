@@ -849,6 +849,7 @@ function App() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
         setUser(session.user);
+        try {
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
@@ -857,6 +858,9 @@ function App() {
         setUserProfile(profile);
         if (profile?.role === 'superadmin') setPage('superadmin');
         else setPage('dashboard');
+      } catch {
+        setPage('dashboard');
+      }
       } else {
         setPage('login');
       }
@@ -865,11 +869,15 @@ function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
         setUser(session.user);
-        const { data: profile } = await supabase
-          .from('profiles').select('*').eq('id', session.user.id).single();
-        setUserProfile(profile);
-        if (profile?.role === 'superadmin') setPage('superadmin');
-        else setPage('dashboard');
+        try {
+          const { data: profile } = await supabase
+            .from('profiles').select('*').eq('id', session.user.id).single();
+          setUserProfile(profile);
+          if (profile?.role === 'superadmin') setPage('superadmin');
+          else setPage('dashboard');
+        } catch {
+          setPage('dashboard');
+        }
       } else {
         setUser(null);
         setPage('login');
@@ -908,14 +916,20 @@ function App() {
   );
 
   if (page === 'login') return <Login onLogin={async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      setUser(session.user);
-      const { data: profile } = await supabase
-        .from('profiles').select('*').eq('id', session.user.id).single();
-      setUserProfile(profile);
-      if (profile?.role === 'superadmin') setPage('superadmin');
-      else setPage('dashboard');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setUser(session.user);
+        const { data: profile } = await supabase
+          .from('profiles').select('*').eq('id', session.user.id).single();
+        setUserProfile(profile);
+        if (profile?.role === 'superadmin') setPage('superadmin');
+        else setPage('dashboard');
+      } else {
+        setPage('login');
+      }
+    } catch {
+      setPage('dashboard');
     }
   }} />;
   if (page === 'admin')      return <AdminPanel onBack={() => setPage('dashboard')} />;
