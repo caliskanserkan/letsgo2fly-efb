@@ -575,7 +575,7 @@ function Crews({toast}){
   const[addForm,setAddForm]=useState({full_name:'',code:'',email:'',role:'pilot',password:''});
   const[qualForm,setQualForm]=useState({ac_type:'',seat:'CPT',hand:'BOTH',landing_cat:'CAT1',valid_from:'',valid_until:''});
   const[efbForm,setEfbForm]=useState({efb_training_date:'',efb_training_valid_until:'',efb_training_type:'Initial',efb_trained_by:''});
-  const load=useCallback(async()=>{ setLoading(true); const[{data:p},{data:q}]=await Promise.all([supabase.from('profiles').select('*').neq('role', 'superadmin').order('full_name'),supabase.from('crew_qualifications').select('*')]); setPilots(p||[]); setQuals(q||[]); setLoading(false); },[]);
+  const load=useCallback(async()=>{ setLoading(true); const[{data:p},{data:q}]=await Promise.all([supabase.from('profiles').select('*').order('full_name'),supabase.from('crew_qualifications').select('*')]); setPilots(p||[]); setQuals(q||[]); setLoading(false); },[]);
   useEffect(()=>{load();},[load]);
   const sel=pilots.find(p=>p.id===selected);
   const selQuals=quals.filter(q=>q.pilot_id===selected);
