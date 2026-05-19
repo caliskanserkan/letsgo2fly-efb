@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
 const FONT_KEY  = 'efb_font_size';
-const FONT_MIN  = 10;
-const FONT_MAX  = 22;
-const FONT_DEF  = 13;
+const FONT_MIN  = 12;
+const FONT_MAX  = 24;
+const FONT_DEF  = 15;
 const FONT_STEP = 1;
 
 function applyFont(size) {

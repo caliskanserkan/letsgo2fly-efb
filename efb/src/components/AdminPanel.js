@@ -1,3 +1,24 @@
+
+// ─── Font Controls ────────────────────────────────────────────
+const FONT_KEY = 'efb_font_size';
+const FONT_DEF = 15;
+const FONT_MIN = 12;
+const FONT_MAX = 24;
+function applyFont(size) {
+  document.documentElement.style.zoom = (size / FONT_DEF).toString();
+  localStorage.setItem(FONT_KEY, size);
+}
+function FontControls() {
+  const [size, setSize] = React.useState(() => parseInt(localStorage.getItem(FONT_KEY) || FONT_DEF));
+  const change = (d) => { const n = Math.min(FONT_MAX, Math.max(FONT_MIN, size + d)); setSize(n); applyFont(n); };
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+      <button onClick={() => change(-1)} style={{ width:28, height:28, background:"#1e293b", border:"1px solid #334155", borderRadius:5, color:"#94a3b8", fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"inherit" }}>−</button>
+      <span style={{ fontSize:11, color:"#475569", minWidth:22, textAlign:"center", fontFamily:"monospace" }}>{size}</span>
+      <button onClick={() => change(+1)} style={{ width:28, height:28, background:"#1e293b", border:"1px solid #334155", borderRadius:5, color:"#94a3b8", fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"inherit" }}>+</button>
+    </div>
+  );
+}
 // AdminPanel.js — GO2 eFB Admin Panel v3
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
@@ -833,7 +854,7 @@ export default function AdminPanel({onBack}){
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:14 }}>
           <span style={{ fontSize:10, color:C.t3 }}>{user?.email}</span>
-          <button style={{ background:'none', color:'#fff', border:`1px solid ${C.border2}`, padding:'6px 14px', fontSize:12, fontFamily:"'Courier New',monospace", cursor:'pointer', letterSpacing:1 }} onClick={onBack}>DASHBOARD</button>
+          <FontControls /><button style={{ background:'none', color:'#fff', border:`1px solid ${C.border2}`, padding:'6px 14px', fontSize:12, fontFamily:"'Courier New',monospace", cursor:'pointer', letterSpacing:1 }} onClick={onBack}>DASHBOARD</button>
         </div>
       </div>
 
