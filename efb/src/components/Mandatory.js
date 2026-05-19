@@ -11,13 +11,6 @@ const INITIAL_CHECKS = [
   { id:6, label:'EFB_CHECKLIST_CONSOLIDATED',          done:false, section:'EFB Checklist — AMC 20-25', isEfbConsolidated:true },
 ];
 
-function SectionHeader({ title }) {
-  return (
-    <div style={{ padding:'8px 16px 4px', fontSize:10, color:'#38bdf8', fontWeight:600, letterSpacing:'1.5px', textTransform:'uppercase', marginTop:8 }}>
-      {title}
-    </div>
-  );
-}
 
 function SignatureCanvas({ onSave, onClear }) {
   const canvasRef = useRef(null);

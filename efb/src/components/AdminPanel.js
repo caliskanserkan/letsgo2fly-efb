@@ -1,3 +1,8 @@
+// AdminPanel.js — GO2 eFB Admin Panel v3
+import React, { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../supabaseClient';
+import { RiskSurvey, AssessmentHistory } from './RiskSurvey';
+import PlanDocuments from './PlanDocuments';
 
 // ─── Font Controls ────────────────────────────────────────────
 const FONT_KEY = 'efb_font_size';
@@ -19,11 +24,8 @@ function FontControls() {
     </div>
   );
 }
-// AdminPanel.js — GO2 eFB Admin Panel v3
-import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
-import { RiskSurvey, AssessmentHistory } from './RiskSurvey';
-import PlanDocuments from './PlanDocuments';
+
+
 
 const C = {
   bg:'#0a0c10',bg2:'#0d1117',bg3:'#111620',border:'#1e2530',border2:'#2a3040',
