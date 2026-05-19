@@ -175,7 +175,19 @@ async function fetchLiveWx(icaoList) {
 function WXRView({ activePlan, rawText }) {
 
   // All airports from plan's WX section
-  const wxAirports = useMemo(() => parseAllWxAirports(rawText), [rawText]);
+  const wxAirports = useMemo(() => {
+    const fromPdf = parseAllWxAirports(rawText);
+    if (fromPdf.length > 0) return fromPdf;
+    const fallback = [];
+    const addApt = (icaoRaw, type) => {
+      const icao = icaoRaw?.split("/")[0]?.trim().toUpperCase();
+      if (icao && /^[A-Z]{4}$/.test(icao)) fallback.push({ icao, type, name:"" });
+    };
+    addApt(activePlan?.dep, "DEPARTURE");
+    addApt(activePlan?.dest, "DESTINATION");
+    addApt(activePlan?.alternate, "ALTERNATE");
+    return fallback;
+  }, [rawText, activePlan?.dep, activePlan?.dest, activePlan?.alternate]);
   const wxHeader   = useMemo(() => parseWxHeader(rawText), [rawText]);
 
   // Plan WX data
