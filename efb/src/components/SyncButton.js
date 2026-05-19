@@ -20,20 +20,20 @@ function SyncButton() {
   };
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'16px 16px 20px', borderTop:'1px solid #383838', marginTop:8 }}>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'16px 16px 20px', borderTop:'1px solid #334155', marginTop:8 }}>
       {status === 'idle' ? (
         <button onClick={handleSync}
-          style={{ background:'#e8731a', border:'none', borderRadius:10, padding:'13px 40px', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit', letterSpacing:0.3 }}>
+          style={{ background:'#f97316', border:'none', borderRadius:10, padding:'13px 40px', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit', letterSpacing:0.3 }}>
           ⇄ Sync to PM
         </button>
       ) : (
         <button onClick={handleReSync}
-          style={{ background:'#2d9e5f', border:'none', borderRadius:10, padding:'13px 40px', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit', letterSpacing:0.3 }}>
+          style={{ background:'#4ade80', border:'none', borderRadius:10, padding:'13px 40px', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit', letterSpacing:0.3 }}>
           ✓ Synced to PM
         </button>
       )}
       {syncedAt && (
-        <div style={{ fontSize:10, color:'#555', marginTop:6 }}>Last sync: {syncedAt}</div>
+        <div style={{ fontSize:10, color:'#475569', marginTop:6 }}>Last sync: {syncedAt}</div>
       )}
     </div>
   );

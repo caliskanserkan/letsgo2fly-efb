@@ -52,7 +52,7 @@ export default function PlanDocuments({ planId, archivedFlightId, readOnly=true 
     <div style={{fontFamily:"'Courier New',monospace"}}>
       <div style={{padding:'8px 16px',background:'#111620',borderBottom:'1px solid #1e2530',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <span style={{fontSize:10,color:'#546e7a',letterSpacing:1}}>FLIGHT DOCUMENTS</span>
-        <span style={{fontSize:10,color:'#2d9e5f',fontWeight:700}}>{totalCurrent} CURRENT · {docs.length} TOTAL</span>
+        <span style={{fontSize:10,color:'#4ade80',fontWeight:700}}>{totalCurrent} CURRENT · {docs.length} TOTAL</span>
       </div>
       {Object.entries(grouped).map(([section,sectionDocs])=>{
         const meta=SECTION_META[section]||{label:section,icon:'📄'};
@@ -62,7 +62,7 @@ export default function PlanDocuments({ planId, archivedFlightId, readOnly=true 
             <div style={{padding:'7px 16px',background:'#0d1117',borderBottom:'1px solid #1e2530',display:'flex',alignItems:'center',gap:8}}>
               <span style={{fontSize:13}}>{meta.icon}</span>
               <span style={{fontSize:10,color:'#607d8b',fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>{meta.label}</span>
-              <span style={{marginLeft:'auto',fontSize:10,color:current.length>0?'#2d9e5f':'#455a64',fontWeight:700}}>{current.length>0?`${current.length} CURRENT`:'NONE'}</span>
+              <span style={{marginLeft:'auto',fontSize:10,color:current.length>0?'#4ade80':'#455a64',fontWeight:700}}>{current.length>0?`${current.length} CURRENT`:'NONE'}</span>
             </div>
             {sectionDocs.map(doc=>{
               const isCurrent=doc.status==='CURRENT';
@@ -73,7 +73,7 @@ export default function PlanDocuments({ planId, archivedFlightId, readOnly=true 
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
                       <span style={{fontSize:12,fontWeight:700,color:isCurrent?'#eceff1':'#607d8b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{doc.file_name}</span>
-                      <span style={{fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:3,flexShrink:0,background:isCurrent?'rgba(45,158,95,0.12)':'rgba(100,100,100,0.1)',color:isCurrent?'#2d9e5f':'#546e7a',border:`1px solid ${isCurrent?'#1a4030':'#2a3040'}`}}>{doc.status}</span>
+                      <span style={{fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:3,flexShrink:0,background:isCurrent?'rgba(74,222,128,0.12)':'rgba(100,100,100,0.1)',color:isCurrent?'#4ade80':'#546e7a',border:`1px solid ${isCurrent?'#1a4030':'#2a3040'}`}}>{doc.status}</span>
                     </div>
                     <div style={{fontSize:10,color:'#455a64',lineHeight:1.7}}>
                       <span>{fmtSize(doc.file_size)}</span><span style={{margin:'0 5px'}}>·</span><span>{fmtTime(doc.uploaded_at)}</span>
@@ -81,7 +81,7 @@ export default function PlanDocuments({ planId, archivedFlightId, readOnly=true 
                     </div>
                     {doc.notes&&<div style={{fontSize:10,color:'#607d8b',marginTop:3,fontStyle:'italic'}}>{doc.notes}</div>}
                   </div>
-                  <button onClick={()=>handleView(doc)} disabled={opening===doc.id} style={{background:'none',border:'1px solid #1e2530',borderRadius:4,padding:'4px 10px',fontSize:11,color:opening===doc.id?'#546e7a':'#1a9bc4',cursor:opening===doc.id?'default':'pointer',fontFamily:"'Courier New',monospace",flexShrink:0}}>
+                  <button onClick={()=>handleView(doc)} disabled={opening===doc.id} style={{background:'none',border:'1px solid #1e2530',borderRadius:4,padding:'4px 10px',fontSize:11,color:opening===doc.id?'#546e7a':'#38bdf8',cursor:opening===doc.id?'default':'pointer',fontFamily:"'Courier New',monospace",flexShrink:0}}>
                     {opening===doc.id?'...':'VIEW'}
                   </button>
                 </div>

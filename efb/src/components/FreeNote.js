@@ -47,7 +47,7 @@ function FreeNote() {
     const c = canvasRef.current;
     if (!c) return null;
     const ctx = c.getContext('2d');
-    ctx.strokeStyle = '#1a9bc4';
+    ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -121,10 +121,10 @@ function FreeNote() {
   const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
 
   const btnStyle = (active) => ({
-    background: active ? 'rgba(26,155,196,0.15)' : '#2a2a2a',
-    border: `1px solid ${active ? '#1a9bc4' : '#383838'}`,
+    background: active ? 'rgba(56,189,248,0.15)' : '#1e293b',
+    border: `1px solid ${active ? '#38bdf8' : '#334155'}`,
     borderRadius: 6, padding: '6px 14px', fontSize: 11,
-    fontWeight: 600, color: active ? '#1a9bc4' : '#666',
+    fontWeight: 600, color: active ? '#38bdf8' : '#666',
     cursor: 'pointer', fontFamily: 'inherit',
   });
 
@@ -136,39 +136,39 @@ function FreeNote() {
         <div style={{ width:1, height:24, background:'#333', margin:'0 4px' }} />
         <button disabled={mode === 'text' ? history.length === 0 : canvasHistory.current.length === 0}
           onClick={mode === 'text' ? undoText : undoCanvas}
-          style={{ background:'#2a2a2a', border:'1px solid #383838', borderRadius:6, padding:'6px 10px', fontSize:12, color:'#777', cursor:'pointer', fontFamily:'inherit' }}>
+          style={{ background:'#1e293b', border:'1px solid #334155', borderRadius:6, padding:'6px 10px', fontSize:12, color:'#777', cursor:'pointer', fontFamily:'inherit' }}>
           ↩ Undo
         </button>
         <button disabled={mode === 'text' ? redoStack.length === 0 : canvasRedo.current.length === 0}
           onClick={mode === 'text' ? redoText : redoCanvas}
-          style={{ background:'#2a2a2a', border:'1px solid #383838', borderRadius:6, padding:'6px 10px', fontSize:12, color:'#777', cursor:'pointer', fontFamily:'inherit' }}>
+          style={{ background:'#1e293b', border:'1px solid #334155', borderRadius:6, padding:'6px 10px', fontSize:12, color:'#777', cursor:'pointer', fontFamily:'inherit' }}>
           ↪ Redo
         </button>
         <div style={{ width:1, height:24, background:'#333', margin:'0 4px' }} />
         <button onClick={mode === 'text' ? clearText : clearCanvas}
-          style={{ background:'#2a2a2a', border:'1px solid #383838', borderRadius:6, padding:'6px 10px', fontSize:12, color:'#e02020', cursor:'pointer', fontFamily:'inherit' }}>
+          style={{ background:'#1e293b', border:'1px solid #334155', borderRadius:6, padding:'6px 10px', fontSize:12, color:'#ef4444', cursor:'pointer', fontFamily:'inherit' }}>
           ✕ Clear
         </button>
         <div style={{ flex:1 }} />
         <button onClick={handleSave}
-          style={{ background: saved ? '#2d9e5f' : '#1a9bc4', border:'none', borderRadius:6, padding:'6px 14px', fontSize:12, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>
+          style={{ background: saved ? '#4ade80' : '#38bdf8', border:'none', borderRadius:6, padding:'6px 14px', fontSize:12, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>
           {saved ? '✓ Saved' : '💾 Save'}
         </button>
       </div>
 
       {mode === 'text' && (
         <textarea value={note} onChange={e => handleTextChange(e.target.value)} placeholder="Type your notes here..."
-          style={{ flex:1, background:'#1a1a1a', border:'1.5px solid #2e2e2e', borderRadius:8, padding:'12px 14px', fontSize:13, color:'#ccc', fontFamily:'inherit', outline:'none', resize:'none', lineHeight:1.7 }} />
+          style={{ flex:1, background:'#1e293b', border:'1.5px solid #2e2e2e', borderRadius:8, padding:'12px 14px', fontSize:13, color:'#ccc', fontFamily:'inherit', outline:'none', resize:'none', lineHeight:1.7 }} />
       )}
 
       {mode === 'draw' && (
-        <div style={{ flex:1, background:'#1a1a1a', borderRadius:8, border:'1.5px solid #2e2e2e', overflow:'hidden', position:'relative' }}>
+        <div style={{ flex:1, background:'#1e293b', borderRadius:8, border:'1.5px solid #2e2e2e', overflow:'hidden', position:'relative' }}>
           <canvas ref={canvasRef} width={700} height={600}
             style={{ display:'block', width:'100%', height:'100%', cursor:'crosshair', touchAction:'none' }}
             onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
             onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}
           />
-          <div style={{ position:'absolute', bottom:10, left:0, right:0, textAlign:'center', fontSize:11, color:'#333', pointerEvents:'none' }}>
+          <div style={{ position:'absolute', bottom:10, left:0, right:0, textAlign:'center', fontSize:11, color:'#334155', pointerEvents:'none' }}>
             ✏ Draw with mouse or Apple Pencil
           </div>
         </div>

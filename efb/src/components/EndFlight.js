@@ -5,27 +5,27 @@ import { usePersistedState } from '../hooks/usePersistedState';
 import { AdminEditsHistory } from './AdminPanel';
 
 function Sep() {
-  return <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />;
+  return <div style={{ height:12, background:'#0f172a', borderTop:'1px solid #334155', borderBottom:'1px solid #334155' }} />;
 }
 function Title({ t }) {
-  return <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>{t}</div>;
+  return <div style={{ fontSize:10, color:'#475569', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>{t}</div>;
 }
 function AutoRow({ label, value, valueColor, big }) {
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
-      <span style={{ fontSize:12.5, color:'#666' }}>{label}</span>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#1e293b', borderBottom:'1px solid #334155' }}>
+      <span style={{ fontSize:12.5, color:'#475569' }}>{label}</span>
       <span style={{ fontSize:big?16:12.5, fontWeight:big?700:400, color:valueColor||'#999', fontFamily:'monospace' }}>{value}</span>
     </div>
   );
 }
 function TimeRow({ label, value, auto }) {
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:auto?'#2a2a2a':'#2e2e2e', borderBottom:'1px solid #383838' }}>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:auto?'#1e293b':'#2e2e2e', borderBottom:'1px solid #334155' }}>
       <div>
         <div style={{ fontSize:12.5, color:auto?'#666':'#e8e8e8', fontWeight:auto?400:600 }}>{label}</div>
-        {auto && <div style={{ fontSize:10, color:'#444', marginTop:1 }}>From NAV LOG</div>}
+        {auto && <div style={{ fontSize:10, color:'#334155', marginTop:1 }}>From NAV LOG</div>}
       </div>
-      <span style={{ fontSize:15, fontWeight:700, color:auto?(value?'#1a9bc4':'#444'):'#999', fontFamily:'monospace' }}>
+      <span style={{ fontSize:15, fontWeight:700, color:auto?(value?'#38bdf8':'#444'):'#999', fontFamily:'monospace' }}>
         {value||'—'}
       </span>
     </div>
@@ -33,16 +33,16 @@ function TimeRow({ label, value, auto }) {
 }
 function InputRow({ label, hint, value, onChange, unit, suffix }) {
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838', minHeight:52 }}>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #334155', minHeight:52 }}>
       <div>
         <div style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600 }}>{label}</div>
-        {hint && <div style={{ fontSize:10, color:'#555', marginTop:2 }}>{hint}</div>}
+        {hint && <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{hint}</div>}
       </div>
       <div style={{ display:'flex', alignItems:'center', gap:6 }}>
         <input value={value} onChange={e=>onChange(e.target.value)} placeholder="—"
-          style={{ background:'#1a1a1a', border:'1.5px solid #1a9bc4', borderRadius:6, padding:'7px 10px', fontSize:14, fontWeight:700, color:'#1a9bc4', fontFamily:'monospace', outline:'none', textAlign:'right', width:90 }}/>
-        {unit   && <span style={{ fontSize:11, color:'#555', minWidth:20 }}>{unit}</span>}
-        {suffix && <span style={{ fontSize:11, color:'#2d9e5f', fontWeight:600 }}>{suffix}</span>}
+          style={{ background:'#1e293b', border:'1.5px solid #38bdf8', borderRadius:6, padding:'7px 10px', fontSize:14, fontWeight:700, color:'#38bdf8', fontFamily:'monospace', outline:'none', textAlign:'right', width:90 }}/>
+        {unit   && <span style={{ fontSize:11, color:'#475569', minWidth:20 }}>{unit}</span>}
+        {suffix && <span style={{ fontSize:11, color:'#4ade80', fontWeight:600 }}>{suffix}</span>}
       </div>
     </div>
   );
@@ -95,23 +95,23 @@ function ArchiveConfirmModal({ onConfirm, onCancel }) {
 
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
-      <div style={{ background:'#1a1a1a', border:'1px solid #2a3040', borderRadius:14, width:300, overflow:'hidden' }}>
+      <div style={{ background:'#1e293b', border:'1px solid #2a3040', borderRadius:14, width:300, overflow:'hidden' }}>
 
         {/* Step 1: Sync check */}
         {step === 1 && (
           <>
-            <div style={{ background:'rgba(26,155,196,0.1)', padding:'16px 20px', borderBottom:'1px solid #2a3040' }}>
-              <div style={{ fontSize:11, color:'#1a9bc4', fontWeight:700, letterSpacing:1.5, textTransform:'uppercase', marginBottom:4 }}>⇄ Sync Check</div>
+            <div style={{ background:'rgba(56,189,248,0.1)', padding:'16px 20px', borderBottom:'1px solid #2a3040' }}>
+              <div style={{ fontSize:11, color:'#38bdf8', fontWeight:700, letterSpacing:1.5, textTransform:'uppercase', marginBottom:4 }}>⇄ Sync Check</div>
               <div style={{ fontSize:14, color:'#e8e8e8', fontWeight:600 }}>Did you sync the flight data?</div>
-              <div style={{ fontSize:11, color:'#555', marginTop:4 }}>Make sure all data is synced before archiving.</div>
+              <div style={{ fontSize:11, color:'#475569', marginTop:4 }}>Make sure all data is synced before archiving.</div>
             </div>
             <div style={{ padding:'16px 20px', display:'flex', gap:10 }}>
               <button onClick={onCancel}
-                style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:8, padding:'11px 0', fontSize:13, fontWeight:700, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>
+                style={{ flex:1, background:'#1e293b', border:'1px solid #334155', borderRadius:8, padding:'11px 0', fontSize:13, fontWeight:700, color:'#475569', cursor:'pointer', fontFamily:'inherit' }}>
                 NO
               </button>
               <button onClick={() => setStep(2)}
-                style={{ flex:2, background:'#1a9bc4', border:'none', borderRadius:8, padding:'11px 0', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>
+                style={{ flex:2, background:'#38bdf8', border:'none', borderRadius:8, padding:'11px 0', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>
                 YES — SYNCED ✓
               </button>
             </div>
@@ -121,18 +121,18 @@ function ArchiveConfirmModal({ onConfirm, onCancel }) {
         {/* Step 2: Save confirm */}
         {step === 2 && (
           <>
-            <div style={{ background:'rgba(45,158,95,0.1)', padding:'16px 20px', borderBottom:'1px solid #2a3040' }}>
-              <div style={{ fontSize:11, color:'#2d9e5f', fontWeight:700, letterSpacing:1.5, textTransform:'uppercase', marginBottom:4 }}>📁 Archive Flight</div>
+            <div style={{ background:'rgba(74,222,128,0.1)', padding:'16px 20px', borderBottom:'1px solid #2a3040' }}>
+              <div style={{ fontSize:11, color:'#4ade80', fontWeight:700, letterSpacing:1.5, textTransform:'uppercase', marginBottom:4 }}>📁 Archive Flight</div>
               <div style={{ fontSize:14, color:'#e8e8e8', fontWeight:600 }}>Save and archive this flight?</div>
-              <div style={{ fontSize:11, color:'#555', marginTop:4 }}>This will finalize the flight record. Cannot be undone.</div>
+              <div style={{ fontSize:11, color:'#475569', marginTop:4 }}>This will finalize the flight record. Cannot be undone.</div>
             </div>
             <div style={{ padding:'16px 20px', display:'flex', gap:10 }}>
               <button onClick={onCancel}
-                style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:8, padding:'11px 0', fontSize:13, fontWeight:700, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>
+                style={{ flex:1, background:'#1e293b', border:'1px solid #334155', borderRadius:8, padding:'11px 0', fontSize:13, fontWeight:700, color:'#475569', cursor:'pointer', fontFamily:'inherit' }}>
                 NO
               </button>
               <button onClick={onConfirm}
-                style={{ flex:2, background:'#2d9e5f', border:'none', borderRadius:8, padding:'11px 0', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>
+                style={{ flex:2, background:'#4ade80', border:'none', borderRadius:8, padding:'11px 0', fontSize:13, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>
                 YES — SAVE ✓
               </button>
             </div>
@@ -196,7 +196,7 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
   const toFuelNum  = takeoffFuel   ? parseInt(takeoffFuel.replace(/,/g,''))   : null;
   const remFuelNum = remainingFuel ? parseInt(remainingFuel.replace(/,/g,'')) : null;
   const burnoff    = toFuelNum && remFuelNum ? toFuelNum - remFuelNum : null;
-  const remColor   = remFuelNum===null?'#999':remFuelNum<finalRes?'#e02020':'#2d9e5f';
+  const remColor   = remFuelNum===null?'#999':remFuelNum<finalRes?'#ef4444':'#4ade80';
   const destIcao   = divert && divertData.icao ? divertData.icao : dest;
   const timesOk    = !!(landingTime && onBlock && takeoffTime && offBlock);
   const fuelOk     = !!remainingFuel;
@@ -289,14 +289,14 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
         <div style={{ background:'rgba(255,149,0,0.1)', borderBottom:'1px solid rgba(255,149,0,0.3)', padding:'10px 16px', display:'flex', alignItems:'center', gap:10 }}>
           <span style={{ fontSize:16 }}>⚠</span>
           <div>
-            <div style={{ fontSize:12, fontWeight:700, color:'#e8731a' }}>DIVERT ACTIVE — {divertData.icao||'—'}</div>
+            <div style={{ fontSize:12, fontWeight:700, color:'#f97316' }}>DIVERT ACTIVE — {divertData.icao||'—'}</div>
             <div style={{ fontSize:10, color:'#888', marginTop:1 }}>RWY {divertData.rwy||'—'}</div>
           </div>
         </div>
       )}
 
       <Title t="Flight Summary"/>
-      <AutoRow label="Route"    value={`${dep} → ${dest}`}   valueColor="#1a9bc4"/>
+      <AutoRow label="Route"    value={`${dep} → ${dest}`}   valueColor="#38bdf8"/>
       <AutoRow label="Date"     value={date}                  valueColor="#e8e8e8"/>
       <AutoRow label="Aircraft" value={`${reg} / ${acType}`} valueColor="#e8e8e8"/>
 
@@ -312,16 +312,16 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
       <AutoRow label="Flight Time"  value={fromMins(flightMins)} valueColor={flightMins?'#e8e8e8':'#444'} big/>
       <AutoRow label="Block Time"   value={fromMins(blockMins)}  valueColor={blockMins?'#e8e8e8':'#444'}  big/>
       <AutoRow label="Landings"     value={cycles||'1'}          valueColor="#e8e8e8"/>
-      <AutoRow label="Destination"  value={destIcao}             valueColor={divert?'#e8731a':'#1a9bc4'}/>
+      <AutoRow label="Destination"  value={destIcao}             valueColor={divert?'#f97316':'#38bdf8'}/>
 
       <Sep/>
       <Title t="Fuel Summary"/>
       <AutoRow label="T/O Fuel" value={toFuelNum?toFuelNum.toLocaleString()+' lb':'—'}/>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#1e293b', borderBottom:'1px solid #334155' }}>
         <div>
-          <div style={{ fontSize:12.5, color:'#666' }}>Remaining Fuel</div>
+          <div style={{ fontSize:12.5, color:'#475569' }}>Remaining Fuel</div>
           {remFuelNum!==null && remFuelNum<finalRes && (
-            <div style={{ fontSize:10, color:'#e02020', marginTop:2, fontWeight:700 }}>
+            <div style={{ fontSize:10, color:'#ef4444', marginTop:2, fontWeight:700 }}>
               ⚠ Below final reserve ({finalRes.toLocaleString()} lb)
             </div>
           )}
@@ -356,11 +356,11 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
       {divert && (
         <div style={{ margin:'10px 16px', border:'1px solid rgba(255,149,0,0.3)', borderRadius:8, overflow:'hidden' }}>
           <div style={{ background:'rgba(255,149,0,0.12)', padding:'8px 14px', borderBottom:'1px solid rgba(255,149,0,0.2)' }}>
-            <span style={{ fontSize:10, color:'#e8731a', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase' }}>Reason for Divert</span>
+            <span style={{ fontSize:10, color:'#f97316', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase' }}>Reason for Divert</span>
           </div>
-          <div style={{ padding:'12px 14px', background:'#1e1e1e' }}>
+          <div style={{ padding:'12px 14px', background:'#0f172a' }}>
             <textarea value={divertData.reason||''} onChange={()=>{}} placeholder="Enter reason for divert..." rows={4}
-              style={{ width:'100%', background:'#1a1a1a', border:'1.5px solid #e8731a', borderRadius:6, padding:'10px 12px', fontSize:13, color:'#e8e8e8', fontFamily:'inherit', outline:'none', resize:'vertical', lineHeight:1.6 }}/>
+              style={{ width:'100%', background:'#1e293b', border:'1.5px solid #f97316', borderRadius:6, padding:'10px 12px', fontSize:13, color:'#e8e8e8', fontFamily:'inherit', outline:'none', resize:'vertical', lineHeight:1.6 }}/>
           </div>
         </div>
       )}
@@ -372,18 +372,18 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
             <button
               onClick={() => { if (timesOk) setShowConfirm(true); }}
               disabled={archiving||!timesOk}
-              style={{ width:'100%', background:timesOk?'rgba(45,158,95,0.12)':'#1e1e1e', border:'1px solid '+(timesOk?'#2d9e5f':'#333'), borderRadius:10, padding:14, fontSize:14, fontWeight:700, color:timesOk?'#2d9e5f':'#444', cursor:timesOk?'pointer':'not-allowed', fontFamily:'inherit' }}>
+              style={{ width:'100%', background:timesOk?'rgba(74,222,128,0.12)':'#0f172a', border:'1px solid '+(timesOk?'#4ade80':'#333'), borderRadius:10, padding:14, fontSize:14, fontWeight:700, color:timesOk?'#4ade80':'#444', cursor:timesOk?'pointer':'not-allowed', fontFamily:'inherit' }}>
               {archiving ? '⏳ Archiving...' : '📁 Archive Flight'}
             </button>
-            {!timesOk && <div style={{ fontSize:10, color:'#555', textAlign:'center', marginTop:6 }}>Complete flight times to archive</div>}
+            {!timesOk && <div style={{ fontSize:10, color:'#475569', textAlign:'center', marginTop:6 }}>Complete flight times to archive</div>}
           </>
         ) : (
           <>
-            <div style={{ padding:'12px 14px', borderRadius:8, background:'rgba(45,158,95,0.1)', border:'1px solid rgba(45,158,95,0.3)', display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ padding:'12px 14px', borderRadius:8, background:'rgba(74,222,128,0.1)', border:'1px solid rgba(74,222,128,0.3)', display:'flex', alignItems:'center', gap:10 }}>
               <span style={{ fontSize:20 }}>✅</span>
               <div>
-                <div style={{ fontSize:13, fontWeight:700, color:'#2d9e5f' }}>Flight Archived</div>
-                <div style={{ fontSize:10, color:'#555', marginTop:2 }}>Plan moved to archive — read only</div>
+                <div style={{ fontSize:13, fontWeight:700, color:'#4ade80' }}>Flight Archived</div>
+                <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>Plan moved to archive — read only</div>
               </div>
             </div>
             {archivedFlightId && (

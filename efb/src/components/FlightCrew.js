@@ -2,72 +2,91 @@ import React, { useEffect, useState } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { supabase, logEvent } from '../supabaseClient';
 
-function Row({ label, value }) {
+// ─── Info Row ─────────────────────────────────────────────────
+function InfoRow({ label, value, accent }) {
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838', minHeight:44 }}>
-      <span style={{ fontSize:12.5, color:'#999' }}>{label}</span>
-      <span style={{ fontSize:12.5, color:'#e8e8e8' }}>{value}</span>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'13px 16px', borderBottom:'1px solid #1e293b', minHeight:48 }}>
+      <span style={{ fontSize:13, color:'#475569', flex:1 }}>{label}</span>
+      <span style={{ fontSize:13, color: accent ? '#38bdf8' : '#f1f5f9', fontWeight: accent ? 600 : 400, textAlign:'right', maxWidth:'60%' }}>{value}</span>
     </div>
   );
 }
 
+// ─── Pilot Row ────────────────────────────────────────────────
 function PilotRow({ pilot, role, onSelect }) {
   const isPF = role === 'PF';
   const isPM = role === 'PM';
+
   return (
-    <div onClick={onSelect} style={{ display:'flex', alignItems:'center', padding:'11px 12px', borderBottom:'1px solid rgba(255,255,255,0.04)', cursor:'pointer', background: isPF ? 'rgba(26,155,196,0.08)' : isPM ? 'rgba(142,142,147,0.06)' : 'transparent', borderLeft: isPF ? '2px solid #1a9bc4' : isPM ? '2px solid #555' : '2px solid transparent', gap:10 }}>
-      <span style={{ fontSize:11, color:'#555', width:36 }}>{pilot.code}</span>
-      <span style={{ fontSize:12.5, color: (isPF || isPM) ? '#e8e8e8' : '#555', flex:1 }}>{pilot.full_name}</span>
-      {isPF && <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:4, background:'rgba(26,155,196,0.2)', color:'#1a9bc4' }}>PF ✓</span>}
-      {isPM && <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:4, background:'rgba(142,142,147,0.15)', color:'#888' }}>PM ✓</span>}
-      {!isPF && !isPM && <span style={{ fontSize:10, color:'#333', border:'1px solid #333', padding:'2px 8px', borderRadius:4 }}>—</span>}
+    <div onClick={onSelect} style={{
+      display:'flex', alignItems:'center', padding:'12px 16px',
+      borderBottom:'1px solid #1e293b', cursor:'pointer',
+      background: isPF ? 'rgba(56,189,248,0.08)' : isPM ? 'rgba(148,163,184,0.06)' : 'transparent',
+      transition:'background 0.15s',
+      minHeight: 56,
+    }}>
+      {/* Avatar */}
+      <div style={{
+        width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+        background: isPF ? 'rgba(56,189,248,0.15)' : isPM ? 'rgba(148,163,184,0.12)' : '#1e293b',
+        border: `1px solid ${isPF ? 'rgba(56,189,248,0.3)' : isPM ? 'rgba(148,163,184,0.2)' : '#334155'}`,
+        display:'flex', alignItems:'center', justifyContent:'center',
+        fontSize: 11, fontWeight: 700,
+        color: isPF ? '#38bdf8' : isPM ? '#94a3b8' : '#334155',
+        marginRight: 12,
+      }}>
+        {pilot.code?.slice(0,3) || '?'}
+      </div>
+
+      {/* Name */}
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:13, fontWeight: (isPF || isPM) ? 600 : 400, color: (isPF || isPM) ? '#f1f5f9' : '#475569', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+          {pilot.full_name}
+        </div>
+        {(isPF || isPM) && (
+          <div style={{ fontSize:10, color: isPF ? '#38bdf8' : '#94a3b8', marginTop:2 }}>
+            {isPF ? 'Pilot Flying' : 'Pilot Monitoring'}
+          </div>
+        )}
+      </div>
+
+      {/* Badge */}
+      {isPF && (
+        <div style={{ background:'rgba(56,189,248,0.15)', border:'1px solid rgba(56,189,248,0.3)', borderRadius:20, padding:'3px 10px', fontSize:11, fontWeight:700, color:'#38bdf8', flexShrink:0 }}>PF</div>
+      )}
+      {isPM && (
+        <div style={{ background:'rgba(148,163,184,0.1)', border:'1px solid rgba(148,163,184,0.2)', borderRadius:20, padding:'3px 10px', fontSize:11, fontWeight:700, color:'#94a3b8', flexShrink:0 }}>PM</div>
+      )}
+      {!isPF && !isPM && (
+        <div style={{ width:8, height:8, borderRadius:'50%', background:'#334155', flexShrink:0 }} />
+      )}
     </div>
   );
 }
 
+// ─── FlightCrew ───────────────────────────────────────────────
 function FlightCrew({ setStatus, activePlan }) {
   const [pf, setPF] = usePersistedState('efb_crew_pf', null);
   const [pm, setPM] = usePersistedState('efb_crew_pm', null);
-  const [pilots, setPilots] = useState([]); // [{id, code, full_name}]
+  const [pilots, setPilots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Load pilots filtered by plan's ac_type
   useEffect(() => {
     const acType = activePlan?.ac_type;
     setLoading(true);
-
     (async () => {
       if (!acType) {
-        // No ac_type — show all pilots
-        const { data } = await supabase
-          .from('profiles')
-          .select('id, code, full_name')
-          .in('role', ['pilot', 'admin_pilot'])
-          .order('full_name');
+        const { data } = await supabase.from('profiles').select('id, code, full_name').in('role', ['pilot', 'admin_pilot']).order('full_name');
         setPilots(data || []);
       } else {
-        // Show only pilots qualified for this ac_type
-        const { data: qualData } = await supabase
-          .from('crew_qualifications')
-          .select('pilot_id')
-          .eq('ac_type', acType)
-          .neq('ac_type', 'EFB');
-
+        const { data: qualData } = await supabase.from('crew_qualifications').select('pilot_id').eq('ac_type', acType).neq('ac_type', 'EFB');
         if (!qualData || qualData.length === 0) {
-          // Fallback: show all pilots if none qualified
-          const { data } = await supabase
-            .from('profiles')
-            .select('id, code, full_name')
-            .order('full_name');
+          const { data } = await supabase.from('profiles').select('id, code, full_name').order('full_name');
           setPilots(data || []);
         } else {
           const qualifiedIds = [...new Set(qualData.map(q => q.pilot_id))];
-          const { data } = await supabase
-            .from('profiles')
-            .select('id, code, full_name')
-            .in('id', qualifiedIds)
-            .order('full_name');
+          const { data } = await supabase.from('profiles').select('id, code, full_name').in('id', qualifiedIds).order('full_name');
           setPilots(data || []);
         }
       }
@@ -75,57 +94,26 @@ function FlightCrew({ setStatus, activePlan }) {
     })();
   }, [activePlan?.ac_type]);
 
-  // Save PF/PM to plans table
   const saveToPlan = async (newPF, newPM) => {
-    if (!activePlan?.id) return;
-    if (!newPF || !newPM) return;
+    if (!activePlan?.id || !newPF || !newPM) return;
     setSaving(true);
-    const { error } = await supabase
-      .from('plans')
-      .update({ pf_pilot: newPF, pm_pilot: newPM })
-      .eq('id', activePlan.id);
+    const { error } = await supabase.from('plans').update({ pf_pilot: newPF, pm_pilot: newPM }).eq('id', activePlan.id);
     if (!error) {
       const pfPilot = pilots.find(p => p.id === newPF);
       const pmPilot = pilots.find(p => p.id === newPM);
-      logEvent(activePlan.id, 'CREW_ASSIGNED', {
-        pf_id:   newPF,
-        pm_id:   newPM,
-        pf_code: pfPilot?.code,
-        pm_code: pmPilot?.code,
-        pf_name: pfPilot?.full_name,
-        pm_name: pmPilot?.full_name,
-      });
-    } else {
-      console.error('Crew save error:', error);
+      logEvent(activePlan.id, 'CREW_ASSIGNED', { pf_id:newPF, pm_id:newPM, pf_code:pfPilot?.code, pm_code:pmPilot?.code, pf_name:pfPilot?.full_name, pm_name:pmPilot?.full_name });
     }
     setSaving(false);
   };
 
   const handleSelect = (id) => {
-    let newPF = pf;
-    let newPM = pm;
-
-    if (pf === id) {
-      // Clicking PF again → swap roles
-      newPF = pm;
-      newPM = id;
-    } else if (pm === id) {
-      // Clicking PM again → swap roles
-      newPF = id;
-      newPM = pf;
-    } else if (!pf) {
-      // No PF yet → assign as PF
-      newPF = id;
-    } else if (!pm) {
-      // PF set, no PM → assign as PM
-      newPM = id;
-    } else {
-      // Both set, new pilot → replace PF, keep PM
-      newPF = id;
-    }
-
-    setPF(newPF);
-    setPM(newPM);
+    let newPF = pf, newPM = pm;
+    if (pf === id)       { newPF = pm; newPM = id; }
+    else if (pm === id)  { newPF = id; newPM = pf; }
+    else if (!pf)        { newPF = id; }
+    else if (!pm)        { newPM = id; }
+    else                 { newPF = id; }
+    setPF(newPF); setPM(newPM);
     setStatus('green');
     saveToPlan(newPF, newPM);
   };
@@ -143,42 +131,55 @@ function FlightCrew({ setStatus, activePlan }) {
   const alternate = activePlan?.alternate|| '—';
 
   return (
-    <div>
-      <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>Flight Information</div>
-      <Row label="Flight ID / Log no." value={`${flightId} / FMS ${logNr}`} />
-      <Row label="DOF / STD"           value={`${dof} · ${std} Z`} />
-      <Row label="Aircraft"            value={aircraft} />
-      <Row label="Departure"           value={dep} />
-      <Row label="Destination"         value={dest} />
-      <Row label="Alternate 1"         value={alternate} />
+    <div style={{ background:'#0f172a', minHeight:'100%' }}>
 
-      <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />
+      {/* Flight Information Section */}
+      <div style={{ padding:'16px 16px 8px' }}>
+        <div style={{ fontSize:11, color:'#38bdf8', fontWeight:600, letterSpacing:'1.5px', textTransform:'uppercase' }}>Flight Information</div>
+      </div>
 
-      <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>
-        Crew Assignment {saving && <span style={{ color:'#555', fontWeight:400 }}>· saving...</span>}
+      <div style={{ margin:'0 12px 16px', background:'#1e293b', borderRadius:14, border:'1px solid #334155', overflow:'hidden' }}>
+        <InfoRow label="Flight ID / Log no." value={`${flightId} / FMS ${logNr}`} />
+        <InfoRow label="DOF / STD"           value={`${dof} · ${std} Z`} />
+        <InfoRow label="Aircraft"            value={aircraft} accent />
+        <InfoRow label="Departure"           value={dep} accent />
+        <InfoRow label="Destination"         value={dest} accent />
+        <InfoRow label="Alternate 1"         value={alternate} />
+      </div>
+
+      {/* Crew Assignment Section */}
+      <div style={{ padding:'0 16px 8px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div style={{ fontSize:11, color:'#38bdf8', fontWeight:600, letterSpacing:'1.5px', textTransform:'uppercase' }}>Crew Assignment</div>
+        {saving && <span style={{ fontSize:11, color:'#475569' }}>Saving...</span>}
       </div>
 
       {activePlan?.ac_type && (
-        <div style={{ margin:'0 16px 8px', padding:'7px 12px', borderRadius:6, background:'rgba(26,155,196,0.08)', border:'1px solid rgba(26,155,196,0.2)', fontSize:11, color:'#1a9bc4', fontFamily:'monospace' }}>
-          Showing pilots qualified for {activePlan.ac_type}
-          {pilots.length === 0 && !loading && ' — none found, showing all'}
+        <div style={{ margin:'0 12px 10px', padding:'10px 14px', borderRadius:10, background:'rgba(56,189,248,0.06)', border:'1px solid rgba(56,189,248,0.15)', display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ fontSize:16 }}>✈️</span>
+          <span style={{ fontSize:12, color:'#38bdf8' }}>
+            Showing pilots qualified for <b>{activePlan.ac_type}</b>
+            {pilots.length === 0 && !loading && ' — none found, showing all'}
+          </span>
         </div>
       )}
 
       {loading && (
-        <div style={{ padding:'20px 16px', color:'#555', fontSize:11, textAlign:'center' }}>Loading crew...</div>
+        <div style={{ padding:'32px 16px', color:'#475569', fontSize:13, textAlign:'center' }}>
+          Loading crew...
+        </div>
       )}
 
       {!loading && pilots.length === 0 && (
-        <div style={{ padding:'20px 16px', color:'#555', fontSize:12, textAlign:'center' }}>
-          No qualified pilots found. Add qualifications in Admin Panel.
+        <div style={{ margin:'0 12px', padding:'24px 16px', background:'#1e293b', borderRadius:14, border:'1px solid #334155', color:'#475569', fontSize:13, textAlign:'center' }}>
+          No qualified pilots found.<br />Add qualifications in Admin Panel.
         </div>
       )}
 
       {!loading && pilots.length > 0 && (
-        <div style={{ margin:'8px 16px', background:'#2e2e2e', border:'1px solid #383838', borderRadius:8, overflow:'hidden' }}>
-          <div style={{ background:'#1f1f1f', color:'#555', padding:'7px 12px', fontSize:10, fontWeight:700, letterSpacing:0.8, borderBottom:'1px solid #383838', textTransform:'uppercase' }}>
-            Tap to rotate PF / PM
+        <div style={{ margin:'0 12px 16px', background:'#1e293b', borderRadius:14, border:'1px solid #334155', overflow:'hidden' }}>
+          <div style={{ padding:'10px 16px', borderBottom:'1px solid #334155', display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:16 }}>👥</span>
+            <span style={{ fontSize:11, color:'#475569', fontWeight:600, letterSpacing:'0.5px' }}>Tap to assign · Tap again to rotate PF / PM</span>
           </div>
           {pilots.map(p => (
             <PilotRow
@@ -191,12 +192,25 @@ function FlightCrew({ setStatus, activePlan }) {
         </div>
       )}
 
+      {/* Summary Card */}
       {pfPilot && pmPilot && (
-        <div style={{ margin:'8px 16px', padding:'10px 12px', borderRadius:6, background:'rgba(26,155,196,0.08)', borderLeft:'3px solid #1a9bc4', fontSize:11, color:'#7bbdd4', lineHeight:1.6 }}>
-          PF: <b>{pfPilot.full_name}</b><br />
-          PM: <b>{pmPilot.full_name}</b>
+        <div style={{ margin:'0 12px 20px', background:'rgba(56,189,248,0.06)', border:'1px solid rgba(56,189,248,0.15)', borderRadius:14, overflow:'hidden' }}>
+          <div style={{ padding:'10px 14px', borderBottom:'1px solid rgba(56,189,248,0.1)', fontSize:11, color:'#38bdf8', fontWeight:600, letterSpacing:'1px' }}>CREW CONFIRMED</div>
+          <div style={{ padding:'12px 14px', display:'flex', gap:12 }}>
+            <div style={{ flex:1, background:'rgba(56,189,248,0.08)', borderRadius:10, padding:'12px', border:'1px solid rgba(56,189,248,0.15)' }}>
+              <div style={{ fontSize:10, color:'#38bdf8', fontWeight:600, marginBottom:4 }}>PF — PILOT FLYING</div>
+              <div style={{ fontSize:13, color:'#f1f5f9', fontWeight:600 }}>{pfPilot.full_name}</div>
+              <div style={{ fontSize:11, color:'#475569', marginTop:2 }}>{pfPilot.code}</div>
+            </div>
+            <div style={{ flex:1, background:'rgba(148,163,184,0.06)', borderRadius:10, padding:'12px', border:'1px solid rgba(148,163,184,0.15)' }}>
+              <div style={{ fontSize:10, color:'#94a3b8', fontWeight:600, marginBottom:4 }}>PM — PILOT MONITORING</div>
+              <div style={{ fontSize:13, color:'#f1f5f9', fontWeight:600 }}>{pmPilot.full_name}</div>
+              <div style={{ fontSize:11, color:'#475569', marginTop:2 }}>{pmPilot.code}</div>
+            </div>
+          </div>
         </div>
       )}
+
     </div>
   );
 }

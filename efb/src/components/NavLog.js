@@ -33,9 +33,9 @@ function fromMins(m) {
 
 function fmtDev(dev) {
   if (dev === null || dev === undefined) return null;
-  if (dev === 0) return { label:'±0', color:'#2d9e5f' };
-  if (dev > 0)   return { label:`+${dev}`, color:'#e8731a' };
-  return { label:`${dev}`, color:'#2d9e5f' };
+  if (dev === 0) return { label:'±0', color:'#4ade80' };
+  if (dev > 0)   return { label:`+${dev}`, color:'#f97316' };
+  return { label:`${dev}`, color:'#4ade80' };
 }
 
 // ─── PPS OFP Parser ───────────────────────────────────────────────────────────
@@ -138,11 +138,11 @@ function useGPS() {
 function TimeBox({ value, onChange, placeholder }) {
   const h = e => { let v=e.target.value.replace(/[^0-9]/g,'').slice(0,4); if(v.length>2)v=v.slice(0,2)+':'+v.slice(2); onChange(v); };
   return <input value={value} onChange={h} placeholder={placeholder||'HH:MM'} maxLength={5}
-    style={{width:'100%',background:'#1a1a1a',border:'1.5px solid #1a9bc4',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#1a9bc4',fontFamily:'monospace',outline:'none',textAlign:'center'}}/>;
+    style={{width:'100%',background:'#1e293b',border:'1.5px solid #38bdf8',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#38bdf8',fontFamily:'monospace',outline:'none',textAlign:'center'}}/>;
 }
 function FuelBox({ value, onChange, placeholder }) {
   return <input value={value} onChange={e=>onChange(e.target.value.replace(/[^0-9,]/g,''))} placeholder={placeholder||'lb'}
-    style={{width:'100%',background:'#1a1a1a',border:'1.5px solid #1a9bc4',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#1a9bc4',fontFamily:'monospace',outline:'none',textAlign:'center'}}/>;
+    style={{width:'100%',background:'#1e293b',border:'1.5px solid #38bdf8',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#38bdf8',fontFamily:'monospace',outline:'none',textAlign:'center'}}/>;
 }
 function RvsmBoxes({ value, onChange }) {
   const parts=(value||'//').split('/'); const pri1=parts[0]||'',sby=parts[1]||'',pri2=parts[2]||'';
@@ -155,10 +155,10 @@ function RvsmBoxes({ value, onChange }) {
         {label:'PRI 2',ref:ref3, val:pri2,chg:e=>{const v=e.target.value.replace(/[^0-9]/g,'').slice(0,5);u(pri1,sby,v);}},
       ].map(f=>(
         <div key={f.label} style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{fontSize:10,color:'#555',fontWeight:700,textTransform:'uppercase',width:40,flexShrink:0}}>{f.label}</div>
+          <div style={{fontSize:10,color:'#475569',fontWeight:700,textTransform:'uppercase',width:40,flexShrink:0}}>{f.label}</div>
           <input ref={f.ref} value={f.val} onChange={f.chg} placeholder="00000" maxLength={5}
-            style={{flex:1,background:'#1a1a1a',border:'1.5px solid rgba(45,158,95,0.6)',borderRadius:6,padding:'8px 10px',fontSize:14,fontWeight:700,color:'#2d9e5f',fontFamily:'monospace',outline:'none',textAlign:'center'}}/>
-          <span style={{fontSize:10,color:'#555',width:16,flexShrink:0}}>ft</span>
+            style={{flex:1,background:'#1e293b',border:'1.5px solid rgba(74,222,128,0.6)',borderRadius:6,padding:'8px 10px',fontSize:14,fontWeight:700,color:'#4ade80',fontFamily:'monospace',outline:'none',textAlign:'center'}}/>
+          <span style={{fontSize:10,color:'#475569',width:16,flexShrink:0}}>ft</span>
         </div>
       ))}
     </div>
@@ -171,19 +171,19 @@ function DepModal({ dep, onClose, onSave, initial }) {
   const [toFuel,setToFuel]=useState(initial.toFuel||'');
   return(
     <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100}}>
-      <div style={{background:'#252525',border:'1px solid #383838',borderRadius:12,width:320,overflow:'hidden'}}>
-        <div style={{background:'#1f1f1f',padding:'10px 16px',borderBottom:'1px solid #383838',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{fontSize:12,fontWeight:700,color:'#1a9bc4'}}>{dep} — Departure Data</span>
-          <span onClick={onClose} style={{color:'#555',cursor:'pointer',fontSize:20,lineHeight:1}}>×</span>
+      <div style={{background:'#1e293b',border:'1px solid #334155',borderRadius:12,width:320,overflow:'hidden'}}>
+        <div style={{background:'#1e293b',padding:'10px 16px',borderBottom:'1px solid #334155',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{fontSize:12,fontWeight:700,color:'#38bdf8'}}>{dep} — Departure Data</span>
+          <span onClick={onClose} style={{color:'#475569',cursor:'pointer',fontSize:20,lineHeight:1}}>×</span>
         </div>
         <div style={{padding:'14px 16px',display:'flex',flexDirection:'column',gap:14}}>
-          <div><div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Off Block</div><TimeBox value={offBlock} onChange={setOffBlock}/></div>
-          <div><div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>T/O Time</div><TimeBox value={toTime} onChange={setToTime}/></div>
-          <div><div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>T/O Fuel</div><FuelBox value={toFuel} onChange={setToFuel} placeholder="lb"/></div>
+          <div><div style={{fontSize:10,color:'#475569',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Off Block</div><TimeBox value={offBlock} onChange={setOffBlock}/></div>
+          <div><div style={{fontSize:10,color:'#475569',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>T/O Time</div><TimeBox value={toTime} onChange={setToTime}/></div>
+          <div><div style={{fontSize:10,color:'#475569',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>T/O Fuel</div><FuelBox value={toFuel} onChange={setToFuel} placeholder="lb"/></div>
         </div>
         <div style={{padding:'0 16px 16px',display:'flex',gap:8}}>
-          <button onClick={onClose} style={{flex:1,background:'#2a2a2a',border:'1px solid #383838',borderRadius:7,padding:10,fontSize:13,color:'#666',cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
-          <button onClick={()=>onSave({offBlock,toTime,toFuel})} style={{flex:2,background:'#1a9bc4',border:'none',borderRadius:7,padding:10,fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit'}}>Save</button>
+          <button onClick={onClose} style={{flex:1,background:'#1e293b',border:'1px solid #334155',borderRadius:7,padding:10,fontSize:13,color:'#475569',cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
+          <button onClick={()=>onSave({offBlock,toTime,toFuel})} style={{flex:2,background:'#38bdf8',border:'none',borderRadius:7,padding:10,fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit'}}>Save</button>
         </div>
       </div>
     </div>
@@ -200,32 +200,32 @@ function ArrivalModal({ wptName, isDivert, onClose, onSave, onDivert, initial })
   const save=()=>{ if(doDiv&&divIcao.length===4&&onDivert)onDivert({icao:divIcao,rwy:divRwy}); onSave({lndTime,onBlock,remFuel}); };
   return(
     <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100}}>
-      <div style={{background:'#252525',border:`1px solid ${isDivert?'#e8731a55':'#383838'}`,borderRadius:12,width:320,overflow:'hidden',maxHeight:'90vh',overflowY:'auto'}}>
-        <div style={{background:'#1f1f1f',padding:'10px 16px',borderBottom:'1px solid #383838',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{fontSize:12,fontWeight:700,color:isDivert?'#e8731a':'#1a9bc4'}}>{wptName} — Arrival Data</span>
-          <span onClick={onClose} style={{color:'#555',cursor:'pointer',fontSize:20,lineHeight:1}}>×</span>
+      <div style={{background:'#1e293b',border:`1px solid ${isDivert?'#f9731655':'#334155'}`,borderRadius:12,width:320,overflow:'hidden',maxHeight:'90vh',overflowY:'auto'}}>
+        <div style={{background:'#1e293b',padding:'10px 16px',borderBottom:'1px solid #334155',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{fontSize:12,fontWeight:700,color:isDivert?'#f97316':'#38bdf8'}}>{wptName} — Arrival Data</span>
+          <span onClick={onClose} style={{color:'#475569',cursor:'pointer',fontSize:20,lineHeight:1}}>×</span>
         </div>
         <div style={{padding:'14px 16px',display:'flex',flexDirection:'column',gap:14}}>
-          <div><div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Landing Time</div><TimeBox value={lndTime} onChange={setLndTime}/></div>
-          <div><div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>On Block</div><TimeBox value={onBlock} onChange={setOnBlock}/></div>
-          <div><div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Remaining Fuel</div><FuelBox value={remFuel} onChange={setRemFuel}/></div>
+          <div><div style={{fontSize:10,color:'#475569',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Landing Time</div><TimeBox value={lndTime} onChange={setLndTime}/></div>
+          <div><div style={{fontSize:10,color:'#475569',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>On Block</div><TimeBox value={onBlock} onChange={setOnBlock}/></div>
+          <div><div style={{fontSize:10,color:'#475569',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Remaining Fuel</div><FuelBox value={remFuel} onChange={setRemFuel}/></div>
           {!isDivert&&(
-            <div style={{borderTop:'1px solid #383838',paddingTop:12}}>
-              <div onClick={()=>setDoDiv(!doDiv)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer',padding:'8px 10px',borderRadius:7,background:doDiv?'rgba(255,149,0,0.1)':'#1f1f1f',border:`1px solid ${doDiv?'rgba(255,149,0,0.4)':'#383838'}`}}>
-                <span style={{fontSize:12,fontWeight:700,color:doDiv?'#e8731a':'#555'}}>⚠ DIVERT</span>
-                <div style={{width:36,height:20,background:doDiv?'#e8731a':'#333',borderRadius:10,position:'relative'}}>
+            <div style={{borderTop:'1px solid #334155',paddingTop:12}}>
+              <div onClick={()=>setDoDiv(!doDiv)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer',padding:'8px 10px',borderRadius:7,background:doDiv?'rgba(255,149,0,0.1)':'#1e293b',border:`1px solid ${doDiv?'rgba(255,149,0,0.4)':'#334155'}`}}>
+                <span style={{fontSize:12,fontWeight:700,color:doDiv?'#f97316':'#555'}}>⚠ DIVERT</span>
+                <div style={{width:36,height:20,background:doDiv?'#f97316':'#333',borderRadius:10,position:'relative'}}>
                   <div style={{position:'absolute',width:16,height:16,background:'#fff',borderRadius:8,top:2,left:doDiv?18:2,transition:'left 0.2s'}}/>
                 </div>
               </div>
               {doDiv&&(
                 <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:10}}>
-                  <div><div style={{fontSize:10,color:'#e8731a',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Divert ICAO *</div>
+                  <div><div style={{fontSize:10,color:'#f97316',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Divert ICAO *</div>
                     <input value={divIcao} onChange={e=>setDivIcao(e.target.value.toUpperCase().replace(/[^A-Z]/g,'').slice(0,4))} placeholder="ICAO" maxLength={4}
-                      style={{width:'100%',background:'#1a1a1a',border:'1.5px solid #e8731a',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#e8731a',fontFamily:'monospace',outline:'none',textAlign:'center',letterSpacing:2}}/>
+                      style={{width:'100%',background:'#1e293b',border:'1.5px solid #f97316',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#f97316',fontFamily:'monospace',outline:'none',textAlign:'center',letterSpacing:2}}/>
                   </div>
-                  <div><div style={{fontSize:10,color:'#e8731a',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Runway</div>
+                  <div><div style={{fontSize:10,color:'#f97316',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Runway</div>
                     <input value={divRwy} onChange={e=>setDivRwy(e.target.value.toUpperCase())} placeholder="e.g. 05"
-                      style={{width:'100%',background:'#1a1a1a',border:'1.5px solid #e8731a',borderRadius:6,padding:'9px 12px',fontSize:14,fontWeight:700,color:'#e8731a',fontFamily:'monospace',outline:'none',textAlign:'center'}}/>
+                      style={{width:'100%',background:'#1e293b',border:'1.5px solid #f97316',borderRadius:6,padding:'9px 12px',fontSize:14,fontWeight:700,color:'#f97316',fontFamily:'monospace',outline:'none',textAlign:'center'}}/>
                   </div>
                 </div>
               )}
@@ -233,9 +233,9 @@ function ArrivalModal({ wptName, isDivert, onClose, onSave, onDivert, initial })
           )}
         </div>
         <div style={{padding:'0 16px 16px',display:'flex',gap:8}}>
-          <button onClick={onClose} style={{flex:1,background:'#2a2a2a',border:'1px solid #383838',borderRadius:7,padding:10,fontSize:13,color:'#666',cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
+          <button onClick={onClose} style={{flex:1,background:'#1e293b',border:'1px solid #334155',borderRadius:7,padding:10,fontSize:13,color:'#475569',cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
           <button onClick={save} disabled={doDiv&&divIcao.length!==4}
-            style={{flex:2,background:doDiv?'#e8731a':'#1a9bc4',border:'none',borderRadius:7,padding:10,fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit',opacity:doDiv&&divIcao.length!==4?0.5:1}}>
+            style={{flex:2,background:doDiv?'#f97316':'#38bdf8',border:'none',borderRadius:7,padding:10,fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit',opacity:doDiv&&divIcao.length!==4?0.5:1}}>
             {doDiv?'⚠ Save + Divert':'Save'}
           </button>
         </div>
@@ -257,37 +257,37 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
   // Live fuel deviation preview inside modal
   const fuelNum = fuel ? parseInt(fuel.replace(/,/g,'')) : null;
   const fuelDevNum = (fuelNum && plannedFuel) ? fuelNum - plannedFuel : null;
-  const fuelDevColor = fuelDevNum === null ? '#555' : Math.abs(fuelDevNum) < 50 ? '#2d9e5f' : fuelDevNum > 0 ? '#2d9e5f' : '#e02020';
+  const fuelDevColor = fuelDevNum === null ? '#555' : Math.abs(fuelDevNum) < 50 ? '#4ade80' : fuelDevNum > 0 ? '#4ade80' : '#ef4444';
   const fuelDevLabel = fuelDevNum === null ? null : Math.abs(fuelDevNum) < 50 ? '±0' : fuelDevNum > 0 ? `+${fuelDevNum.toLocaleString()}` : fuelDevNum.toLocaleString();
 
   return(
     <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100}}>
-      <div style={{background:'#252525',border:'1px solid #383838',borderRadius:12,width:320,overflow:'hidden',maxHeight:'92vh',overflowY:'auto'}}>
-        <div style={{background:'#1f1f1f',padding:'10px 16px',borderBottom:'1px solid #383838',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{fontSize:12,fontWeight:700,color:wpt.custom?'#ff9500':'#1a9bc4'}}>{wpt.name}</span>
-          <span onClick={onClose} style={{color:'#555',cursor:'pointer',fontSize:20,lineHeight:1}}>×</span>
+      <div style={{background:'#1e293b',border:'1px solid #334155',borderRadius:12,width:320,overflow:'hidden',maxHeight:'92vh',overflowY:'auto'}}>
+        <div style={{background:'#1e293b',padding:'10px 16px',borderBottom:'1px solid #334155',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{fontSize:12,fontWeight:700,color:wpt.custom?'#fbbf24':'#38bdf8'}}>{wpt.name}</span>
+          <span onClick={onClose} style={{color:'#475569',cursor:'pointer',fontSize:20,lineHeight:1}}>×</span>
         </div>
         <div style={{padding:'14px 16px',display:'flex',flexDirection:'column',gap:14}}>
 
           {/* OFP plan reference */}
           {(wpt.eta!=='—'||wpt.planFuel)&&(
-            <div style={{background:'#1e1e1e',borderRadius:6,padding:'8px 12px',border:'1px solid #2a2a2a'}}>
-              <div style={{fontSize:9,color:'#555',fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:6}}>OFP Plan</div>
+            <div style={{background:'#0f172a',borderRadius:6,padding:'8px 12px',border:'1px solid #1e293b'}}>
+              <div style={{fontSize:9,color:'#475569',fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:6}}>OFP Plan</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                {wpt.eta!=='—'&&<div><div style={{fontSize:9,color:'#555',marginBottom:2}}>ETA</div><div style={{fontSize:14,fontWeight:700,color:'#888',fontFamily:'monospace'}}>{wpt.eta} UTC</div></div>}
-                {wpt.planFuel&&<div><div style={{fontSize:9,color:'#555',marginBottom:2}}>FUEL</div><div style={{fontSize:14,fontWeight:700,color:'#888',fontFamily:'monospace'}}>{wpt.planFuel.toLocaleString()} lb</div></div>}
+                {wpt.eta!=='—'&&<div><div style={{fontSize:9,color:'#475569',marginBottom:2}}>ETA</div><div style={{fontSize:14,fontWeight:700,color:'#888',fontFamily:'monospace'}}>{wpt.eta} UTC</div></div>}
+                {wpt.planFuel&&<div><div style={{fontSize:9,color:'#475569',marginBottom:2}}>FUEL</div><div style={{fontSize:14,fontWeight:700,color:'#888',fontFamily:'monospace'}}>{wpt.planFuel.toLocaleString()} lb</div></div>}
               </div>
             </div>
           )}
 
           {/* ATA */}
           <div>
-            <div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={{fontSize:10,color:'#475569',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span>ATA (ACTUAL)</span>
               {estimatedATA&&!ata&&(
-                <span style={{fontSize:10,color:'#555',fontStyle:'italic'}}>
+                <span style={{fontSize:10,color:'#475569',fontStyle:'italic'}}>
                   Est: <span style={{color:'#888',fontFamily:'monospace'}}>{estimatedATA}</span>
-                  <button onClick={()=>setAta(estimatedATA)} style={{marginLeft:6,background:'rgba(26,155,196,0.15)',border:'1px solid rgba(26,155,196,0.3)',borderRadius:4,padding:'1px 7px',fontSize:9,color:'#1a9bc4',cursor:'pointer',fontFamily:'inherit'}}>Use</button>
+                  <button onClick={()=>setAta(estimatedATA)} style={{marginLeft:6,background:'rgba(56,189,248,0.15)',border:'1px solid rgba(56,189,248,0.3)',borderRadius:4,padding:'1px 7px',fontSize:9,color:'#38bdf8',cursor:'pointer',fontFamily:'inherit'}}>Use</button>
                 </span>
               )}
             </div>
@@ -296,20 +296,20 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
 
           {/* Actual fuel + live deviation */}
           <div>
-            <div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={{fontSize:10,color:'#475569',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span>ACTUAL FUEL</span>
               {estimatedFuel&&!fuel&&(
-                <span style={{fontSize:10,color:'#555',fontStyle:'italic'}}>
+                <span style={{fontSize:10,color:'#475569',fontStyle:'italic'}}>
                   Est: <span style={{color:'#888',fontFamily:'monospace'}}>{estimatedFuel.toLocaleString()}</span>
-                  <button onClick={()=>setFuel(String(estimatedFuel))} style={{marginLeft:6,background:'rgba(26,155,196,0.15)',border:'1px solid rgba(26,155,196,0.3)',borderRadius:4,padding:'1px 7px',fontSize:9,color:'#1a9bc4',cursor:'pointer',fontFamily:'inherit'}}>Use</button>
+                  <button onClick={()=>setFuel(String(estimatedFuel))} style={{marginLeft:6,background:'rgba(56,189,248,0.15)',border:'1px solid rgba(56,189,248,0.3)',borderRadius:4,padding:'1px 7px',fontSize:9,color:'#38bdf8',cursor:'pointer',fontFamily:'inherit'}}>Use</button>
                 </span>
               )}
             </div>
             <FuelBox value={fuel} onChange={setFuel} placeholder={plannedFuel?`plan: ${plannedFuel.toLocaleString()}`:'lb'}/>
             {/* Live deviation — shows as you type */}
             {fuelDevLabel&&(
-              <div style={{marginTop:8,padding:'8px 12px',borderRadius:6,background:fuelDevNum>0?'rgba(45,158,95,0.1)':Math.abs(fuelDevNum)<50?'rgba(45,158,95,0.08)':'rgba(224,32,32,0.1)',border:`1px solid ${fuelDevNum>0?'rgba(45,158,95,0.3)':Math.abs(fuelDevNum)<50?'rgba(45,158,95,0.2)':'rgba(224,32,32,0.3)'}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontSize:11,color:'#666',fontFamily:'monospace'}}>vs OFP plan ({wpt.planFuel?.toLocaleString()} lb)</span>
+              <div style={{marginTop:8,padding:'8px 12px',borderRadius:6,background:fuelDevNum>0?'rgba(74,222,128,0.1)':Math.abs(fuelDevNum)<50?'rgba(74,222,128,0.08)':'rgba(224,32,32,0.1)',border:`1px solid ${fuelDevNum>0?'rgba(74,222,128,0.3)':Math.abs(fuelDevNum)<50?'rgba(74,222,128,0.2)':'rgba(224,32,32,0.3)'}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:11,color:'#475569',fontFamily:'monospace'}}>vs OFP plan ({wpt.planFuel?.toLocaleString()} lb)</span>
                 <span style={{fontSize:16,fontWeight:700,color:fuelDevColor,fontFamily:'monospace'}}>{fuelDevLabel} lb</span>
               </div>
             )}
@@ -317,45 +317,45 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
 
           {/* RVSM */}
           <div>
-            <div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>RVSM Altimeter Check</div>
+            <div style={{fontSize:10,color:'#475569',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>RVSM Altimeter Check</div>
             <RvsmBoxes value={rvsm} onChange={setRvsm}/>
           </div>
 
           {/* Direct To */}
           {wptList.length>0&&(
             <div>
-              <button onClick={()=>setShowDT(!showDT)} style={{width:'100%',background:'rgba(255,149,0,0.1)',border:'1px solid rgba(255,149,0,0.3)',borderRadius:6,padding:'9px',fontSize:12,fontWeight:700,color:'#ff9500',cursor:'pointer',fontFamily:'inherit'}}>✈ Direct To...</button>
-              {showDT&&<div style={{marginTop:8,background:'#1e1e1e',borderRadius:6,overflow:'hidden',border:'1px solid #383838'}}>
-                {wptList.map(w=><div key={w.uid} onClick={()=>onDirectTo(w.uid)} style={{padding:'10px 12px',borderBottom:'1px solid #383838',cursor:'pointer',fontSize:12,fontFamily:'monospace',display:'flex',justifyContent:'space-between'}}>
-                  <span style={{color:w.custom?'#ff9500':'#999'}}>{w.name}</span>
-                  <span style={{color:'#555'}}>ETA {w.eta}</span>
+              <button onClick={()=>setShowDT(!showDT)} style={{width:'100%',background:'rgba(255,149,0,0.1)',border:'1px solid rgba(255,149,0,0.3)',borderRadius:6,padding:'9px',fontSize:12,fontWeight:700,color:'#fbbf24',cursor:'pointer',fontFamily:'inherit'}}>✈ Direct To...</button>
+              {showDT&&<div style={{marginTop:8,background:'#0f172a',borderRadius:6,overflow:'hidden',border:'1px solid #334155'}}>
+                {wptList.map(w=><div key={w.uid} onClick={()=>onDirectTo(w.uid)} style={{padding:'10px 12px',borderBottom:'1px solid #334155',cursor:'pointer',fontSize:12,fontFamily:'monospace',display:'flex',justifyContent:'space-between'}}>
+                  <span style={{color:w.custom?'#fbbf24':'#999'}}>{w.name}</span>
+                  <span style={{color:'#475569'}}>ETA {w.eta}</span>
                 </div>)}
               </div>}
             </div>
           )}
 
           {/* Add waypoint */}
-          <div style={{borderTop:'1px solid #2a2a2a',paddingTop:12}}>
-            <button onClick={()=>setShowAdd(!showAdd)} style={{width:'100%',background:showAdd?'rgba(255,149,0,0.1)':'#1f1f1f',border:`1px solid ${showAdd?'rgba(255,149,0,0.4)':'#383838'}`,borderRadius:6,padding:'9px',fontSize:12,fontWeight:700,color:showAdd?'#ff9500':'#555',cursor:'pointer',fontFamily:'inherit'}}>
+          <div style={{borderTop:'1px solid #1e293b',paddingTop:12}}>
+            <button onClick={()=>setShowAdd(!showAdd)} style={{width:'100%',background:showAdd?'rgba(255,149,0,0.1)':'#1e293b',border:`1px solid ${showAdd?'rgba(255,149,0,0.4)':'#334155'}`,borderRadius:6,padding:'9px',fontSize:12,fontWeight:700,color:showAdd?'#fbbf24':'#555',cursor:'pointer',fontFamily:'inherit'}}>
               {showAdd?'✕ Cancel':'+ Add Waypoint'}
             </button>
             {showAdd&&<div style={{marginTop:10,display:'flex',flexDirection:'column',gap:10}}>
               <div style={{display:'flex',gap:6}}>
-                {['before','after'].map(p=><button key={p} onClick={()=>setAddPos(p)} style={{flex:1,background:addPos===p?'rgba(255,149,0,0.15)':'#1f1f1f',border:`1px solid ${addPos===p?'#ff9500':'#383838'}`,borderRadius:6,padding:'7px',fontSize:11,fontWeight:700,color:addPos===p?'#ff9500':'#555',cursor:'pointer',fontFamily:'inherit',textTransform:'uppercase'}}>{p==='before'?'↑ Before':'↓ After'}</button>)}
+                {['before','after'].map(p=><button key={p} onClick={()=>setAddPos(p)} style={{flex:1,background:addPos===p?'rgba(255,149,0,0.15)':'#1e293b',border:`1px solid ${addPos===p?'#fbbf24':'#334155'}`,borderRadius:6,padding:'7px',fontSize:11,fontWeight:700,color:addPos===p?'#fbbf24':'#555',cursor:'pointer',fontFamily:'inherit',textTransform:'uppercase'}}>{p==='before'?'↑ Before':'↓ After'}</button>)}
               </div>
               <input value={addName} onChange={e=>setAddName(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6))} placeholder="WPT NAME" maxLength={6}
-                style={{width:'100%',background:'#1a1a1a',border:'1.5px solid #ff9500',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#ff9500',fontFamily:'monospace',outline:'none',textAlign:'center',letterSpacing:2,boxSizing:'border-box'}}/>
-              <button onClick={doAdd} disabled={addName.length<2} style={{width:'100%',background:addName.length>=2?'#ff9500':'#2a2a2a',border:'none',borderRadius:7,padding:'9px',fontSize:13,fontWeight:700,color:addName.length>=2?'#fff':'#444',cursor:addName.length>=2?'pointer':'not-allowed',fontFamily:'inherit'}}>Add {addPos==='before'?'Before':'After'} {wpt.name}</button>
+                style={{width:'100%',background:'#1e293b',border:'1.5px solid #fbbf24',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#fbbf24',fontFamily:'monospace',outline:'none',textAlign:'center',letterSpacing:2,boxSizing:'border-box'}}/>
+              <button onClick={doAdd} disabled={addName.length<2} style={{width:'100%',background:addName.length>=2?'#fbbf24':'#1e293b',border:'none',borderRadius:7,padding:'9px',fontSize:13,fontWeight:700,color:addName.length>=2?'#fff':'#444',cursor:addName.length>=2?'pointer':'not-allowed',fontFamily:'inherit'}}>Add {addPos==='before'?'Before':'After'} {wpt.name}</button>
             </div>}
           </div>
 
-          {wpt.custom&&<div style={{borderTop:'1px solid #2a2a2a',paddingTop:12}}>
-            <button onClick={onDelete} style={{width:'100%',background:'rgba(224,32,32,0.08)',border:'1px solid rgba(224,32,32,0.3)',borderRadius:6,padding:'9px',fontSize:12,fontWeight:700,color:'#e02020',cursor:'pointer',fontFamily:'inherit'}}>🗑 Delete Waypoint</button>
+          {wpt.custom&&<div style={{borderTop:'1px solid #1e293b',paddingTop:12}}>
+            <button onClick={onDelete} style={{width:'100%',background:'rgba(224,32,32,0.08)',border:'1px solid rgba(224,32,32,0.3)',borderRadius:6,padding:'9px',fontSize:12,fontWeight:700,color:'#ef4444',cursor:'pointer',fontFamily:'inherit'}}>🗑 Delete Waypoint</button>
           </div>}
         </div>
         <div style={{padding:'0 16px 16px',display:'flex',gap:8}}>
-          <button onClick={onClose} style={{flex:1,background:'#2a2a2a',border:'1px solid #383838',borderRadius:7,padding:10,fontSize:13,color:'#666',cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
-          <button onClick={()=>onSave({ata,fuel,rvsm})} style={{flex:2,background:'#1a9bc4',border:'none',borderRadius:7,padding:10,fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit'}}>Save</button>
+          <button onClick={onClose} style={{flex:1,background:'#1e293b',border:'1px solid #334155',borderRadius:7,padding:10,fontSize:13,color:'#475569',cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
+          <button onClick={()=>onSave({ata,fuel,rvsm})} style={{flex:2,background:'#38bdf8',border:'none',borderRadius:7,padding:10,fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit'}}>Save</button>
         </div>
       </div>
     </div>
@@ -366,20 +366,20 @@ function DivertArptModal({ onClose, onAdd }) {
   const [name,setName]=useState('');
   return(
     <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100}}>
-      <div style={{background:'#252525',border:'1px solid #e8731a55',borderRadius:12,width:300,overflow:'hidden'}}>
-        <div style={{background:'#1f1f1f',padding:'10px 16px',borderBottom:'1px solid #383838',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{fontSize:12,fontWeight:700,color:'#e8731a'}}>⚠ Add Divert Airport</span>
-          <span onClick={onClose} style={{color:'#555',cursor:'pointer',fontSize:20,lineHeight:1}}>×</span>
+      <div style={{background:'#1e293b',border:'1px solid #f9731655',borderRadius:12,width:300,overflow:'hidden'}}>
+        <div style={{background:'#1e293b',padding:'10px 16px',borderBottom:'1px solid #334155',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{fontSize:12,fontWeight:700,color:'#f97316'}}>⚠ Add Divert Airport</span>
+          <span onClick={onClose} style={{color:'#475569',cursor:'pointer',fontSize:20,lineHeight:1}}>×</span>
         </div>
         <div style={{padding:'14px 16px'}}>
-          <div style={{fontSize:10,color:'#e8731a',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Airport ICAO *</div>
+          <div style={{fontSize:10,color:'#f97316',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:6}}>Airport ICAO *</div>
           <input value={name} onChange={e=>setName(e.target.value.toUpperCase().replace(/[^A-Z]/g,'').slice(0,4))} placeholder="ICAO" maxLength={4}
-            style={{width:'100%',background:'#1a1a1a',border:'1.5px solid #e8731a',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#e8731a',fontFamily:'monospace',outline:'none',textAlign:'center',letterSpacing:2}}/>
+            style={{width:'100%',background:'#1e293b',border:'1.5px solid #f97316',borderRadius:6,padding:'9px 12px',fontSize:16,fontWeight:700,color:'#f97316',fontFamily:'monospace',outline:'none',textAlign:'center',letterSpacing:2}}/>
         </div>
         <div style={{padding:'0 16px 16px',display:'flex',gap:8}}>
-          <button onClick={onClose} style={{flex:1,background:'#2a2a2a',border:'1px solid #383838',borderRadius:7,padding:10,fontSize:13,color:'#666',cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
+          <button onClick={onClose} style={{flex:1,background:'#1e293b',border:'1px solid #334155',borderRadius:7,padding:10,fontSize:13,color:'#475569',cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
           <button onClick={()=>{if(name.length===4)onAdd(name);}} disabled={name.length!==4}
-            style={{flex:2,background:'#e8731a',border:'none',borderRadius:7,padding:10,fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit',opacity:name.length!==4?0.5:1}}>Add Divert</button>
+            style={{flex:2,background:'#f97316',border:'none',borderRadius:7,padding:10,fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit',opacity:name.length!==4?0.5:1}}>Add Divert</button>
         </div>
       </div>
     </div>
@@ -547,9 +547,9 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   const fuelDevStyle=dev=>{
     if(dev===null||dev===undefined)return null;
     const abs=Math.abs(dev);
-    if(abs<50)  return{label:'±0',     color:'#2d9e5f', bg:'rgba(45,158,95,0.1)'};
-    if(dev>0)   return{label:`+${dev.toLocaleString()}`,color:'#2d9e5f', bg:'rgba(45,158,95,0.1)'};
-    return            {label:dev.toLocaleString(),       color:'#e02020', bg:'rgba(224,32,32,0.1)'};
+    if(abs<50)  return{label:'±0',     color:'#4ade80', bg:'rgba(74,222,128,0.1)'};
+    if(dev>0)   return{label:`+${dev.toLocaleString()}`,color:'#4ade80', bg:'rgba(74,222,128,0.1)'};
+    return            {label:dev.toLocaleString(),       color:'#ef4444', bg:'rgba(224,32,32,0.1)'};
   };
 
   const toFuelNum=(()=>{const d=entries[dep];return d?.toFuel?parseInt(d.toFuel.replace(/,/g,'')):null;})();
@@ -563,49 +563,56 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
       {alert50&&(
         <div style={{background:'rgba(224,32,32,0.12)',borderBottom:'1px solid rgba(224,32,32,0.3)',padding:'10px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
           <span style={{fontSize:18}}>⚠️</span>
-          <div><div style={{fontSize:12,fontWeight:700,color:'#e02020'}}>FUEL & RVSM CHECK REQUIRED</div><div style={{fontSize:10,color:'#888',marginTop:1}}>50 minutes since last check</div></div>
-          <button onClick={()=>setAlert50(false)} style={{marginLeft:'auto',background:'transparent',border:'1px solid #555',borderRadius:5,padding:'3px 8px',fontSize:10,color:'#666',cursor:'pointer',fontFamily:'inherit'}}>Dismiss</button>
+          <div><div style={{fontSize:12,fontWeight:700,color:'#ef4444'}}>FUEL & RVSM CHECK REQUIRED</div><div style={{fontSize:10,color:'#888',marginTop:1}}>50 minutes since last check</div></div>
+          <button onClick={()=>setAlert50(false)} style={{marginLeft:'auto',background:'transparent',border:'1px solid #555',borderRadius:5,padding:'3px 8px',fontSize:10,color:'#475569',cursor:'pointer',fontFamily:'inherit'}}>Dismiss</button>
         </div>
       )}
 
       {hasCo&&(
-        <div style={{background:gpsActive?'rgba(45,158,95,0.1)':'#1e1e1e',borderBottom:'1px solid #383838',padding:'7px 12px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+        <div style={{background:gpsActive?'rgba(74,222,128,0.1)':'#0f172a',borderBottom:'1px solid #334155',padding:'7px 12px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
           <span style={{fontSize:14}}>✈</span>
           <div style={{flex:1}}>
-            {gpsActive&&pos&&<span style={{fontSize:10,color:'#2d9e5f',fontFamily:'monospace'}}>{pos.lat.toFixed(4)}N {pos.lon.toFixed(4)}E · ±{Math.round(pos.acc)}m{acPos&&<span style={{color:'#1a9bc4',marginLeft:8}}>{waypoints.find(w=>w.uid===acPos.prev)?.name}{acPos.next?` ✈ ${waypoints.find(w=>w.uid===acPos.next)?.name}`:' ✈'}</span>}</span>}
-            {gpsActive&&!pos&&<span style={{fontSize:10,color:'#555'}}>Acquiring GPS...</span>}
-            {!gpsActive&&<span style={{fontSize:10,color:'#555'}}>GPS position tracking</span>}
-            {gpsErr&&<span style={{fontSize:10,color:'#e02020',marginLeft:8}}>⚠ {gpsErr}</span>}
+            {gpsActive&&pos&&<span style={{fontSize:10,color:'#4ade80',fontFamily:'monospace'}}>{pos.lat.toFixed(4)}N {pos.lon.toFixed(4)}E · ±{Math.round(pos.acc)}m{acPos&&<span style={{color:'#38bdf8',marginLeft:8}}>{waypoints.find(w=>w.uid===acPos.prev)?.name}{acPos.next?` ✈ ${waypoints.find(w=>w.uid===acPos.next)?.name}`:' ✈'}</span>}</span>}
+            {gpsActive&&!pos&&<span style={{fontSize:10,color:'#475569'}}>Acquiring GPS...</span>}
+            {!gpsActive&&<span style={{fontSize:10,color:'#475569'}}>GPS position tracking</span>}
+            {gpsErr&&<span style={{fontSize:10,color:'#ef4444',marginLeft:8}}>⚠ {gpsErr}</span>}
           </div>
-          <button onClick={gpsActive?stopGPS:handleStartGPS} style={{background:gpsActive?'rgba(224,32,32,0.15)':'rgba(45,158,95,0.15)',border:`1px solid ${gpsActive?'#e02020':'#2d9e5f'}`,borderRadius:6,padding:'4px 10px',fontSize:10,fontWeight:700,color:gpsActive?'#e02020':'#2d9e5f',cursor:'pointer',fontFamily:'inherit'}}>
+          <button onClick={gpsActive?stopGPS:handleStartGPS} style={{background:gpsActive?'rgba(224,32,32,0.15)':'rgba(74,222,128,0.15)',border:`1px solid ${gpsActive?'#ef4444':'#4ade80'}`,borderRadius:6,padding:'4px 10px',fontSize:10,fontWeight:700,color:gpsActive?'#ef4444':'#4ade80',cursor:'pointer',fontFamily:'inherit'}}>
             {gpsActive?'Stop':'Start GPS'}
           </button>
         </div>
       )}
 
       {/* Summary */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:1,background:'#383838',borderBottom:'1px solid #383838',flexShrink:0}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:1,background:'#334155',borderBottom:'1px solid #334155',flexShrink:0}}>
         {[
           {label:'T/O Fuel',  value:toFuelNum?`${toFuelNum.toLocaleString()} lb`:'—', color:'#e8e8e8'},
-          {label:'T/O Time',  value:entries[dep]?.toTime||'—', color:'#1a9bc4'},
-          {label:'Last Check',value:lastStr, color:alert50?'#e02020':'#1a9bc4'},
+          {label:'T/O Time',  value:entries[dep]?.toTime||'—', color:'#38bdf8'},
+          {label:'Last Check',value:lastStr, color:alert50?'#ef4444':'#38bdf8'},
         ].map((s,i)=>(
-          <div key={i} style={{background:'#2a2a2a',padding:'9px 12px'}}>
-            <div style={{fontSize:9,color:'#555',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:3}}>{s.label}</div>
+          <div key={i} style={{background:'#1e293b',padding:'9px 12px'}}>
+            <div style={{fontSize:9,color:'#475569',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:3}}>{s.label}</div>
             <div style={{fontSize:14,fontWeight:700,color:s.color,fontFamily:'monospace'}}>{s.value}</div>
           </div>
         ))}
       </div>
 
       {/* Column headers */}
-      <div style={{display:'grid',gridTemplateColumns:'62px 44px 56px 36px 70px 46px 70px 1fr',background:'#1a1a1a',borderBottom:'1px solid #383838',padding:'5px 10px',flexShrink:0}}>
-        {['WPT','ETA','ATA +/-','FL','FUEL ACT','RVSM','FUEL ±PLAN','STATUS'].map(h=>(
-          <div key={h} style={{fontSize:9,color:'#555',fontWeight:700,letterSpacing:0.5}}>{h}</div>
-        ))}
+      <div style={{background:'#1e293b',borderBottom:'1px solid #334155',padding:'0',flexShrink:0}}>
+        <div style={{display:'grid',gridTemplateColumns:'62px 44px 56px 36px 70px 46px 70px 1fr',padding:'4px 10px 2px',borderBottom:'1px solid #0f172a'}}>
+          {['AWY','WPT','FIR WIND','FL','TAS G/S','W/C','DIS DTG','STM'].map(h=>(
+            <div key={h} style={{fontSize:8,color:'#334155',fontWeight:700,letterSpacing:0.5,fontFamily:'monospace'}}>{h}</div>
+          ))}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'62px 44px 56px 36px 70px 46px 70px 1fr',padding:'2px 10px 4px'}}>
+          {['MORA','ETA','ATM','—','S/BURN','OAT','DTG','ATA ±'].map(h=>(
+            <div key={h} style={{fontSize:8,color:'#334155',fontWeight:700,letterSpacing:0.5,fontFamily:'monospace'}}>{h}</div>
+          ))}
+        </div>
       </div>
 
       <div style={{flex:1,overflowY:'auto'}}>
-        {!waypoints.length&&<div style={{padding:20,textAlign:'center',color:'#444',fontSize:12}}>Loading waypoints...</div>}
+        {!waypoints.length&&<div style={{padding:20,textAlign:'center',color:'#334155',fontSize:12}}>Loading waypoints...</div>}
 
         {waypoints.map((wpt,idx)=>{
           const e      = entries[wpt.uid]||{};
@@ -617,9 +624,9 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
             return w.type==='dep'?!!(pe.offBlock||pe.toTime):!!(pe.ata||pe.fuel||pe.lndTime)||isSk(w,wi);
           }));
 
-          const bg  = isDivA?'rgba(255,149,0,0.08)':sk?'#1e1e1e':done?'#1f2a1f':active?'rgba(26,155,196,0.06)':'#242424';
-          const bl  = isDivA?'3px solid #e8731a':active?'3px solid #1a9bc4':done?'3px solid #2d9e5f':'3px solid transparent';
-          const nc  = isDivA?'#e8731a':isDep||isDest?'#1a9bc4':done?'#2d9e5f':active?'#1a9bc4':wpt.custom?'#ff9500':'#666';
+          const bg  = isDivA?'rgba(255,149,0,0.08)':sk?'#0f172a':done?'#1f2a1f':active?'rgba(56,189,248,0.06)':'#0f172a';
+          const bl  = isDivA?'3px solid #f97316':active?'3px solid #38bdf8':done?'3px solid #4ade80':'3px solid transparent';
+          const nc  = isDivA?'#f97316':isDep||isDest?'#38bdf8':done?'#4ade80':active?'#38bdf8':wpt.custom?'#fbbf24':'#666';
 
           const actATA = isDep?e.toTime:isArr?e.lndTime:e.ata;
           const estATA = !actATA?autoATA(wpt,idx):null;
@@ -639,13 +646,13 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           return(
             <React.Fragment key={wpt.uid}>
               <div onClick={()=>!sk&&setModal(wpt.uid)}
-                style={{display:'grid',gridTemplateColumns:'62px 44px 56px 36px 70px 46px 70px 1fr',padding:'9px 10px',borderBottom:'1px solid #383838',background:bg,borderLeft:bl,cursor:sk?'default':'pointer',opacity:sk?0.3:1,alignItems:'center'}}>
+                style={{display:'grid',gridTemplateColumns:'62px 44px 56px 36px 70px 46px 70px 1fr',padding:'9px 10px',borderBottom:'1px solid #334155',background:bg,borderLeft:bl,cursor:sk?'default':'pointer',opacity:sk?0.3:1,alignItems:'center'}}>
 
                 {/* WPT */}
                 <div>
                   <div style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:nc}}>{wpt.name}</div>
-                  {isDivA&&<div style={{fontSize:8,color:'#e8731a',marginTop:1}}>DIVERT</div>}
-                  {wpt.custom&&!isDivA&&<div style={{fontSize:8,color:'#ff9500',marginTop:1}}>ADDED</div>}
+                  {isDivA&&<div style={{fontSize:8,color:'#f97316',marginTop:1}}>DIVERT</div>}
+                  {wpt.custom&&!isDivA&&<div style={{fontSize:8,color:'#fbbf24',marginTop:1}}>ADDED</div>}
                 </div>
 
                 {/* ETA plan */}
@@ -655,12 +662,12 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
                 <div style={{fontSize:11,fontFamily:'monospace'}}>
                   {actATA?(
                     <div>
-                      <span style={{color:'#2d9e5f',fontWeight:700}}>{actATA}</span>
+                      <span style={{color:'#4ade80',fontWeight:700}}>{actATA}</span>
                       {tDf&&<span style={{fontSize:9,color:tDf.color,marginLeft:3,fontWeight:700}}>{tDf.label}</span>}
                     </div>
                   ):estATA?(
-                    <div><span style={{color:'#555',fontStyle:'italic'}}>{estATA}</span><span style={{fontSize:8,color:'#444',marginLeft:2}}>est</span></div>
-                  ):<span style={{color:'#333'}}>—</span>}
+                    <div><span style={{color:'#475569',fontStyle:'italic'}}>{estATA}</span><span style={{fontSize:8,color:'#334155',marginLeft:2}}>est</span></div>
+                  ):<span style={{color:'#334155'}}>—</span>}
                 </div>
 
                 {/* FL */}
@@ -670,26 +677,26 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
                 <div style={{fontSize:11,fontFamily:'monospace'}}>
                   {actFN?(
                     <div>
-                      <span style={{color:'#2d9e5f',fontWeight:700}}>{actFN.toLocaleString()}</span>
-                      {pF&&!isDep&&!isArr&&<div style={{fontSize:9,color:'#555',marginTop:1}}>p:{pF.toLocaleString()}</div>}
+                      <span style={{color:'#4ade80',fontWeight:700}}>{actFN.toLocaleString()}</span>
+                      {pF&&!isDep&&!isArr&&<div style={{fontSize:9,color:'#475569',marginTop:1}}>p:{pF.toLocaleString()}</div>}
                     </div>
                   ):estFN?(
                     <div>
-                      <span style={{color:'#555',fontStyle:'italic'}}>{estFN.toLocaleString()}</span>
-                      <span style={{fontSize:8,color:'#444',marginLeft:2}}>est</span>
-                      {pF&&!isDep&&!isArr&&<div style={{fontSize:9,color:'#555',marginTop:1}}>p:{pF.toLocaleString()}</div>}
+                      <span style={{color:'#475569',fontStyle:'italic'}}>{estFN.toLocaleString()}</span>
+                      <span style={{fontSize:8,color:'#334155',marginLeft:2}}>est</span>
+                      {pF&&!isDep&&!isArr&&<div style={{fontSize:9,color:'#475569',marginTop:1}}>p:{pF.toLocaleString()}</div>}
                     </div>
                   ):pF&&!isDep&&!isArr?(
                     // No actual yet: show plan value in gray
                     <div>
                       <span style={{color:'#888',fontFamily:'monospace'}}>{pF.toLocaleString()}</span>
-                      <span style={{fontSize:8,color:'#666',marginLeft:3}}>plan</span>
+                      <span style={{fontSize:8,color:'#475569',marginLeft:3}}>plan</span>
                     </div>
-                  ):<span style={{color:'#333'}}>—</span>}
+                  ):<span style={{color:'#334155'}}>—</span>}
                 </div>
 
                 {/* RVSM */}
-                <div style={{fontSize:10,color:e.rvsm?'#2d9e5f':'#444',fontFamily:'monospace'}}>
+                <div style={{fontSize:10,color:e.rvsm?'#4ade80':'#444',fontFamily:'monospace'}}>
                   {e.rvsm?e.rvsm.split('/')[0]+'…':(isDep||isArr?'N/A':'—')}
                 </div>
 
@@ -707,45 +714,45 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
                     }}>{fDS.label}</span>
                   ):pF&&!isDep&&!isArr&&!actFN?(
                     // Show plan as reference when no actual yet
-                    <span style={{color:'#444',fontSize:10}}>—</span>
-                  ):<span style={{color:'#333'}}>—</span>}
+                    <span style={{color:'#334155',fontSize:10}}>—</span>
+                  ):<span style={{color:'#334155'}}>—</span>}
                 </div>
 
                 {/* Status */}
                 <div style={{textAlign:'right'}}>
-                  {sk    ?<span style={{fontSize:9,color:'#444'}}>SKIP</span>
-                  :done  ?<span style={{fontSize:10,fontWeight:700,color:'#2d9e5f',background:'rgba(45,158,95,0.12)',padding:'2px 6px',borderRadius:3}}>✓ DONE</span>
-                  :active?<span style={{fontSize:10,fontWeight:700,color:'#1a9bc4',background:'rgba(26,155,196,0.12)',padding:'2px 6px',borderRadius:3}}>● ACTIVE</span>
-                  :<span style={{fontSize:9,color:'#444'}}>Pending</span>}
+                  {sk    ?<span style={{fontSize:9,color:'#334155'}}>SKIP</span>
+                  :done  ?<span style={{fontSize:10,fontWeight:700,color:'#4ade80',background:'rgba(74,222,128,0.12)',padding:'2px 6px',borderRadius:3}}>✓ DONE</span>
+                  :active?<span style={{fontSize:10,fontWeight:700,color:'#38bdf8',background:'rgba(56,189,248,0.12)',padding:'2px 6px',borderRadius:3}}>● ACTIVE</span>
+                  :<span style={{fontSize:9,color:'#334155'}}>Pending</span>}
                 </div>
               </div>
 
               {showAc&&(
-                <div style={{display:'flex',alignItems:'center',padding:'6px 10px',background:'rgba(45,158,95,0.07)',borderBottom:'1px solid rgba(45,158,95,0.2)',borderLeft:'3px solid #2d9e5f'}}>
+                <div style={{display:'flex',alignItems:'center',padding:'6px 10px',background:'rgba(74,222,128,0.07)',borderBottom:'1px solid rgba(74,222,128,0.2)',borderLeft:'3px solid #4ade80'}}>
                   <span style={{fontSize:16,marginRight:8}}>✈</span>
-                  <span style={{fontSize:11,fontWeight:700,color:'#2d9e5f',fontFamily:'monospace'}}>{pos?.lat.toFixed(4)}N {pos?.lon.toFixed(4)}E</span>
-                  <span style={{fontSize:10,color:'#555',marginLeft:8}}>±{pos?Math.round(pos.acc):'—'}m</span>
-                  <span style={{marginLeft:'auto',fontSize:9,fontWeight:700,color:'#2d9e5f',background:'rgba(45,158,95,0.15)',padding:'2px 8px',borderRadius:3}}>AIRCRAFT</span>
+                  <span style={{fontSize:11,fontWeight:700,color:'#4ade80',fontFamily:'monospace'}}>{pos?.lat.toFixed(4)}N {pos?.lon.toFixed(4)}E</span>
+                  <span style={{fontSize:10,color:'#475569',marginLeft:8}}>±{pos?Math.round(pos.acc):'—'}m</span>
+                  <span style={{marginLeft:'auto',fontSize:9,fontWeight:700,color:'#4ade80',background:'rgba(74,222,128,0.15)',padding:'2px 8px',borderRadius:3}}>AIRCRAFT</span>
                 </div>
               )}
             </React.Fragment>
           );
         })}
 
-        {!flightClosed&&<div style={{padding:'10px'}}><button onClick={()=>setShowDivert(true)} style={{width:'100%',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.3)',borderRadius:7,padding:'10px',fontSize:11,fontWeight:700,color:'#e8731a',cursor:'pointer',fontFamily:'inherit'}}>⚠ Add Divert ARPT</button></div>}
-        {flightClosed&&<div style={{margin:'10px',padding:'8px 12px',borderRadius:6,background:'rgba(255,149,0,0.08)',border:'1px solid rgba(255,149,0,0.2)',fontSize:11,color:'#e8731a',textAlign:'center'}}>⚠ Flight closed at divert airport</div>}
+        {!flightClosed&&<div style={{padding:'10px'}}><button onClick={()=>setShowDivert(true)} style={{width:'100%',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.3)',borderRadius:7,padding:'10px',fontSize:11,fontWeight:700,color:'#f97316',cursor:'pointer',fontFamily:'inherit'}}>⚠ Add Divert ARPT</button></div>}
+        {flightClosed&&<div style={{margin:'10px',padding:'8px 12px',borderRadius:6,background:'rgba(255,149,0,0.08)',border:'1px solid rgba(255,149,0,0.2)',fontSize:11,color:'#f97316',textAlign:'center'}}>⚠ Flight closed at divert airport</div>}
       </div>
 
       {showGpsWarn&&(
         <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}}>
-          <div style={{background:'#1a1a1a',border:'2px solid #e8731a',borderRadius:12,width:340,overflow:'hidden'}}>
-            <div style={{background:'rgba(232,115,26,0.15)',padding:'14px 16px',borderBottom:'1px solid #e8731a',display:'flex',alignItems:'center',gap:10}}>
-              <span style={{fontSize:22}}>⚠️</span><div><div style={{fontSize:13,fontWeight:700,color:'#e8731a'}}>NOT FOR NAVIGATION</div><div style={{fontSize:10,color:'#888',marginTop:2}}>AMC 20-25</div></div>
+          <div style={{background:'#1e293b',border:'2px solid #f97316',borderRadius:12,width:340,overflow:'hidden'}}>
+            <div style={{background:'rgba(232,115,26,0.15)',padding:'14px 16px',borderBottom:'1px solid #f97316',display:'flex',alignItems:'center',gap:10}}>
+              <span style={{fontSize:22}}>⚠️</span><div><div style={{fontSize:13,fontWeight:700,color:'#f97316'}}>NOT FOR NAVIGATION</div><div style={{fontSize:10,color:'#888',marginTop:2}}>AMC 20-25</div></div>
             </div>
             <div style={{padding:'16px',fontSize:12,color:'#ccc',lineHeight:1.8}}>GPS display is for situational awareness only — <b style={{color:'#fff'}}>NOT for primary navigation</b>. Per EASA AMC 20-25.</div>
             <div style={{padding:'0 16px 16px',display:'flex',gap:8}}>
-              <button onClick={()=>setShowGpsWarn(false)} style={{flex:1,background:'#2a2a2a',border:'1px solid #383838',borderRadius:7,padding:10,fontSize:12,color:'#666',cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
-              <button onClick={()=>{setGpsOk(true);setShowGpsWarn(false);startGPS();logEvent(activePlan?.id,'GPS_ACTIVATED',{notice:'acknowledged'});}} style={{flex:2,background:'#e8731a',border:'none',borderRadius:7,padding:10,fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit'}}>I Understand — Activate GPS</button>
+              <button onClick={()=>setShowGpsWarn(false)} style={{flex:1,background:'#1e293b',border:'1px solid #334155',borderRadius:7,padding:10,fontSize:12,color:'#475569',cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
+              <button onClick={()=>{setGpsOk(true);setShowGpsWarn(false);startGPS();logEvent(activePlan?.id,'GPS_ACTIVATED',{notice:'acknowledged'});}} style={{flex:2,background:'#f97316',border:'none',borderRadius:7,padding:10,fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit'}}>I Understand — Activate GPS</button>
             </div>
           </div>
         </div>

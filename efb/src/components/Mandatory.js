@@ -3,17 +3,17 @@ import { usePersistedState } from '../hooks/usePersistedState';
 import { supabase, logEvent } from '../supabaseClient';
 
 const INITIAL_CHECKS = [
-  { id:1, label:'General remarks & photos reviewed', done:false },
-  { id:2, label:'Tech log remarks reviewed',         done:false },
-  { id:3, label:'Pre-flight acceptance completed',   done:false },
-  { id:4, label:'AIRCRAFT SECURITY CHECKLIST',       done:false, section:'Aircraft Checklists' },
-  { id:5, label:'MEL / HIL checked',                done:false },
-  { id:6, label:'EFB_CHECKLIST_CONSOLIDATED',        done:false, section:'EFB Checklist — AMC 20-25', isEfbConsolidated:true },
+  { id:1, label:'General remarks & photos reviewed',  done:false },
+  { id:2, label:'Tech log remarks reviewed',           done:false },
+  { id:3, label:'Pre-flight acceptance completed',     done:false },
+  { id:4, label:'AIRCRAFT SECURITY CHECKLIST',         done:false, section:'Aircraft Checklists' },
+  { id:5, label:'MEL / HIL checked',                   done:false },
+  { id:6, label:'EFB_CHECKLIST_CONSOLIDATED',          done:false, section:'EFB Checklist — AMC 20-25', isEfbConsolidated:true },
 ];
 
 function SectionHeader({ title }) {
   return (
-    <div style={{ background:'#1f1f1f', padding:'7px 16px', fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.8, borderBottom:'1px solid #383838', borderTop:'1px solid #383838', textTransform:'uppercase' }}>
+    <div style={{ padding:'8px 16px 4px', fontSize:10, color:'#38bdf8', fontWeight:600, letterSpacing:'1.5px', textTransform:'uppercase', marginTop:8 }}>
       {title}
     </div>
   );
@@ -28,7 +28,7 @@ function SignatureCanvas({ onSave, onClear }) {
     if (ctx.current) return ctx.current;
     const c = canvasRef.current; if (!c) return null;
     const cx = c.getContext('2d');
-    cx.strokeStyle = '#1a9bc4'; cx.lineWidth = 2.5;
+    cx.strokeStyle = '#38bdf8'; cx.lineWidth = 2.5;
     cx.lineCap = 'round'; cx.lineJoin = 'round';
     ctx.current = cx; return cx;
   };
@@ -57,20 +57,20 @@ function SignatureCanvas({ onSave, onClear }) {
   };
 
   return (
-    <div style={{marginTop:10}}>
-      <div style={{background:'#1f1f1f',border:'1px solid #383838',borderRadius:8,overflow:'hidden'}}>
-        <div style={{padding:'7px 12px',borderBottom:'1px solid #383838',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.7,textTransform:'uppercase'}}>Digital Signature</span>
-          <button onClick={handleClear} style={{background:'none',border:'1px solid #444',borderRadius:4,padding:'2px 8px',fontSize:10,color:'#e02020',cursor:'pointer',fontFamily:'inherit'}}>Clear</button>
+    <div style={{ marginTop:12 }}>
+      <div style={{ background:'#1e293b', border:'1px solid #334155', borderRadius:12, overflow:'hidden' }}>
+        <div style={{ padding:'10px 14px', borderBottom:'1px solid #334155', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <span style={{ fontSize:11, color:'#94a3b8', fontWeight:600, letterSpacing:'0.5px' }}>✍️ Digital Signature</span>
+          <button onClick={handleClear} style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:6, padding:'4px 10px', fontSize:11, color:'#ef4444', cursor:'pointer', fontFamily:'inherit' }}>Clear</button>
         </div>
         <canvas ref={canvasRef} width={560} height={120}
           onMouseDown={start} onMouseMove={draw} onMouseUp={end} onMouseLeave={end}
           onTouchStart={start} onTouchMove={draw} onTouchEnd={end}
-          style={{display:'block',width:'100%',background:'#1a1a1a',cursor:'crosshair',touchAction:'none'}}/>
-        <div style={{padding:'6px 8px',fontSize:10,color:'#444',textAlign:'center',borderTop:'1px solid #383838',fontStyle:'italic'}}>Sign above</div>
+          style={{ display:'block', width:'100%', background:'#0f172a', cursor:'crosshair', touchAction:'none' }}/>
+        <div style={{ padding:'6px 8px', fontSize:10, color:'#334155', textAlign:'center', borderTop:'1px solid #334155', fontStyle:'italic' }}>Sign above</div>
       </div>
       <button onClick={handleSave}
-        style={{marginTop:8,width:'100%',background:'#1a9bc4',border:'none',borderRadius:8,padding:'12px',fontSize:13,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit'}}>
+        style={{ marginTop:10, width:'100%', background:'#38bdf8', border:'none', borderRadius:12, padding:'14px', fontSize:14, fontWeight:600, color:'#0f172a', cursor:'pointer', fontFamily:'inherit' }}>
         Save Signature
       </button>
     </div>
@@ -86,21 +86,15 @@ function Mandatory({ setStatus, activePlan }) {
   const [signedAt,      setSignedAt]      = usePersistedState(`efb_mandatory_signed_at_${planKey}`, null);
   const [sigDataUrl,    setSigDataUrl]    = usePersistedState(`efb_mandatory_sig_${planKey}`,       null);
 
-  // Read PF/PM UUIDs from FlightCrew persisted state
   const [pfId] = usePersistedState('efb_crew_pf', null);
   const [pmId] = usePersistedState('efb_crew_pm', null);
-
   const [crewPilots, setCrewPilots] = useState([]);
 
-  // Fetch pilot profiles by UUID
   useEffect(() => {
     const ids = [pfId, pmId].filter(Boolean);
     if (!ids.length) { setCrewPilots([]); return; }
     (async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, full_name, code')
-        .in('id', ids);
+      const { data } = await supabase.from('profiles').select('id, full_name, code').in('id', ids);
       if (data) {
         const ordered = [];
         if (pfId) { const p = data.find(d => d.id === pfId); if (p) ordered.push({ ...p, role:'PF' }); }
@@ -113,174 +107,159 @@ function Mandatory({ setStatus, activePlan }) {
   const toggle = (id) => {
     setChecks(prev => {
       const updated = prev.map(c => c.id===id ? {...c, done:!c.done} : c);
-      const item    = updated.find(c => c.id===id);
-      logEvent(activePlan?.id, item.done ? 'MANDATORY_CHECK_DONE' : 'MANDATORY_CHECK_UNDONE', {
-        check_label: item.label, check_id: id,
-      });
+      const item = updated.find(c => c.id===id);
+      logEvent(activePlan?.id, item.done ? 'MANDATORY_CHECK_DONE' : 'MANDATORY_CHECK_UNDONE', { check_label:item.label, check_id:id });
       return updated;
     });
   };
 
   const allDone = checks.every(c => c.done);
   const signed  = !!(signedBy && sigDataUrl);
+  const doneCount = checks.filter(c => c.done).length;
 
   useEffect(() => {
     if (!setStatus) return;
     if (allDone && signed)                        setStatus('green');
     else if (allDone || checks.some(c => c.done)) setStatus('amber');
     else                                          setStatus('pending');
-    if (allDone && signed) {
-      logEvent(activePlan?.id, 'PREFLIGHT_MANDATORY_COMPLETE', {
-        checks_count: checks.length, signed_by: signedBy,
-      });
-    }
+    if (allDone && signed) logEvent(activePlan?.id, 'PREFLIGHT_MANDATORY_COMPLETE', { checks_count:checks.length, signed_by:signedBy });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checks, signed]);
 
   const handleSaveSig = (dataUrl) => {
     if (!selectedPilot) return;
     const pilot = crewPilots.find(p => p.id === selectedPilot);
-    setSigDataUrl(dataUrl);
-    setSignedBy(selectedPilot);
-    setSignedAt(new Date().toISOString());
-    logEvent(activePlan?.id, 'MANDATORY_SIGNED', {
-      pilot_id:   selectedPilot,
-      pilot_code: pilot?.code,
-      pilot_name: pilot?.full_name,
-      signed_at:  new Date().toISOString(),
-    });
+    setSigDataUrl(dataUrl); setSignedBy(selectedPilot); setSignedAt(new Date().toISOString());
+    logEvent(activePlan?.id, 'MANDATORY_SIGNED', { pilot_id:selectedPilot, pilot_code:pilot?.code, pilot_name:pilot?.full_name, signed_at:new Date().toISOString() });
   };
 
   const handleClearSig = () => { setSigDataUrl(null); setSignedBy(null); setSignedAt(null); };
-
   const signingPilot = crewPilots.find(p => p.id === signedBy);
 
   return (
-    <div>
-      <div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.9,padding:'12px 16px 5px',textTransform:'uppercase'}}>
-        Checks & Remarks
+    <div style={{ background:'#0f172a', minHeight:'100%', paddingBottom:24 }}>
+
+      {/* Progress */}
+      <div style={{ padding:'16px 16px 12px' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+          <span style={{ fontSize:11, color:'#38bdf8', fontWeight:600, letterSpacing:'1.5px', textTransform:'uppercase' }}>Checks & Remarks</span>
+          <span style={{ fontSize:12, color: allDone ? '#4ade80' : '#475569' }}>{doneCount} / {checks.length}</span>
+        </div>
+        <div style={{ height:4, background:'#1e293b', borderRadius:2, overflow:'hidden' }}>
+          <div style={{ height:'100%', width:`${(doneCount/checks.length)*100}%`, background: allDone ? '#4ade80' : '#38bdf8', borderRadius:2, transition:'width 0.3s' }} />
+        </div>
       </div>
 
-      {checks.map(c => (
-        <React.Fragment key={c.id}>
-          {c.section && <SectionHeader title={c.section}/>}
-          {c.isEfbConsolidated ? (
-            <div onClick={()=>toggle(c.id)}
-              style={{display:'flex',alignItems:'flex-start',padding:'14px 16px',background:'#2e2e2e',borderBottom:'1px solid #383838',gap:12,cursor:'pointer'}}>
-              <div style={{width:20,height:20,borderRadius:4,border:c.done?'none':'1px solid #444',background:c.done?'#2d9e5f':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:11,color:'#fff',marginTop:2}}>
-                {c.done?'✓':''}
+      {/* Checklist */}
+      <div style={{ margin:'0 12px', background:'#1e293b', borderRadius:14, border:'1px solid #334155', overflow:'hidden', marginBottom:16 }}>
+        {checks.map((c, idx) => (
+          <React.Fragment key={c.id}>
+            {c.section && (
+              <div style={{ padding:'8px 16px', background:'#0f172a', borderTop: idx > 0 ? '1px solid #334155' : 'none', fontSize:10, color:'#38bdf8', fontWeight:600, letterSpacing:'1px', textTransform:'uppercase' }}>
+                {c.section}
               </div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:11,color:c.done?'#555':'#888',marginBottom:6,lineHeight:1.7,fontStyle:'italic',textDecoration:c.done?'line-through':'none'}}>
-                  <b>"</b><b>EFB battery ≥80%, application version current, screen brightness suitable for conditions, backup procedure available (paper/alternate), EFB secured at duty station, GPS position NOT FOR NAVIGATION acknowledged.</b><b>"</b>
+            )}
+            {c.isEfbConsolidated ? (
+              <div onClick={() => toggle(c.id)}
+                style={{ display:'flex', alignItems:'flex-start', padding:'14px 16px', borderBottom:'1px solid #1e293b', gap:14, cursor:'pointer', background: c.done ? 'rgba(74,222,128,0.04)' : 'transparent', minHeight:60 }}>
+                <div style={{ width:24, height:24, borderRadius:7, flexShrink:0, marginTop:2, background: c.done ? '#4ade80' : 'transparent', border:`2px solid ${c.done ? '#4ade80' : '#334155'}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  {c.done && <span style={{ fontSize:13, color:'#0f172a', fontWeight:700 }}>✓</span>}
                 </div>
-                {!c.done && <div style={{fontSize:10,color:'#e8731a',fontWeight:700}}>Tap to confirm all EFB checklist items.</div>}
-                {c.done  && <div style={{fontSize:10,color:'#2d9e5f',fontWeight:700}}>✓ Read and acknowledged</div>}
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:12, color: c.done ? '#475569' : '#94a3b8', lineHeight:1.7, textDecoration: c.done ? 'line-through' : 'none', fontStyle:'italic' }}>
+                    EFB battery ≥80%, application version current, screen brightness suitable for conditions, backup procedure available, EFB secured at duty station, GPS NOT FOR NAVIGATION acknowledged.
+                  </div>
+                  {!c.done && <div style={{ fontSize:11, color:'#f97316', fontWeight:600, marginTop:6 }}>Tap to confirm all EFB checklist items</div>}
+                  {c.done  && <div style={{ fontSize:11, color:'#4ade80', fontWeight:600, marginTop:6 }}>✓ Read and acknowledged</div>}
+                </div>
               </div>
-            </div>
-          ) : (
-            <div onClick={()=>toggle(c.id)}
-              style={{display:'flex',alignItems:'center',padding:'12px 16px',background:'#2e2e2e',borderBottom:'1px solid #383838',gap:12,cursor:'pointer'}}>
-              <div style={{width:20,height:20,borderRadius:4,border:c.done?'none':'1px solid #444',background:c.done?'#2d9e5f':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:11,color:'#fff'}}>
-                {c.done?'✓':''}
+            ) : (
+              <div onClick={() => toggle(c.id)}
+                style={{ display:'flex', alignItems:'center', padding:'14px 16px', borderBottom:'1px solid #1e293b', gap:14, cursor:'pointer', background: c.done ? 'rgba(74,222,128,0.04)' : 'transparent', minHeight:56 }}>
+                <div style={{ width:24, height:24, borderRadius:7, flexShrink:0, background: c.done ? '#4ade80' : 'transparent', border:`2px solid ${c.done ? '#4ade80' : '#334155'}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  {c.done && <span style={{ fontSize:13, color:'#0f172a', fontWeight:700 }}>✓</span>}
+                </div>
+                <span style={{ fontSize:13, color: c.done ? '#475569' : '#f1f5f9', flex:1, textDecoration: c.done ? 'line-through' : 'none' }}>{c.label}</span>
               </div>
-              <span style={{fontSize:12.5,color:c.done?'#4a4a4a':'#999',flex:1,textDecoration:c.done?'line-through':'none'}}>{c.label}</span>
-            </div>
-          )}
-        </React.Fragment>
-      ))}
-
-      {!allDone && (
-        <div style={{margin:'12px 16px',padding:'10px 12px',borderRadius:6,background:'rgba(255,149,0,0.08)',borderLeft:'3px solid #ff9500',fontSize:11,color:'#c4882a',lineHeight:1.6}}>
-          Complete all checks before signing.
-        </div>
-      )}
-
-      <div style={{height:12,background:'#1e1e1e',borderTop:'1px solid #383838',borderBottom:'1px solid #383838'}}/>
-      <div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.9,padding:'12px 16px 5px',textTransform:'uppercase'}}>
-        Preflight Check Sign-off
+            )}
+          </React.Fragment>
+        ))}
       </div>
 
-      {/* Signed summary */}
-      {signed && (
-        <div style={{margin:'8px 16px',padding:'12px 14px',borderRadius:8,background:'rgba(45,158,95,0.08)',border:'1px solid rgba(45,158,95,0.25)'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-            <div>
-              <div style={{fontSize:13,fontWeight:700,color:'#2d9e5f'}}>✓ Preflight signed</div>
-              <div style={{fontSize:11,color:'#555',marginTop:2}}>
-                {signingPilot ? `${signingPilot.code} — ${signingPilot.full_name}` : signedBy}
-                {signedAt && <span style={{marginLeft:8,color:'#444'}}>{new Date(signedAt).toLocaleTimeString('en-GB').slice(0,5)} UTC</span>}
-              </div>
-            </div>
-            <button onClick={handleClearSig}
-              style={{background:'none',border:'1px solid #444',borderRadius:5,padding:'4px 10px',fontSize:10,color:'#666',cursor:'pointer',fontFamily:'inherit'}}>
-              Re-sign
-            </button>
-          </div>
-          {sigDataUrl && (
-            <img src={sigDataUrl} alt="sig"
-              style={{width:'100%',height:60,objectFit:'contain',background:'#1a1a1a',borderRadius:5,border:'1px solid #2a3040'}}/>
-          )}
+      {/* Warning */}
+      {!allDone && (
+        <div style={{ margin:'0 12px 16px', padding:'12px 14px', borderRadius:10, background:'rgba(251,191,36,0.06)', border:'1px solid rgba(251,191,36,0.2)', display:'flex', alignItems:'center', gap:10 }}>
+          <span style={{ fontSize:18 }}>⚠️</span>
+          <span style={{ fontSize:12, color:'#fbbf24' }}>Complete all checks before signing.</span>
         </div>
       )}
 
-      {/* Not signed — pilot selection + canvas */}
-      {!signed && (
-        <div style={{margin:'8px 16px'}}>
-          <div style={{fontSize:10,color:'#555',fontWeight:700,letterSpacing:0.6,textTransform:'uppercase',marginBottom:8}}>
-            Select pilot performing preflight:
+      {/* Sign-off Section */}
+      <div style={{ padding:'0 16px 8px' }}>
+        <div style={{ fontSize:11, color:'#38bdf8', fontWeight:600, letterSpacing:'1.5px', textTransform:'uppercase' }}>Preflight Sign-off</div>
+      </div>
+
+      {/* Signed */}
+      {signed && (
+        <div style={{ margin:'0 12px 16px', background:'rgba(74,222,128,0.06)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:14, overflow:'hidden' }}>
+          <div style={{ padding:'12px 14px', borderBottom:'1px solid rgba(74,222,128,0.15)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:'#4ade80' }}>✓ Preflight Signed</div>
+              <div style={{ fontSize:11, color:'#475569', marginTop:2 }}>
+                {signingPilot ? `${signingPilot.code} — ${signingPilot.full_name}` : signedBy}
+                {signedAt && <span style={{ marginLeft:8 }}>{new Date(signedAt).toLocaleTimeString('en-GB').slice(0,5)} UTC</span>}
+              </div>
+            </div>
+            <button onClick={handleClearSig} style={{ background:'#1e293b', border:'1px solid #334155', borderRadius:8, padding:'6px 12px', fontSize:11, color:'#94a3b8', cursor:'pointer', fontFamily:'inherit' }}>Re-sign</button>
           </div>
+          {sigDataUrl && <img src={sigDataUrl} alt="sig" style={{ width:'100%', height:70, objectFit:'contain', background:'#0f172a', display:'block' }} />}
+        </div>
+      )}
+
+      {/* Not signed */}
+      {!signed && (
+        <div style={{ margin:'0 12px 16px' }}>
+          <div style={{ fontSize:11, color:'#475569', marginBottom:10 }}>Select pilot performing preflight:</div>
 
           {crewPilots.length === 0 && (
-            <div style={{padding:'10px 12px',borderRadius:6,background:'rgba(255,149,0,0.08)',border:'1px solid rgba(255,149,0,0.2)',fontSize:11,color:'#c4882a'}}>
-              No pilots assigned. Go to Flight and Crew first.
+            <div style={{ padding:'12px 14px', borderRadius:10, background:'rgba(251,191,36,0.06)', border:'1px solid rgba(251,191,36,0.2)', fontSize:12, color:'#fbbf24' }}>
+              No pilots assigned. Go to Flight & Crew first.
             </div>
           )}
 
           {crewPilots.map(pilot => (
-            <div key={pilot.id} onClick={()=>setSelectedPilot(pilot.id)}
-              style={{
-                display:'flex',alignItems:'center',gap:12,padding:'11px 12px',marginBottom:6,
-                borderRadius:7,cursor:'pointer',
-                background: selectedPilot===pilot.id ? 'rgba(26,155,196,0.1)' : '#2a2a2a',
-                border:`1px solid ${selectedPilot===pilot.id ? '#1a9bc4' : '#383838'}`,
-              }}>
-              <div style={{width:18,height:18,borderRadius:9,border:`2px solid ${selectedPilot===pilot.id?'#1a9bc4':'#444'}`,background:selectedPilot===pilot.id?'#1a9bc4':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                {selectedPilot===pilot.id && <div style={{width:6,height:6,borderRadius:3,background:'#fff'}}/>}
+            <div key={pilot.id} onClick={() => setSelectedPilot(pilot.id)}
+              style={{ display:'flex', alignItems:'center', gap:12, padding:'13px 14px', marginBottom:8, borderRadius:12, cursor:'pointer', background: selectedPilot===pilot.id ? 'rgba(56,189,248,0.08)' : '#1e293b', border:`1.5px solid ${selectedPilot===pilot.id ? '#38bdf8' : '#334155'}`, minHeight:56 }}>
+              <div style={{ width:20, height:20, borderRadius:10, border:`2px solid ${selectedPilot===pilot.id ? '#38bdf8' : '#334155'}`, background: selectedPilot===pilot.id ? '#38bdf8' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                {selectedPilot===pilot.id && <div style={{ width:6, height:6, borderRadius:3, background:'#0f172a' }} />}
               </div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:12.5,color:selectedPilot===pilot.id?'#e8e8e8':'#999',fontWeight:600}}>
-                  {pilot.code} — {pilot.full_name}
-                </div>
+              <div style={{ flex:1 }}>
+                <span style={{ fontSize:13, color: selectedPilot===pilot.id ? '#f1f5f9' : '#94a3b8', fontWeight:600 }}>{pilot.code} — {pilot.full_name}</span>
               </div>
-              <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:4,letterSpacing:0.5,
-                background:pilot.role==='PF'?'rgba(26,155,196,0.2)':'rgba(142,142,147,0.15)',
-                color:pilot.role==='PF'?'#1a9bc4':'#777'}}>
+              <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:20, background: pilot.role==='PF' ? 'rgba(56,189,248,0.15)' : 'rgba(148,163,184,0.1)', color: pilot.role==='PF' ? '#38bdf8' : '#94a3b8', border:`1px solid ${pilot.role==='PF' ? 'rgba(56,189,248,0.3)' : 'rgba(148,163,184,0.2)'}` }}>
                 {pilot.role}
               </span>
             </div>
           ))}
 
-          {selectedPilot && (
-            <SignatureCanvas onSave={handleSaveSig} onClear={handleClearSig}/>
-          )}
-
+          {selectedPilot && <SignatureCanvas onSave={handleSaveSig} onClear={handleClearSig} />}
           {!selectedPilot && crewPilots.length > 0 && (
-            <div style={{padding:'8px 0',fontSize:11,color:'#444',fontStyle:'italic'}}>
-              Select a pilot above to sign.
-            </div>
+            <div style={{ padding:'10px 0', fontSize:12, color:'#334155', fontStyle:'italic' }}>Select a pilot above to sign.</div>
           )}
         </div>
       )}
 
+      {/* Final status */}
       {allDone && signed && (
-        <div style={{margin:'12px 16px 4px',padding:'10px 12px',borderRadius:6,background:'rgba(45,158,95,0.08)',borderLeft:'3px solid #2d9e5f',fontSize:11,color:'#6db890',lineHeight:1.6}}>
-          ✓ All checks complete and signed off.
+        <div style={{ margin:'0 12px', padding:'12px 14px', borderRadius:10, background:'rgba(74,222,128,0.06)', border:'1px solid rgba(74,222,128,0.2)', display:'flex', alignItems:'center', gap:10 }}>
+          <span style={{ fontSize:18 }}>✅</span>
+          <span style={{ fontSize:12, color:'#4ade80', fontWeight:600 }}>All checks complete and signed off.</span>
         </div>
       )}
       {allDone && !signed && (
-        <div style={{margin:'12px 16px 4px',padding:'10px 12px',borderRadius:6,background:'rgba(255,149,0,0.08)',borderLeft:'3px solid #ff9500',fontSize:11,color:'#c4882a',lineHeight:1.6}}>
-          Checks complete — signature required.
+        <div style={{ margin:'0 12px', padding:'12px 14px', borderRadius:10, background:'rgba(251,191,36,0.06)', border:'1px solid rgba(251,191,36,0.2)', display:'flex', alignItems:'center', gap:10 }}>
+          <span style={{ fontSize:18 }}>✍️</span>
+          <span style={{ fontSize:12, color:'#fbbf24', fontWeight:600 }}>Checks complete — signature required.</span>
         </div>
       )}
     </div>

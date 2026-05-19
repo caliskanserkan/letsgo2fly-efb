@@ -5,68 +5,68 @@ import { logEvent } from '../supabaseClient';
 
 // ─── RWY Condition landing factors (EASA/CS-25) ──────────────────────────────
 const RWY_CONDITIONS = [
-  { id:'DRY',           label:'DRY',                factor:1.00, color:'#2d9e5f' },
+  { id:'DRY',           label:'DRY',                factor:1.00, color:'#4ade80' },
   { id:'WET',           label:'WET',                factor:1.15, color:'#f0c040' },
-  { id:'SLIPPERY_WET',  label:'SLIPPERY WET',       factor:1.40, color:'#e8731a' },
-  { id:'COMPACTED_SNOW',label:'COMPACTED SNOW',     factor:1.45, color:'#e8731a' },
-  { id:'WET_ICE',       label:'WET ICE / SLUSH',    factor:1.67, color:'#e02020' },
+  { id:'SLIPPERY_WET',  label:'SLIPPERY WET',       factor:1.40, color:'#f97316' },
+  { id:'COMPACTED_SNOW',label:'COMPACTED SNOW',     factor:1.45, color:'#f97316' },
+  { id:'WET_ICE',       label:'WET ICE / SLUSH',    factor:1.67, color:'#ef4444' },
 ];
 
 function getStopMarginColor(margin) {
   if (margin === null) return '#999';
-  if (margin > 500) return '#2d9e5f';
+  if (margin > 500) return '#4ade80';
   if (margin > 300) return '#f0c040';
-  if (margin > 100) return '#e8731a';
-  return '#e02020';
+  if (margin > 100) return '#f97316';
+  return '#ef4444';
 }
 
 // QNH hPa → inHg
 const toInHg = (hpa) => hpa ? (parseFloat(hpa) * 0.02953).toFixed(2) : null;
 
 const iStyle = {
-  background:'#1a1a1a', border:'1.5px solid #1a9bc4', borderRadius:6,
-  padding:'7px 10px', fontSize:14, fontWeight:700, color:'#1a9bc4',
+  background:'#1e293b', border:'1.5px solid #38bdf8', borderRadius:6,
+  padding:'7px 10px', fontSize:14, fontWeight:700, color:'#38bdf8',
   fontFamily:'monospace', outline:'none',
 };
 const iAmber = {
-  background:'#1a1a1a', border:'1.5px solid #e8731a', borderRadius:6,
-  padding:'7px 10px', fontSize:14, fontWeight:700, color:'#e8731a',
+  background:'#1e293b', border:'1.5px solid #f97316', borderRadius:6,
+  padding:'7px 10px', fontSize:14, fontWeight:700, color:'#f97316',
   fontFamily:'monospace', outline:'none',
 };
 
 function Sep() {
-  return <div style={{ height:12, background:'#1e1e1e', borderTop:'1px solid #383838', borderBottom:'1px solid #383838' }} />;
+  return <div style={{ height:12, background:'#0f172a', borderTop:'1px solid #334155', borderBottom:'1px solid #334155' }} />;
 }
 function Title({ t }) {
-  return <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>{t}</div>;
+  return <div style={{ fontSize:10, color:'#475569', fontWeight:700, letterSpacing:0.9, padding:'12px 16px 5px', textTransform:'uppercase' }}>{t}</div>;
 }
 function AutoRow({ label, value, accent }) {
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
-      <span style={{ fontSize:12.5, color:'#666' }}>{label}</span>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#1e293b', borderBottom:'1px solid #334155' }}>
+      <span style={{ fontSize:12.5, color:'#475569' }}>{label}</span>
       <span style={{ fontSize:12.5, color: accent || '#999', fontFamily:'monospace', fontWeight: accent ? 700 : 400 }}>{value}</span>
     </div>
   );
 }
 function EntryRow({ label, value, onChange, unit, placeholder }) {
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838', minHeight:52 }}>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #334155', minHeight:52 }}>
       <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600 }}>{label}</span>
       <div style={{ display:'flex', alignItems:'center', gap:6 }}>
         <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder || '——'}
           style={{ ...iStyle, width:100, textAlign:'right' }} />
-        {unit && <span style={{ fontSize:11, color:'#555', minWidth:28 }}>{unit}</span>}
+        {unit && <span style={{ fontSize:11, color:'#475569', minWidth:28 }}>{unit}</span>}
       </div>
     </div>
   );
 }
 function AtisRow({ label, value, onChange, photo, onPhoto }) {
   return (
-    <div style={{ background:'#2e2e2e', borderBottom:'1px solid #383838', padding:'10px 16px' }}>
+    <div style={{ background:'#2e2e2e', borderBottom:'1px solid #334155', padding:'10px 16px' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
         <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600 }}>{label}</span>
         <button onClick={onPhoto}
-          style={{ background: photo ? 'rgba(45,158,95,0.15)' : '#2a2a2a', border:`1px solid ${photo ? '#2d9e5f' : '#444'}`, borderRadius:6, padding:'4px 10px', fontSize:10, fontWeight:700, color: photo ? '#2d9e5f' : '#777', cursor:'pointer', fontFamily:'inherit' }}>
+          style={{ background: photo ? 'rgba(74,222,128,0.15)' : '#1e293b', border:`1px solid ${photo ? '#4ade80' : '#444'}`, borderRadius:6, padding:'4px 10px', fontSize:10, fontWeight:700, color: photo ? '#4ade80' : '#777', cursor:'pointer', fontFamily:'inherit' }}>
           {photo ? 'Photo OK' : 'ATIS Photo'}
         </button>
       </div>
@@ -78,15 +78,15 @@ function AtisRow({ label, value, onChange, photo, onPhoto }) {
 // ─── Night Detection Badge ────────────────────────────────────────────────────
 function NightBadge({ status, loading }) {
   if (loading) return (
-    <span style={{ fontSize:10, color:'#555', fontFamily:'monospace' }}>checking...</span>
+    <span style={{ fontSize:10, color:'#475569', fontFamily:'monospace' }}>checking...</span>
   );
   if (!status) return null;
   const cfg = {
-    NIGHT:    { color:'#1a9bc4', bg:'rgba(26,155,196,0.12)', border:'#1a9bc4', icon:'🌙' },
-    DAY:      { color:'#2d9e5f', bg:'rgba(45,158,95,0.12)',  border:'#2d9e5f', icon:'☀️' },
+    NIGHT:    { color:'#38bdf8', bg:'rgba(56,189,248,0.12)', border:'#38bdf8', icon:'🌙' },
+    DAY:      { color:'#4ade80', bg:'rgba(74,222,128,0.12)',  border:'#4ade80', icon:'☀️' },
     TWILIGHT: { color:'#f0c040', bg:'rgba(240,192,64,0.12)', border:'#f0c040', icon:'🌅' },
-    UNKNOWN:  { color:'#555',    bg:'rgba(80,80,80,0.1)',    border:'#555',    icon:'?' },
-  }[status] || { color:'#555', bg:'transparent', border:'#555', icon:'?' };
+    UNKNOWN:  { color:'#475569',    bg:'rgba(80,80,80,0.1)',    border:'#555',    icon:'?' },
+  }[status] || { color:'#475569', bg:'transparent', border:'#555', icon:'?' };
   return (
     <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:4, background:cfg.bg, border:`1px solid ${cfg.border}`, color:cfg.color, fontFamily:'monospace', letterSpacing:1 }}>
       {cfg.icon} {status}
@@ -330,10 +330,10 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
       <AtisRow label="Arrival ATIS" value={arrAtis} onChange={setArrAtis} photo={arrPhoto} onPhoto={() => setArrPhoto(!arrPhoto)} />
 
       {/* ── QNH ── */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #334155' }}>
         <div>
           <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600 }}>QNH</span>
-          {qnhInHg && <span style={{ fontSize:10, color:'#555', marginLeft:8 }}>{qnhInHg} inHg</span>}
+          {qnhInHg && <span style={{ fontSize:10, color:'#475569', marginLeft:8 }}>{qnhInHg} inHg</span>}
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:6 }}>
           <input
@@ -342,22 +342,22 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
             placeholder="——"
             maxLength={4}
             style={{ ...iStyle, width:80, textAlign:'right',
-              borderColor: qnhLow || qnhHigh ? '#e02020' : '#1a9bc4',
-              color:       qnhLow || qnhHigh ? '#e02020' : '#1a9bc4',
+              borderColor: qnhLow || qnhHigh ? '#ef4444' : '#38bdf8',
+              color:       qnhLow || qnhHigh ? '#ef4444' : '#38bdf8',
             }}
           />
-          <span style={{ fontSize:11, color:'#555', minWidth:28 }}>hPa</span>
+          <span style={{ fontSize:11, color:'#475569', minWidth:28 }}>hPa</span>
         </div>
       </div>
       {qnhLow && (
-        <div style={{ margin:'0 16px 4px', padding:'7px 10px', borderRadius:5, background:'rgba(224,32,32,0.08)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020', fontWeight:700 }}>
+        <div style={{ margin:'0 16px 4px', padding:'7px 10px', borderRadius:5, background:'rgba(224,32,32,0.08)', borderLeft:'3px solid #ef4444', fontSize:11, color:'#ef4444', fontWeight:700 }}>
           LOW QNH ({qnh} hPa) — verify with ATC
         </div>
       )}
 
       {/* ── RWY Condition ── */}
-      <div style={{ background:'#2a2a2a', borderBottom:'1px solid #383838', padding:'10px 16px' }}>
-        <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', marginBottom:8 }}>RWY Condition</div>
+      <div style={{ background:'#1e293b', borderBottom:'1px solid #334155', padding:'10px 16px' }}>
+        <div style={{ fontSize:10, color:'#475569', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', marginBottom:8 }}>RWY Condition</div>
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
           {RWY_CONDITIONS.map(c => (
             <button key={c.id} onClick={() => setRwyCond(c.id)}
@@ -384,16 +384,16 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
       {/* ── Landing Aerodrome & Runway ── */}
       <div style={{ opacity: divert ? 0.3 : 1, pointerEvents: divert ? 'none' : 'auto' }}>
         <Title t="Landing Aerodrome & Runway" />
-        <div style={{ background:'#2e2e2e', borderBottom:'1px solid #383838', padding:'10px 16px', display:'flex', alignItems:'center', gap:10 }}>
+        <div style={{ background:'#2e2e2e', borderBottom:'1px solid #334155', padding:'10px 16px', display:'flex', alignItems:'center', gap:10 }}>
           <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600, width:80 }}>ICAO</span>
           <input value={icao} onChange={e => setIcao(e.target.value.toUpperCase())} maxLength={4} placeholder="LTBA"
             style={{ ...iStyle, width:90, textAlign:'center', letterSpacing:2 }} />
-          {loading && <span style={{ fontSize:10, color:'#555' }}>Loading...</span>}
+          {loading && <span style={{ fontSize:10, color:'#475569' }}>Loading...</span>}
 
           {/* Night badge — sağda */}
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
             {sunsetInfo && (
-              <div style={{ fontSize:10, color:'#444', textAlign:'right', lineHeight:1.6 }}>
+              <div style={{ fontSize:10, color:'#334155', textAlign:'right', lineHeight:1.6 }}>
                 <div>SR {sunsetInfo.sunrise.toISOString().slice(11,16)} Z</div>
                 <div>SS {sunsetInfo.sunset.toISOString().slice(11,16)} Z</div>
               </div>
@@ -404,13 +404,13 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
 
         {/* ETA / Landing time göster */}
         {(flightData?.landingTime || activePlan?.eta) && (
-          <div style={{ padding:'7px 16px', background:'#222', borderBottom:'1px solid #383838', fontSize:10, color:'#555' }}>
+          <div style={{ padding:'7px 16px', background:'#222', borderBottom:'1px solid #334155', fontSize:10, color:'#475569' }}>
             {flightData?.landingTime
               ? `Landing: ${flightData.landingTime} Z (actual)`
               : `ETA: ${activePlan.eta} Z (planned)`
             }
             {nightStatus && (
-              <span style={{ marginLeft:10, color: nightStatus==='NIGHT'?'#1a9bc4': nightStatus==='TWILIGHT'?'#f0c040':'#2d9e5f' }}>
+              <span style={{ marginLeft:10, color: nightStatus==='NIGHT'?'#38bdf8': nightStatus==='TWILIGHT'?'#f0c040':'#4ade80' }}>
                 → {nightStatus} landing
               </span>
             )}
@@ -418,21 +418,21 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
         )}
 
         {runways.length > 0 && (
-          <div style={{ background:'#2a2a2a', borderBottom:'1px solid #383838', padding:'10px 16px' }}>
-            <div style={{ fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', marginBottom:8 }}>Select Runway</div>
+          <div style={{ background:'#1e293b', borderBottom:'1px solid #334155', padding:'10px 16px' }}>
+            <div style={{ fontSize:10, color:'#475569', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', marginBottom:8 }}>Select Runway</div>
             <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
               {runways.map(r => (
                 <button key={r.id} onClick={() => setSelRwy(r.id)}
-                  style={{ background: selRwy===r.id ? 'rgba(26,155,196,0.15)' : '#2e2e2e', border:`1px solid ${selRwy===r.id ? '#1a9bc4' : '#3a3a3a'}`, borderRadius:6, padding:'6px 12px', fontSize:12, fontWeight:600, color: selRwy===r.id ? '#1a9bc4' : '#555', cursor:'pointer', fontFamily:'inherit' }}>
-                  {r.id} <span style={{ fontSize:10, color:'#555', marginLeft:3 }}>{r.length.toLocaleString()} ft</span>
+                  style={{ background: selRwy===r.id ? 'rgba(56,189,248,0.15)' : '#2e2e2e', border:`1px solid ${selRwy===r.id ? '#38bdf8' : '#3a3a3a'}`, borderRadius:6, padding:'6px 12px', fontSize:12, fontWeight:600, color: selRwy===r.id ? '#38bdf8' : '#555', cursor:'pointer', fontFamily:'inherit' }}>
+                  {r.id} <span style={{ fontSize:10, color:'#475569', marginLeft:3 }}>{r.length.toLocaleString()} ft</span>
                 </button>
               ))}
             </div>
           </div>
         )}
         {noData && (
-          <div style={{ background:'#2a2a2a', borderBottom:'1px solid #383838', padding:'10px 16px' }}>
-            <div style={{ marginBottom:8, padding:'8px 10px', borderRadius:5, background:'rgba(255,149,0,0.08)', borderLeft:'3px solid #ff9500', fontSize:11, color:'#c4882a' }}>
+          <div style={{ background:'#1e293b', borderBottom:'1px solid #334155', padding:'10px 16px' }}>
+            <div style={{ marginBottom:8, padding:'8px 10px', borderRadius:5, background:'rgba(255,149,0,0.08)', borderLeft:'3px solid #fbbf24', fontSize:11, color:'#c4882a' }}>
               No runway data available. Enter manually.
             </div>
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>
@@ -451,12 +451,12 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
       <AutoRow label="Max LWT"                   value="66,000 lb" />
       <EntryRow label="Actual Landing Weight" value={actualLw} onChange={setActualLw} unit="lb" placeholder="——" />
       {lwExceeded && (
-        <div style={{ margin:'0 16px 4px', padding:'8px 12px', borderRadius:6, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020', fontWeight:700 }}>
+        <div style={{ margin:'0 16px 4px', padding:'8px 12px', borderRadius:6, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #ef4444', fontSize:11, color:'#ef4444', fontWeight:700 }}>
           ACTUAL LW EXCEEDS MAX LWT (66,000 lb)
         </div>
       )}
       {actualLwNum && !lwExceeded && (
-        <div style={{ margin:'0 16px 4px', padding:'8px 12px', borderRadius:6, background:'rgba(45,158,95,0.08)', borderLeft:'3px solid #2d9e5f', fontSize:11, color:'#2d9e5f' }}>
+        <div style={{ margin:'0 16px 4px', padding:'8px 12px', borderRadius:6, background:'rgba(74,222,128,0.08)', borderLeft:'3px solid #4ade80', fontSize:11, color:'#4ade80' }}>
           LW OK — Margin: {(66000 - actualLwNum).toLocaleString()} lb below Max LWT
         </div>
       )}
@@ -466,11 +466,11 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
 
       {/* ── Performance ── */}
       <Title t="Performance" />
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #383838' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#2e2e2e', borderBottom:'1px solid #334155' }}>
         <span style={{ fontSize:12.5, color:'#e8e8e8', fontWeight:600 }}>Req Landing Distance</span>
         <div style={{ display:'flex', alignItems:'center', gap:6 }}>
           <input style={{ ...iStyle, width:90, textAlign:'center' }} value={reqLnd} onChange={e => setReqLnd(e.target.value)} placeholder="——" />
-          <span style={{ fontSize:11, color:'#555', width:16 }}>ft</span>
+          <span style={{ fontSize:11, color:'#475569', width:16 }}>ft</span>
         </div>
       </div>
 
@@ -484,8 +484,8 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
       )}
 
       {/* Stop margin */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#2a2a2a', borderBottom:'1px solid #383838' }}>
-        <span style={{ fontSize:12.5, color:'#666' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', background:'#1e293b', borderBottom:'1px solid #334155' }}>
+        <span style={{ fontSize:12.5, color:'#475569' }}>
           Stop Margin {divert && divertData.rwy ? `(DIVERT RWY ${divertData.rwy})` : selectedRwy ? `(RWY ${selectedRwy.id})` : manualRwy ? `(RWY ${manualRwy})` : ''}
           {rwyCond !== 'DRY' && <span style={{ fontSize:10, color:condObj.color, marginLeft:6 }}>[{condObj.label}]</span>}
         </span>
@@ -496,12 +496,12 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
 
       {/* Margin warnings */}
       {stopMargin !== null && stopMargin < 0 && (
-        <div style={{ margin:'0 16px 4px', padding:'8px 12px', borderRadius:6, background:'rgba(224,32,32,0.12)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020', fontWeight:700 }}>
+        <div style={{ margin:'0 16px 4px', padding:'8px 12px', borderRadius:6, background:'rgba(224,32,32,0.12)', borderLeft:'3px solid #ef4444', fontSize:11, color:'#ef4444', fontWeight:700 }}>
           ⚠ INSUFFICIENT RUNWAY — {Math.abs(stopMargin).toLocaleString()} ft SHORT
         </div>
       )}
       {stopMargin !== null && stopMargin >= 0 && stopMargin < 300 && (
-        <div style={{ margin:'0 16px 4px', padding:'8px 12px', borderRadius:6, background:'rgba(232,115,26,0.1)', borderLeft:'3px solid #e8731a', fontSize:11, color:'#e8731a', fontWeight:600 }}>
+        <div style={{ margin:'0 16px 4px', padding:'8px 12px', borderRadius:6, background:'rgba(232,115,26,0.1)', borderLeft:'3px solid #f97316', fontSize:11, color:'#f97316', fontWeight:600 }}>
           Low stop margin — exercise caution
         </div>
       )}
@@ -511,15 +511,15 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
       {/* ── DIVERT ── */}
       <div style={{ margin:'10px 16px', border:`1px solid ${divert ? 'rgba(255,149,0,0.3)' : '#333'}`, borderRadius:8, overflow:'hidden' }}>
         <div onClick={() => updateDivert('active', !divert)}
-          style={{ background: divert ? 'rgba(255,149,0,0.1)' : '#1f1f1f', padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', borderBottom: divert ? '1px solid rgba(255,149,0,0.2)' : 'none' }}>
-          <span style={{ fontSize:12, fontWeight:700, color: divert ? '#e8731a' : '#555' }}>DIVERT</span>
-          <div style={{ width:38, height:22, background: divert ? '#e8731a' : '#333', borderRadius:11, position:'relative', transition:'background 0.2s' }}>
+          style={{ background: divert ? 'rgba(255,149,0,0.1)' : '#1e293b', padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', borderBottom: divert ? '1px solid rgba(255,149,0,0.2)' : 'none' }}>
+          <span style={{ fontSize:12, fontWeight:700, color: divert ? '#f97316' : '#555' }}>DIVERT</span>
+          <div style={{ width:38, height:22, background: divert ? '#f97316' : '#333', borderRadius:11, position:'relative', transition:'background 0.2s' }}>
             <div style={{ position:'absolute', width:18, height:18, background:'#fff', borderRadius:9, top:2, left: divert ? 18 : 2, transition:'left 0.2s' }} />
           </div>
         </div>
         {divert && (
-          <div style={{ background:'#1e1e1e', padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
-            <div style={{ fontSize:10, color:'#e8731a', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', marginBottom:2 }}>Divert Aerodrome — Pilot Entry</div>
+          <div style={{ background:'#0f172a', padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ fontSize:10, color:'#f97316', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase', marginBottom:2 }}>Divert Aerodrome — Pilot Entry</div>
             <div style={{ display:'flex', gap:8 }}>
               {[
                 { label:'ICAO',   val:divertData.icao, upd:(v)=>updateDivert('icao',v.toUpperCase()), max:4, ph:'ICAO', ls:2 },
@@ -527,13 +527,13 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
                 { label:'Length', val:divertData.len,  upd:(v)=>updateDivert('len',v),                ph:'ft'  },
               ].map(f=>(
                 <div key={f.label} style={{ flex:1 }}>
-                  <div style={{ fontSize:9, color:'#555', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>{f.label}</div>
+                  <div style={{ fontSize:9, color:'#475569', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>{f.label}</div>
                   <input value={f.val} onChange={e=>f.upd(e.target.value)} placeholder={f.ph} maxLength={f.max}
                     style={{ ...iAmber, width:'100%', textAlign:'center', letterSpacing:f.ls||0 }}/>
                 </div>
               ))}
             </div>
-            <div style={{ padding:'8px 10px', borderRadius:5, background:'rgba(255,149,0,0.08)', borderLeft:'3px solid #e8731a', fontSize:11, color:'#c4882a' }}>
+            <div style={{ padding:'8px 10px', borderRadius:5, background:'rgba(255,149,0,0.08)', borderLeft:'3px solid #f97316', fontSize:11, color:'#c4882a' }}>
               Divert activated — destination updates across all pages.
             </div>
           </div>

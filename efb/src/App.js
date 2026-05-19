@@ -244,27 +244,27 @@ function Login({ onLogin }) {
   };
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'#0f172a' }}>
       <div style={{ textAlign:'center', marginBottom:36 }}>
-        <div style={{ fontSize:11, fontWeight:700, color:'var(--accent)', letterSpacing:3, textTransform:'uppercase', marginBottom:6 }}>GO2 Aviation</div>
-        <div style={{ fontSize:32, fontWeight:700, color:'var(--t1)' }}>eFB</div>
-        <div style={{ fontSize:12, color:'var(--t3)', marginTop:4 }}>Electronic Flight Bag</div>
+        <div style={{ fontSize:11, fontWeight:700, color:'#38bdf8', letterSpacing:3, textTransform:'uppercase', marginBottom:6 }}>GO2 Aviation</div>
+        <div style={{ fontSize:32, fontWeight:700, color:'#f1f5f9' }}>eFB</div>
+        <div style={{ fontSize:12, color:'#475569', marginTop:4 }}>Electronic Flight Bag</div>
       </div>
-      <div style={{ width:300, background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-        <div style={{ background:'#1f1f1f', borderBottom:'1px solid var(--border)', padding:'10px 18px', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:1, textTransform:'uppercase' }}>Pilot Login</div>
+      <div style={{ width:300, background:'#1e293b', border:'1px solid #334155', borderRadius:12, overflow:'hidden' }}>
+        <div style={{ background:'#1e293b', borderBottom:'1px solid #334155', padding:'10px 18px', fontSize:10, color:'#475569', fontWeight:700, letterSpacing:1, textTransform:'uppercase' }}>Pilot Login</div>
         <div style={{ padding:'12px 18px', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
-          <label style={{ display:'block', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Email</label>
+          <label style={{ display:'block', fontSize:10, color:'#475569', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Email</label>
           <input value={email} onChange={e => setEmail(e.target.value)} placeholder="pilot@company.com"
-            style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none' }} />
+            style={{ width:'100%', background:'#0f172a', border:'1px solid #334155', borderRadius:6, padding:'9px 11px', fontSize:14, color:'#f1f5f9', fontFamily:'inherit', outline:'none' }} />
         </div>
         <div style={{ padding:'12px 18px' }}>
-          <label style={{ display:'block', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Password</label>
+          <label style={{ display:'block', fontSize:10, color:'#475569', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Password</label>
           <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()}
-            style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none' }} />
+            style={{ width:'100%', background:'#0f172a', border:'1px solid #334155', borderRadius:6, padding:'9px 11px', fontSize:14, color:'#f1f5f9', fontFamily:'inherit', outline:'none' }} />
         </div>
         {error && <div style={{ margin:'0 18px', padding:'8px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>{error}</div>}
         <button onClick={handleLogin} disabled={loading}
-          style={{ width:'calc(100% - 36px)', margin:'14px 18px', background: loading ? '#333' : 'var(--accent)', border:'none', borderRadius:7, padding:12, fontSize:14, fontWeight:700, color:'#fff', cursor: loading ? 'default' : 'pointer', fontFamily:'inherit' }}>
+          style={{ width:'calc(100% - 36px)', margin:'14px 18px', background: loading ? '#333' : '#38bdf8', border:'none', borderRadius:7, padding:12, fontSize:14, fontWeight:700, color:'#fff', cursor: loading ? 'default' : 'pointer', fontFamily:'inherit' }}>
           {loading ? 'Signing in...' : 'Sign In'}
         </button>
       </div>
@@ -276,24 +276,24 @@ function Login({ onLogin }) {
 // ─── PlanCard ─────────────────────────────────────────────────────────────────
 function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate }) {
   return (
-    <div style={{ background: archived ? '#1e1e1e' : active ? 'rgba(26,155,196,0.05)' : 'var(--bg3)', border:`1px solid ${archived ? '#2a2a2a' : active ? 'var(--accent)' : 'var(--border)'}`, borderRadius:10, overflow:'hidden', marginBottom:8, opacity: archived ? 0.85 : 1 }}>
-      <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', gap:12, borderBottom:'1px solid var(--border)' }}>
+    <div style={{ background: archived ? '#0f172a' : active ? 'rgba(56,189,248,0.05)' : '#1e293b', border:`1px solid ${archived ? '#1e293b' : active ? '#38bdf8' : '#334155'}`, borderRadius:10, overflow:'hidden', marginBottom:8, opacity: archived ? 0.85 : 1 }}>
+      <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', gap:12, borderBottom:'1px solid #334155' }}>
         <div style={{ flex:1 }}>
-          <div style={{ fontSize:16, fontWeight:700, color:'var(--t1)', fontFamily:'monospace', letterSpacing:1 }}>
-            {plan.dep} <span style={{ color: archived ? '#555' : 'var(--accent)' }}>→</span> {plan.dest}
+          <div style={{ fontSize:16, fontWeight:700, color:'#f1f5f9', fontFamily:'monospace', letterSpacing:1 }}>
+            {plan.dep} <span style={{ color: archived ? '#555' : '#38bdf8' }}>→</span> {plan.dest}
           </div>
-          <div style={{ fontSize:11, color:'var(--t3)', marginTop:2 }}>{plan.date} · STD {plan.std} Z · {plan.ac} / {plan.reg}</div>
+          <div style={{ fontSize:11, color:'#475569', marginTop:2 }}>{plan.date} · STD {plan.std} Z · {plan.ac} / {plan.reg}</div>
         </div>
         <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:4, letterSpacing:0.5,
-          background: archived ? 'rgba(100,100,100,0.15)' : active ? 'rgba(26,155,196,0.15)' : 'rgba(45,158,95,0.15)',
-          color: archived ? '#666' : active ? 'var(--accent)' : 'var(--green)' }}>
+          background: archived ? 'rgba(100,100,100,0.15)' : active ? 'rgba(56,189,248,0.15)' : 'rgba(45,158,95,0.15)',
+          color: archived ? '#666' : active ? '#38bdf8' : '#4ade80' }}>
           {archived ? 'ARCHIVED' : active ? 'IN PROGRESS' : 'AVAILABLE'}
         </span>
       </div>
       <div style={{ padding:'9px 14px', display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
-        <div style={{ fontSize:11, color:'var(--t3)' }}>ETD <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.std}</b></div>
-        <div style={{ fontSize:11, color:'var(--t3)' }}>ETA <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.eta}</b></div>
-        <div style={{ fontSize:11, color:'var(--t3)' }}>FOB <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.fob}</b></div>
+        <div style={{ fontSize:11, color:'#475569' }}>ETD <b style={{ color:'#94a3b8', marginLeft:3 }}>{plan.std}</b></div>
+        <div style={{ fontSize:11, color:'#475569' }}>ETA <b style={{ color:'#94a3b8', marginLeft:3 }}>{plan.eta}</b></div>
+        <div style={{ fontSize:11, color:'#475569' }}>FOB <b style={{ color:'#94a3b8', marginLeft:3 }}>{plan.fob}</b></div>
         {!active && !archived && onDelete && (
           <button onClick={onDelete} style={{ background:'transparent', border:'1px solid #e02020', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#e02020', cursor:'pointer', fontFamily:'inherit' }}>
             ✕ Delete
@@ -305,20 +305,20 @@ function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate }) {
           </button>
         )}
         {!archived && (
-          <button onClick={onOpen} style={{ marginLeft:'auto', background: active ? 'rgba(26,155,196,0.12)' : 'var(--accent)', border: active ? '1px solid var(--accent)' : 'none', borderRadius:6, padding:'5px 13px', fontSize:11, fontWeight:700, color: active ? 'var(--accent)' : '#fff', cursor:'pointer', fontFamily:'inherit' }}>
+          <button onClick={onOpen} style={{ marginLeft:'auto', background: active ? 'rgba(56,189,248,0.12)' : '#38bdf8', border: active ? '1px solid #38bdf8' : 'none', borderRadius:6, padding:'5px 13px', fontSize:11, fontWeight:700, color: active ? '#38bdf8' : '#fff', cursor:'pointer', fontFamily:'inherit' }}>
             {active ? 'Open →' : '+ Activate'}
           </button>
         )}
         {archived && (
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
-            <span style={{ fontSize:10, color:'#555', fontWeight:700 }}>🔒 Read Only</span>
+            <span style={{ fontSize:10, color:'#475569', fontWeight:700 }}>🔒 Read Only</span>
             <button onClick={onOpen} style={{ background:'rgba(100,100,100,0.15)', border:'1px solid #555', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#888', cursor:'pointer', fontFamily:'inherit' }}>
               View →
             </button>
           </div>
         )}
         {plan.archived_at && archived && (
-          <div style={{ fontSize:10, color:'#555', width:'100%', marginTop:4 }}>
+          <div style={{ fontSize:10, color:'#475569', width:'100%', marginTop:4 }}>
             Archived: {new Date(plan.archived_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
           </div>
         )}
@@ -438,25 +438,25 @@ function UploadPlanModal({ onClose, onUploaded }) {
 
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }}>
-      <div style={{ background:'#252525', border:'1px solid #383838', borderRadius:12, width:340, overflow:'hidden' }}>
-        <div style={{ background:'#1f1f1f', padding:'10px 16px', borderBottom:'1px solid #383838', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <span style={{ fontSize:12, fontWeight:700, color:'#1a9bc4' }}>Upload Flight Plan (PDF)</span>
-          <span onClick={onClose} style={{ color:'#555', cursor:'pointer', fontSize:20, lineHeight:1 }}>×</span>
+      <div style={{ background:'#1e293b', border:'1px solid #334155', borderRadius:12, width:340, overflow:'hidden' }}>
+        <div style={{ background:'#1e293b', padding:'10px 16px', borderBottom:'1px solid #334155', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <span style={{ fontSize:12, fontWeight:700, color:'#38bdf8' }}>Upload Flight Plan (PDF)</span>
+          <span onClick={onClose} style={{ color:'#475569', cursor:'pointer', fontSize:20, lineHeight:1 }}>×</span>
         </div>
         <div style={{ padding:'20px 16px' }}>
           {!success && (
-            <div onClick={() => inputRef.current.click()} style={{ border:'2px dashed #383838', borderRadius:10, padding:'32px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:12, cursor:'pointer' }}>
+            <div onClick={() => inputRef.current.click()} style={{ border:'2px dashed #334155', borderRadius:10, padding:'32px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:12, cursor:'pointer' }}>
               <div style={{ fontSize:36 }}>📄</div>
-              <div style={{ fontSize:13, color:'#555', textAlign:'center' }}>Tap to select PDF<br /><span style={{ fontSize:11, color:'#444' }}>Flight Briefing Package</span></div>
+              <div style={{ fontSize:13, color:'#475569', textAlign:'center' }}>Tap to select PDF<br /><span style={{ fontSize:11, color:'#475569' }}>Flight Briefing Package</span></div>
             </div>
           )}
           <input ref={inputRef} type="file" accept=".pdf" onChange={handleFile} style={{ display:'none' }} />
-          {loading && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(26,155,196,0.08)', borderLeft:'3px solid #1a9bc4', fontSize:11, color:'#7bbdd4' }}>⏳ Reading PDF...</div>}
+          {loading && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(56,189,248,0.08)', borderLeft:'3px solid #38bdf8', fontSize:11, color:'#7bbdd4' }}>⏳ Reading PDF...</div>}
           {error   && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(224,32,32,0.08)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>⚠ {error}</div>}
           {success && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(45,158,95,0.08)', borderLeft:'3px solid #2d9e5f', fontSize:11, color:'#6db890' }}>✓ {success}</div>}
         </div>
         <div style={{ padding:'0 16px 16px' }}>
-          <button onClick={onClose} style={{ width:'100%', background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>
+          <button onClick={onClose} style={{ width:'100%', background:'#1e293b', border:'1px solid #334155', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>
             {success ? 'Close' : 'Cancel'}
           </button>
         </div>
@@ -674,26 +674,26 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
   useEffect(() => { loadPlans(); }, []);
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:'var(--bg)' }}>
-      <div style={{ background:'#1a1a1a', borderBottom:'1px solid var(--border)', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <span style={{ fontSize:13, fontWeight:700, color:'var(--accent)', letterSpacing:1 }}>GO2 eFB</span>
+    <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:'#0f172a' }}>
+      <div style={{ background:'#1e293b', borderBottom:'1px solid #334155', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <span style={{ fontSize:13, fontWeight:700, color:'#38bdf8', letterSpacing:1 }}>GO2 eFB</span>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <span style={{ fontSize:11, color:'var(--t3)' }}>{user?.email || ''}</span>
-          <button onClick={onAdmin} style={{ background:'transparent', border:'1px solid #1a9bc4', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#1a9bc4', cursor:'pointer', fontFamily:'inherit' }}>Admin</button>
-          <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #383838', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>Logout</button>
+          <span style={{ fontSize:11, color:'#475569' }}>{user?.email || ''}</span>
+          <button onClick={onAdmin} style={{ background:'transparent', border:'1px solid #38bdf8', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#38bdf8', cursor:'pointer', fontFamily:'inherit' }}>Admin</button>
+          <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #334155', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>Logout</button>
         </div>
       </div>
 
-      <div style={{ display:'flex', background:'#1e1e1e', borderBottom:'1px solid var(--border)' }}>
+      <div style={{ display:'flex', background:'#0f172a', borderBottom:'1px solid #334155' }}>
         {[
           { id:'available', label:'Available' },
           { id:'active',    label:'Active'    },
           { id:'archive',   label:'Archive'   },
         ].map(t => (
-          <div key={t.id} onClick={() => setTab(t.id)} style={{ flex:1, padding:11, textAlign:'center', fontSize:12, fontWeight:600, cursor:'pointer', color: tab===t.id ? 'var(--accent)' : 'var(--t3)', borderBottom: tab===t.id ? '2px solid var(--accent)' : '2px solid transparent' }}>
+          <div key={t.id} onClick={() => setTab(t.id)} style={{ flex:1, padding:11, textAlign:'center', fontSize:12, fontWeight:600, cursor:'pointer', color: tab===t.id ? '#38bdf8' : '#475569', borderBottom: tab===t.id ? '2px solid #38bdf8' : '2px solid transparent' }}>
             {t.label}
             {t.id === 'active' && activePlans.length > 0 && (
-              <span style={{ marginLeft:6, background:'#1a9bc4', color:'#fff', borderRadius:8, padding:'1px 6px', fontSize:9, fontWeight:700 }}>{activePlans.length}</span>
+              <span style={{ marginLeft:6, background:'#38bdf8', color:'#fff', borderRadius:8, padding:'1px 6px', fontSize:9, fontWeight:700 }}>{activePlans.length}</span>
             )}
             {t.id === 'archive' && archivedPlans.length > 0 && (
               <span style={{ marginLeft:6, background:'#555', color:'#fff', borderRadius:8, padding:'1px 6px', fontSize:9, fontWeight:700 }}>{archivedPlans.length}</span>
@@ -705,12 +705,12 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
       <div style={{ flex:1, overflowY:'auto', padding:10 }}>
         {tab === 'available' && (
           <>
-            <button onClick={() => setShowUpload(true)} style={{ width:'100%', background:'rgba(26,155,196,0.08)', border:'1px dashed #1a9bc4', borderRadius:8, padding:'11px 14px', fontSize:12, fontWeight:700, color:'#1a9bc4', cursor:'pointer', fontFamily:'inherit', marginBottom:10, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+            <button onClick={() => setShowUpload(true)} style={{ width:'100%', background:'rgba(56,189,248,0.08)', border:'1px dashed #38bdf8', borderRadius:8, padding:'11px 14px', fontSize:12, fontWeight:700, color:'#38bdf8', cursor:'pointer', fontFamily:'inherit', marginBottom:10, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
               📄 Upload Flight Plan PDF
             </button>
-            {loading && <div style={{ textAlign:'center', color:'#555', fontSize:12, padding:20 }}>Loading plans...</div>}
+            {loading && <div style={{ textAlign:'center', color:'#475569', fontSize:12, padding:20 }}>Loading plans...</div>}
             {!loading && availablePlans.length === 0 && (
-              <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No available plans.<br />Upload a PDF to get started.</div>
+              <div style={{ textAlign:'center', color:'#475569', fontSize:12, padding:20 }}>No available plans.<br />Upload a PDF to get started.</div>
             )}
             {availablePlans.map((p, i) => (
               <PlanCard key={i} plan={planCard(p)} active={false} archived={false}
@@ -722,9 +722,9 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
         )}
         {tab === 'active' && (
           <>
-            {loading && <div style={{ textAlign:'center', color:'#555', fontSize:12, padding:20 }}>Loading...</div>}
+            {loading && <div style={{ textAlign:'center', color:'#475569', fontSize:12, padding:20 }}>Loading...</div>}
             {!loading && activePlans.length === 0 && (
-              <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No active plans.<br />Activate a plan from Available Plans.</div>
+              <div style={{ textAlign:'center', color:'#475569', fontSize:12, padding:20 }}>No active plans.<br />Activate a plan from Available Plans.</div>
             )}
             {activePlans.map((p, i) => (
               <PlanCard key={i} plan={planCard(p)} active={true} archived={false}
@@ -736,10 +736,10 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
         )}
         {tab === 'archive' && (
           <>
-            <div style={{ padding:'8px 4px 10px', fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>Archived Plans · Read Only</div>
-            {loading && <div style={{ textAlign:'center', color:'#555', fontSize:12, padding:20 }}>Loading...</div>}
+            <div style={{ padding:'8px 4px 10px', fontSize:10, color:'#475569', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>Archived Plans · Read Only</div>
+            {loading && <div style={{ textAlign:'center', color:'#475569', fontSize:12, padding:20 }}>Loading...</div>}
             {!loading && archivedPlans.length === 0 && (
-              <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No archived flights.</div>
+              <div style={{ textAlign:'center', color:'#475569', fontSize:12, padding:20 }}>No archived flights.</div>
             )}
             {archivedPlans.map((p, i) => (
               <PlanCard key={i} plan={planCard(p)} active={false} archived={true}
@@ -901,8 +901,8 @@ function App() {
     : 'GO2 eFB';
 
   if (page === 'loading') return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
-      <div style={{ fontSize:13, color:'#555' }}>Loading...</div>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'#0f172a' }}>
+      <div style={{ fontSize:13, color:'#475569' }}>Loading...</div>
     </div>
   );
 
@@ -910,21 +910,21 @@ function App() {
   if (page === 'admin') return <AdminPanel onBack={() => setPage('dashboard')} />;
 
   if (showAdminAuth) return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
-      <div style={{ width:300, background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-        <div style={{ background:'#1f1f1f', borderBottom:'1px solid var(--border)', padding:'10px 18px', fontSize:10, color:'#e8a020', fontWeight:700, letterSpacing:2 }}>ADMIN ACCESS</div>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'#0f172a' }}>
+      <div style={{ width:300, background:'#1e293b', border:'1px solid #334155', borderRadius:12, overflow:'hidden' }}>
+        <div style={{ background:'#1e293b', borderBottom:'1px solid #334155', padding:'10px 18px', fontSize:10, color:'#e8a020', fontWeight:700, letterSpacing:2 }}>ADMIN ACCESS</div>
         <div style={{ padding:'20px 18px' }}>
           <label style={{ display:'block', fontSize:10, color:'#ffffff', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Admin Password</label>
           <input type="password" value={adminPin} onChange={e => { setAdminPin(e.target.value); setAdminPinError(''); }}
             onKeyDown={e => e.key === 'Enter' && handleAdminAuth()} placeholder="Enter password"
-            style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'#0f172a', border:'1px solid #334155', borderRadius:6, padding:'9px 11px', fontSize:14, color:'#f1f5f9', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} />
           {adminPinError && (
             <div style={{ marginTop:8, padding:'7px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>{adminPinError}</div>
           )}
         </div>
         <div style={{ padding:'0 18px 18px', display:'flex', gap:8 }}>
           <button onClick={() => { setShowAdminAuth(false); setAdminPin(''); setAdminPinError(''); }}
-            style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
+            style={{ flex:1, background:'#1e293b', border:'1px solid #334155', borderRadius:7, padding:10, fontSize:13, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
           <button onClick={handleAdminAuth}
             style={{ flex:1, background:'#e8a020', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#000', cursor:'pointer', fontFamily:'inherit' }}>Enter</button>
         </div>
@@ -958,7 +958,7 @@ function App() {
         <div style={{ background:'rgba(100,100,100,0.15)', borderBottom:'2px solid #555', padding:'7px 16px', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
           <span style={{ fontSize:14 }}>🔒</span>
           <span style={{ fontSize:12, fontWeight:700, color:'#888' }}>READ ONLY — Archived Flight</span>
-          <span style={{ fontSize:11, color:'#555', marginLeft:4 }}>
+          <span style={{ fontSize:11, color:'#475569', marginLeft:4 }}>
             {activePlan.archived_at ? `Archived: ${new Date(activePlan.archived_at).toLocaleDateString('en-GB')}` : ''}
           </span>
         </div>
@@ -976,7 +976,7 @@ function App() {
       {activePage === 'freenote'  && <FreeNote />}
       {activePage === 'rass'      && <RassView setStatus={setStatusRass} />}
       {!['flt-crew','mandatory','efp','fuel','accept','takeoff','navlog','landing','endflt','docupload','freenote','rass'].includes(activePage) && (
-        <div style={{ padding:24, color:'var(--t3)', fontSize:13 }}>Page under construction...</div>
+        <div style={{ padding:24, color:'#475569', fontSize:13 }}>Page under construction...</div>
       )}
     </Layout>
   );
