@@ -398,6 +398,13 @@ function UploadPlanModal({ onClose, onUploaded }) {
             raw_text:    pdfText,
           });
 
+          // Upload PDF to storage
+          try {
+            await supabase.storage.from('ofp-pdfs').upload(
+              `active/${plan.id}.pdf`, file, { contentType:'application/pdf', upsert:true }
+            );
+          } catch(storageErr) { console.warn('PDF storage:', storageErr); }
+
           logEvent(plan.id, 'PLAN_RELEASED', {
             dispatch_no: dispatchNo,
             dep: sector.dep,

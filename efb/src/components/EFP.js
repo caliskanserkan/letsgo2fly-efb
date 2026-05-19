@@ -1,12 +1,37 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { parseWeatherText, COLORS } from '../config/weatherRules';
 import { usePersistedState } from '../hooks/usePersistedState';
+import { supabase } from '../supabaseClient';
 
 const ALL_TABS = ['ofp', 'wxr'];
 
-// ─── OFP Full Text ────────────────────────────────────────────
+// ─── OFP PDF Viewer ──────────────────────────────────────────
 function OFPView({ rawText, activePlan }) {
-  if (!rawText) {
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!activePlan?.id) return;
+    setLoading(true);
+    const fetchPdf = async () => {
+      try {
+        // Try active first, then archived
+        let path = `active/${activePlan.id}.pdf`;
+        const { data, error } = await supabase.storage.from('ofp-pdfs').createSignedUrl(path, 3600);
+        if (error || !data?.signedUrl) {
+          path = `archived/${activePlan.id}.pdf`;
+          const { data: data2 } = await supabase.storage.from('ofp-pdfs').createSignedUrl(path, 3600);
+          if (data2?.signedUrl) setPdfUrl(data2.signedUrl);
+        } else {
+          setPdfUrl(data.signedUrl);
+        }
+      } catch(e) { console.warn('PDF fetch:', e); }
+      setLoading(false);
+    };
+    fetchPdf();
+  }, [activePlan?.id]);
+
+  if (!activePlan?.id) {
     return (
       <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, padding:24, background:'#0f172a' }}>
         <span style={{ fontSize:40 }}>📄</span>
@@ -15,19 +40,29 @@ function OFPView({ rawText, activePlan }) {
       </div>
     );
   }
+
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', background:'#0f172a' }}>
       <div style={{ background:'rgba(74,222,128,0.06)', borderBottom:'1px solid rgba(74,222,128,0.2)', padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
         <span style={{ fontSize:12, color:'#4ade80', fontWeight:500 }}>
           {activePlan ? `${activePlan.dep} → ${activePlan.dest} · ${activePlan.date || ''}` : 'Flight Plan'}
         </span>
-        <span style={{ fontSize:11, color:'#334155' }}>{rawText.length.toLocaleString()} chars</span>
+        {loading && <span style={{ fontSize:11, color:'#475569' }}>Loading PDF...</span>}
       </div>
-      <div style={{ flex:1, overflowY:'auto', padding:'12px' }}>
-        <div style={{ background:'#f8f7f2', borderRadius:10, padding:'16px', border:'1px solid #334155', fontFamily:"'Courier New', Courier, monospace", fontSize:11, lineHeight:1.7, color:'#111', whiteSpace:'pre-wrap', wordBreak:'break-word' }}>
-          {rawText}
+
+      {pdfUrl ? (
+        <iframe
+          src={pdfUrl}
+          style={{ flex:1, border:'none', background:'#fff' }}
+          title="OFP PDF"
+        />
+      ) : !loading ? (
+        <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, padding:24 }}>
+          <span style={{ fontSize:40 }}>📄</span>
+          <div style={{ fontSize:14, color:'#475569', textAlign:'center' }}>PDF not available</div>
+          <div style={{ fontSize:12, color:'#334155', textAlign:'center' }}>Re-upload the plan PDF to view it here</div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
