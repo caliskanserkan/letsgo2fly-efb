@@ -330,8 +330,8 @@ function WXRView({ activePlan, rawText }) {
         </div>
       </div>
 
-      {/* Airport list */}
-      <div style={{ borderBottom:'1px solid #334155', flexShrink:0, overflowX:'auto', background:'#1e293b', display:'flex' }}>
+      <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
+      <div style={{ width:120, flexShrink:0, borderRight:'1px solid #1e293b', overflowY:'auto', background:'#0a1120', display:'flex', flexDirection:'column' }}>
         {wxAirports.map(({ icao, type }) => {
           const tc = typeColor(type);
           const wx = getWx(icao);
@@ -339,7 +339,7 @@ function WXRView({ activePlan, rawText }) {
           const sel = selIcao === icao;
           return (
             <div key={icao} onClick={() => setSelIcao(icao)}
-              style={{ padding:'10px 14px', cursor:'pointer', borderBottom:`2px solid ${sel ? tc : 'transparent'}`, background: sel ? `${tc}10` : 'transparent', flexShrink:0, textAlign:'center', minWidth:76 }}>
+              style={{ padding:'10px 12px', cursor:'pointer', borderLeft:`3px solid ${sel ? tc : 'transparent'}`, background: sel ? `${tc}12` : 'transparent', borderBottom:'1px solid #0f172a' }}>
               <div style={{ fontSize:13, fontWeight:700, color: sel ? tc : '#94a3b8', fontFamily:'monospace' }}>{icao}</div>
               <div style={{ fontSize:9, color: sel ? tc : '#334155', marginTop:2, letterSpacing:'0.5px', textTransform:'uppercase' }}>{type.slice(0, 4)}</div>
               <div style={{ width:5, height:5, borderRadius:'50%', background: hasData ? (sel ? tc : '#475569') : '#334155', margin:'3px auto 0' }} />
@@ -351,12 +351,14 @@ function WXRView({ activePlan, rawText }) {
         )}
         {/* SIGMET tab */}
         <div onClick={() => setSelIcao('__sigmet__')}
-          style={{ padding:'10px 14px', cursor:'pointer', borderBottom:`2px solid ${selIcao === '__sigmet__' ? '#ef4444' : 'transparent'}`, background: selIcao === '__sigmet__' ? 'rgba(239,68,68,0.08)' : 'transparent', flexShrink:0, textAlign:'center', minWidth:76, marginLeft:'auto' }}>
+          style={{ padding:'10px 12px', cursor:'pointer', borderLeft:`3px solid ${selIcao === '__sigmet__' ? '#ef4444' : 'transparent'}`, background: selIcao === '__sigmet__' ? 'rgba(239,68,68,0.08)' : 'transparent', borderTop:'1px solid #1e293b', marginTop:'auto' }}>
           <div style={{ fontSize:12, fontWeight:700, color: selIcao === '__sigmet__' ? '#ef4444' : '#475569' }}>⚠</div>
           <div style={{ fontSize:9, color: selIcao === '__sigmet__' ? '#ef4444' : '#334155', marginTop:2 }}>SIGMET</div>
         </div>
       </div>
 
+      </div>
+      <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
       {/* METAR / TAF sub-tabs */}
       {selIcao && selIcao !== '__sigmet__' && (
         <div style={{ display:'flex', background:'#0f172a', borderBottom:'1px solid #1e293b', flexShrink:0, alignItems:'center' }}>
@@ -440,6 +442,7 @@ function WXRView({ activePlan, rawText }) {
         {!rawText && (
           <div style={{ color:'#475569', fontSize:13, textAlign:'center', marginTop:24 }}>No plan data — activate a flight plan</div>
         )}
+      </div>
       </div>
     </div>
   );
