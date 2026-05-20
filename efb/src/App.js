@@ -252,7 +252,6 @@ function Login({ onLogin }) {
     if (verifyError) { setError("Invalid or expired code."); setLoading(false); return; }
     onLogin(); setLoading(false);
   };
-  };
 
   return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'#0f172a' }}>
