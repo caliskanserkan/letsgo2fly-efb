@@ -330,9 +330,8 @@ function WXRView({ activePlan, rawText }) {
         </div>
       </div>
 
-      {/* Body */}
-      <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
-      <div style={{ width:130, flexShrink:0, borderRight:'1px solid #1e293b', overflowY:'auto', background:'#0a1120', display:'flex', flexDirection:'column' }}>
+      {/* Airport list */}
+      <div style={{ borderBottom:'1px solid #334155', flexShrink:0, overflowX:'auto', background:'#1e293b', display:'flex' }}>
         {wxAirports.map(({ icao, type }) => {
           const tc = typeColor(type);
           const wx = getWx(icao);
