@@ -48,8 +48,13 @@ function OFPView({ rawText, activePlan }) {
         </span>
         {loading && <span style={{ fontSize:11, color:'#475569' }}>Loading PDF...</span>}
       </div>
+
       {pdfUrl ? (
-        <iframe src={pdfUrl} style={{ flex:1, border:'none', background:'#fff' }} title="OFP PDF" />
+        <iframe
+          src={pdfUrl}
+          style={{ flex:1, border:'none', background:'#fff' }}
+          title="OFP PDF"
+        />
       ) : !loading ? (
         <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, padding:24 }}>
           <span style={{ fontSize:40 }}>üìÑ</span>
@@ -72,51 +77,415 @@ function ColoredWeather({ text }) {
   );
 }
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
-function extractWxPageBlocks(rawText) {
-  if (!rawText) return '';
-  const wxPagePattern = /WX\s+Page\s+(\d+)\s+of\s+(\d+)/gi;
-  const markers = [];
-  let m;
-  while ((m = wxPagePattern.exec(rawText)) !== null) {
-    markers.push({ index: m.index, page: parseInt(m[1]), total: parseInt(m[2]) });
-  }
-  if (markers.length === 0) {
-    const fallbackIdx = rawText.search(/WX for (?:flight|Flight Group)/i);
-    if (fallbackIdx !== -1) {
-      const endIdx = rawText.search(/End of WX information/i);
-      return rawText.slice(fallbackIdx, endIdx !== -1 ? endIdx + 50 : fallbackIdx + 50000);
+// Parse WX data for a specific ICAO from rawText
+function parseIcaoWxFromRaw(rawText, icao) {
+  if (!rawText || !icao) return { metar: [], taf: [] };
+  const wxIdx = rawText.search(/WX for (?:flight|Flight Group)/i);
+  const wxEnd  = rawText.search(/End of WX information/i);
+  const block  = wxIdx !== -1
+    ? rawText.slice(wxIdx, wxEnd !== -1 ? wxEnd + 30 : wxIdx + 20000)
+    : rawText;
+  const pat = new RegExp(
+    `(?:(?:Departure|Destination|Alternate|Adequate|En[\\s-]?route\\s+alternate|ERA|ETOPS\\s+\\w+)\\s+airport|Flight\\s+group\\s+apt)\\s+${icao}[^\\n]*\\n([\\s\\S]*?)` +
+    `(?=(?:(?:Departure|Destination|Alternate|Adequate|En[\\s-]?route\\s+alternate|ERA|ETOPS\\s+\\w+)\\s+airport|Flight\\s+group\\s+apt)\\s+[A-Z]{4}|WX messages|SIGMET|End of WX|Page\\s+\\d|$)`,
+    'i'
+  );
+  const sec = block.match(pat)?.[1] || '';
+  const metars = [], tafs = [];
+  let inTaf = false;
+  for (const line of sec.split('\n')) {
+    const l = line.trim();
+    if (!l) { inTaf = false; continue; }
+    if (/^(?:METAR|SPECI)\b/.test(l)) { metars.push(l); inTaf = false; }
+    else if (/^TAF\b/.test(l)) { tafs.push(l); inTaf = true; }
+    else if (inTaf && !/^(?:Departure|Destination|Alternate|Adequate|En[\s-]?route|ERA|ETOPS|Flight|WX|End|Page|No\s)/i.test(l)) {
+      if (tafs.length) tafs[tafs.length - 1] += ' ' + l;
     }
-    return rawText;
   }
-  let combined = '';
-  for (let i = 0; i < markers.length; i++) {
-    const start = i === 0 ? Math.max(0, markers[0].index - 15000) : markers[i - 1].index;
-    const end   = markers[i].index + 30;
-    combined   += rawText.slice(start, end) + '\n';
-  }
-  return combined;
+  return { metar: metars, taf: tafs };
 }
 
+// FIX 1: Parse all airports from WX section
+// - Syntax error (extra closing brace) removed
+// - Extended regex: Departure / Destination / Alternate / Adequate /
+//   En-route alternate / ERA / ETOPS + Flight group apt
+// - wxIdx === -1 fallback: use full rawText instead of returning []
 function parseAllWxAirports(rawText) {
   if (!rawText) return [];
-  const wxBlock = extractWxPageBlocks(rawText);
-  const re = /(?:(?:Departure|Destination|Alternate|Adequate|En[\s-]?route\s+alternate|ERA|ETOPS\s+\w+)\s+airport|Flight\s+group\s+apt)\s+([A-Z]{4})/gi;
-  const airports = []; const seen = new Set(); let m;
-  while ((m = re.exec(wxBlock)) !== null) {
-    const icao = m[1].toUpperCase(); const raw = m[0].toLowerCase();
+
+  const wxIdx = rawText.search(/WX for (?:flight|Flight Group)/i);
+  const wxEnd  = rawText.search(/End of WX information/i);
+
+  // FIX: no early return ‚Äî if header not found, scan entire text
+  const block = wxIdx !== -1
+    ? rawText.slice(wxIdx, wxEnd !== -1 ? wxEnd + 30 : wxIdx + 20000)
+    : rawText;
+
+  const re = /(?:Departure|Destination|Alternate|Adequate|En[\s-]?route\s+alternate|ERA|ETOPS\s+\w+)\s+airport\s+([A-Z]{4})|Flight\s+group\s+apt\s+([A-Z]{4})/gi;
+
+  const airports = [];
+  const seen = new Set();
+  let m;
+
+  while ((m = re.exec(block)) !== null) {
+    const icao = (m[1] || m[2]).toUpperCase();
+    // Derive type label from matched text
+    const raw  = m[0].toLowerCase();
     let type = 'ADEQUATE';
-    if (/departure/.test(raw)) type = 'DEPARTURE';
-    else if (/destination/.test(raw)) type = 'DESTINATION';
+    if      (/departure/.test(raw))            type = 'DEPARTURE';
+    else if (/destination/.test(raw))          type = 'DESTINATION';
     else if (/alternate|era|en.?route/.test(raw)) type = 'ALTERNATE';
-    else if (/etops/.test(raw)) type = 'ETOPS';
-    else if (/flight\s+group/.test(raw)) type = 'FLT GRP';
-    if (!seen.has(icao)) { seen.add(icao); airports.push({ icao, type, name: '' }); }
+    else if (/etops/.test(raw))                type = 'ETOPS';
+    else if (/flight\s+group/.test(raw))       type = 'FLT GRP';
+
+    if (!seen.has(icao)) {
+      seen.add(icao);
+      airports.push({ icao, type, name: '' });
+    }
   }
+
+  console.log('[WXR] parseAllWxAirports ‚Üí', airports.map(a => `${a.icao}(${a.type})`));
   return airports;
 }
 
-function parseIcaoWxFromRaw(rawText, icao) {
-  if (!rawText || !icao) return { metar: [], taf: [] };
-  const wxBlock = extractWxPageBlocks(rawText);
-  const pat = new RegExp(`(?:(§¸Èï¡Ö…—’…ïÒïÕ—•πÖ—•ΩπÒ±—ï…πÖ—ïÒëï≈’Ö—ïÒπmqqÕpµt˝…Ω’—ïqqÃ≠Ö±—ï…πÖ—ïÒIQQ=AMqqÃ≠qq‹¨•qqÃ≠Ö•…¡Ω…—Ò±•ù°—qqÃ≠ù…Ω’¡qqÃ≠Ö¡–•qqÃ¨ëÌ•çÖΩımyqqπt©qq∏°mqqÕqqMt®¸§†¸Ù†¸Ë¢ìÛ§FW'GW&WƒFW7FñÊFñˆÁƒ«FW&ÊFWƒFWVFWƒVÂµ≈«5¬’”˜&˜WFU≈«2∂«FW&ÊFWƒU$DUDı5≈«2µ≈«r≤ï≈«2∂ó'˜'Gƒf∆ñváE≈«2∂w&˜W≈«2∂Bï≈«2µ¥’•◊≥G◊≈uÖ≈«2µvW≈uÇ÷W76vW7≈4ît‘UGƒVÊBˆbuá¬Bñ¬vírì∞¢6ˆÁ7B6V2“wÑ&∆ˆ6≤Ê÷F6ÇáBìÚÂ≥“«¬rs∞¢6ˆÁ7B÷WF'2“µ“¬Fg2“µ”≤∆WBñÂFb“f«6S∞¢f˜"Ü6ˆÁ7B∆ñÊRˆb6V2Á7∆óBÇu∆‚ríí∞¢6ˆÁ7B¬“∆ñÊRÁG&ñ“Çì∞¢ñbÇ¬í≤ñÂFb“f«6S≤6ˆÁFñÁVS≤–¢ñbÇı‚ÉÛ§‘UD'≈5T4íï∆"ÚÁFW7BÜ¬íí≤÷WF'2ÁW6ÇÜ¬ì≤ñÂFb“f«6S≤–¢V«6RñbÇıÂDe∆"ÚÁFW7BÜ¬íí≤Fg2ÁW6ÇÜ¬ì≤ñÂFb“G'VS≤–¢V«6RñbÜñÂFbbbı‚ÉÛ§FW'GW&WƒFW7FñÊFñˆÁƒ«FW&ÊFWƒFWVFWƒVÂµ«2’”˜&˜WFWƒU$ƒUDı7ƒf∆ñváG≈uáƒVÊG≈vWƒÊı«2íˆíÁFW7BÜ¬íí∞¢ñbáFg2Ê∆VÊwFÇíFg5∑Fg2Ê∆VÊwFÇ““≥“rr≤√∞¢–¢–¢&WGW&‚≤÷WF#¢÷WF'2¬Fc¢Fg2”∞ß–†¶gVÊ7Fñˆ‚'6UwÑÜVFW"á&uFWáBí∞¢ñbÇ&uFWáBí&WGW&‚ÁV∆√∞¢6ˆÁ7B““&uFWáBÊ÷F6ÇÇıuÇf˜"f∆ñváE«2≤ÖµÂ∆‚Ö“≤íˆíì∞¢6ˆÁ7BG2“&uFWáBÊ÷F6ÇÇıuÇ6V&6ÇW&f˜&÷VE«2≤ÖµÂ∆Â“≤íˆíìÚÂ≥”ÚÁG&ñ“Çì∞¢6ˆÁ7Br“&uFWáBÊ÷F6ÇÇıuÖ«2µvU«2µ∆Bµ«2∂ˆe«2≤Ö∆B≤íˆíì∞¢&WGW&‚≤FóF∆S¢”ÚÂ≥”ÚÁG&ñ“Çí«¬rr¬Fñ÷W7F◊¢G2«¬rr¬F˜F≈vW3¢sÚÂ≥“«¬ÁV∆¬”∞ß–†¶gVÊ7Fñˆ‚'6U6ñv÷WBá&uFWáBí∞¢ñbÇ&uFWáBí&WGW&‚rs∞¢6ˆÁ7B6í“&uFWáBÁ6V&6ÇÇı4ît‘UE¬á5¬ï«2∂f˜'ƒÊÚ4ît‘UG2f˜VÊBˆíì∞¢6ˆÁ7B6R“&uFWáBÁ6V&6ÇÇÙVÊBˆbuÇñÊf˜&÷Fñˆ‚ˆíì∞¢&WGW&‚6í”“”Ú&uFWáBÁ6∆ñ6Rá6í¬6R”“”Ú6R¢6í≤íÁG&ñ“Çí¢rs∞ß–†¶2ùπåÅô’πç—•Ω∏Åôï—ç°]•—°Ω…Õ°Ö•∏°’…∞§ÅÏ(ÄÅçΩπÕ–Å¡…Ω·•ïÃÄÙÅl(ÄÄÄÄ°‘§ÄÙ¯ÅÅ°——¡ÃËºΩçΩ…Õ¡…Ω·‰π•ºº¸ëÌïπçΩëïUI%Ωµ¡Ωπïπ–°‘•ıÄ∞(ÄÄÄÄ°‘§ÄÙ¯ÅÅ°——¡ÃËºΩçΩ…Õ¡…Ω·‰π•ºº˝’…∞ÙëÌïπçΩëïUI%Ωµ¡Ωπïπ–°‘•ıÄ∞(ÄÄÄÄ°‘§ÄÙ¯ÅÅ°——¡ÃËºΩÖ¡§πÖ±±Ω…•ù•πÃπ›•∏Ω…Ö‹˝’…∞ÙëÌïπçΩëïUI%Ωµ¡Ωπïπ–°‘•ıÄ∞(ÄÄÄÄ°‘§ÄÙ¯ÅÅ°——¡ÃËºΩ—°•πù¡…Ω·‰πô…ïïâΩÖ…êπ•ºΩôï—ç†ºëÌ’ıÄ∞(ÄÅtÏ(ÄÅôΩ»Ä°çΩπÕ–ÅµÖ≠ïA…Ω·‰ÅΩòÅ¡…Ω·•ïÃ§ÅÏ(ÄÄÄÅçΩπÕ–Å¡…Ω·ÂU…∞ÄÙÅµÖ≠ïA…Ω·‰°’…∞§Ï(ÄÄÄÅ—…‰ÅÏ(ÄÄÄÄÄÅçΩπÕ–Å…ïÃÄÙÅÖ›Ö•–Åôï—ç†°¡…Ω·ÂU…∞∞ÅÏÅÕ•ùπÖ∞ËÅâΩ…—M•ùπÖ∞π—•µïΩ’–†ƒ¿¿¿¿§ÅÙ§Ï(ÄÄÄÄÄÅ•òÄ†Ö…ïÃπΩ¨§ÅçΩπ—•π’îÏ(ÄÄÄÄÄÅçΩπÕ–Å—ï·–ÄÙÅÖ›Ö•–Å…ïÃπ—ï·–†§Ï(ÄÄÄÄÄÅ•òÄ°—ï·–ÄòòÅ—ï·–π—…•¥†§π±ïπù—†Ä¯Äƒ¿§Å…ï—’…∏Å—ï·–Ï(ÄÄÄÅÙÅçÖ—ç†ÅÌÙ(ÄÅÙ(ÄÅ—°…Ω‹Åπï‹Å……Ω»†ù±∞Å¡…Ω·•ïÃÅôÖ•±ïêú§Ï)Ù()ÖÕÂπåÅô’πç—•Ω∏Åôï—ç°1•Ÿï]‡°•çÖΩ1•Õ–§ÅÏ(ÄÅ•òÄ†Ö•çÖΩ1•Õ–ÅÒÅ•çÖΩ1•Õ–π±ïπù—†ÄÙÙÙÄ¿§Å…ï—’…∏ÅÌÙÏ(ÄÅçΩπÕ–Å•ëÃÄÙÅ•çÖΩ1•Õ–π©Ω•∏†ú∞ú§Ï(ÄÅçΩπÕ–Å…ïÕ’±—ÃÄÙÅÌÙÏ(ÄÅ—…‰ÅÏ(ÄÄÄÅçΩπÕ–ÅµQï·–ÄÙÅÖ›Ö•–Åôï—ç°]•—°Ω…Õ°Ö•∏°Å°——¡ÃËºΩÖŸ•Ö—•Ωπ›ïÖ—°ï»πùΩÿΩÖ¡§ΩëÖ—ÑΩµï—Ö»˝•ëÃÙëÌ•ëÕÙôôΩ…µÖ–ı…Ö‹ô°Ω’…ÃÙÃô—ÖòıôÖ±ÕïÄ§Ï(ÄÄÄÅµQï·–π—…•¥†§πÕ¡±•–†ùq∏ú§πô•±—ï»°	ΩΩ±ïÖ∏§πôΩ…Öç†°±•πîÄÙ¯ÅÏ(ÄÄÄÄÄÅçΩπÕ–Å∞ÄÙÅ±•πîπ—…•¥†§ÏÅçΩπÕ–Å•çÖºÄÙÅ∞πÕ¡±•–†úÄú•l¡tÏ(ÄÄÄÄÄÅ•òÄ°•çÖºÄòòÄΩymµiuÏ—Ùêºπ—ïÕ–°•çÖº§§ÅÏÅ•òÄ†Ö…ïÕ’±—Õm•çÖΩt§Å…ïÕ’±—Õm•çÖΩtÄÙÅÏÅµï—Ö»ËÅmt∞Å—ÖòËÅmtÅÙÏÅ…ïÕ’±—Õm•çÖΩtπµï—Ö»π¡’Õ†°∞§ÏÅÙ(ÄÄÄÅÙ§Ï(ÄÅÙÅçÖ—ç†°î§ÅÏÅçΩπÕΩ±îπï……Ω»†ùm]aItÅ5QHÅôÖ•±ïêËú∞ÅîπµïÕÕÖùî§ÏÅÙ(ÄÅ—…‰ÅÏ(ÄÄÄÅçΩπÕ–Å—Qï·–ÄÙÅÖ›Ö•–Åôï—ç°]•—°Ω…Õ°Ö•∏°Å°——¡ÃËºΩÖŸ•Ö—•Ωπ›ïÖ—°ï»πùΩÿΩÖ¡§ΩëÖ—ÑΩ—Öò˝•ëÃÙëÌ•ëÕÙôôΩ…µÖ–ı…Ö›Ä§Ï(ÄÄÄÅ±ï–Åç’»ÄÙÅπ’±∞Ï(ÄÄÄÅ—Qï·–π—…•¥†§πÕ¡±•–†ùq∏ú§πô•±—ï»°	ΩΩ±ïÖ∏§πôΩ…Öç†°±•πîÄÙ¯ÅÏ(ÄÄÄÄÄÅçΩπÕ–Å∞ÄÙÅ±•πîπ—…•¥†§Ï(ÄÄÄÄÄÅ•òÄ†ΩyQqàºπ—ïÕ–°∞§§ÅÏÅçΩπÕ–Å¡Ö…—ÃÄÙÅ∞πÕ¡±•–†ΩqÃ¨º§ÏÅçΩπÕ–Å•çÖºÄÙÄ°¡Ö…—Õl≈tÙÙÙù5ùÒÒ¡Ö…—Õl≈tÙÙÙù=Hú§˝¡Ö…—Õl…tÈ¡Ö…—Õl≈tÏÅ•òÄ°•çÖºòòΩymµiuÏ—Ùêºπ—ïÕ–°•çÖº§§ÅÏÅç’»ı•çÖºÏÅ•òÄ†Ö…ïÕ’±—Õm•çÖΩt§Å…ïÕ’±—Õm•çÖΩtıÌµï—Ö»Èmt±—ÖòÈmuÙÏÅ…ïÕ’±—Õm•çÖΩtπ—Öòπ¡’Õ†°∞§ÏÅÙÅÙ(ÄÄÄÄÄÅï±ÕîÅ•òÄ°ç’»òô∞òô…ïÕ’±—Õmç’…t§Å…ïÕ’±—Õmç’…tπ—Öôm…ïÕ’±—Õmç’…tπ—Öòπ±ïπù—†¥≈t¨ÙúÄú≠∞Ï(ÄÄÄÅÙ§Ï(ÄÅÙÅçÖ—ç†°î§ÅÏÅçΩπÕΩ±îπï……Ω»†ùm]aItÅQÅôÖ•±ïêËú∞ÅîπµïÕÕÖùî§ÏÅÙ(ÄÅ…ï—’…∏Å…ïÕ’±—ÃÏ)Ù
+// Parse WX header info from rawText
+function parseWxHeader(rawText) {
+  if (!rawText) return null;
+  const m  = rawText.match(/WX for flight\s+([^\n(]+)/i);
+  const ts = rawText.match(/WX search performed\s+([^\n]+)/i)?.[1]?.trim();
+  return { title: m?.[1]?.trim() || '', timestamp: ts || '' };
+}
+
+// FIX 2: CORS proxy chain ‚Äî corsproxy.io ‚Üí allorigins.win ‚Üí thingproxy
+async function fetchWithCorsChain(url) {
+  const proxies = [
+    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    (u) => `https://thingproxy.freeboard.io/fetch/${u}`,
+  ];
+  for (const makeProxy of proxies) {
+    try {
+      const res = await fetch(makeProxy(url), { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      if (text && text.length > 0) return text;
+    } catch (err) {
+      console.warn('[WXR] proxy failed, trying next‚Ä¶', err.message);
+    }
+  }
+  throw new Error('All CORS proxies failed for: ' + url);
+}
+
+// Fetch live METAR/TAF for a list of ICAOs from aviationweather.gov
+async function fetchLiveWx(icaoList) {
+  const ids = icaoList.join(',');
+  const results = {};
+
+  try {
+    const mText = await fetchWithCorsChain(
+      `https://aviationweather.gov/api/data/metar?ids=${ids}&format=raw&hours=3&taf=false`
+    );
+    mText.trim().split('\n').filter(Boolean).forEach(line => {
+      const icao = line.split(' ')[0];
+      if (icao && /^[A-Z]{4}$/.test(icao)) {
+        if (!results[icao]) results[icao] = { metar: [], taf: [] };
+        results[icao].metar.push(line.trim());
+      }
+    });
+  } catch (e) { console.error('[WXR] METAR fetch error:', e.message); }
+
+  try {
+    const tText = await fetchWithCorsChain(
+      `https://aviationweather.gov/api/data/taf?ids=${ids}&format=raw`
+    );
+    let cur = null;
+    tText.trim().split('\n').filter(Boolean).forEach(line => {
+      const l = line.trim();
+      if (/^TAF\b/.test(l)) {
+        const parts = l.split(/\s+/);
+        const icao  = parts[1] === 'AMD' || parts[1] === 'COR' ? parts[2] : parts[1];
+        if (icao && /^[A-Z]{4}$/.test(icao)) {
+          cur = icao;
+          if (!results[icao]) results[icao] = { metar: [], taf: [] };
+          results[icao].taf.push(l);
+        }
+      } else if (cur && l) {
+        if (results[cur]) results[cur].taf[results[cur].taf.length - 1] += ' ' + l;
+      }
+    });
+  } catch (e) { console.error('[WXR] TAF fetch error:', e.message); }
+
+  return results;
+}
+
+// ‚îÄ‚îÄ‚îÄ WXR View ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+function WXRView({ activePlan, rawText }) {
+
+  const wxAirports = useMemo(() => {
+    const fromPdf = parseAllWxAirports(rawText);
+    if (fromPdf.length > 0) return fromPdf;
+    const fallback = [];
+    const addApt = (icaoRaw, type) => {
+      const icao = icaoRaw?.split('/')[0]?.trim().toUpperCase();
+      if (icao && /^[A-Z]{4}$/.test(icao)) fallback.push({ icao, type, name: '' });
+    };
+    addApt(activePlan?.dep,       'DEPARTURE');
+    addApt(activePlan?.dest,      'DESTINATION');
+    addApt(activePlan?.alternate, 'ALTERNATE');
+    return fallback;
+  }, [rawText, activePlan?.dep, activePlan?.dest, activePlan?.alternate]);
+
+  const wxHeader = useMemo(() => parseWxHeader(rawText), [rawText]);
+
+  const planWxMap = useMemo(() => {
+    const map = {};
+    wxAirports.forEach(({ icao }) => {
+      map[icao] = parseIcaoWxFromRaw(rawText, icao);
+    });
+    return map;
+  }, [rawText, wxAirports]);
+
+  const sigmet = useMemo(() => {
+    if (!rawText) return '';
+    const si = rawText.search(/SIGMET\(s\)\s+for|No SIGMETs found/i);
+    const se = rawText.search(/End of WX information/i);
+    return si !== -1 ? rawText.slice(si, se !== -1 ? se : si + 1000).trim() : '';
+  }, [rawText]);
+
+  const [liveWxMap, setLiveWxMap] = usePersistedState('efb_wxr_live_map_v2', {});
+  const [liveAt,    setLiveAt]    = usePersistedState('efb_wxr_live_at_v2',   '');
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState(false);
+  const [selIcao,   setSelIcao]   = useState(null);
+  const [wxTab,     setWxTab]     = useState('metar');
+
+  useEffect(() => {
+    if (wxAirports.length > 0 && !selIcao) setSelIcao(wxAirports[0].icao);
+  }, [wxAirports, selIcao]);
+
+  const doFetch = async () => {
+    if (!wxAirports.length) return;
+    setLoading(true); setError(false);
+    try {
+      const icaoList = wxAirports.map(a => a.icao);
+      const live = await fetchLiveWx(icaoList);
+      setLiveWxMap(live);
+      setLiveAt(new Date().toUTCString().slice(17, 25) + ' UTC');
+    } catch { setError(true); }
+    setLoading(false);
+  };
+
+  const getWx = (icao) => {
+    const live = liveWxMap[icao];
+    const plan = planWxMap[icao] || { metar: [], taf: [] };
+    return {
+      metar: live?.metar?.length ? live.metar : plan.metar,
+      taf:   live?.taf?.length   ? live.taf   : plan.taf,
+    };
+  };
+
+  const isLive = Object.keys(liveWxMap).length > 0;
+  const selApt = wxAirports.find(a => a.icao === selIcao);
+  const selWx  = selIcao ? getWx(selIcao) : { metar: [], taf: [] };
+
+  const typeColor = (type) => {
+    if (type === 'DEPARTURE')   return '#4ade80';
+    if (type === 'DESTINATION') return '#38bdf8';
+    if (type === 'ALTERNATE')   return '#fbbf24';
+    if (type === 'ETOPS')       return '#c084fc';
+    return '#475569';
+  };
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', background:'#0f172a' }}>
+
+      {/* Header */}
+      <div style={{ background: isLive ? 'rgba(74,222,128,0.06)' : 'rgba(251,191,36,0.06)', borderBottom: `1px solid ${isLive ? 'rgba(74,222,128,0.2)' : 'rgba(251,191,36,0.2)'}`, padding:'10px 14px', flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <div style={{ flex:1 }}>
+            {wxHeader?.title && (
+              <div style={{ fontSize:12, fontWeight:600, color:'#f1f5f9', fontFamily:'monospace', marginBottom:3 }}>
+                WX for flight <span style={{ color:'#38bdf8' }}>{wxHeader.title}</span>
+              </div>
+            )}
+            <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+              <span style={{ fontSize:10, fontWeight:700, letterSpacing:1, padding:'3px 10px', borderRadius:20,
+                background: error ? 'rgba(239,68,68,0.15)' : isLive ? 'rgba(74,222,128,0.15)' : 'rgba(251,191,36,0.15)',
+                color:      error ? '#ef4444'               : isLive ? '#4ade80'                : '#fbbf24',
+                border:    `1px solid ${error ? 'rgba(239,68,68,0.3)' : isLive ? 'rgba(74,222,128,0.3)' : 'rgba(251,191,36,0.3)'}` }}>
+                {error ? '‚ö† FAILED' : isLive ? '‚óè LIVE' : '‚óé PLAN BRIEFING'}
+              </span>
+              <span style={{ fontSize:11, color: isLive ? '#4ade80' : '#fbbf24', fontFamily:'monospace' }}>
+                {isLive ? liveAt : wxHeader?.timestamp || ''}
+              </span>
+            </div>
+            <div style={{ fontSize:10, color:'#475569', marginTop:3 }}>
+              {wxAirports.length} airports ¬∑ {isLive ? 'Live METAR/TAF ‚Äî verify against ATIS' : 'May not reflect current conditions ¬∑ refresh for live data'}
+            </div>
+          </div>
+          <button onClick={doFetch} disabled={loading || !wxAirports.length}
+            style={{ background: loading ? '#1e293b' : '#4ade80', border:'none', borderRadius:10, padding:'10px 18px', fontSize:13, fontWeight:600, color: loading ? '#475569' : '#0f172a', cursor: loading ? 'default' : 'pointer', fontFamily:'inherit', flexShrink:0, minWidth:90 }}>
+            {loading ? '...' : '‚Üª Refresh'}
+          </button>
+        </div>
+      </div>
+
+      {/* Airport list */}
+      <div style={{ borderBottom:'1px solid #334155', flexShrink:0, overflowX:'auto', background:'#1e293b', display:'flex' }}>
+        {wxAirports.map(({ icao, type }) => {
+          const tc = typeColor(type);
+          const wx = getWx(icao);
+          const hasData = wx.metar.length > 0 || wx.taf.length > 0;
+          const sel = selIcao === icao;
+          return (
+            <div key={icao} onClick={() => setSelIcao(icao)}
+              style={{ padding:'10px 14px', cursor:'pointer', borderBottom:`2px solid ${sel ? tc : 'transparent'}`, background: sel ? `${tc}10` : 'transparent', flexShrink:0, textAlign:'center', minWidth:76 }}>
+              <div style={{ fontSize:13, fontWeight:700, color: sel ? tc : '#94a3b8', fontFamily:'monospace' }}>{icao}</div>
+              <div style={{ fontSize:9, color: sel ? tc : '#334155', marginTop:2, letterSpacing:'0.5px', textTransform:'uppercase' }}>{type.slice(0, 4)}</div>
+              <div style={{ width:5, height:5, borderRadius:'50%', background: hasData ? (sel ? tc : '#475569') : '#334155', margin:'3px auto 0' }} />
+            </div>
+          );
+        })}
+        {wxAirports.length === 0 && (
+          <div style={{ padding:'12px 16px', fontSize:12, color:'#475569', alignSelf:'center' }}>No WX airports found in plan</div>
+        )}
+        {/* SIGMET tab */}
+        <div onClick={() => setSelIcao('__sigmet__')}
+          style={{ padding:'10px 14px', cursor:'pointer', borderBottom:`2px solid ${selIcao === '__sigmet__' ? '#ef4444' : 'transparent'}`, background: selIcao === '__sigmet__' ? 'rgba(239,68,68,0.08)' : 'transparent', flexShrink:0, textAlign:'center', minWidth:76, marginLeft:'auto' }}>
+          <div style={{ fontSize:12, fontWeight:700, color: selIcao === '__sigmet__' ? '#ef4444' : '#475569' }}>‚ö†</div>
+          <div style={{ fontSize:9, color: selIcao === '__sigmet__' ? '#ef4444' : '#334155', marginTop:2 }}>SIGMET</div>
+        </div>
+      </div>
+
+      {/* METAR / TAF sub-tabs */}
+      {selIcao && selIcao !== '__sigmet__' && (
+        <div style={{ display:'flex', background:'#0f172a', borderBottom:'1px solid #1e293b', flexShrink:0, alignItems:'center' }}>
+          {[{ id:'metar', label:'METAR / SPECI' }, { id:'taf', label:'TAF' }].map(t => (
+            <div key={t.id} onClick={() => setWxTab(t.id)}
+              style={{ padding:'9px 20px', fontSize:11, fontWeight:600, cursor:'pointer', color: wxTab === t.id ? '#38bdf8' : '#475569', borderBottom: wxTab === t.id ? '2px solid #38bdf8' : '2px solid transparent' }}>
+              {t.label}
+            </div>
+          ))}
+          <div style={{ flex:1 }} />
+          <div style={{ display:'flex', gap:6, padding:'6px 12px', alignItems:'center' }}>
+            {[
+              { color: COLORS.green,  label: 'Normal'   },
+              { color: COLORS.yellow, label: 'Caution'  },
+              { color: COLORS.orange, label: 'Warning'  },
+              { color: COLORS.red,    label: 'Critical' },
+            ].map((c, i) => (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:3 }}>
+                <div style={{ width:6, height:6, borderRadius:3, background: c.color }} />
+                <span style={{ fontSize:9, color:'#334155' }}>{c.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Content */}
+      <div style={{ flex:1, overflowY:'auto', padding:'14px 12px' }}>
+
+        {/* SIGMET */}
+        {selIcao === '__sigmet__' && (
+          <div style={{ background:'#1e293b', borderRadius:12, border:'1px solid #334155', overflow:'hidden' }}>
+            <div style={{ padding:'10px 14px', borderBottom:'1px solid #334155', fontSize:11, fontWeight:600, color:'#ef4444' }}>‚ö†Ô∏è SIGMET / FIR</div>
+            <div style={{ padding:'12px 14px', fontFamily:'monospace', fontSize:12, lineHeight:1.9,
+              color: sigmet && !sigmet.includes('No SIGMETs') ? '#fbbf24' : '#475569', whiteSpace:'pre-wrap' }}>
+              {sigmet || 'No SIGMET data in plan'}
+            </div>
+          </div>
+        )}
+
+        {/* Airport WX */}
+        {selIcao && selIcao !== '__sigmet__' && selApt && (
+          <div>
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:13, fontWeight:700, color: typeColor(selApt.type), fontFamily:'monospace' }}>
+                {selIcao}
+              </div>
+              <div style={{ fontSize:11, color:'#475569', marginTop:2 }}>
+                <span style={{ color: typeColor(selApt.type), marginRight:8, fontWeight:600 }}>{selApt.type}</span>
+                {selApt.name}
+              </div>
+              {isLive && <div style={{ fontSize:10, color:'#4ade80', marginTop:2 }}>‚óè Live data</div>}
+            </div>
+
+            {wxTab === 'metar' && (
+              <div style={{ background:'#1e293b', borderRadius:12, border:'1px solid #334155', overflow:'hidden' }}>
+                <div style={{ padding:'8px 14px', borderBottom:'1px solid #334155', fontSize:10, color:'#38bdf8', fontWeight:600, letterSpacing:'1px' }}>METAR / SPECI</div>
+                <div style={{ padding:'12px 14px', fontFamily:'monospace', fontSize:12, lineHeight:2 }}>
+                  {selWx.metar.length > 0
+                    ? selWx.metar.map((m, i) => <div key={i}><ColoredWeather text={m} /></div>)
+                    : <span style={{ color:'#475569', fontStyle:'italic' }}>No METAR found</span>
+                  }
+                </div>
+              </div>
+            )}
+
+            {wxTab === 'taf' && (
+              <div style={{ background:'#1e293b', borderRadius:12, border:'1px solid #334155', overflow:'hidden' }}>
+                <div style={{ padding:'8px 14px', borderBottom:'1px solid #334155', fontSize:10, color:'#38bdf8', fontWeight:600, letterSpacing:'1px' }}>TAF</div>
+                <div style={{ padding:'12px 14px', fontFamily:'monospace', fontSize:12, lineHeight:2 }}>
+                  {selWx.taf.length > 0
+                    ? selWx.taf.map((t, i) => <div key={i}><ColoredWeather text={t} /></div>)
+                    : <span style={{ color:'#475569', fontStyle:'italic' }}>No TAF found</span>
+                  }
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!rawText && (
+          <div style={{ color:'#475569', fontSize:13, textAlign:'center', marginTop:24 }}>No plan data ‚Äî activate a flight plan</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ‚îÄ‚îÄ‚îÄ EFP Main ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+function EFP({ setStatus, activePlan, rawText = '' }) {
+  const [activeTab, setActiveTab] = usePersistedState('efb_efp_activeTab', 'ofp');
+  const [seenTabs,  setSeenTabs]  = usePersistedState('efb_efp_seenTabs',  []);
+
+  useEffect(() => {
+    if (seenTabs.includes(activeTab)) return;
+    const t = setTimeout(() => setSeenTabs(prev => [...prev, activeTab]), 1000);
+    return () => clearTimeout(t);
+  }, [activeTab]); // eslint-disable-line
+
+  useEffect(() => {
+    if (!setStatus) return;
+    if (seenTabs.length >= ALL_TABS.length) setStatus('green');
+    else if (seenTabs.length > 0)           setStatus('amber');
+    else                                    setStatus('pending');
+  }, [seenTabs]); // eslint-disable-line
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#0f172a' }}>
+      {/* Tabs */}
+      <div style={{ display:'flex', background:'#1e293b', borderBottom:'1px solid #334155', flexShrink:0 }}>
+        {[{ id:'ofp', label:'üìã OFP' }, { id:'wxr', label:'üå§ WXR' }].map(t => (
+          <div key={t.id} onClick={() => setActiveTab(t.id)}
+            style={{ padding:'12px 24px', fontSize:13, fontWeight:600, cursor:'pointer', color: activeTab === t.id ? '#38bdf8' : '#475569', borderBottom: activeTab === t.id ? '2px solid #38bdf8' : '2px solid transparent', display:'flex', alignItems:'center', gap:6 }}>
+            {t.label}
+            {seenTabs.includes(t.id) && <span style={{ width:5, height:5, borderRadius:'50%', background:'#4ade80', display:'inline-block' }} />}
+          </div>
+        ))}
+        <div style={{ flex:1 }} />
+        <div style={{ padding:'8px 14px', display:'flex', alignItems:'center' }}>
+          <span style={{ fontSize:11, color:'#334155', fontFamily:'monospace' }}>
+            {activePlan ? `${activePlan.dep}‚Üí${activePlan.dest}` : 'No plan'}
+          </span>
+        </div>
+      </div>
+
+      {activeTab === 'ofp' && <OFPView activePlan={activePlan} rawText={rawText} />}
+      {activeTab === 'wxr' && <WXRView activePlan={activePlan} rawText={rawText} />}
+    </div>
+  );
+}
+
+export default EFP;
