@@ -124,7 +124,8 @@ function parseAllWxAirports(rawText) {
 
   const wxBlock = extractWxPageBlocks(rawText);
 
-  const re = /(?:(?:Departure|Destination|Alternate|Adequate|En[\s-]?route\s+alternate|ERA|ETOPS\s+\w+)\s+airport|Flight\s+group\s+apt)\s+([A-Z]{4})/gi;
+  // Tam satırı yakala — örn: "Adequate airport LTBR - YEI - BURSA/YENİŞEHİR VAR E6 RWY 07L..."
+  const re = /(?:(?:Departure|Destination|Alternate|Adequate|En[\s-]?route\s+alternate|ERA|ETOPS\s+\w+)\s+airport|Flight\s+group\s+apt)\s+([A-Z]{4})([^\n]*)/gi;
 
   const airports = [];
   const seen     = new Set();
@@ -132,6 +133,7 @@ function parseAllWxAirports(rawText) {
 
   while ((m = re.exec(wxBlock)) !== null) {
     const icao   = m[1].toUpperCase();
+    const rest   = (m[2] || '').trim();
     const raw    = m[0].toLowerCase();
     let   type   = 'ADEQUATE';
     if      (/departure/.test(raw))               type = 'DEPARTURE';
@@ -142,7 +144,7 @@ function parseAllWxAirports(rawText) {
 
     if (!seen.has(icao)) {
       seen.add(icao);
-      airports.push({ icao, type, name: '' });
+      airports.push({ icao, type, header: rest ? `${icao} ${rest}` : icao });
     }
   }
 
@@ -238,9 +240,8 @@ async function fetchLiveWx(icaoList) {
 
   // METAR
   try {
-    const mText = await fetchWithCorsChain(
-      `https://aviationweather.gov/api/data/metar?ids=${ids}&format=raw&hours=3&taf=false`
-    );
+    const mResp = await fetch(`https://corsproxy.io/?https://aviationweather.gov/api/data/metar?ids=${ids}&format=raw&hours=3&taf=false`);
+    const mText = await mResp.text();
     mText.trim().split('\n').filter(Boolean).forEach(line => {
       const l    = line.trim();
       const icao = l.split(' ')[0];
@@ -254,9 +255,8 @@ async function fetchLiveWx(icaoList) {
 
   // TAF
   try {
-    const tText = await fetchWithCorsChain(
-      `https://aviationweather.gov/api/data/taf?ids=${ids}&format=raw`
-    );
+    const tResp = await fetch(`https://corsproxy.io/?https://aviationweather.gov/api/data/taf?ids=${ids}&format=raw`);
+    const tText = await tResp.text();
     let cur = null;
     tText.trim().split('\n').filter(Boolean).forEach(line => {
       const l = line.trim();
@@ -337,11 +337,10 @@ function WXRView({ activePlan, rawText }) {
   const selWx  = selIcao && selIcao !== '__sigmet__' ? getWx(selIcao) : { metar: [], taf: [] };
 
   const typeColor = (type) => {
-    if (type === 'DEPARTURE')   return '#4ade80';
-    if (type === 'DESTINATION') return '#38bdf8';
-    if (type === 'ALTERNATE')   return '#fbbf24';
-    if (type === 'ETOPS')       return '#c084fc';
-    return '#64748b';
+    if (type === 'DEPARTURE')   return '#fbbf24';  // amber/sarı
+    if (type === 'DESTINATION') return '#4ade80';  // yeşil
+    if (type === 'ALTERNATE')   return '#fb923c';  // turuncu/amber
+    return '#a78bfa';                              // mor — diğer hepsi
   };
 
   return (
@@ -371,17 +370,20 @@ function WXRView({ activePlan, rawText }) {
 
       {/* Body: scrollable list — her meydan alt alta */}
       <div style={{ flex:1, overflowY:'auto', padding:'12px 16px' }}>
-        {wxAirports.map(({ icao, type }) => {
+        {wxAirports.map((apt) => {
+          const { icao, type } = apt;
           const tc  = typeColor(type);
           const wx  = getWx(icao);
           return (
             <div key={icao} style={{ marginBottom:28 }}>
-              {/* Meydan başlık */}
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6, paddingBottom:6, borderBottom:'1px solid #1e293b' }}>
-                <span style={{ fontSize:14, fontWeight:700, color: tc, fontFamily:'monospace' }}>{icao}</span>
-                <span style={{ fontSize:10, color: tc, fontWeight:600 }}>{type}</span>
-                {isLive && liveWxMap[icao] && <span style={{ fontSize:9, color:'#4ade80', marginLeft:'auto' }}>● LIVE</span>}
-                {isLive && !liveWxMap[icao] && <span style={{ fontSize:9, color:'#fbbf24', marginLeft:'auto' }}>◎ PLAN</span>}
+              {/* Meydan başlık — renkli tam satır */}
+              <div style={{ marginBottom:8, paddingBottom:6, borderBottom:`1px solid ${tc}30` }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:3 }}>
+                  <span style={{ fontSize:9, fontWeight:700, color: tc, textTransform:'uppercase', letterSpacing:1, background:`${tc}18`, padding:'2px 8px', borderRadius:4 }}>{type}</span>
+                  {isLive && liveWxMap[icao] && <span style={{ fontSize:9, color:'#4ade80', marginLeft:'auto' }}>● LIVE</span>}
+                  {isLive && !liveWxMap[icao] && <span style={{ fontSize:9, color:'#fbbf24', marginLeft:'auto' }}>◎ PLAN</span>}
+                </div>
+                <div style={{ fontSize:13, fontWeight:700, color: tc, fontFamily:'monospace', lineHeight:1.5 }}>{apt.header || icao}</div>
               </div>
               {/* METAR */}
               {wx.metar.length > 0 && (
