@@ -319,7 +319,7 @@ function WXRView({ activePlan, rawText }) {
       const live = await fetchLiveWx(wxAirports.map(a => a.icao));
       setLiveWxMap(live);
       setLiveAt(new Date().toUTCString().slice(17, 25) + ' UTC');
-      if (Object.keys(live).length === 0) setError('NOAA: no data for these airports');
+
     } catch(e) { setError(e.message); }
     setLoading(false);
   };
