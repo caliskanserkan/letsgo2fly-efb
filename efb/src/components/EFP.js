@@ -241,7 +241,9 @@ async function fetchLiveWx(icaoList) {
   // METAR
   try {
     const mResp = await fetch(`https://corsproxy.io/?https://aviationweather.gov/api/data/metar?ids=${ids}&format=raw&hours=3&taf=false`);
+    if (!mResp.ok) throw new Error(`METAR HTTP ${mResp.status}`);
     const mText = await mResp.text();
+    console.log('[WXR] METAR raw:', mText.slice(0, 200));
     mText.trim().split('\n').filter(Boolean).forEach(line => {
       const l    = line.trim();
       const icao = l.split(' ')[0];
@@ -256,7 +258,9 @@ async function fetchLiveWx(icaoList) {
   // TAF
   try {
     const tResp = await fetch(`https://corsproxy.io/?https://aviationweather.gov/api/data/taf?ids=${ids}&format=raw`);
+    if (!tResp.ok) throw new Error(`TAF HTTP ${tResp.status}`);
     const tText = await tResp.text();
+    console.log('[WXR] TAF raw:', tText.slice(0, 200));
     let cur = null;
     tText.trim().split('\n').filter(Boolean).forEach(line => {
       const l = line.trim();
@@ -319,9 +323,9 @@ function WXRView({ activePlan, rawText }) {
     setLoading(true); setError('');
     try {
       const live = await fetchLiveWx(wxAirports.map(a => a.icao));
-      if (Object.keys(live).length === 0) throw new Error('No data returned from NOAA');
       setLiveWxMap(live);
       setLiveAt(new Date().toUTCString().slice(17, 25) + ' UTC');
+      if (Object.keys(live).length === 0) setError('NOAA: no data for these airports');
     } catch(e) { setError(e.message); }
     setLoading(false);
   };
