@@ -234,84 +234,752 @@ function Login({ onLogin }) {
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
 
-  const [step, setStep] = useState("credentials");
-  const [otp, setOtp] = useState("");
-
   const handleLogin = async () => {
-    setLoading(true); setError("");
+    setLoading(true);
+    setError('');
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password: pass });
-    if (authError) { setError("Invalid email or password."); setLoading(false); return; }
-    const { error: otpError } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
-    if (otpError) { setError("Could not send OTP."); setLoading(false); return; }
-    setStep("otp"); setLoading(false);
-  };
-
-  const handleOtp = async () => {
-    setLoading(true); setError("");
-    const { error: verifyError } = await supabase.auth.verifyOtp({ email, token: otp, type: "email" });
-    if (verifyError) { setError("Invalid or expired code."); setLoading(false); return; }
-    onLogin(); setLoading(false);
+    if (authError) setError('Invalid email or password.');
+    else onLogin();
+    setLoading(false);
   };
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'#0f172a' }}>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
       <div style={{ textAlign:'center', marginBottom:36 }}>
-        <div style={{ fontSize:11, fontWeight:700, color:'#38bdf8', letterSpacing:3, textTransform:'uppercase', marginBottom:6 }}>GO2 Aviation</div>
-        <div style={{ fontSize:32, fontWeight:700, color:'#f1f5f9' }}>eFB</div>
-        <div style={{ fontSize:12, color:'#475569', marginTop:4 }}>Electronic Flight Bag</div>
+        <div style={{ fontSize:11, fontWeight:700, color:'var(--accent)', letterSpacing:3, textTransform:'uppercase', marginBottom:6 }}>GO2 Aviation</div>
+        <div style={{ fontSize:32, fontWeight:700, color:'var(--t1)' }}>eFB</div>
+        <div style={{ fontSize:12, color:'var(--t3)', marginTop:4 }}>Electronic Flight Bag</div>
       </div>
-      <div style={{ width:320, background:'#1e293b', border:'1px solid #334155', borderRadius:14, overflow:'hidden' }}>
-        <div style={{ background:'#1e293b', borderBottom:'1px solid #334155', padding:'12px 18px', fontSize:10, color:'#475569', fontWeight:700, letterSpacing:1, textTransform:'uppercase' }}>
-          {step === 'credentials' ? 'Pilot Login' : '🔐 Verification Code'}
+      <div style={{ width:300, background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+        <div style={{ background:'#1f1f1f', borderBottom:'1px solid var(--border)', padding:'10px 18px', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:1, textTransform:'uppercase' }}>Pilot Login</div>
+        <div style={{ padding:'12px 18px', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+          <label style={{ display:'block', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Email</label>
+          <input value={email} onChange={e => setEmail(e.target.value)} placeholder="pilot@company.com"
+            style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none' }} />
         </div>
-
-        {step === 'credentials' && (
-          <>
-            <div style={{ padding:'12px 18px', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
-              <label style={{ display:'block', fontSize:10, color:'#475569', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Email</label>
-              <input value={email} onChange={e => setEmail(e.target.value)} placeholder="pilot@company.com"
-                style={{ width:'100%', background:'#0f172a', border:'1px solid #334155', borderRadius:6, padding:'9px 11px', fontSize:14, color:'#f1f5f9', fontFamily:'inherit', outline:'none' }} />
-            </div>
-            <div style={{ padding:'12px 18px' }}>
-              <label style={{ display:'block', fontSize:10, color:'#475569', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Password</label>
-              <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                style={{ width:'100%', background:'#0f172a', border:'1px solid #334155', borderRadius:6, padding:'9px 11px', fontSize:14, color:'#f1f5f9', fontFamily:'inherit', outline:'none' }} />
-            </div>
-            {error && <div style={{ margin:'0 18px', padding:'8px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>{error}</div>}
-            <button onClick={handleLogin} disabled={loading}
-              style={{ width:'calc(100% - 36px)', margin:'14px 18px', background:loading?'#333':'#38bdf8', border:'none', borderRadius:8, padding:12, fontSize:14, fontWeight:700, color:'#fff', cursor:loading?'default':'pointer', fontFamily:'inherit' }}>
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
-          </>
-        )}
-
-        {step === 'otp' && (
-          <>
-            <div style={{ padding:'16px 18px', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
-              <div style={{ fontSize:12, color:'#94a3b8', marginBottom:14, lineHeight:1.6 }}>
-                A 6-digit code has been sent to<br/>
-                <span style={{ color:'#38bdf8', fontWeight:600 }}>{email}</span>
-              </div>
-              <label style={{ display:'block', fontSize:10, color:'#475569', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Verification Code</label>
-              <input value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g,'').slice(0,6))}
-                onKeyDown={e => e.key === 'Enter' && handleOtp()}
-                placeholder="000000" maxLength={6}
-                style={{ width:'100%', background:'#0f172a', border:'1.5px solid #38bdf8', borderRadius:8, padding:'12px', fontSize:24, fontWeight:700, color:'#38bdf8', fontFamily:'monospace', outline:'none', textAlign:'center', letterSpacing:8 }} />
-            </div>
-            {error && <div style={{ margin:'0 18px', padding:'8px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>{error}</div>}
-            <button onClick={handleOtp} disabled={loading || otp.length !== 6}
-              style={{ width:'calc(100% - 36px)', margin:'14px 18px', background:loading||otp.length!==6?'#1e293b':'#4ade80', border:otp.length===6?'none':'1px solid #334155', borderRadius:8, padding:12, fontSize:14, fontWeight:700, color:otp.length===6?'#0f172a':'#475569', cursor:otp.length===6?'pointer':'not-allowed', fontFamily:'inherit' }}>
-              {loading ? 'Verifying...' : 'Verify & Sign In'}
-            </button>
-            <div style={{ padding:'0 18px 14px', textAlign:'center' }}>
-              <span onClick={() => { setStep('credentials'); setOtp(''); setError(''); }} style={{ fontSize:11, color:'#475569', cursor:'pointer', textDecoration:'underline' }}>
-                ← Back
-              </span>
-            </div>
-          </>
-        )}
+        <div style={{ padding:'12px 18px' }}>
+          <label style={{ display:'block', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Password</label>
+          <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none' }} />
+        </div>
+        {error && <div style={{ margin:'0 18px', padding:'8px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>{error}</div>}
+        <button onClick={handleLogin} disabled={loading}
+          style={{ width:'calc(100% - 36px)', margin:'14px 18px', background: loading ? '#333' : 'var(--accent)', border:'none', borderRadius:7, padding:12, fontSize:14, fontWeight:700, color:'#fff', cursor: loading ? 'default' : 'pointer', fontFamily:'inherit' }}>
+          {loading ? 'Signing in...' : 'Sign In'}
+        </button>
       </div>
       <div style={{ marginTop:20, fontSize:10, color:'#333' }}>GO2 Aviation · For internal use only</div>
     </div>
   );
 }
+
+// ─── PlanCard ─────────────────────────────────────────────────────────────────
+function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate }) {
+  return (
+    <div style={{ background: archived ? '#1e1e1e' : active ? 'rgba(26,155,196,0.05)' : 'var(--bg3)', border:`1px solid ${archived ? '#2a2a2a' : active ? 'var(--accent)' : 'var(--border)'}`, borderRadius:10, overflow:'hidden', marginBottom:8, opacity: archived ? 0.85 : 1 }}>
+      <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', gap:12, borderBottom:'1px solid var(--border)' }}>
+        <div style={{ flex:1 }}>
+          <div style={{ fontSize:16, fontWeight:700, color:'var(--t1)', fontFamily:'monospace', letterSpacing:1 }}>
+            {plan.dep} <span style={{ color: archived ? '#555' : 'var(--accent)' }}>→</span> {plan.dest}
+          </div>
+          <div style={{ fontSize:11, color:'var(--t3)', marginTop:2 }}>{plan.date} · STD {plan.std} Z · {plan.ac} / {plan.reg}</div>
+        </div>
+        <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:4, letterSpacing:0.5,
+          background: archived ? 'rgba(100,100,100,0.15)' : active ? 'rgba(26,155,196,0.15)' : 'rgba(45,158,95,0.15)',
+          color: archived ? '#666' : active ? 'var(--accent)' : 'var(--green)' }}>
+          {archived ? 'ARCHIVED' : active ? 'IN PROGRESS' : 'AVAILABLE'}
+        </span>
+      </div>
+      <div style={{ padding:'9px 14px', display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+        <div style={{ fontSize:11, color:'var(--t3)' }}>ETD <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.std}</b></div>
+        <div style={{ fontSize:11, color:'var(--t3)' }}>ETA <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.eta}</b></div>
+        <div style={{ fontSize:11, color:'var(--t3)' }}>FOB <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.fob}</b></div>
+        {!active && !archived && onDelete && (
+          <button onClick={onDelete} style={{ background:'transparent', border:'1px solid #e02020', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#e02020', cursor:'pointer', fontFamily:'inherit' }}>
+            ✕ Delete
+          </button>
+        )}
+        {active && onDeactivate && (
+          <button onClick={onDeactivate} style={{ background:'transparent', border:'1px solid #ff9500', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#ff9500', cursor:'pointer', fontFamily:'inherit' }}>
+            ↩ Deactivate
+          </button>
+        )}
+        {!archived && (
+          <button onClick={onOpen} style={{ marginLeft:'auto', background: active ? 'rgba(26,155,196,0.12)' : 'var(--accent)', border: active ? '1px solid var(--accent)' : 'none', borderRadius:6, padding:'5px 13px', fontSize:11, fontWeight:700, color: active ? 'var(--accent)' : '#fff', cursor:'pointer', fontFamily:'inherit' }}>
+            {active ? 'Open →' : '+ Activate'}
+          </button>
+        )}
+        {archived && (
+          <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:10, color:'#555', fontWeight:700 }}>🔒 Read Only</span>
+            <button onClick={onOpen} style={{ background:'rgba(100,100,100,0.15)', border:'1px solid #555', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#888', cursor:'pointer', fontFamily:'inherit' }}>
+              View →
+            </button>
+          </div>
+        )}
+        {plan.archived_at && archived && (
+          <div style={{ fontSize:10, color:'#555', width:'100%', marginTop:4 }}>
+            Archived: {new Date(plan.archived_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Upload Modal ─────────────────────────────────────────────────────────────
+function UploadPlanModal({ onClose, onUploaded }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState('');
+  const [success, setSuccess] = useState('');
+  const inputRef              = useRef(null);
+
+  const handleFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      const pdfText = await extractPdfText(file);
+      const sectors = parseAllSectors(pdfText);
+
+      if (sectors.length === 0) throw new Error('No flight sectors found in PDF.');
+
+      const results = [];
+
+      for (let i = 0; i < sectors.length; i++) {
+        const sector = sectors[i];
+
+        const baseDispatch = parseDispatchNo(pdfText)
+          || parseDispatchNo(file.name)
+          || `${sector.reg || 'MANUAL'}-${(sector.date || '').replace(/\s/g, '')}`;
+        const dispatchNo = sectors.length > 1 ? `${baseDispatch}-S${i + 1}` : baseDispatch;
+
+        const { data: existing } = await supabase.from('plans').select('id')
+          .eq('dep',  sector.dep)
+          .eq('dest', sector.dest)
+          .eq('std',  sector.std)
+          .eq('date', sector.date)
+          .maybeSingle();
+
+        if (!existing) {
+          const { data: plan, error: insertError } = await supabase.from('plans').insert({
+            dispatch_no:    dispatchNo,
+            subject:        file.name,
+            dep:            sector.dep,
+            dest:           sector.dest,
+            date:           sector.date,
+            std:            sector.std,
+            eta:            sector.eta,
+            ete:            sector.ete,
+            fob:            sector.fob,
+            ac_type:        sector.ac_type,
+            reg:            sector.reg,
+            route:          sector.route,
+            operator:       sector.operator,
+            callsign:       sector.callsign,
+            alternate:      sector.alternate,
+            trip_fuel:      sector.trip_fuel,
+            alternate_fuel: sector.alternate_fuel,
+            reserve_fuel:   sector.reserve_fuel,
+            tow:            sector.tow,
+            zfw:            sector.zfw,
+            pax:            sector.pax,
+            cruise_fl:      sector.cruise_fl,
+            log_nr:         sector.log_nr,
+            status:         'available',
+          }).select().single();
+
+          if (insertError) throw insertError;
+
+          await supabase.from('plan_versions').insert({
+            plan_id:     plan.id,
+            dispatch_no: dispatchNo,
+            version_no:  1,
+            raw_text:    pdfText,
+          });
+
+          logEvent(plan.id, 'PLAN_RELEASED', {
+            dispatch_no: dispatchNo,
+            dep: sector.dep,
+            dest: sector.dest,
+            filename: file.name,
+          });
+
+          if (sector.ac_type) {
+            const { data: profiles } = await supabase
+              .from('profiles')
+              .select('customer_id')
+              .eq('aircraft_type', sector.ac_type)
+              .not('customer_id', 'is', null)
+              .limit(1);
+            if (profiles?.[0]?.customer_id) {
+              await supabase.from('plans').update({ customer_id: profiles[0].customer_id }).eq('id', plan.id);
+            }
+          }
+
+          results.push(`${sector.dep} → ${sector.dest}`);
+        } else {
+          const { count } = await supabase.from('plan_versions').select('*', { count: 'exact' }).eq('plan_id', existing.id);
+          await supabase.from('plan_versions').insert({
+            plan_id:     existing.id,
+            dispatch_no: dispatchNo,
+            version_no:  (count || 0) + 1,
+            raw_text:    pdfText,
+          });
+          results.push(`${sector.dep} → ${sector.dest} (updated v${(count || 0) + 1})`);
+        }
+      }
+
+      setSuccess(`${results.length} sector(s): ${results.join(', ')}`);
+      onUploaded();
+    } catch (err) { setError('Upload failed: ' + err.message); }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }}>
+      <div style={{ background:'#252525', border:'1px solid #383838', borderRadius:12, width:340, overflow:'hidden' }}>
+        <div style={{ background:'#1f1f1f', padding:'10px 16px', borderBottom:'1px solid #383838', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <span style={{ fontSize:12, fontWeight:700, color:'#1a9bc4' }}>Upload Flight Plan (PDF)</span>
+          <span onClick={onClose} style={{ color:'#555', cursor:'pointer', fontSize:20, lineHeight:1 }}>×</span>
+        </div>
+        <div style={{ padding:'20px 16px' }}>
+          {!success && (
+            <div onClick={() => inputRef.current.click()} style={{ border:'2px dashed #383838', borderRadius:10, padding:'32px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:12, cursor:'pointer' }}>
+              <div style={{ fontSize:36 }}>📄</div>
+              <div style={{ fontSize:13, color:'#555', textAlign:'center' }}>Tap to select PDF<br /><span style={{ fontSize:11, color:'#444' }}>Flight Briefing Package</span></div>
+            </div>
+          )}
+          <input ref={inputRef} type="file" accept=".pdf" onChange={handleFile} style={{ display:'none' }} />
+          {loading && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(26,155,196,0.08)', borderLeft:'3px solid #1a9bc4', fontSize:11, color:'#7bbdd4' }}>⏳ Reading PDF...</div>}
+          {error   && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(224,32,32,0.08)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>⚠ {error}</div>}
+          {success && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(45,158,95,0.08)', borderLeft:'3px solid #2d9e5f', fontSize:11, color:'#6db890' }}>✓ {success}</div>}
+        </div>
+        <div style={{ padding:'0 16px 16px' }}>
+          <button onClick={onClose} style={{ width:'100%', background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>
+            {success ? 'Close' : 'Cancel'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── WX parser (from raw_text) ────────────────────────────────────────────────
+function parseWxFromRawText(rawText, dep, dest, alt) {
+  const wxIdx = rawText.search(/WX for flight|WX search performed/i);
+  const wxEndIdx = rawText.search(/End of WX information/i);
+  const wxBlock = wxIdx !== -1
+    ? rawText.slice(wxIdx, wxEndIdx !== -1 ? wxEndIdx + 25 : wxIdx + 12000)
+    : rawText;
+
+  const parseIcaoWx = (icao) => {
+    const pat = new RegExp(
+      `(?:Departure|Destination|Alternate)\\s+airport\\s+${icao}\\s*[^\\n]*\\n([\\s\\S]*?)` +
+      `(?=(?:Departure|Destination|Alternate|Adequate)\\s+airport\\s+[A-Z]{4}|WX messages|SIGMET|End of WX|Page \\d+ of \\d+|$)`,
+      'i'
+    );
+    const sec = wxBlock.match(pat)?.[1] || '';
+    const metars = [], tafs = [];
+    let inTaf = false;
+    for (const line of sec.split('\n')) {
+      const l = line.trim();
+      if (!l) { inTaf = false; continue; }
+      if (/^(?:METAR|SPECI)\s+\d{6}Z/.test(l) || /^[A-Z]{4}\s+\d{6}Z/.test(l)) {
+        metars.push(l); inTaf = false;
+      } else if (/^TAF\b/.test(l)) {
+        tafs.push(l); inTaf = true;
+      } else if (inTaf && !/^(?:Departure|Destination|Alternate|Adequate|WX|End|Page)\b/.test(l)) {
+        if (tafs.length) tafs[tafs.length-1] += ' ' + l;
+      }
+    }
+    return {
+      metar: metars.length ? metars : ['No METAR in plan data'],
+      taf:   tafs.length   ? tafs   : ['No TAF in plan data'],
+    };
+  };
+
+  const depData  = parseIcaoWx(dep);
+  const destData = parseIcaoWx(dest);
+  const altData  = parseIcaoWx(alt);
+
+  const hasData = [depData, destData, altData].some(
+    d => d.metar[0] !== 'No METAR in plan data' || d.taf[0] !== 'No TAF in plan data'
+  );
+  if (!hasData) return null;
+
+  const sigmetIdx = rawText.search(/SIGMET\(s\) for/i);
+  const sigmetEnd = rawText.search(/End of WX information/i);
+  const sigmet = sigmetIdx !== -1
+    ? rawText.slice(sigmetIdx, sigmetEnd !== -1 ? sigmetEnd : sigmetIdx + 500).trim()
+    : '';
+  const searchLine = rawText.match(/WX search performed ([^\n]+)/i)?.[1]?.trim() || 'From plan briefing';
+
+  return {
+    dep:  { name:`${dep} — Departure`,    ...depData  },
+    dest: { name:`${dest} — Destination`, ...destData },
+    alt:  { name:`${alt} — Alternate`,    ...altData  },
+    sigmet,
+    updatedAt: searchLine,
+  };
+}
+
+// ─── WXR Chart parser (from raw_text) ─────────────────────────────────────────
+function parseWxrChartsFromRawText(rawText) {
+  const charts = [];
+  const windRe = /WIND\/TEMPERATURE\s*\n\s*(FL \d+)\s*\n\s*PROGNOSTIC CHART\s*\n\s*(\S+ - \S+)\s*\n\s*VALID\s+([^\n]+)\s*\n\s*BASED ON ([^\n]+)\s*\n\s*(\d{2} UTC[^\n]+)/g;
+  let m;
+  while ((m = windRe.exec(rawText)) !== null) {
+    charts.push({ type:'wind', fl:m[1], route:m[2], valid:m[3].trim(), based:m[4].trim() });
+  }
+  const vcsMatch = rawText.match(/VERTICAL CROSS SECTION ALONG THE ROUTE ([^\n]+)\nWIND, TEMPERATURE,TROPOPAUSE[^\n]*\n([^\n]+)\nBased on ([^\n]+)\n([^\n]+)\n([^\n]+)/);
+  if (vcsMatch) {
+    charts.push({ type:'vcs', route:vcsMatch[1].trim(), subtitle:vcsMatch[2].trim(), based:vcsMatch[3].trim(), valid:`DEP: ${vcsMatch[4].trim()} ARR: ${vcsMatch[5]?.trim()}` });
+  }
+  const sigwxMatch = rawText.match(/SIGNIFICANT WEATHER\s*\nFIXED TIME PROGNOSTIC CHART\s*\nROUTE ([^\n]+)\s*\n([^\n]+)\s*\nVALID\s+([^\n]+)\s*\nBASED ON ([^\n]+)/);
+  if (sigwxMatch) {
+    const cbMatch    = rawText.match(/CB CLOUD AREAS([\s\S]*?)ICING AREAS/);
+    const icingMatch = rawText.match(/ICING AREAS([\s\S]*?)TURBULENCE AREAS/);
+    const turbMatch  = rawText.match(/TURBULENCE AREAS([\s\S]*?)VOLCANIC/);
+    charts.push({
+      type: 'sigwx',
+      route: sigwxMatch[1].trim(),
+      level: sigwxMatch[2].trim(),
+      valid: sigwxMatch[3].trim(),
+      based: sigwxMatch[4].trim(),
+      cb:    cbMatch?.[1]?.trim()    || '',
+      icing: icingMatch?.[1]?.trim() || '',
+      turb:  turbMatch?.[1]?.trim()  || '',
+    });
+  }
+  return charts;
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate, onDeactivate }) {
+  const [tab, setTab]                       = useState('active');
+  const [availablePlans, setAvailablePlans] = useState([]);
+  const [activePlans, setActivePlans]       = useState([]);
+  const [archivedPlans, setArchivedPlans]   = useState([]);
+  const [showUpload, setShowUpload]         = useState(false);
+  const [loading, setLoading]               = useState(false);
+
+  const loadPlans = async () => {
+    setLoading(true);
+    try {
+      const [avail, active, archived] = await Promise.all([
+        supabase.from('plans').select('*').eq('status', 'available').order('created_at', { ascending: false }),
+        supabase.from('plans').select('*').eq('status', 'active').order('created_at', { ascending: false }),
+        supabase.from('plans').select('*').eq('status', 'archived').order('archived_at', { ascending: false, nullsFirst: false }).limit(100),
+      ]);
+      setAvailablePlans(avail.data || []);
+      setActivePlans(active.data || []);
+      setArchivedPlans(archived.data || []);
+    } catch {}
+    setLoading(false);
+  };
+
+  const deletePlan = async (planId) => {
+    try {
+      await supabase.from('plan_versions').delete().eq('plan_id', planId);
+      await supabase.from('plans').delete().eq('id', planId);
+    } catch {}
+    loadPlans();
+  };
+
+  const activatePlan = async (planId) => {
+    try {
+      await supabase.from('plans').update({ status: 'available' }).eq('status', 'active');
+      const { data: plan } = await supabase.from('plans')
+        .update({ status: 'active' })
+        .eq('id', planId)
+        .select()
+        .single();
+
+      if (plan) {
+        try {
+          const { data: version } = await supabase
+            .from('plan_versions')
+            .select('raw_text')
+            .eq('plan_id', planId)
+            .order('version_no', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (version?.raw_text) {
+            const raw = version.raw_text;
+            try { localStorage.setItem(LS.RAWTEXT, raw); } catch {}
+
+            const routeKey = `${plan.dep}-${plan.dest}`;
+            const blockMatch = raw.match(
+              new RegExp(`FMS IDENT=\\S+\\s+Log Nr\\.?:?\\s*\\d+\\s+Page\\s+1\\s+${routeKey}\\s+[A-Z0-9]+([\\s\\S]*?)(?=FMS IDENT=|$)`)
+            );
+            const block = blockMatch?.[1] || '';
+            plan.trip_fuel      = block.match(/\bTRIP\s+([\d]+)/)?.[1]          || plan.trip_fuel      || '';
+            plan.alternate_fuel = block.match(/\bALTERNATE\s+([\d]+)/)?.[1]     || plan.alternate_fuel || '';
+            plan.reserve_fuel   = block.match(/\bFINAL RESERVE\s+([\d]+)/)?.[1] || plan.reserve_fuel   || '';
+            plan.total_fob      = block.match(/\bTOTAL FOB\s+([\d]+)/)?.[1]     || '';
+            plan.fob            = plan.total_fob ? `${parseInt(plan.total_fob).toLocaleString()} lb` : plan.fob || '';
+            plan.tow            = block.match(/\bTOW\s+([\d]+)\s*Lbs/i)?.[1]    || plan.tow || '';
+            plan.zfw            = block.match(/\bZFW\s+([\d]+)\s*Lbs/i)?.[1]    || plan.zfw || '';
+
+            const dep  = plan.dep       || 'LTAC';
+            const dest = plan.dest      || 'LTBA';
+            const alt  = plan.alternate || 'LTFM';
+            const wxFromPdf = parseWxFromRawText(raw, dep, dest, alt);
+            if (wxFromPdf) {
+              lsSet('efb_wxr_data',      wxFromPdf);
+              lsSet('efb_wxr_updatedAt', `Plan briefing · ${wxFromPdf.updatedAt}`);
+            }
+            const charts = parseWxrChartsFromRawText(raw);
+            lsSet('efb_wxr_charts', charts);
+          }
+        } catch {}
+        onActivate(plan);
+        logEvent(plan.id, "PLAN_ACTIVATED", {
+          dep: plan.dep,
+          dest: plan.dest,
+          reg: plan.reg,
+          dispatch_no: plan.dispatch_no,
+          activated_at: new Date().toISOString(),
+        });
+        logEvent(plan.id, "PLAN_DOWNLOADED", {
+          dep: plan.dep,
+          dest: plan.dest,
+          dispatch_no: plan.dispatch_no,
+        });
+      }
+    } catch {}
+    loadPlans();
+    setTab('active');
+  };
+
+  const deactivatePlan = async (planId) => {
+    try {
+      await supabase.from('plans').update({ status: 'available' }).eq('id', planId);
+    } catch {}
+    onDeactivate();
+    loadPlans();
+    setTab('available');
+  };
+
+  const planCard = (p) => ({
+    dep: p.dep || '—', dest: p.dest || '—', date: p.date || '—',
+    std: p.std || '—', eta: p.eta || '—',
+    ac:  p.ac_type || p.ac || 'GLF4',
+    reg: p.reg || 'TC-REC', fob: p.fob || '—',
+    archived_at: p.archived_at,
+  });
+
+  useEffect(() => { loadPlans(); }, []);
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:'var(--bg)' }}>
+      <div style={{ background:'#1a1a1a', borderBottom:'1px solid var(--border)', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <span style={{ fontSize:13, fontWeight:700, color:'var(--accent)', letterSpacing:1 }}>GO2 eFB</span>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <span style={{ fontSize:11, color:'var(--t3)' }}>{user?.email || ''}</span>
+          <button onClick={onAdmin} style={{ background:'transparent', border:'1px solid #1a9bc4', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#1a9bc4', cursor:'pointer', fontFamily:'inherit' }}>Admin</button>
+          <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #383838', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>Logout</button>
+        </div>
+      </div>
+
+      <div style={{ display:'flex', background:'#1e1e1e', borderBottom:'1px solid var(--border)' }}>
+        {[
+          { id:'available', label:'Available' },
+          { id:'active',    label:'Active'    },
+          { id:'archive',   label:'Archive'   },
+        ].map(t => (
+          <div key={t.id} onClick={() => setTab(t.id)} style={{ flex:1, padding:11, textAlign:'center', fontSize:12, fontWeight:600, cursor:'pointer', color: tab===t.id ? 'var(--accent)' : 'var(--t3)', borderBottom: tab===t.id ? '2px solid var(--accent)' : '2px solid transparent' }}>
+            {t.label}
+            {t.id === 'active' && activePlans.length > 0 && (
+              <span style={{ marginLeft:6, background:'#1a9bc4', color:'#fff', borderRadius:8, padding:'1px 6px', fontSize:9, fontWeight:700 }}>{activePlans.length}</span>
+            )}
+            {t.id === 'archive' && archivedPlans.length > 0 && (
+              <span style={{ marginLeft:6, background:'#555', color:'#fff', borderRadius:8, padding:'1px 6px', fontSize:9, fontWeight:700 }}>{archivedPlans.length}</span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ flex:1, overflowY:'auto', padding:10 }}>
+        {tab === 'available' && (
+          <>
+            <button onClick={() => setShowUpload(true)} style={{ width:'100%', background:'rgba(26,155,196,0.08)', border:'1px dashed #1a9bc4', borderRadius:8, padding:'11px 14px', fontSize:12, fontWeight:700, color:'#1a9bc4', cursor:'pointer', fontFamily:'inherit', marginBottom:10, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+              📄 Upload Flight Plan PDF
+            </button>
+            {loading && <div style={{ textAlign:'center', color:'#555', fontSize:12, padding:20 }}>Loading plans...</div>}
+            {!loading && availablePlans.length === 0 && (
+              <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No available plans.<br />Upload a PDF to get started.</div>
+            )}
+            {availablePlans.map((p, i) => (
+              <PlanCard key={i} plan={planCard(p)} active={false} archived={false}
+                onOpen={() => activatePlan(p.id)}
+                onDelete={() => deletePlan(p.id)}
+              />
+            ))}
+          </>
+        )}
+        {tab === 'active' && (
+          <>
+            {loading && <div style={{ textAlign:'center', color:'#555', fontSize:12, padding:20 }}>Loading...</div>}
+            {!loading && activePlans.length === 0 && (
+              <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No active plans.<br />Activate a plan from Available Plans.</div>
+            )}
+            {activePlans.map((p, i) => (
+              <PlanCard key={i} plan={planCard(p)} active={true} archived={false}
+                onOpen={onOpen}
+                onDeactivate={() => deactivatePlan(p.id)}
+              />
+            ))}
+          </>
+        )}
+        {tab === 'archive' && (
+          <>
+            <div style={{ padding:'8px 4px 10px', fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>Archived Plans · Read Only</div>
+            {loading && <div style={{ textAlign:'center', color:'#555', fontSize:12, padding:20 }}>Loading...</div>}
+            {!loading && archivedPlans.length === 0 && (
+              <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No archived flights.</div>
+            )}
+            {archivedPlans.map((p, i) => (
+              <PlanCard key={i} plan={planCard(p)} active={false} archived={true}
+                onOpen={async () => {
+                  try {
+                    const { data: version } = await supabase
+                      .from('plan_versions')
+                      .select('raw_text')
+                      .eq('plan_id', p.id)
+                      .order('version_no', { ascending: false })
+                      .limit(1)
+                      .single();
+                    if (version?.raw_text) {
+                      try { localStorage.setItem('efb_rawText', version.raw_text); } catch {}
+                    }
+                  } catch {}
+                  onOpenArchived({ ...p, readOnly: true });
+                }}
+              />
+            ))}
+          </>
+        )}
+      </div>
+
+      {showUpload && <UploadPlanModal onClose={() => setShowUpload(false)} onUploaded={loadPlans} />}
+    </div>
+  );
+}
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+function App() {
+  const [page, setPage]                   = useState('loading');
+  const [user, setUser]                   = useState(null);
+  const [showAdminAuth, setShowAdminAuth] = useState(false);
+  const [adminPin, setAdminPin]           = useState('');
+  const [adminPinError, setAdminPinError] = useState('');
+  const [offlineSince, setOfflineSince]   = useState(null);
+
+  useEffect(() => {
+    applyFont(parseInt(localStorage.getItem(FONT_KEY) || FONT_DEF));
+  }, []);
+
+  useEffect(() => {
+    const handleOffline = () => setOfflineSince(Date.now());
+    const handleOnline  = () => setOfflineSince(null);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online',  handleOnline);
+    if (!navigator.onLine) setOfflineSince(Date.now());
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online',  handleOnline);
+    };
+  }, []);
+
+  const [activePage, setActivePage] = useState(() => lsGet(LS.PAGE, 'flt-crew'));
+  const [activePlan, setActivePlan] = useState(() => lsGet(LS.PLAN, null));
+  const [flightData, setFlightData] = useState(() => lsGet(LS.FLIGHT, DEFAULT_FLIGHT_DATA));
+  const [pageStatus, setPageStatus] = useState(() => lsGet(LS.STATUS, DEFAULT_PAGE_STATUS));
+  const [divertData, setDivertData] = useState(() => lsGet(LS.DIVERT, DEFAULT_DIVERT_DATA));
+
+  const [rawText, setRawText] = useState(() => {
+    try {
+      const v = localStorage.getItem('efb_rawText');
+      if (!v) return '';
+      try { const p = JSON.parse(v); if (typeof p === 'string') return p; } catch {}
+      return v;
+    } catch { return ''; }
+  });
+
+  useEffect(() => {
+    if (!activePlan?.id) return;
+    supabase
+      .from('plan_versions')
+      .select('raw_text')
+      .eq('plan_id', activePlan.id)
+      .order('version_no', { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (data?.raw_text) {
+          setRawText(data.raw_text);
+          try { localStorage.setItem('efb_rawText', data.raw_text); } catch {}
+        }
+      })
+      .catch(() => {});
+  }, [activePlan?.id]); // eslint-disable-line
+
+  useEffect(() => { lsSet(LS.PLAN,   activePlan);  }, [activePlan]);
+  useEffect(() => { lsSet(LS.PAGE,   activePage);  }, [activePage]);
+  useEffect(() => { lsSet(LS.FLIGHT, flightData);  }, [flightData]);
+  useEffect(() => { lsSet(LS.STATUS, pageStatus);  }, [pageStatus]);
+  useEffect(() => { lsSet(LS.DIVERT, divertData);  }, [divertData]);
+
+  const updateFlight = useCallback((key, value) => setFlightData(prev => ({ ...prev, [key]: value })), []);
+  const setStatus    = useCallback((pageId, status) => setPageStatus(prev => ({ ...prev, [pageId]: status })), []);
+  const updateDivert = useCallback((key, value) => setDivertData(prev => ({ ...prev, [key]: value })), []);
+
+  const clearFlightSession = () => {
+    lsClear();
+    setActivePlan(null);
+    setActivePage('flt-crew');
+    setFlightData(DEFAULT_FLIGHT_DATA);
+    setPageStatus(DEFAULT_PAGE_STATUS);
+    setDivertData(DEFAULT_DIVERT_DATA);
+  };
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setUser(session.user);
+        setPage('dashboard');
+      } else {
+        setPage('login');
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) { setUser(session.user); }
+      else { setUser(null); setPage('login'); }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => { await supabase.auth.signOut(); };
+
+  const handleAdminAuth = async () => {
+    try {
+      const { data } = await supabase.from('system_settings').select('admin_password').single();
+      if (data?.admin_password === adminPin) {
+        setShowAdminAuth(false); setAdminPin(''); setAdminPinError('');
+        setPage('admin');
+      } else {
+        setAdminPinError('Incorrect password.');
+      }
+    } catch {
+      setAdminPinError('Could not verify. Check connection.');
+    }
+  };
+
+  const navigate = (target) => {
+    if (target === 'dashboard') { setPage('dashboard'); }
+    else { setActivePage(target); setPage('operational'); }
+  };
+
+  const setStatusFltCrew   = useCallback((s) => setStatus('flt-crew',  s), [setStatus]);
+  const setStatusMandatory = useCallback((s) => setStatus('mandatory', s), [setStatus]);
+  const setStatusEfp       = useCallback((s) => setStatus('efp',       s), [setStatus]);
+  const setStatusFuel      = useCallback((s) => setStatus('fuel',      s), [setStatus]);
+  const setStatusAccept    = useCallback((s) => setStatus('accept',    s), [setStatus]);
+  const setStatusTakeoff   = useCallback((s) => setStatus('takeoff',   s), [setStatus]);
+  const setStatusNavlog    = useCallback((s) => setStatus('navlog',    s), [setStatus]);
+  const setStatusLanding   = useCallback((s) => setStatus('landing',   s), [setStatus]);
+  const setStatusEndflt    = useCallback((s) => setStatus('endflt',    s), [setStatus]);
+  const setStatusDocupload = useCallback((s) => setStatus('docupload', s), [setStatus]);
+  const setStatusRass      = useCallback((s) => setStatus('rass',      s), [setStatus]);
+
+  const layoutTitle = activePlan
+    ? `${activePlan.reg || 'GO2'} · ${activePlan.dep || '—'}-${activePlan.dest || '—'} · ${activePlan.date || ''} ${activePlan.std || ''} Z`
+    : 'GO2 eFB';
+
+  if (page === 'loading') return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
+      <div style={{ fontSize:13, color:'#555' }}>Loading...</div>
+    </div>
+  );
+
+  if (page === 'login') return <Login onLogin={() => setPage('dashboard')} />;
+  if (page === 'admin') return <AdminPanel onBack={() => setPage('dashboard')} />;
+
+  if (showAdminAuth) return (
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
+      <div style={{ width:300, background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+        <div style={{ background:'#1f1f1f', borderBottom:'1px solid var(--border)', padding:'10px 18px', fontSize:10, color:'#e8a020', fontWeight:700, letterSpacing:2 }}>ADMIN ACCESS</div>
+        <div style={{ padding:'20px 18px' }}>
+          <label style={{ display:'block', fontSize:10, color:'#ffffff', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Admin Password</label>
+          <input type="password" value={adminPin} onChange={e => { setAdminPin(e.target.value); setAdminPinError(''); }}
+            onKeyDown={e => e.key === 'Enter' && handleAdminAuth()} placeholder="Enter password"
+            style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} />
+          {adminPinError && (
+            <div style={{ marginTop:8, padding:'7px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>{adminPinError}</div>
+          )}
+        </div>
+        <div style={{ padding:'0 18px 18px', display:'flex', gap:8 }}>
+          <button onClick={() => { setShowAdminAuth(false); setAdminPin(''); setAdminPinError(''); }}
+            style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
+          <button onClick={handleAdminAuth}
+            style={{ flex:1, background:'#e8a020', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#000', cursor:'pointer', fontFamily:'inherit' }}>Enter</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (page === 'dashboard') return (
+    <Dashboard
+      onOpen={() => navigate('flt-crew')}
+      onOpenArchived={(plan) => {
+        setActivePlan(plan);
+        navigate('flt-crew');
+      }}
+      user={user}
+      onLogout={handleLogout}
+      onAdmin={() => { setAdminPin(''); setAdminPinError(''); setShowAdminAuth(true); }}
+      onActivate={(plan) => {
+        setActivePlan(plan);
+        if (plan) { localStorage.setItem('activePlan', JSON.stringify(plan)); navigate('flt-crew'); }
+        else { localStorage.removeItem('activePlan'); }
+      }}
+      onDeactivate={clearFlightSession}
+    />
+  );
+
+  return (
+    <Layout activePage={activePage} onNavigate={navigate} title={layoutTitle} pageStatus={pageStatus}>
+      <OfflineBanner offlineSince={offlineSince} />
+      {activePlan?.readOnly && (
+        <div style={{ background:'rgba(100,100,100,0.15)', borderBottom:'2px solid #555', padding:'7px 16px', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+          <span style={{ fontSize:14 }}>🔒</span>
+          <span style={{ fontSize:12, fontWeight:700, color:'#888' }}>READ ONLY — Archived Flight</span>
+          <span style={{ fontSize:11, color:'#555', marginLeft:4 }}>
+            {activePlan.archived_at ? `Archived: ${new Date(activePlan.archived_at).toLocaleDateString('en-GB')}` : ''}
+          </span>
+        </div>
+      )}
+      {activePage === 'flt-crew'  && <FlightCrew  setStatus={setStatusFltCrew}   activePlan={activePlan} />}
+      {activePage === 'mandatory' && <Mandatory   setStatus={setStatusMandatory} activePlan={activePlan} />}
+      {activePage === 'efp'       && <EFP         setStatus={setStatusEfp}       activePlan={activePlan} rawText={rawText} />}
+      {activePage === 'fuel'      && <Fuel        setStatus={setStatusFuel}      activePlan={activePlan} />}
+      {activePage === 'accept'    && <AcceptSign  pageStatus={pageStatus} setStatus={setStatusAccept} activePlan={activePlan} />}
+      {activePage === 'takeoff'   && <TakeoffData setStatus={setStatusTakeoff}   activePlan={activePlan} />}
+      {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} setStatus={setStatusNavlog} activePlan={activePlan} updateDivert={updateDivert} />}
+      {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} setStatus={setStatusLanding} activePlan={activePlan} />}
+      {activePage === 'endflt'    && <EndFlight   flightData={flightData} divertData={divertData} setStatus={setStatusEndflt} activePlan={activePlan} rawText={rawText} />}
+      {activePage === 'docupload' && <DocUpload   setStatus={setStatusDocupload} activePlan={activePlan} />}
+      {activePage === 'freenote'  && <FreeNote />}
+      {activePage === 'rass'      && <RassView setStatus={setStatusRass} />}
+      {!['flt-crew','mandatory','efp','fuel','accept','takeoff','navlog','landing','endflt','docupload','freenote','rass'].includes(activePage) && (
+        <div style={{ padding:24, color:'var(--t3)', fontSize:13 }}>Page under construction...</div>
+      )}
+    </Layout>
+  );
+}
+
+export default App;
