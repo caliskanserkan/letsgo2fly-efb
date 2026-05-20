@@ -5,7 +5,6 @@ import { supabase } from '../supabaseClient';
 
 const ALL_TABS = ['ofp', 'wxr'];
 
-// ─── OFP PDF Viewer ──────────────────────────────────────────
 function OFPView({ rawText, activePlan }) {
   const [pdfUrl, setPdfUrl] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -48,13 +47,8 @@ function OFPView({ rawText, activePlan }) {
         </span>
         {loading && <span style={{ fontSize:11, color:'#475569' }}>Loading PDF...</span>}
       </div>
-
       {pdfUrl ? (
-        <iframe
-          src={pdfUrl}
-          style={{ flex:1, border:'none', background:'#fff' }}
-          title="OFP PDF"
-        />
+        <iframe src={pdfUrl} style={{ flex:1, border:'none', background:'#fff' }} title="OFP PDF" />
       ) : !loading ? (
         <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, padding:24 }}>
           <span style={{ fontSize:40 }}>📄</span>
@@ -66,7 +60,6 @@ function OFPView({ rawText, activePlan }) {
   );
 }
 
-// ─── WXR Helpers ─────────────────────────────────────────────
 function ColoredWeather({ text }) {
   return (
     <span>
@@ -77,27 +70,70 @@ function ColoredWeather({ text }) {
   );
 }
 
-// Parse WX data for a specific ICAO from rawText
+function extractWxPageBlocks(rawText) {
+  if (!rawText) return '';
+  const wxPagePattern = /WX\s+Page\s+(\d+)\s+of\s+(\d+)/gi;
+  const markers = [];
+  let m;
+  while ((m = wxPagePattern.exec(rawText)) !== null) {
+    markers.push({ index: m.index, page: parseInt(m[1]), total: parseInt(m[2]) });
+  }
+  if (markers.length === 0) {
+    const fallbackIdx = rawText.search(/WX for (?:flight|Flight Group)/i);
+    if (fallbackIdx !== -1) {
+      const endIdx = rawText.search(/End of WX information/i);
+      return rawText.slice(fallbackIdx, endIdx !== -1 ? endIdx + 50 : fallbackIdx + 50000);
+    }
+    return rawText;
+  }
+  let combined = '';
+  for (let i = 0; i < markers.length; i++) {
+    const start = i === 0 ? Math.max(0, markers[0].index - 15000) : markers[i - 1].index;
+    const end   = markers[i].index + 30;
+    combined   += rawText.slice(start, end) + '\n';
+  }
+  console.log(`[WXR] Found ${markers.length} WX pages, extracted ${combined.length} chars`);
+  return combined;
+}
+
+function parseAllWxAirports(rawText) {
+  if (!rawText) return [];
+  const wxBlock = extractWxPageBlocks(rawText);
+  const re = /(?:(?:Departure|Destination|Alternate|Adequate|En[\s-]?route\s+alternate|ERA|ETOPS\s+\w+)\s+airport|Flight\s+group\s+apt)\s+([A-Z]{4})/gi;
+  const airports = [];
+  const seen = new Set();
+  let m;
+  while ((m = re.exec(wxBlock)) !== null) {
+    const icao = m[1].toUpperCase();
+    const raw  = m[0].toLowerCase();
+    let type   = 'ADEQUATE';
+    if      (/departure/.test(raw))               type = 'DEPARTURE';
+    else if (/destination/.test(raw))             type = 'DESTINATION';
+    else if (/alternate|era|en.?route/.test(raw)) type = 'ALTERNATE';
+    else if (/etops/.test(raw))                   type = 'ETOPS';
+    else if (/flight\s+group/.test(raw))          type = 'FLT GRP';
+    if (!seen.has(icao)) { seen.add(icao); airports.push({ icao, type, name: '' }); }
+  }
+  console.log('[WXR] airports →', airports.map(a => `${a.icao}(${a.type})`));
+  return airports;
+}
+
 function parseIcaoWxFromRaw(rawText, icao) {
   if (!rawText || !icao) return { metar: [], taf: [] };
-  const wxIdx = rawText.search(/WX for (?:flight|Flight Group)/i);
-  const wxEnd  = rawText.search(/End of WX information/i);
-  const block  = wxIdx !== -1
-    ? rawText.slice(wxIdx, wxEnd !== -1 ? wxEnd + 30 : wxIdx + 20000)
-    : rawText;
+  const wxBlock = extractWxPageBlocks(rawText);
   const pat = new RegExp(
     `(?:(?:Departure|Destination|Alternate|Adequate|En[\\s-]?route\\s+alternate|ERA|ETOPS\\s+\\w+)\\s+airport|Flight\\s+group\\s+apt)\\s+${icao}[^\\n]*\\n([\\s\\S]*?)` +
-    `(?=(?:(?:Departure|Destination|Alternate|Adequate|En[\\s-]?route\\s+alternate|ERA|ETOPS\\s+\\w+)\\s+airport|Flight\\s+group\\s+apt)\\s+[A-Z]{4}|WX messages|SIGMET|End of WX|Page\\s+\\d|$)`,
+    `(?=(?:(?:Departure|Destination|Alternate|Adequate|En[\\s-]?route\\s+alternate|ERA|ETOPS\\s+\\w+)\\s+airport|Flight\\s+group\\s+apt)\\s+[A-Z]{4}|WX\\s+Page|WX messages|SIGMET|End of WX|$)`,
     'i'
   );
-  const sec = block.match(pat)?.[1] || '';
+  const sec = wxBlock.match(pat)?.[1] || '';
   const metars = [], tafs = [];
   let inTaf = false;
   for (const line of sec.split('\n')) {
     const l = line.trim();
     if (!l) { inTaf = false; continue; }
-    if (/^(?:METAR|SPECI)\b/.test(l)) { metars.push(l); inTaf = false; }
-    else if (/^TAF\b/.test(l)) { tafs.push(l); inTaf = true; }
+    if (/^(?:METAR|SPECI)\b/.test(l))  { metars.push(l); inTaf = false; }
+    else if (/^TAF\b/.test(l))         { tafs.push(l);   inTaf = true;  }
     else if (inTaf && !/^(?:Departure|Destination|Alternate|Adequate|En[\s-]?route|ERA|ETOPS|Flight|WX|End|Page|No\s)/i.test(l)) {
       if (tafs.length) tafs[tafs.length - 1] += ' ' + l;
     }
@@ -105,58 +141,21 @@ function parseIcaoWxFromRaw(rawText, icao) {
   return { metar: metars, taf: tafs };
 }
 
-// FIX 1: Parse all airports from WX section
-// - Syntax error (extra closing brace) removed
-// - Extended regex: Departure / Destination / Alternate / Adequate /
-//   En-route alternate / ERA / ETOPS + Flight group apt
-// - wxIdx === -1 fallback: use full rawText instead of returning []
-function parseAllWxAirports(rawText) {
-  if (!rawText) return [];
-
-  const wxIdx = rawText.search(/WX for (?:flight|Flight Group)/i);
-  const wxEnd  = rawText.search(/End of WX information/i);
-
-  // FIX: no early return — if header not found, scan entire text
-  const block = wxIdx !== -1
-    ? rawText.slice(wxIdx, wxEnd !== -1 ? wxEnd + 30 : wxIdx + 20000)
-    : rawText;
-
-  const re = /(?:Departure|Destination|Alternate|Adequate|En[\s-]?route\s+alternate|ERA|ETOPS\s+\w+)\s+airport\s+([A-Z]{4})|Flight\s+group\s+apt\s+([A-Z]{4})/gi;
-
-  const airports = [];
-  const seen = new Set();
-  let m;
-
-  while ((m = re.exec(block)) !== null) {
-    const icao = (m[1] || m[2]).toUpperCase();
-    // Derive type label from matched text
-    const raw  = m[0].toLowerCase();
-    let type = 'ADEQUATE';
-    if      (/departure/.test(raw))            type = 'DEPARTURE';
-    else if (/destination/.test(raw))          type = 'DESTINATION';
-    else if (/alternate|era|en.?route/.test(raw)) type = 'ALTERNATE';
-    else if (/etops/.test(raw))                type = 'ETOPS';
-    else if (/flight\s+group/.test(raw))       type = 'FLT GRP';
-
-    if (!seen.has(icao)) {
-      seen.add(icao);
-      airports.push({ icao, type, name: '' });
-    }
-  }
-
-  console.log('[WXR] parseAllWxAirports →', airports.map(a => `${a.icao}(${a.type})`));
-  return airports;
-}
-
-// Parse WX header info from rawText
 function parseWxHeader(rawText) {
   if (!rawText) return null;
   const m  = rawText.match(/WX for flight\s+([^\n(]+)/i);
   const ts = rawText.match(/WX search performed\s+([^\n]+)/i)?.[1]?.trim();
-  return { title: m?.[1]?.trim() || '', timestamp: ts || '' };
+  const pg = rawText.match(/WX\s+Page\s+\d+\s+of\s+(\d+)/i);
+  return { title: m?.[1]?.trim() || '', timestamp: ts || '', totalPages: pg?.[1] || null };
 }
 
-// FIX 2: CORS proxy chain — corsproxy.io → allorigins.win → thingproxy
+function parseSigmet(rawText) {
+  if (!rawText) return '';
+  const si = rawText.search(/SIGMET\(s\)\s+for|No SIGMETs found/i);
+  const se = rawText.search(/End of WX information/i);
+  return si !== -1 ? rawText.slice(si, se !== -1 ? se : si + 1000).trim() : '';
+}
+
 async function fetchWithCorsChain(url) {
   const proxies = [
     (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
@@ -168,32 +167,31 @@ async function fetchWithCorsChain(url) {
       const res = await fetch(makeProxy(url), { signal: AbortSignal.timeout(8000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = await res.text();
-      if (text && text.length > 0) return text;
+      if (text && text.trim().length > 0) return text;
     } catch (err) {
-      console.warn('[WXR] proxy failed, trying next…', err.message);
+      console.warn('[WXR] proxy failed:', err.message);
     }
   }
-  throw new Error('All CORS proxies failed for: ' + url);
+  throw new Error('All proxies failed: ' + url);
 }
 
-// Fetch live METAR/TAF for a list of ICAOs from aviationweather.gov
 async function fetchLiveWx(icaoList) {
+  if (!icaoList || icaoList.length === 0) return {};
   const ids = icaoList.join(',');
   const results = {};
-
   try {
     const mText = await fetchWithCorsChain(
       `https://aviationweather.gov/api/data/metar?ids=${ids}&format=raw&hours=3&taf=false`
     );
     mText.trim().split('\n').filter(Boolean).forEach(line => {
-      const icao = line.split(' ')[0];
+      const l = line.trim();
+      const icao = l.split(' ')[0];
       if (icao && /^[A-Z]{4}$/.test(icao)) {
         if (!results[icao]) results[icao] = { metar: [], taf: [] };
-        results[icao].metar.push(line.trim());
+        results[icao].metar.push(l);
       }
     });
-  } catch (e) { console.error('[WXR] METAR fetch error:', e.message); }
-
+  } catch (e) { console.error('[WXR] METAR failed:', e.message); }
   try {
     const tText = await fetchWithCorsChain(
       `https://aviationweather.gov/api/data/taf?ids=${ids}&format=raw`
@@ -203,27 +201,24 @@ async function fetchLiveWx(icaoList) {
       const l = line.trim();
       if (/^TAF\b/.test(l)) {
         const parts = l.split(/\s+/);
-        const icao  = parts[1] === 'AMD' || parts[1] === 'COR' ? parts[2] : parts[1];
+        const icao  = (parts[1] === 'AMD' || parts[1] === 'COR') ? parts[2] : parts[1];
         if (icao && /^[A-Z]{4}$/.test(icao)) {
           cur = icao;
           if (!results[icao]) results[icao] = { metar: [], taf: [] };
           results[icao].taf.push(l);
         }
-      } else if (cur && l) {
-        if (results[cur]) results[cur].taf[results[cur].taf.length - 1] += ' ' + l;
+      } else if (cur && l && results[cur]) {
+        results[cur].taf[results[cur].taf.length - 1] += ' ' + l;
       }
     });
-  } catch (e) { console.error('[WXR] TAF fetch error:', e.message); }
-
+  } catch (e) { console.error('[WXR] TAF failed:', e.message); }
   return results;
 }
 
-// ─── WXR View ─────────────────────────────────────────────────
 function WXRView({ activePlan, rawText }) {
-
   const wxAirports = useMemo(() => {
-    const fromPdf = parseAllWxAirports(rawText);
-    if (fromPdf.length > 0) return fromPdf;
+    const fromWx = parseAllWxAirports(rawText);
+    if (fromWx.length > 0) return fromWx;
     const fallback = [];
     const addApt = (icaoRaw, type) => {
       const icao = icaoRaw?.split('/')[0]?.trim().toUpperCase();
@@ -236,21 +231,13 @@ function WXRView({ activePlan, rawText }) {
   }, [rawText, activePlan?.dep, activePlan?.dest, activePlan?.alternate]);
 
   const wxHeader = useMemo(() => parseWxHeader(rawText), [rawText]);
+  const sigmet   = useMemo(() => parseSigmet(rawText),   [rawText]);
 
   const planWxMap = useMemo(() => {
     const map = {};
-    wxAirports.forEach(({ icao }) => {
-      map[icao] = parseIcaoWxFromRaw(rawText, icao);
-    });
+    wxAirports.forEach(({ icao }) => { map[icao] = parseIcaoWxFromRaw(rawText, icao); });
     return map;
   }, [rawText, wxAirports]);
-
-  const sigmet = useMemo(() => {
-    if (!rawText) return '';
-    const si = rawText.search(/SIGMET\(s\)\s+for|No SIGMETs found/i);
-    const se = rawText.search(/End of WX information/i);
-    return si !== -1 ? rawText.slice(si, se !== -1 ? se : si + 1000).trim() : '';
-  }, [rawText]);
 
   const [liveWxMap, setLiveWxMap] = usePersistedState('efb_wxr_live_map_v2', {});
   const [liveAt,    setLiveAt]    = usePersistedState('efb_wxr_live_at_v2',   '');
@@ -267,8 +254,8 @@ function WXRView({ activePlan, rawText }) {
     if (!wxAirports.length) return;
     setLoading(true); setError(false);
     try {
-      const icaoList = wxAirports.map(a => a.icao);
-      const live = await fetchLiveWx(icaoList);
+      const live = await fetchLiveWx(wxAirports.map(a => a.icao));
+      if (Object.keys(live).length === 0) throw new Error('empty');
       setLiveWxMap(live);
       setLiveAt(new Date().toUTCString().slice(17, 25) + ' UTC');
     } catch { setError(true); }
@@ -278,10 +265,7 @@ function WXRView({ activePlan, rawText }) {
   const getWx = (icao) => {
     const live = liveWxMap[icao];
     const plan = planWxMap[icao] || { metar: [], taf: [] };
-    return {
-      metar: live?.metar?.length ? live.metar : plan.metar,
-      taf:   live?.taf?.length   ? live.taf   : plan.taf,
-    };
+    return { metar: live?.metar?.length ? live.metar : plan.metar, taf: live?.taf?.length ? live.taf : plan.taf };
   };
 
   const isLive = Object.keys(liveWxMap).length > 0;
@@ -298,14 +282,13 @@ function WXRView({ activePlan, rawText }) {
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', background:'#0f172a' }}>
-
-      {/* Header */}
       <div style={{ background: isLive ? 'rgba(74,222,128,0.06)' : 'rgba(251,191,36,0.06)', borderBottom: `1px solid ${isLive ? 'rgba(74,222,128,0.2)' : 'rgba(251,191,36,0.2)'}`, padding:'10px 14px', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           <div style={{ flex:1 }}>
             {wxHeader?.title && (
               <div style={{ fontSize:12, fontWeight:600, color:'#f1f5f9', fontFamily:'monospace', marginBottom:3 }}>
                 WX for flight <span style={{ color:'#38bdf8' }}>{wxHeader.title}</span>
+                {wxHeader.totalPages && <span style={{ color:'#475569', marginLeft:8, fontSize:10 }}>· {wxHeader.totalPages} WX pages</span>}
               </div>
             )}
             <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
@@ -313,14 +296,14 @@ function WXRView({ activePlan, rawText }) {
                 background: error ? 'rgba(239,68,68,0.15)' : isLive ? 'rgba(74,222,128,0.15)' : 'rgba(251,191,36,0.15)',
                 color:      error ? '#ef4444'               : isLive ? '#4ade80'                : '#fbbf24',
                 border:    `1px solid ${error ? 'rgba(239,68,68,0.3)' : isLive ? 'rgba(74,222,128,0.3)' : 'rgba(251,191,36,0.3)'}` }}>
-                {error ? '⚠ FAILED' : isLive ? '● LIVE' : '◎ PLAN BRIEFING'}
+                {error ? '⚠ REFRESH FAILED' : isLive ? '● LIVE' : '◎ PLAN BRIEFING'}
               </span>
               <span style={{ fontSize:11, color: isLive ? '#4ade80' : '#fbbf24', fontFamily:'monospace' }}>
                 {isLive ? liveAt : wxHeader?.timestamp || ''}
               </span>
             </div>
             <div style={{ fontSize:10, color:'#475569', marginTop:3 }}>
-              {wxAirports.length} airports · {isLive ? 'Live METAR/TAF — verify against ATIS' : 'May not reflect current conditions · refresh for live data'}
+              {wxAirports.length} airports from WX pages · {isLive ? 'Live NOAA — verify against ATIS' : 'Plan briefing · tap Refresh for live NOAA'}
             </div>
           </div>
           <button onClick={doFetch} disabled={loading || !wxAirports.length}
@@ -330,7 +313,6 @@ function WXRView({ activePlan, rawText }) {
         </div>
       </div>
 
-      {/* Airport list */}
       <div style={{ borderBottom:'1px solid #334155', flexShrink:0, overflowX:'auto', background:'#1e293b', display:'flex' }}>
         {wxAirports.map(({ icao, type }) => {
           const tc = typeColor(type);
@@ -341,7 +323,7 @@ function WXRView({ activePlan, rawText }) {
             <div key={icao} onClick={() => setSelIcao(icao)}
               style={{ padding:'10px 14px', cursor:'pointer', borderBottom:`2px solid ${sel ? tc : 'transparent'}`, background: sel ? `${tc}10` : 'transparent', flexShrink:0, textAlign:'center', minWidth:76 }}>
               <div style={{ fontSize:13, fontWeight:700, color: sel ? tc : '#94a3b8', fontFamily:'monospace' }}>{icao}</div>
-              <div style={{ fontSize:9, color: sel ? tc : '#334155', marginTop:2, letterSpacing:'0.5px', textTransform:'uppercase' }}>{type.slice(0, 4)}</div>
+              <div style={{ fontSize:9, color: sel ? tc : '#334155', marginTop:2, letterSpacing:'0.5px', textTransform:'uppercase' }}>{type.slice(0,4)}</div>
               <div style={{ width:5, height:5, borderRadius:'50%', background: hasData ? (sel ? tc : '#475569') : '#334155', margin:'3px auto 0' }} />
             </div>
           );
@@ -349,7 +331,6 @@ function WXRView({ activePlan, rawText }) {
         {wxAirports.length === 0 && (
           <div style={{ padding:'12px 16px', fontSize:12, color:'#475569', alignSelf:'center' }}>No WX airports found in plan</div>
         )}
-        {/* SIGMET tab */}
         <div onClick={() => setSelIcao('__sigmet__')}
           style={{ padding:'10px 14px', cursor:'pointer', borderBottom:`2px solid ${selIcao === '__sigmet__' ? '#ef4444' : 'transparent'}`, background: selIcao === '__sigmet__' ? 'rgba(239,68,68,0.08)' : 'transparent', flexShrink:0, textAlign:'center', minWidth:76, marginLeft:'auto' }}>
           <div style={{ fontSize:12, fontWeight:700, color: selIcao === '__sigmet__' ? '#ef4444' : '#475569' }}>⚠</div>
@@ -357,7 +338,6 @@ function WXRView({ activePlan, rawText }) {
         </div>
       </div>
 
-      {/* METAR / TAF sub-tabs */}
       {selIcao && selIcao !== '__sigmet__' && (
         <div style={{ display:'flex', background:'#0f172a', borderBottom:'1px solid #1e293b', flexShrink:0, alignItems:'center' }}>
           {[{ id:'metar', label:'METAR / SPECI' }, { id:'taf', label:'TAF' }].map(t => (
@@ -368,12 +348,7 @@ function WXRView({ activePlan, rawText }) {
           ))}
           <div style={{ flex:1 }} />
           <div style={{ display:'flex', gap:6, padding:'6px 12px', alignItems:'center' }}>
-            {[
-              { color: COLORS.green,  label: 'Normal'   },
-              { color: COLORS.yellow, label: 'Caution'  },
-              { color: COLORS.orange, label: 'Warning'  },
-              { color: COLORS.red,    label: 'Critical' },
-            ].map((c, i) => (
+            {[{ color: COLORS.green, label:'Normal' }, { color: COLORS.yellow, label:'Caution' }, { color: COLORS.orange, label:'Warning' }, { color: COLORS.red, label:'Critical' }].map((c, i) => (
               <div key={i} style={{ display:'flex', alignItems:'center', gap:3 }}>
                 <div style={{ width:6, height:6, borderRadius:3, background: c.color }} />
                 <span style={{ fontSize:9, color:'#334155' }}>{c.label}</span>
@@ -383,32 +358,25 @@ function WXRView({ activePlan, rawText }) {
         </div>
       )}
 
-      {/* Content */}
       <div style={{ flex:1, overflowY:'auto', padding:'14px 12px' }}>
-
-        {/* SIGMET */}
         {selIcao === '__sigmet__' && (
           <div style={{ background:'#1e293b', borderRadius:12, border:'1px solid #334155', overflow:'hidden' }}>
             <div style={{ padding:'10px 14px', borderBottom:'1px solid #334155', fontSize:11, fontWeight:600, color:'#ef4444' }}>⚠️ SIGMET / FIR</div>
-            <div style={{ padding:'12px 14px', fontFamily:'monospace', fontSize:12, lineHeight:1.9,
-              color: sigmet && !sigmet.includes('No SIGMETs') ? '#fbbf24' : '#475569', whiteSpace:'pre-wrap' }}>
+            <div style={{ padding:'12px 14px', fontFamily:'monospace', fontSize:12, lineHeight:1.9, color: sigmet && !sigmet.includes('No SIGMETs') ? '#fbbf24' : '#475569', whiteSpace:'pre-wrap' }}>
               {sigmet || 'No SIGMET data in plan'}
             </div>
           </div>
         )}
 
-        {/* Airport WX */}
         {selIcao && selIcao !== '__sigmet__' && selApt && (
           <div>
             <div style={{ marginBottom:12 }}>
-              <div style={{ fontSize:13, fontWeight:700, color: typeColor(selApt.type), fontFamily:'monospace' }}>
-                {selIcao}
-              </div>
+              <div style={{ fontSize:13, fontWeight:700, color: typeColor(selApt.type), fontFamily:'monospace' }}>{selIcao}</div>
               <div style={{ fontSize:11, color:'#475569', marginTop:2 }}>
                 <span style={{ color: typeColor(selApt.type), marginRight:8, fontWeight:600 }}>{selApt.type}</span>
-                {selApt.name}
               </div>
-              {isLive && <div style={{ fontSize:10, color:'#4ade80', marginTop:2 }}>● Live data</div>}
+              {isLive && liveWxMap[selIcao]  && <div style={{ fontSize:10, color:'#4ade80', marginTop:2 }}>● Live NOAA · {liveAt}</div>}
+              {isLive && !liveWxMap[selIcao] && <div style={{ fontSize:10, color:'#fbbf24', marginTop:2 }}>◎ Plan data (not in NOAA response)</div>}
             </div>
 
             {wxTab === 'metar' && (
@@ -417,8 +385,7 @@ function WXRView({ activePlan, rawText }) {
                 <div style={{ padding:'12px 14px', fontFamily:'monospace', fontSize:12, lineHeight:2 }}>
                   {selWx.metar.length > 0
                     ? selWx.metar.map((m, i) => <div key={i}><ColoredWeather text={m} /></div>)
-                    : <span style={{ color:'#475569', fontStyle:'italic' }}>No METAR found</span>
-                  }
+                    : <span style={{ color:'#475569', fontStyle:'italic' }}>No METAR found</span>}
                 </div>
               </div>
             )}
@@ -429,8 +396,7 @@ function WXRView({ activePlan, rawText }) {
                 <div style={{ padding:'12px 14px', fontFamily:'monospace', fontSize:12, lineHeight:2 }}>
                   {selWx.taf.length > 0
                     ? selWx.taf.map((t, i) => <div key={i}><ColoredWeather text={t} /></div>)
-                    : <span style={{ color:'#475569', fontStyle:'italic' }}>No TAF found</span>
-                  }
+                    : <span style={{ color:'#475569', fontStyle:'italic' }}>No TAF found</span>}
                 </div>
               </div>
             )}
@@ -445,7 +411,6 @@ function WXRView({ activePlan, rawText }) {
   );
 }
 
-// ─── EFP Main ─────────────────────────────────────────────────
 function EFP({ setStatus, activePlan, rawText = '' }) {
   const [activeTab, setActiveTab] = usePersistedState('efb_efp_activeTab', 'ofp');
   const [seenTabs,  setSeenTabs]  = usePersistedState('efb_efp_seenTabs',  []);
@@ -465,7 +430,6 @@ function EFP({ setStatus, activePlan, rawText = '' }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#0f172a' }}>
-      {/* Tabs */}
       <div style={{ display:'flex', background:'#1e293b', borderBottom:'1px solid #334155', flexShrink:0 }}>
         {[{ id:'ofp', label:'📋 OFP' }, { id:'wxr', label:'🌤 WXR' }].map(t => (
           <div key={t.id} onClick={() => setActiveTab(t.id)}
@@ -481,7 +445,6 @@ function EFP({ setStatus, activePlan, rawText = '' }) {
           </span>
         </div>
       </div>
-
       {activeTab === 'ofp' && <OFPView activePlan={activePlan} rawText={rawText} />}
       {activeTab === 'wxr' && <WXRView activePlan={activePlan} rawText={rawText} />}
     </div>
