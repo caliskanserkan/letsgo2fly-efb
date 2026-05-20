@@ -311,12 +311,6 @@ function WXRView({ activePlan, rawText }) {
   const [liveAt,    setLiveAt]    = usePersistedState('efb_wxr_live_at_v2',   '');
   const [loading,   setLoading]   = useState(false);
   const [error,     setError]     = useState('');
-  const [selIcao,   setSelIcao]   = useState(null);
-  const [wxTab,     setWxTab]     = useState('metar');
-
-  useEffect(() => {
-    if (wxAirports.length > 0 && !selIcao) setSelIcao(wxAirports[0].icao);
-  }, [wxAirports, selIcao]);
 
   const doFetch = async () => {
     if (!wxAirports.length) return;
@@ -337,8 +331,6 @@ function WXRView({ activePlan, rawText }) {
   };
 
   const isLive = Object.keys(liveWxMap).length > 0;
-  const selApt = wxAirports.find(a => a.icao === selIcao) || (selIcao === '__sigmet__' ? { icao:'__sigmet__', type:'' } : null);
-  const selWx  = selIcao && selIcao !== '__sigmet__' ? getWx(selIcao) : { metar: [], taf: [] };
 
   const typeColor = (type) => {
     if (type === 'DEPARTURE')   return '#fbbf24';  // amber/sarı
