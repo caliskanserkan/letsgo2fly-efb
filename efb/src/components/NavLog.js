@@ -663,7 +663,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         </div>
       </div>
 
-      <div style={{flex:1,overflowY:'auto'}}>
+      {activeTab === 'log' && <div style={{flex:1,overflowY:'auto'}}>
         {activeTab === 'log' && !waypoints.length&&<div style={{padding:20,textAlign:'center',color:'#334155',fontSize:12}}>Loading waypoints...</div>}
 
         {waypoints.map((wpt,idx)=>{
@@ -818,12 +818,9 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           );
         })}
 
-        {!flightClosed&&<div style={{padding:'10px'}}><button onClick={()=>setShowDivert(true)} style={{width:'100%',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.3)',borderRadius:7,padding:'10px',fontSize:11,fontWeight:700,color:'#f97316',cursor:'pointer',fontFamily:'inherit'}}>⚠ Add Divert ARPT</button></div>}
+        {!flightClosed&&activeTab==='log'&&<div style={{padding:'10px'}}><button onClick={()=>setShowDivert(true)} style={{width:'100%',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.3)',borderRadius:7,padding:'10px',fontSize:11,fontWeight:700,color:'#f97316',cursor:'pointer',fontFamily:'inherit'}}>⚠ Add Divert ARPT</button></div>}
         {flightClosed&&<div style={{margin:'10px',padding:'8px 12px',borderRadius:6,background:'rgba(255,149,0,0.08)',border:'1px solid rgba(255,149,0,0.2)',fontSize:11,color:'#f97316',textAlign:'center'}}>⚠ Flight closed at divert airport</div>}
       </div>
-
-      </>
-      }
 
       {activeTab === 'erm' && (
         <div style={{flex:1,display:'flex',overflow:'hidden'}}>
@@ -835,9 +832,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           />
         </div>
       )}
-
-      </>
-      }
 
       {activeTab === 'erm' && (
         <div style={{flex:1,display:'flex',overflow:'hidden',minHeight:400}}>
