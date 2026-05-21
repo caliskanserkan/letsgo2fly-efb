@@ -3,7 +3,6 @@ import { supabase, logEvent } from '../supabaseClient';
 import SyncButton from './SyncButton';
 import { usePersistedState } from '../hooks/usePersistedState';
 import EnrouteMap from './EnrouteMap';
-import EnrouteMap from './EnrouteMap';
 
 const FIFTY_MIN = 50 * 60 * 1000;
 
