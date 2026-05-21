@@ -30,6 +30,7 @@ function aptColor(type) {
 export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, liveWxMap = {} }) {
 
   // Route coordinates from waypoints that have coords
+  console.log('[ERM] waypoints:', waypoints.length, 'with coord:', waypoints.filter(w=>w.coord).length);
   const routeCoords = useMemo(() =>
     waypoints.filter(w => w.coord).map(w => [w.coord.lat, w.coord.lon]),
   [waypoints]);
