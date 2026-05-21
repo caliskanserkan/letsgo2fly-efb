@@ -4,9 +4,11 @@
   "private": true,
   "dependencies": {
     "cra-template-pwa": "2.0.0",
+    "leaflet": "^1.9.4",
     "pdfjs-dist": "^5.6.205",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
+    "react-leaflet": "^5.0.0",
     "react-scripts": "5.0.1",
     "web-vitals": "^5.2.0"
   },
