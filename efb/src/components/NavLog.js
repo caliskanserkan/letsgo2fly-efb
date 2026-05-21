@@ -632,8 +632,8 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         </div>
       )}
 
-      {activeTab === 'log' ? <>
-      {/* Summary */
+      {activeTab === 'log' && <React.Fragment>
+      {/* Summary */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:1,background:'#334155',borderBottom:'1px solid #334155',flexShrink:0}}>
         {[
           {label:'T/O Fuel',  value:toFuelNum?`${toFuelNum.toLocaleString()} lb`:'—', color:'#e8e8e8'},
@@ -664,7 +664,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
       </div>
 
       <div style={{flex:1,overflowY:'auto'}}>
-        {!waypoints.length&&<div style={{padding:20,textAlign:'center',color:'#334155',fontSize:12}}>Loading waypoints...</div>}
+        {activeTab === 'log' && !waypoints.length&&<div style={{padding:20,textAlign:'center',color:'#334155',fontSize:12}}>Loading waypoints...</div>}
 
         {waypoints.map((wpt,idx)=>{
           const e      = entries[wpt.uid]||{};
@@ -818,9 +818,11 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           );
         })}
 
-        {!flightClosed&&activeTab==='log'&&<div style={{padding:'10px'}}><button onClick={()=>setShowDivert(true)} style={{width:'100%',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.3)',borderRadius:7,padding:'10px',fontSize:11,fontWeight:700,color:'#f97316',cursor:'pointer',fontFamily:'inherit'}}>⚠ Add Divert ARPT</button></div>}
+        {!flightClosed&&<div style={{padding:'10px'}}><button onClick={()=>setShowDivert(true)} style={{width:'100%',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.3)',borderRadius:7,padding:'10px',fontSize:11,fontWeight:700,color:'#f97316',cursor:'pointer',fontFamily:'inherit'}}>⚠ Add Divert ARPT</button></div>}
         {flightClosed&&<div style={{margin:'10px',padding:'8px 12px',borderRadius:6,background:'rgba(255,149,0,0.08)',border:'1px solid rgba(255,149,0,0.2)',fontSize:11,color:'#f97316',textAlign:'center'}}>⚠ Flight closed at divert airport</div>}
       </div>
+
+      </React.Fragment>}
 
       {activeTab === 'erm' && (
         <div style={{flex:1,display:'flex',overflow:'hidden'}}>
@@ -833,7 +835,11 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         </div>
       )}
 
- )}
+      {activeTab === 'erm' && (
+        <div style={{flex:1,display:'flex',overflow:'hidden',minHeight:400}}>
+          <EnrouteMap waypoints={waypoints} wxAirports={[]} gpsPos={pos} liveWxMap={{}} />
+        </div>
+      )}
 
       {showGpsWarn&&(
         <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}}>
