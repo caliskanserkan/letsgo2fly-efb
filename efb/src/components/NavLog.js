@@ -608,14 +608,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         ))}
       </div>
 
-      <div style={{display:'flex',background:'#1e293b',borderBottom:'1px solid #334155',flexShrink:0}}>
-        {[{id:'log',label:'📋 LOG'},{id:'erm',label:'🗺 ERM'}].map(t=>(
-          <div key={t.id} onClick={()=>setActiveTab(t.id)}
-            style={{padding:'10px 20px',fontSize:12,fontWeight:600,cursor:'pointer',color:activeTab===t.id?'#38bdf8':'#475569',borderBottom:activeTab===t.id?'2px solid #38bdf8':'2px solid transparent'}}>
-            {t.label}
-          </div>
-        ))}
-      </div>
 
       {alert50&&(
         <div style={{background:'rgba(224,32,32,0.12)',borderBottom:'1px solid rgba(224,32,32,0.3)',padding:'10px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
