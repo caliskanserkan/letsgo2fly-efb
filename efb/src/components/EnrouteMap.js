@@ -70,7 +70,7 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
     }).filter(Boolean);
   }, [wxAirports, waypoints, liveWxMap]);
 
-  const [mapReady, setMapReady] = useState(false);
+
 
   return (
     <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
@@ -80,7 +80,7 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
         style={{ width: '100%', height: '100%', background: '#0f172a' }}
         zoomControl={true}
         attributionControl={false}
-        whenReady={() => setMapReady(true)}
+
       >
         {/* OpenStreetMap base */}
         <TileLayer
