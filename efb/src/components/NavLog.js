@@ -433,6 +433,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   const [flightClosed, setFlightClosed] = usePersistedState(`efb_navlog_flightClosed_${planKey}`, false);
   const [lastCheck,    setLastCheck]    = usePersistedState(`efb_navlog_lastCheck_${planKey}`, null);
   const [modal,        setModal]        = useState(null);
+  const [wxApts,       setWxApts]       = useState([]);
   const [activeTab,    setActiveTab]    = useState('log');
   const [showDivert,   setShowDivert]   = useState(false);
   const [alert50,      setAlert50]      = useState(false);
@@ -470,12 +471,25 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           .eq('plan_id',activePlan.id).order('version_no',{ascending:false}).limit(1).single();
         if(data?.raw_text){
           const wpts=parseWaypoints(data.raw_text,dep,dest,std);
+          // Parse WX airports for ERM
+          const wxRe = /(?:(?:Departure|Destination|Alternate|Adequate|En[\s-]?route\s+alternate|ERA|ETOPS\s+\w+)\s+airport|Flight\s+group\s+apt)\s+([A-Z]{4})/gi;
+          const wxFound=[]; const wxSeen=new Set(); let wxm;
+          while((wxm=wxRe.exec(data.raw_text))!==null){
+            const ic=wxm[1].toUpperCase(); const raw=wxm[0].toLowerCase();
+            let tp='ADEQUATE';
+            if(/departure/.test(raw)) tp='DEPARTURE';
+            else if(/destination/.test(raw)) tp='DESTINATION';
+            else if(/alternate|era|en.?route/.test(raw)) tp='ALTERNATE';
+            if(!wxSeen.has(ic)){wxSeen.add(ic);wxFound.push({icao:ic,type:tp});}
+          }
+          setWxApts(wxFound);
           if(wpts.length>=2){
             const customs=waypoints.filter(w=>w.custom);
             const destIdx=wpts.findIndex(w=>w.type==='dest');
             const merged=[...wpts];
             customs.forEach(cw=>{ if(!merged.find(w=>w.uid===cw.uid)) merged.splice(destIdx,0,cw); });
             setWaypoints(merged);
+          }
           }
         }
       }catch(e){
@@ -828,7 +842,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         <div style={{flex:1,display:'flex',overflow:'hidden'}}>
           <EnrouteMap
             waypoints={waypoints}
-            wxAirports={[]}
+            wxAirports={wxApts}
             gpsPos={pos}
             liveWxMap={{}}
           />

@@ -53,3 +53,12 @@ body {
 .efb-readonly select { pointer-events:none !important; opacity:0.5 !important; }
 .efb-readonly button { pointer-events:none !important; opacity:0.4 !important; }
 .efb-readonly input[type="checkbox"] { pointer-events:none !important; opacity:0.5 !important; }
+
+/* Leaflet tooltip override */
+.leaflet-tooltip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.leaflet-tooltip::before { display: none !important; }
