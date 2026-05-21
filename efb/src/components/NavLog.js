@@ -594,12 +594,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   // Auto GPS
   useEffect(() => { if(hasCo && gpsOk) startGPS(); }, [hasCo, gpsOk]); // eslint-disable-line
 
-  // Cell style helper
-  const cell = (content, opts={}) => (
-    <div style={{ fontSize: opts.size||10, color: opts.color||'#64748b', fontFamily:'monospace', lineHeight:1.3, ...opts.style }}>
-      {content}
-    </div>
-  );
 
   return(
     <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
