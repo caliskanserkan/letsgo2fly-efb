@@ -632,7 +632,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         </div>
       )}
 
-      {activeTab === 'log' && <>
+      {activeTab === 'log' ? <>
       {/* Summary */
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:1,background:'#334155',borderBottom:'1px solid #334155',flexShrink:0}}>
         {[
@@ -663,8 +663,8 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         </div>
       </div>
 
-      {activeTab === 'log' && <div style={{flex:1,overflowY:'auto'}}>
-        {activeTab === 'log' && !waypoints.length&&<div style={{padding:20,textAlign:'center',color:'#334155',fontSize:12}}>Loading waypoints...</div>}
+      <div style={{flex:1,overflowY:'auto'}}>
+        {!waypoints.length&&<div style={{padding:20,textAlign:'center',color:'#334155',fontSize:12}}>Loading waypoints...</div>}
 
         {waypoints.map((wpt,idx)=>{
           const e      = entries[wpt.uid]||{};
@@ -833,11 +833,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         </div>
       )}
 
-      {activeTab === 'erm' && (
-        <div style={{flex:1,display:'flex',overflow:'hidden',minHeight:400}}>
-          <EnrouteMap waypoints={waypoints} wxAirports={[]} gpsPos={pos} liveWxMap={{}} />
-        </div>
-      )}
+ )}
 
       {showGpsWarn&&(
         <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}}>
