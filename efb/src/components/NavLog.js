@@ -490,7 +490,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
             customs.forEach(cw=>{ if(!merged.find(w=>w.uid===cw.uid)) merged.splice(destIdx,0,cw); });
             setWaypoints(merged);
           }
-          }
         }
       }catch(e){
         console.warn('[NavLog]',e);
