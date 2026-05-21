@@ -127,7 +127,7 @@ function ArchiveConfirmModal({ onConfirm, onCancel }) {
   );
 }
 
-function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
+function EndFlight({ flightData, divertData, setStatus, activePlan, rawText, onArchive }) {
   const planKey = activePlan?.id || 'default';
 
   const [pax,              setPax]              = usePersistedState(`efb_endflt_pax_${planKey}`,      '');
@@ -210,6 +210,7 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText }) {
       if (afData?.id) setArchivedFlightId(afData.id);
       logEvent(activePlan.id,'FLIGHT_ARCHIVED',{dep,dest:destIcao,block_minutes:blockMins,airborne_minutes:flightMins,landing_count:parseInt(cycles)||1,dep_rwy:depRwy,arr_rwy:arrRwy,sid:tkofSid});
       setArchived(true);
+      if (onArchive) onArchive();
     } catch(e) { console.error('Archive error:',e); }
     setArchiving(false);
   };

@@ -955,13 +955,16 @@ function App() {
     <Layout activePage={activePage} onNavigate={navigate} title={layoutTitle} pageStatus={pageStatus}>
       <OfflineBanner offlineSince={offlineSince} />
       {activePlan?.readOnly && (
-        <div style={{ background:'rgba(100,100,100,0.15)', borderBottom:'2px solid #555', padding:'7px 16px', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
-          <span style={{ fontSize:14 }}>🔒</span>
-          <span style={{ fontSize:12, fontWeight:700, color:'#888' }}>READ ONLY — Archived Flight</span>
-          <span style={{ fontSize:11, color:'#555', marginLeft:4 }}>
-            {activePlan.archived_at ? `Archived: ${new Date(activePlan.archived_at).toLocaleDateString('en-GB')}` : ''}
-          </span>
-        </div>
+        <>
+          <div style={{ background:'rgba(100,100,100,0.15)', borderBottom:'2px solid #555', padding:'7px 16px', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+            <span style={{ fontSize:14 }}>🔒</span>
+            <span style={{ fontSize:12, fontWeight:700, color:'#888' }}>READ ONLY — Archived Flight</span>
+            <span style={{ fontSize:11, color:'#555', marginLeft:4 }}>
+              {activePlan.archived_at ? `Archived: ${new Date(activePlan.archived_at).toLocaleDateString('en-GB')}` : ''}
+            </span>
+          </div>
+          <div style={{ position:'absolute', inset:0, zIndex:99, cursor:'not-allowed' }} onClick={e => e.stopPropagation()} />
+        </>
       )}
       {activePage === 'flt-crew'  && <FlightCrew  setStatus={setStatusFltCrew}   activePlan={activePlan} />}
       {activePage === 'mandatory' && <Mandatory   setStatus={setStatusMandatory} activePlan={activePlan} />}
@@ -971,7 +974,7 @@ function App() {
       {activePage === 'takeoff'   && <TakeoffData setStatus={setStatusTakeoff}   activePlan={activePlan} />}
       {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} setStatus={setStatusNavlog} activePlan={activePlan} updateDivert={updateDivert} />}
       {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} setStatus={setStatusLanding} activePlan={activePlan} />}
-      {activePage === 'endflt'    && <EndFlight   flightData={flightData} divertData={divertData} setStatus={setStatusEndflt} activePlan={activePlan} rawText={rawText} />}
+      {activePage === 'endflt'    && <EndFlight   flightData={flightData} divertData={divertData} setStatus={setStatusEndflt} activePlan={activePlan} rawText={rawText} onArchive={() => setActivePlan(prev => prev ? {...prev, readOnly:true, status:'archived'} : prev)} />}
       {activePage === 'docupload' && <DocUpload   setStatus={setStatusDocupload} activePlan={activePlan} />}
       {activePage === 'freenote'  && <FreeNote />}
       {activePage === 'rass'      && <RassView setStatus={setStatusRass} />}
