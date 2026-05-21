@@ -632,7 +632,8 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         </div>
       )}
 
-      {/* Summary */}
+      {activeTab === 'log' && <>
+      {/* Summary */
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:1,background:'#334155',borderBottom:'1px solid #334155',flexShrink:0}}>
         {[
           {label:'T/O Fuel',  value:toFuelNum?`${toFuelNum.toLocaleString()} lb`:'—', color:'#e8e8e8'},
@@ -821,6 +822,9 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         {flightClosed&&<div style={{margin:'10px',padding:'8px 12px',borderRadius:6,background:'rgba(255,149,0,0.08)',border:'1px solid rgba(255,149,0,0.2)',fontSize:11,color:'#f97316',textAlign:'center'}}>⚠ Flight closed at divert airport</div>}
       </div>
 
+      </>
+      }
+
       {activeTab === 'erm' && (
         <div style={{flex:1,display:'flex',overflow:'hidden'}}>
           <EnrouteMap
@@ -831,6 +835,9 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           />
         </div>
       )}
+
+      </>
+      }
 
       {activeTab === 'erm' && (
         <div style={{flex:1,display:'flex',overflow:'hidden',minHeight:400}}>
