@@ -835,11 +835,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
         </div>
       )}
 
-      {activeTab === 'erm' && (
-        <div style={{flex:1,display:'flex',overflow:'hidden',minHeight:400}}>
-          <EnrouteMap waypoints={waypoints} wxAirports={[]} gpsPos={pos} liveWxMap={{}} />
-        </div>
-      )}
 
       {showGpsWarn&&(
         <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}}>
