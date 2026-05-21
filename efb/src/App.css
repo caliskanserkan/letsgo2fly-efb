@@ -47,3 +47,9 @@ body {
 .efb-readonly [style*="overflow"] {
   pointer-events: auto !important;
 }
+
+.efb-readonly input,
+.efb-readonly textarea,
+.efb-readonly select { pointer-events:none !important; opacity:0.5 !important; }
+.efb-readonly button { pointer-events:none !important; opacity:0.4 !important; }
+.efb-readonly input[type="checkbox"] { pointer-events:none !important; opacity:0.5 !important; }

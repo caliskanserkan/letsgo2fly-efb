@@ -965,7 +965,7 @@ function App() {
           </div>
         </>
       )}
-      <div {...(activePlan?.readOnly ? { inert: 'true' } : {})} style={{ flex:1, overflow:'hidden', display:'contents' }}>
+      <div className={activePlan?.readOnly ? 'efb-readonly' : ''} style={{ flex:1, overflow:'hidden' }}>
       {activePage === 'flt-crew'  && <FlightCrew  setStatus={setStatusFltCrew}   activePlan={activePlan} />}
       {activePage === 'mandatory' && <Mandatory   setStatus={setStatusMandatory} activePlan={activePlan} />}
       {activePage === 'efp'       && <EFP         setStatus={setStatusEfp}       activePlan={activePlan} rawText={rawText} />}
