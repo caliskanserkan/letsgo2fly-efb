@@ -441,8 +441,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   const [gpsOk, setGpsOk]               = useState(false);
   const [showGpsWarn, setShowGpsWarn]   = useState(false);
   const handleStartGPS = () => { if(!gpsOk){setShowGpsWarn(true);return;} startGPS(); };
-  // Auto GPS on mount
-  useEffect(() => { if(hasCo && gpsOk) startGPS(); }, [hasCo, gpsOk]); // eslint-disable-line
 
   const dep  = activePlan?.dep  || 'DEP';
   const dest = activePlan?.dest || 'DEST';
@@ -593,6 +591,8 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   const lastStr=lastCheck?new Date(lastCheck).toTimeString().slice(0,5)+' Z':'—';
   const mWpt=waypoints.find(w=>w.uid===modal);
   const hasCo=waypoints.some(w=>w.coord);
+  // Auto GPS
+  useEffect(() => { if(hasCo && gpsOk) startGPS(); }, [hasCo, gpsOk]); // eslint-disable-line
 
   // Cell style helper
   const cell = (content, opts={}) => (
