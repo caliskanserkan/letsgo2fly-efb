@@ -434,7 +434,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   const [lastCheck,    setLastCheck]    = usePersistedState(`efb_navlog_lastCheck_${planKey}`, null);
   const [modal,        setModal]        = useState(null);
   const [activeTab,    setActiveTab]    = useState('log');
-  const [activeTab,    setActiveTab]    = useState('log'); // log | erm
   const [showDivert,   setShowDivert]   = useState(false);
   const [alert50,      setAlert50]      = useState(false);
   const [acPos,        setAcPos]        = useState(null);
