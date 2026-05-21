@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { parseWeatherText, COLORS } from '../config/weatherRules';
+import { parseWeatherText } from '../config/weatherRules';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { supabase } from '../supabaseClient';
 
@@ -206,32 +206,6 @@ function parseSigmet(rawText) {
 // ─────────────────────────────────────────────────────────────
 // CORS proxy chain — tries each proxy in order
 // ─────────────────────────────────────────────────────────────
-async function fetchWithCorsChain(url) {
-  const proxies = [
-    // corsproxy.io — two url formats
-    (u) => `https://corsproxy.io/?${u}`,
-    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    (u) => `https://thingproxy.freeboard.io/fetch/${u}`,
-  ];
-  for (const makeProxy of proxies) {
-    const proxyUrl = makeProxy(url);
-    try {
-      const res = await fetch(proxyUrl, {
-        signal: AbortSignal.timeout(10000),
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      });
-      if (!res.ok) { console.warn('[WXR]', proxyUrl, res.status); continue; }
-      const text = await res.text();
-      if (text && text.trim().length > 10) {
-        console.log('[WXR] proxy OK:', proxyUrl.split('?')[0]);
-        return text;
-      }
-    } catch (err) {
-      console.warn('[WXR] proxy failed:', proxyUrl.split('?')[0], err.message);
-    }
-  }
-  throw new Error('All CORS proxies failed — check network');
-}
 
 async function fetchLiveWx(icaoList) {
   if (!icaoList || icaoList.length === 0) return {};
@@ -240,10 +214,11 @@ async function fetchLiveWx(icaoList) {
 
   // METAR
   try {
-    const mResp = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://aviationweather.gov/api/data/metar?ids=${ids}&format=raw&hours=3&taf=false`)}`);
+    const mResp = await fetch(`https://ojvqdsqodpxkvpxvwgrm.supabase.co/functions/v1/wx-proxy?ids=${ids}&type=metar`, {
+      headers: { 'Authorization': 'Bearer sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f' }
+    });
     if (!mResp.ok) throw new Error(`METAR HTTP ${mResp.status}`);
     const mText = await mResp.text();
-    console.log('[WXR] METAR raw:', mText.slice(0, 200));
     mText.trim().split('\n').filter(Boolean).forEach(line => {
       const l    = line.trim();
       const icao = l.split(' ')[0];
@@ -257,10 +232,11 @@ async function fetchLiveWx(icaoList) {
 
   // TAF
   try {
-    const tResp = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://aviationweather.gov/api/data/taf?ids=${ids}&format=raw`)}`);
+    const tResp = await fetch(`https://ojvqdsqodpxkvpxvwgrm.supabase.co/functions/v1/wx-proxy?ids=${ids}&type=taf`, {
+      headers: { 'Authorization': 'Bearer sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f' }
+    });
     if (!tResp.ok) throw new Error(`TAF HTTP ${tResp.status}`);
     const tText = await tResp.text();
-    console.log('[WXR] TAF raw:', tText.slice(0, 200));
     let cur = null;
     tText.trim().split('\n').filter(Boolean).forEach(line => {
       const l = line.trim();
@@ -319,7 +295,6 @@ function WXRView({ activePlan, rawText }) {
       const live = await fetchLiveWx(wxAirports.map(a => a.icao));
       setLiveWxMap(live);
       setLiveAt(new Date().toUTCString().slice(17, 25) + ' UTC');
-
     } catch(e) { setError(e.message); }
     setLoading(false);
   };
