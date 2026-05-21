@@ -963,9 +963,9 @@ function App() {
               {activePlan.archived_at ? `Archived: ${new Date(activePlan.archived_at).toLocaleDateString('en-GB')}` : ''}
             </span>
           </div>
-          <div style={{ position:'absolute', inset:0, zIndex:99, cursor:'not-allowed' }} onClick={e => e.stopPropagation()} />
         </>
       )}
+      <div {...(activePlan?.readOnly ? { inert: 'true' } : {})} style={{ flex:1, overflow:'hidden', display:'contents' }}>
       {activePage === 'flt-crew'  && <FlightCrew  setStatus={setStatusFltCrew}   activePlan={activePlan} />}
       {activePage === 'mandatory' && <Mandatory   setStatus={setStatusMandatory} activePlan={activePlan} />}
       {activePage === 'efp'       && <EFP         setStatus={setStatusEfp}       activePlan={activePlan} rawText={rawText} />}
@@ -981,6 +981,7 @@ function App() {
       {!['flt-crew','mandatory','efp','fuel','accept','takeoff','navlog','landing','endflt','docupload','freenote','rass'].includes(activePage) && (
         <div style={{ padding:24, color:'var(--t3)', fontSize:13 }}>Page under construction...</div>
       )}
+      </div>
     </Layout>
   );
 }
