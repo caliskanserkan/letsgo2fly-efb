@@ -1,6 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from 'react-leaflet';
-import { useMap } from 'react-leaflet';
+import React, { useEffect, useRef, useState } from 'react';
+import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
 const OPENAIP_KEY = '66ac62cad2142cb2ace71952b74e7722';
@@ -17,18 +16,44 @@ function FlyTo({ pos }) {
 }
 
 function aptStyle(type) {
-  if (type === 'DEPARTURE')   return { color:'#fbbf24', fill:'#fbbf24', r:10 };
-  if (type === 'DESTINATION') return { color:'#4ade80', fill:'#4ade80', r:10 };
-  if (type === 'ALTERNATE')   return { color:'#fb923c', fill:'#fb923c', r:8  };
-  return                             { color:'#a78bfa', fill:'#a78bfa', r:7  };
+  if (type === 'DEPARTURE')   return { color:'#fbbf24', r:10 };
+  if (type === 'DESTINATION') return { color:'#4ade80', r:10 };
+  if (type === 'ALTERNATE')   return { color:'#fb923c', r:8  };
+  return                             { color:'#a78bfa', r:7  };
 }
 
 export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, liveWxMap = {} }) {
 
+  const [aptCoords, setAptCoords] = useState({});
+
+  // Fetch coordinates from OpenAIP for WX airports not in waypoints
+  useEffect(() => {
+    if (!wxAirports.length) return;
+    const missing = wxAirports.filter(apt => {
+      const inWpts = waypoints.find(w => w.name === apt.icao && w.coord);
+      const inCache = aptCoords[apt.icao];
+      return !inWpts && !inCache;
+    });
+    if (!missing.length) return;
+
+    missing.forEach(apt => {
+      fetch(`https://api.core.openaip.net/api/airports?icaoCode=${apt.icao}&limit=1`, {
+        headers: { 'x-openaip-api-key': OPENAIP_KEY }
+      })
+      .then(r => r.json())
+      .then(data => {
+        const airport = data.items?.[0];
+        if (airport?.geometry?.coordinates) {
+          const [lon, lat] = airport.geometry.coordinates;
+          setAptCoords(prev => ({ ...prev, [apt.icao]: { lat, lon } }));
+        }
+      })
+      .catch(() => {});
+    });
+  }, [wxAirports, waypoints]); // eslint-disable-line
+
   const wptCoords = waypoints.filter(w => w.coord);
   const routeCoords = wptCoords.map(w => [w.coord.lat, w.coord.lon]);
-
-  console.log('[ERM] total:', waypoints.length, 'with coord:', wptCoords.length);
 
   const center = (() => {
     if (routeCoords.length > 0) {
@@ -56,10 +81,7 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
         style={{ width:'100%', height:'100%', background:'#0f172a' }}
         zoomControl attributionControl={false}>
 
-        {/* Dark base */}
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-
-        {/* OpenAIP */}
         <TileLayer
           url={`https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=${OPENAIP_KEY}`}
           opacity={0.85}
@@ -71,18 +93,18 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
             pathOptions={{ color:'#38bdf8', weight:2, opacity:0.7, dashArray:'6 4' }} />
         )}
 
-        {/* Enroute WPTs — blue circle + white label */}
+        {/* Enroute WPTs — blue */}
         {wptCoords.filter(w => w.type === 'wpt').map(w => (
           <CircleMarker key={w.uid}
             center={[w.coord.lat, w.coord.lon]}
             radius={5}
             pathOptions={{ color:'#1e40af', fillColor:'#3b82f6', fillOpacity:1, weight:1.5 }}>
-            <Tooltip permanent direction="top" offset={[0,-7]}
-              className="efb-wpt-tooltip">
+            <Tooltip permanent direction="top" offset={[0,-7]}>
               <span style={{
                 fontFamily:'monospace', fontSize:10, fontWeight:700,
-                color:'#fff', background:'rgba(56,130,246,0.9)',
-                padding:'1px 5px', borderRadius:3, whiteSpace:'nowrap'
+                color:'#fff', background:'rgba(30,64,175,0.92)',
+                padding:'1px 5px', borderRadius:3, whiteSpace:'nowrap',
+                boxShadow:'none', border:'none'
               }}>{w.name}</span>
             </Tooltip>
           </CircleMarker>
@@ -95,8 +117,8 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
             radius={10}
             pathOptions={{ color:'#92400e', fillColor:'#fbbf24', fillOpacity:1, weight:2 }}>
             <Tooltip permanent direction="top" offset={[0,-12]}>
-              <span style={{fontFamily:'monospace',fontSize:11,fontWeight:700,color:'#fbbf24'}}>
-                {w.name} · DEP
+              <span style={{fontFamily:'monospace',fontSize:11,fontWeight:700,color:'#fbbf24',whiteSpace:'nowrap'}}>
+                {w.name} DEP
               </span>
             </Tooltip>
           </CircleMarker>
@@ -109,27 +131,33 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
             radius={10}
             pathOptions={{ color:'#166534', fillColor:'#4ade80', fillOpacity:1, weight:2 }}>
             <Tooltip permanent direction="top" offset={[0,-12]}>
-              <span style={{fontFamily:'monospace',fontSize:11,fontWeight:700,color:'#4ade80'}}>
-                {w.name} · DEST
+              <span style={{fontFamily:'monospace',fontSize:11,fontWeight:700,color:'#4ade80',whiteSpace:'nowrap'}}>
+                {w.name} DEST
               </span>
             </Tooltip>
           </CircleMarker>
         ))}
 
-        {/* WX Airports (ALT, ADEQ etc) */}
+        {/* WX Airports — coord from waypoints OR from OpenAIP cache */}
         {wxAirports.map(apt => {
-          const wpt = waypoints.find(w => w.name === apt.icao || w.uid === apt.icao);
-          if (!wpt?.coord) return null;
+          // Try waypoints first, then OpenAIP cache
+          const wpt = waypoints.find(w => w.name === apt.icao && w.coord);
+          const coord = wpt?.coord || aptCoords[apt.icao];
+          if (!coord) return null;
           const s = aptStyle(apt.type);
+          const hasLive = !!liveWxMap[apt.icao];
           return (
             <CircleMarker key={apt.icao}
-              center={[wpt.coord.lat, wpt.coord.lon]}
+              center={[coord.lat, coord.lon]}
               radius={s.r}
-              pathOptions={{ color:s.color, fillColor:s.fill, fillOpacity:0.85, weight:2 }}>
-              <Tooltip permanent direction="top" offset={[0,-10]}>
-                <span style={{fontFamily:'monospace',fontSize:10,fontWeight:700,color:s.color}}>
-                  {apt.icao} · {apt.type.slice(0,3)}
-                  {liveWxMap[apt.icao] && ' ●'}
+              pathOptions={{ color:s.color, fillColor:s.color, fillOpacity:hasLive?0.9:0.5, weight:2 }}>
+              <Tooltip permanent direction="top" offset={[0,-s.r-2]}>
+                <span style={{
+                  fontFamily:'monospace', fontSize:10, fontWeight:700,
+                  color:s.color, whiteSpace:'nowrap',
+                  textShadow:'0 0 3px rgba(0,0,0,0.8)'
+                }}>
+                  {apt.icao}{hasLive?' ●':''}
                 </span>
               </Tooltip>
             </CircleMarker>
@@ -143,7 +171,7 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
               pathOptions={{ color:'#4ade80', fillColor:'#4ade80', fillOpacity:0.15, weight:2 }} />
             <CircleMarker center={[gpsPos.lat, gpsPos.lon]} radius={5}
               pathOptions={{ color:'#4ade80', fillColor:'#4ade80', fillOpacity:1, weight:2 }}>
-              <Tooltip permanent direction="top" offset={[0,-12]}>
+              <Tooltip permanent direction="top" offset={[0,-16]}>
                 <span style={{fontFamily:'monospace',fontSize:10,fontWeight:700,color:'#4ade80'}}>
                   ✈ {gpsPos.lat.toFixed(3)}N {gpsPos.lon.toFixed(3)}E
                 </span>
@@ -181,9 +209,7 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
           position:'absolute', top:8, left:'50%', transform:'translateX(-50%)', zIndex:1000,
           background:'rgba(15,23,42,0.85)', borderRadius:6, padding:'3px 10px',
           border:'1px solid #334155', fontSize:9, color:'#475569', fontFamily:'monospace'
-        }}>
-          GPS signal not available
-        </div>
+        }}>GPS signal not available</div>
       )}
     </div>
   );
