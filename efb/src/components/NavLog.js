@@ -55,10 +55,11 @@ function parseWaypoints(rawText, dep, dest, std) {
   const destCoord = parseCoord(destLine);
 
   const coordWpts = [];
+  const coordSeen = new Set();
   for (const line of coordSec.split('\n')) {
     if (!line.trim() || line.match(/-TOC-|-TOD-/)) continue;
     const m = line.match(/^\s*\d+\s+([A-Z][A-Z0-9]{1,5})\s/);
-    if (m) coordWpts.push({ name: m[1], coord: parseCoord(line) });
+    if (m && coordSeen.has(m[1])===false) { coordSeen.add(m[1]); coordWpts.push({ name: m[1], coord: parseCoord(line) }); }
   }
 
   // Step 2: route section — parse all OFP fields per waypoint
@@ -152,6 +153,14 @@ function parseWaypoints(rawText, dep, dest, std) {
       dis:rd.dis||null, stm:rd.stm||null, sburn:rd.sburn||null,
       mora:rd.mora||null, oat:rd.oat||null, dtg:rd.dtg||null });
   });
+  // ALT koordinatı
+  const altMatch = rawText.match(/^ALT\s+([A-Z]{4})\/\S+[^\n]*/mi);
+  const altIcao = altMatch ? altMatch[1] : '';
+  const altCoord = altMatch ? parseCoord(altMatch[0]) : null;
+  if (altIcao && altCoord) {
+    result.push({ uid:altIcao+'_alt', name:altIcao, type:'alt', eta:'—', fl:'—', planFuel:null, custom:false, coord:altCoord, ...empty });
+  }
+
   result.push({ uid:dest, name:dest, type:'dest', eta:destRD.eta||'—', fl:'—', planFuel:destRD.planFuel||null, custom:false, coord:destCoord, ...empty });
   return result;
 }
