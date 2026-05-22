@@ -15,15 +15,11 @@ function OFPView({ rawText, activePlan }) {
     setLoading(true);
     const fetchPdf = async () => {
       try {
-        let path = `active/${activePlan.id}.pdf`;
-        const { data, error } = await supabase.storage.from('ofp-pdfs').createSignedUrl(path, 3600);
-        if (error || !data?.signedUrl) {
-          path = `archived/${activePlan.id}.pdf`;
-          const { data: data2 } = await supabase.storage.from('ofp-pdfs').createSignedUrl(path, 3600);
-          if (data2?.signedUrl) setPdfUrl(data2.signedUrl);
-        } else {
-          setPdfUrl(data.signedUrl);
-        }
+        const resp = await fetch(
+          'https://ojvqdsqodpxkvpxvwgrm.supabase.co/functions/v1/pdf-proxy?plan_id=' + activePlan.id,
+          { headers: { 'Authorization': 'Bearer sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f' } }
+        );
+        if (resp.ok) { const d = await resp.json(); if (d.url) setPdfUrl(d.url); }
       } catch (e) { console.warn('PDF fetch:', e); }
       setLoading(false);
     };
