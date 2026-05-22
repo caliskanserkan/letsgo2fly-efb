@@ -47,7 +47,7 @@ export default function EnrouteMap({ waypoints = [], gpsPos, directTo = null }) 
   return (
     <div style={{ flex:1, position:"relative", overflow:"hidden", minHeight:500 }}>
       <MapContainer center={center} zoom={zoom}
-        style={{ width:"100%", height:"100%", background:"#e8f0f7" }}
+        style={{ width:"100%", height:"100%", background:"#0f172a" }}
         zoomControl attributionControl={false}>
         <TileLayer url={`https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=${OPENAIP_KEY}`} opacity={1.0} />
         {routeCoords.length >= 2 && <Polyline positions={routeCoords} pathOptions={{ color:"#38bdf8", weight:2, opacity:0.7, dashArray:"6 4" }} />}
