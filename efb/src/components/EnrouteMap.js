@@ -25,7 +25,7 @@ function aptStyle(type) {
 export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, liveWxMap = {} }) {
 
   const [aptCoords, setAptCoords] = useState({});
-  const [missingApts, setMissingApts] = useState([]);
+  const [missingApts, setMissingApts] = useState([]); // eslint-disable-line
 
   const SUPABASE_URL = 'https://ojvqdsqodpxkvpxvwgrm.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f';
