@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { parseWeatherText } from '../config/weatherRules';
 import { usePersistedState } from '../hooks/usePersistedState';
-import { supabase } from '../supabaseClient';
+// import { supabase } from '../supabaseClient';
 
 const ALL_TABS = ['ofp', 'wxr'];
 
