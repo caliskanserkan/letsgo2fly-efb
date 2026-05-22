@@ -482,6 +482,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
             else if(/alternate|era|en.?route/.test(raw)) tp='ALTERNATE';
             if(!wxSeen.has(ic)){wxSeen.add(ic);wxFound.push({icao:ic,type:tp});}
           }
+          console.log('[NAV] wxFound:', wxFound.length, wxFound.slice(0,3));
           setWxApts(wxFound);
           if(wpts.length>=2){
             const customs=waypoints.filter(w=>w.custom);
