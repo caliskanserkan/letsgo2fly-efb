@@ -17,7 +17,7 @@ function FlyTo({ pos }) {
 
 export default function EnrouteMap({ waypoints = [], gpsPos, directTo = null }) {
   const wptCoords   = waypoints.filter(w => w.coord);
-  const routeCoords = wptCoords.map(w => [w.coord.lat, w.coord.lon]);
+  const routeCoords = waypoints.filter(w => w.coord && w.type !== 'alt').map(w => [w.coord.lat, w.coord.lon]);
 
   const center = (() => {
     if (gpsPos) return [gpsPos.lat, gpsPos.lon];
