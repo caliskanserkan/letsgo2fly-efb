@@ -17,31 +17,36 @@ function calcBearing(lat1, lon1, lat2, lon2) {
 }
 
 function AircraftMarker({ pos, waypoints }) {
-  const ahead = waypoints.find(w => w.coord && ['wpt','dest'].includes(w.type) &&
-    (w.coord.lat !== pos.lat || w.coord.lon !== pos.lon));
+  const map = useMap();
+  const markerRef = useRef(null);
+
+  const ahead = waypoints.find(w => w.coord && ['wpt','dest'].includes(w.type));
   const heading = ahead ? calcBearing(pos.lat, pos.lon, ahead.coord.lat, ahead.coord.lon) : 0;
 
-  const icon = L.divIcon({
-    className: '',
-    html: `<div style="transform:rotate(${heading}deg);width:32px;height:32px;display:flex;align-items:center;justify-content:center;">
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M16 2 L20 14 L30 16 L20 18 L18 26 L16 24 L14 26 L12 18 L2 16 L12 14 Z" fill="#4ade80" stroke="#166534" stroke-width="1.5"/>
-      </svg>
-    </div>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-  });
+  useEffect(() => {
+    if (!map) return;
+    if (markerRef.current) { map.removeLayer(markerRef.current); }
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="transform:rotate(${heading}deg);width:36px;height:36px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 4px #4ade80);">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18 3 L22 15 L33 18 L22 21 L20 29 L18 27 L16 29 L14 21 L3 18 L14 15 Z" fill="#4ade80" stroke="#166534" stroke-width="1.5"/>
+        </svg>
+      </div>`,
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+    });
+    const m = L.marker([pos.lat, pos.lon], { icon })
+      .bindTooltip(`✈ ${pos.lat.toFixed(4)}N ${pos.lon.toFixed(4)}E ±${Math.round(pos.acc)}m`, {
+        permanent: true, direction: 'top', offset: [0, -22],
+        className: 'acft-tooltip'
+      })
+      .addTo(map);
+    markerRef.current = m;
+    return () => { if (markerRef.current) map.removeLayer(markerRef.current); };
+  }, [pos.lat, pos.lon, heading, map]); // eslint-disable-line
 
-  return (
-    <Marker position={[pos.lat, pos.lon]} icon={icon}>
-      <Tooltip permanent direction="top" offset={[0,-20]}>
-        <span style={{ fontFamily:"monospace", fontSize:11, fontWeight:700, color:"#4ade80" }}>
-          ✈ {pos.lat.toFixed(4)}N {pos.lon.toFixed(4)}E
-          <span style={{ fontSize:9, color:"#86efac", marginLeft:6 }}>±{Math.round(pos.acc)}m</span>
-        </span>
-      </Tooltip>
-    </Marker>
-  );
+  return null;
 }
 
 function FlyTo({ pos }) {
@@ -89,6 +94,7 @@ export default function EnrouteMap({ waypoints = [], gpsPos, directTo = null }) 
       <MapContainer center={center} zoom={zoom}
         style={{ width:"100%", height:"100%", background:"#f0f4f8" }}
         zoomControl attributionControl={false}>
+        <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
         <TileLayer url="https://ojvqdsqodpxkvpxvwgrm.supabase.co/functions/v1/tile-proxy?z={z}&x={x}&y={y}" opacity={1.0} />
         {routeCoords.length >= 2 && <Polyline positions={routeCoords} pathOptions={{ color:"#38bdf8", weight:2, opacity:0.7, dashArray:"6 4" }} />}
         {dtCoords && <Polyline positions={dtCoords} pathOptions={{ color:"#f97316", weight:3, opacity:0.95, dashArray:"10 6" }} />}
