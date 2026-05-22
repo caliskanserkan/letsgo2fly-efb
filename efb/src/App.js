@@ -972,7 +972,7 @@ function App() {
       {activePage === 'fuel'      && <Fuel        setStatus={setStatusFuel}      activePlan={activePlan} />}
       {activePage === 'accept'    && <AcceptSign  pageStatus={pageStatus} setStatus={setStatusAccept} activePlan={activePlan} />}
       {activePage === 'takeoff'   && <TakeoffData setStatus={setStatusTakeoff}   activePlan={activePlan} />}
-      {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} setStatus={setStatusNavlog} activePlan={activePlan} updateDivert={updateDivert} />}
+      {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} setStatus={setStatusNavlog} activePlan={activePlan} updateDivert={updateDivert} rawText={rawText} />}
       {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} setStatus={setStatusLanding} activePlan={activePlan} />}
       {activePage === 'endflt'    && <EndFlight   flightData={flightData} divertData={divertData} setStatus={setStatusEndflt} activePlan={activePlan} rawText={rawText} onArchive={() => setActivePlan(prev => prev ? {...prev, readOnly:true, status:'archived'} : prev)} />}
       {activePage === 'docupload' && <DocUpload   setStatus={setStatusDocupload} activePlan={activePlan} />}

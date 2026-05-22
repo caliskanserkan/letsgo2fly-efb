@@ -425,7 +425,7 @@ function DivertArptModal({ onClose, onAdd }) {
 }
 
 // ─── NavLog Main ──────────────────────────────────────────────────────────────
-function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert }) {
+function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert, rawText }) {
   const planKey = activePlan?.id || 'default';
   const [entries,      setEntries]      = usePersistedState(`efb_navlog_entries_${planKey}`, {});
   const [waypoints,    setWaypoints]    = usePersistedState(`efb_navlog_waypoints_${planKey}`, []);
@@ -471,19 +471,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
           .eq('plan_id',activePlan.id).order('version_no',{ascending:false}).limit(1).single();
         if(data?.raw_text){
           const wpts=parseWaypoints(data.raw_text,dep,dest,std);
-          // Parse WX airports for ERM
-          const wxRe = /(?:(?:Departure|Destination|Alternate|Adequate|En[\s-]?route\s+alternate|ERA|ETOPS\s+\w+)\s+airport|Flight\s+group\s+apt)\s+([A-Z]{4})/gi;
-          const wxFound=[]; const wxSeen=new Set(); let wxm;
-          while((wxm=wxRe.exec(data.raw_text))!==null){
-            const ic=wxm[1].toUpperCase(); const raw=wxm[0].toLowerCase();
-            let tp='ADEQUATE';
-            if(/departure/.test(raw)) tp='DEPARTURE';
-            else if(/destination/.test(raw)) tp='DESTINATION';
-            else if(/alternate|era|en.?route/.test(raw)) tp='ALTERNATE';
-            if(!wxSeen.has(ic)){wxSeen.add(ic);wxFound.push({icao:ic,type:tp});}
-          }
-          console.log('[NAV] wxFound:', wxFound.length, wxFound.slice(0,3));
-          setWxApts(wxFound);
+
           if(wpts.length>=2){
             const customs=waypoints.filter(w=>w.custom);
             const destIdx=wpts.findIndex(w=>w.type==='dest');
@@ -607,6 +595,23 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert 
   const hasCo=waypoints.some(w=>w.coord);
   // Auto GPS
   useEffect(() => { if(hasCo && gpsOk) startGPS(); }, [hasCo, gpsOk]); // eslint-disable-line
+
+  // Parse WX airports from rawText prop
+  useEffect(() => {
+    if (!rawText) return;
+    const wxRe = /(?:(?:Departure|Destination|Alternate|Adequate|En[\s-]?route\s+alternate|ERA|ETOPS\s+\w+)\s+airport|Flight\s+group\s+apt)\s+([A-Z]{4})/gi;
+    const found=[], seen=new Set(); let m;
+    while((m=wxRe.exec(rawText))!==null){
+      const ic=m[1].toUpperCase(), raw=m[0].toLowerCase();
+      let tp='ADEQUATE';
+      if(/departure/.test(raw)) tp='DEPARTURE';
+      else if(/destination/.test(raw)) tp='DESTINATION';
+      else if(/alternate|era|en.?route/.test(raw)) tp='ALTERNATE';
+      if(!seen.has(ic)){seen.add(ic);found.push({icao:ic,type:tp});}
+    }
+    console.log('[NAV] wxApts from rawText:', found.length);
+    setWxApts(found);
+  }, [rawText]); // eslint-disable-line
 
 
   return(
