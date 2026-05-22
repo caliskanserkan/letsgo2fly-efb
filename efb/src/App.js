@@ -778,6 +778,7 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
 
       {showUpload && <UploadPlanModal onClose={() => setShowUpload(false)} onUploaded={loadPlans} />}
     </div>
+    </>
   );
 }
 
