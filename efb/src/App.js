@@ -17,7 +17,7 @@ import { supabase, logEvent } from './supabaseClient';
 import * as pdfjsLib from 'pdfjs-dist';
 import AdminPanel from './components/AdminPanel';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.6.205/build/pdf.worker.min.mjs';
 
 // ─── Global Font Size ─────────────────────────────────────────────────────────
 const FONT_KEY  = 'efb_font_size';
@@ -560,7 +560,7 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
   const [availablePlans, setAvailablePlans] = useState([]);
   const [activePlans, setActivePlans]       = useState([]);
   const [archivedPlans, setArchivedPlans]   = useState([]);
-  const [reportPlan,    setReportPlan]    = useState(null);
+
   const [showUpload, setShowUpload]         = useState(false);
   const [loading, setLoading]               = useState(false);
 
