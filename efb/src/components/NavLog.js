@@ -8,9 +8,11 @@ const FIFTY_MIN = 50 * 60 * 1000;
 
 function parseCoord(str) {
   if (!str) return null;
-  const m = str.match(/N(\d+):(\d+\.?\d*)\s*E(\d+):(\d+\.?\d*)/i);
+  const m = str.match(/([NS])(\d+):(\d+\.?\d*)\s*([EW])(\d+):(\d+\.?\d*)/i);
   if (!m) return null;
-  return { lat: parseFloat(m[1]) + parseFloat(m[2]) / 60, lon: parseFloat(m[3]) + parseFloat(m[4]) / 60 };
+  const lat = (parseFloat(m[2]) + parseFloat(m[3]) / 60) * (m[1].toUpperCase() === 'S' ? -1 : 1);
+  const lon = (parseFloat(m[5]) + parseFloat(m[6]) / 60) * (m[4].toUpperCase() === 'W' ? -1 : 1);
+  return { lat, lon };
 }
 
 function haversine(lat1, lon1, lat2, lon2) {
@@ -50,7 +52,7 @@ function parseWaypoints(rawText, dep, dest, std) {
   // Step 1: coordinate section
   const depPat   = new RegExp(`DEP\\s+${dep}\\/\\S+[^\\n]*\\n([\\s\\S]*?)(?=DEST\\s+${dest}\\/)`, 'i');
   const coordSec = rawText.match(depPat)?.[1] || '';
-  const depCoord = parseCoord(rawText.match(new RegExp(`DEP\\s+${dep}\\/\\S+[^\\n]*(N\\d+:\\d+\\.?\\d*\\s*E\\d+:\\d+\\.?\\d*)`, 'i'))?.[1]);
+  const depCoord = parseCoord(rawText.match(new RegExp(`DEP\\s+${dep}\\/\\S+[^\\n]*([NS]\\d+:\\d+\\.?\\d*\\s*[EW]\\d+:\\d+\\.?\\d*)`, 'i'))?.[1]);
   const destLine  = rawText.match(new RegExp(`DEST\\s+${dest}\\/\\S+[^\\n]*`, 'i'))?.[0] || '';
   const destCoord = parseCoord(destLine);
 
