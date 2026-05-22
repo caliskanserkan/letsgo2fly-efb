@@ -443,6 +443,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
       if(/departure/.test(raw)) tp='DEPARTURE';
       else if(/destination/.test(raw)) tp='DESTINATION';
       else if(/alternate/.test(raw)) tp='ALTERNATE';
+      if(s.has(ic)===false){s.add(ic);f.push({icao:ic,type:tp});}
     }
     return f;
   }, [rawText, wxAirportsProp]); // eslint-disable-line
