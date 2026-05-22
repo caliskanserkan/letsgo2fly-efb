@@ -985,6 +985,7 @@ function App() {
         <div style={{ padding:24, color:'var(--t3)', fontSize:13 }}>Page under construction...</div>
       )}
       </div>
+    {reportPlan && <FlightReport plan={reportPlan} onClose={()=>setReportPlan(null)}/>}
     </Layout>
   );
 }
