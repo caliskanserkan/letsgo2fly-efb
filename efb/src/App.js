@@ -273,7 +273,7 @@ function Login({ onLogin }) {
 }
 
 // ─── PlanCard ─────────────────────────────────────────────────────────────────
-function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate }) {
+function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate, onReport }) {
   return (
     <div style={{ background: archived ? '#1e1e1e' : active ? 'rgba(26,155,196,0.05)' : 'var(--bg3)', border:`1px solid ${archived ? '#2a2a2a' : active ? 'var(--accent)' : 'var(--border)'}`, borderRadius:10, overflow:'hidden', marginBottom:8, opacity: archived ? 0.85 : 1 }}>
       <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', gap:12, borderBottom:'1px solid var(--border)' }}>
@@ -311,9 +311,8 @@ function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate }) {
         {archived && (
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
             <span style={{ fontSize:10, color:'#555', fontWeight:700 }}>🔒 Read Only</span>
-            <button onClick={onOpen} style={{ background:'rgba(100,100,100,0.15)', border:'1px solid #555', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#888', cursor:'pointer', fontFamily:'inherit' }}>
-              View →
-            </button>
+            {onReport && <button onClick={onReport} style={{ background:'rgba(56,189,248,0.12)', border:'1px solid #38bdf8', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#38bdf8', cursor:'pointer', fontFamily:'inherit' }}>📄 Report</button>}
+            <button onClick={onOpen} style={{ background:'rgba(100,100,100,0.15)', border:'1px solid #555', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#888', cursor:'pointer', fontFamily:'inherit' }}>View →</button>
           </div>
         )}
         {plan.archived_at && archived && (
@@ -561,6 +560,7 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
   const [availablePlans, setAvailablePlans] = useState([]);
   const [activePlans, setActivePlans]       = useState([]);
   const [archivedPlans, setArchivedPlans]   = useState([]);
+  const [reportPlan,    setReportPlan]    = useState(null);
   const [showUpload, setShowUpload]         = useState(false);
   const [loading, setLoading]               = useState(false);
 
