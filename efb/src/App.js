@@ -560,6 +560,7 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
   const [availablePlans, setAvailablePlans] = useState([]);
   const [activePlans, setActivePlans]       = useState([]);
   const [archivedPlans, setArchivedPlans]   = useState([]);
+  const [reportPlan,    setReportPlan]    = useState(null);
 
   const [showUpload, setShowUpload]         = useState(false);
   const [loading, setLoading]               = useState(false);
