@@ -754,7 +754,7 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
             )}
             {archivedPlans.map((p, i) => (
               <PlanCard key={i} plan={planCard(p)} active={false} archived={true}
-                onReport={() => { console.log('REPORT:', JSON.stringify(planCard(p))); setReportPlan(planCard(p)); }}
+                onReport={() => setReportPlan(planCard(p))}
                 onOpen={async () => {
                   try {
                     const { data: version } = await supabase
