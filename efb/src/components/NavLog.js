@@ -42,7 +42,6 @@ function fmtDev(dev) {
 }
 
 // ─── PPS OFP Parser ───────────────────────────────────────────────────────────
-// Extracts: AWY, WPT, FIR, WIND, TAS, GS, MH, MT, W/C, DIS, DTG, STM, S/BURN, TPREM, FL, MORA, OAT
 function parseWaypoints(rawText, dep, dest, std) {
   if (!rawText || !dep || !dest) return [];
   const stdMins = toMins(std);
@@ -56,12 +55,15 @@ function parseWaypoints(rawText, dep, dest, std) {
   const destLine  = rawText.match(new RegExp(`DEST\\s+${dest}\\/\\S+[^\\n]*`, 'i'))?.[0] || '';
   const destCoord = parseCoord(destLine);
 
+  // FIX: coordSeen kaldırıldı — OFP sıralı gelir, her satır kendi koordinatıyla geçerlidir.
+  // Aynı isimli WPT (KAKKO gibi) farklı koordinatlarla birden fazla kez gelebilir — hepsini al.
   const coordWpts = [];
-  const coordSeen = new Set();
   for (const line of coordSec.split('\n')) {
     if (!line.trim() || line.match(/-TOC-|-TOD-/)) continue;
     const m = line.match(/^\s*\d+\s+([A-Z][A-Z0-9]{1,5})\s/);
-    if (m && coordSeen.has(m[1])===false) { coordSeen.add(m[1]); coordWpts.push({ name: m[1], coord: parseCoord(line) }); }
+    if (m) {
+      coordWpts.push({ name: m[1], coord: parseCoord(line) });
+    }
   }
 
   // Step 2: route section — parse all OFP fields per waypoint
@@ -84,7 +86,6 @@ function parseWaypoints(rawText, dep, dest, std) {
 
     if (!rawName || SKIP.has(rawName) || rawName.includes('TOC') || rawName.includes('TOD')) continue;
 
-    // Parse line1: ...WIND(6dig) TAS MH W/C_dir W/C_val DIS STM ... S/BURN TPREM
     const tokens1 = line1.trim().split(/\s+/);
     const windIdx = tokens1.findIndex(t => /^\d{6}$/.test(t));
     let wind=null, tas=null, mh=null, wcDir=null, wcVal=null, dis=null, stm=null, sburn=null;
@@ -93,42 +94,36 @@ function parseWaypoints(rawText, dep, dest, std) {
       wind  = `${w.slice(0,3)}°/${parseInt(w.slice(3))}kt`;
       tas   = tokens1[windIdx+1] ? parseInt(tokens1[windIdx+1]) : null;
       mh    = tokens1[windIdx+2] || null;
-      wcDir = tokens1[windIdx+3] || null; // T=tailwind H=headwind VAR
+      wcDir = tokens1[windIdx+3] || null;
       wcVal = tokens1[windIdx+4] || null;
       dis   = tokens1[windIdx+5] ? parseInt(tokens1[windIdx+5]) : null;
       stm   = tokens1[windIdx+6] ? parseInt(tokens1[windIdx+6]) : null;
     }
-    // TPREM = last number, S/BURN = second to last
     const allNums = [...line1.matchAll(/\b(\d{3,5})\b/g)].map(m => parseInt(m[1]));
     const planFuel = allNums.length > 0 ? allNums[allNums.length-1] : null;
     sburn          = allNums.length > 1 ? allNums[allNums.length-2] : null;
 
-    // Parse line2: MORA FL GS MT OAT DTG ATM
     let mora=null, fl=null, gs=null, mt=null, oat=null, dtg=null, atmMins=null;
     for (let j = i+1; j <= Math.min(i+4, lines.length-1); j++) {
       const l2 = lines[j].trim();
       if (!l2) continue;
-      // ATM = first H:MM
       const atmM = l2.match(/\b(\d+:\d{2})\b/);
       if (atmM) atmMins = toMins(atmM[1]);
-      // OAT — negative temperature
       const oatM = l2.match(/\s(-\d+)\s/);
       if (oatM) oat = parseInt(oatM[1]);
-      // Numbers in order: MORA, FL, GS
       const nums2 = l2.split(/\s+/).filter(t => /^\d+$/.test(t)).map(Number);
       if (nums2.length >= 1) mora = nums2[0];
-      if (nums2.length >= 2) fl   = nums2[1]; // FL e.g. 290
-      if (nums2.length >= 3) gs   = nums2[2]; // GS in kts
-      // MT (magnetic track) — 3-digit number after GS position
+      if (nums2.length >= 2) fl   = nums2[1];
+      if (nums2.length >= 3) gs   = nums2[2];
       const mtM = l2.match(/\b(\d{3})\b.*\b(\d{3})\b/);
       if (mtM) mt = mtM[2];
-      // DTG before ATM
       const dtgM = l2.match(/(\d+)\s+\d+:\d{2}/);
       if (dtgM) dtg = parseInt(dtgM[1]);
       if (atmMins !== null) break;
     }
 
     if (atmMins === null || stdMins === null) continue;
+    // routeData: ilk geçişi sakla (aynı isimde birden fazla OFP satırı varsa ilki kullanılır)
     if (!routeData[rawName]) routeData[rawName] = {
       eta: fromMins(stdMins + atmMins), planFuel,
       awy, fir, wind, tas, gs, mh, mt,
@@ -146,18 +141,30 @@ function parseWaypoints(rawText, dep, dest, std) {
   const empty = { awy:'', fir:'', wind:'', tas:null, gs:null, mh:'', mt:'', wcDir:'', wcVal:'', dis:null, stm:null, sburn:null, mora:null, fl:null, oat:null, dtg:null };
   const destRD = getRD(dest);
   const result = [];
-  result.push({ uid:dep,  name:dep,  type:'dep',  eta:std||'—', fl:'—', planFuel:null, custom:false, coord:depCoord,  ...empty });
-  coordWpts.forEach(w => {
+
+  result.push({ uid:dep, name:dep, type:'dep', eta:std||'—', fl:'—', planFuel:null, custom:false, coord:depCoord, ...empty });
+
+  // FIX: uid artık `name_index` formatında — duplicate key ve duplicate WPT sorunu çözüldü
+  coordWpts.forEach((w, i) => {
     const rd = getRD(w.name);
-    result.push({ uid:w.name, name:w.name, type:'wpt', eta:rd.eta||'—', fl:rd.fl||'—', planFuel:rd.planFuel||null, custom:false, coord:w.coord,
+    result.push({
+      uid: `${w.name}_${i}`,   // ← KAKKO_0, KAKKO_1 gibi unique uid
+      name: w.name,
+      type: 'wpt',
+      eta: rd.eta||'—',
+      fl: rd.fl||'—',
+      planFuel: rd.planFuel||null,
+      custom: false,
+      coord: w.coord,
       awy:rd.awy||'', fir:rd.fir||'', wind:rd.wind||'', tas:rd.tas||null, gs:rd.gs||null,
       mh:rd.mh||'', mt:rd.mt||'', wcDir:rd.wcDir||'', wcVal:rd.wcVal||'',
       dis:rd.dis||null, stm:rd.stm||null, sburn:rd.sburn||null,
-      mora:rd.mora||null, oat:rd.oat||null, dtg:rd.dtg||null });
+      mora:rd.mora||null, oat:rd.oat||null, dtg:rd.dtg||null
+    });
   });
-  // ALT koordinatı
+
   const altMatch = rawText.match(/^ALT\s+([A-Z]{4})\/\S+[^\n]*/mi);
-  const altIcao = altMatch ? altMatch[1] : '';
+  const altIcao  = altMatch ? altMatch[1] : '';
   const altCoord = altMatch ? parseCoord(altMatch[0]) : null;
   if (altIcao && altCoord) {
     result.push({ uid:altIcao+'_alt', name:altIcao, type:'alt', eta:'—', fl:'—', planFuel:null, custom:false, coord:altCoord, ...empty });
@@ -324,7 +331,6 @@ function WptModal({ wpt, onClose, onSave, onDirectTo, onAddWpt, onDelete, initia
                 {wpt.eta!=='—'&&<div><div style={{fontSize:9,color:'#475569',marginBottom:2}}>ETA</div><div style={{fontSize:14,fontWeight:700,color:'#888',fontFamily:'monospace'}}>{wpt.eta} UTC</div></div>}
                 {wpt.planFuel&&<div><div style={{fontSize:9,color:'#475569',marginBottom:2}}>FUEL</div><div style={{fontSize:14,fontWeight:700,color:'#888',fontFamily:'monospace'}}>{wpt.planFuel.toLocaleString()} lb</div></div>}
               </div>
-              {/* OFP nav data */}
               {(wpt.awy||wpt.fl||wpt.wind||wpt.tas)&&(
                 <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #1e293b',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
                   {wpt.awy&&<div><div style={{fontSize:8,color:'#334155'}}>AWY</div><div style={{fontSize:10,color:'#64748b',fontFamily:'monospace'}}>{wpt.awy}</div></div>}
@@ -445,6 +451,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
   const [lastCheck,    setLastCheck]    = usePersistedState(`efb_navlog_lastCheck_${planKey}`, null);
   const [modal,        setModal]        = useState(null);
   const [wxAptsState,  setWxAptsState]  = useState([]);
+
   const wxApts = React.useMemo(() => {
     if (wxAirportsProp && wxAirportsProp.length > 0) return wxAirportsProp;
     if (wxAptsState.length > 0) return wxAptsState;
@@ -466,6 +473,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
     }
     return f;
   }, [rawText, wxAirportsProp, wxAptsState]); // eslint-disable-line
+
   const [activeTab,    setActiveTab]    = useState('log');
   const [showDivert,   setShowDivert]   = useState(false);
   const [alert50,      setAlert50]      = useState(false);
@@ -634,10 +642,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
   const lastStr=lastCheck?new Date(lastCheck).toTimeString().slice(0,5)+' Z':'—';
   const mWpt=waypoints.find(w=>w.uid===modal);
   const hasCo=waypoints.some(w=>w.coord);
-  // Auto GPS
   useEffect(() => { if(hasCo && gpsOk) startGPS(); }, [hasCo, gpsOk]); // eslint-disable-line
-
-
 
   return(
     <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
@@ -651,7 +656,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
           </div>
         ))}
       </div>
-
 
       {alert50&&(
         <div style={{background:'rgba(224,32,32,0.12)',borderBottom:'1px solid rgba(224,32,32,0.3)',padding:'10px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
@@ -693,13 +697,11 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
 
       {/* Column headers — OFP format */}
       <div style={{background:'#0f172a',borderBottom:'2px solid #334155',padding:'3px 8px',flexShrink:0,fontFamily:'monospace'}}>
-        {/* Row 1 */}
         <div style={{display:'grid',gridTemplateColumns:'60px 56px 48px 70px 44px 44px 40px 44px 44px 60px 50px 1fr',gap:2,marginBottom:1}}>
           {['AWY','WPT','FIR','WIND','TAS','MH','W/C','DIS','STM','ETA / ATA','S/BURN','TPREM'].map(h=>(
             <div key={h} style={{fontSize:8,color:'#334155',fontWeight:700,letterSpacing:0.3}}>{h}</div>
           ))}
         </div>
-        {/* Row 2 */}
         <div style={{display:'grid',gridTemplateColumns:'60px 56px 48px 70px 44px 44px 40px 44px 44px 60px 50px 1fr',gap:2}}>
           {['MORA','—','FL','G/S','MT','OAT','—','DTG','ATM','±','CORR',''].map(h=>(
             <div key={h} style={{fontSize:8,color:'#1e293b',fontWeight:700,letterSpacing:0.3}}>{h}</div>
@@ -708,7 +710,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
       </div>
 
       <div style={{flex:1,overflowY:'auto'}}>
-        {activeTab === 'log' && !waypoints.length&&<div style={{padding:20,textAlign:'center',color:'#334155',fontSize:12}}>Loading waypoints...</div>}
+        {!waypoints.length&&<div style={{padding:20,textAlign:'center',color:'#334155',fontSize:12}}>Loading waypoints...</div>}
 
         {waypoints.map((wpt,idx)=>{
           const e      = entries[wpt.uid]||{};
@@ -735,8 +737,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
           const fDev   = (!isDep&&!isArr&&actFN) ? fuelDeviation(wpt,actFN) : null;
           const fDS    = fuelDevStyle(fDev);
           const showAc = gpsActive&&acPos&&acPos.prev===wpt.uid&&acPos.next;
-
-          // W/C display
           const wcDisplay = wpt.wcDir && wpt.wcVal ? `${wpt.wcDir}${wpt.wcVal}` : '—';
 
           return(
@@ -744,83 +744,39 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
               <div onClick={()=>!sk&&setModal(wpt.uid)}
                 style={{borderBottom:'1px solid #1e293b',background:bg,borderLeft:bl,cursor:sk?'default':'pointer',opacity:sk?0.3:1,padding:'4px 8px'}}>
 
-                {/* OFP Line 1: AWY WPT FIR WIND TAS MH W/C DIS STM ETA S/BURN TPREM */}
+                {/* OFP Line 1 */}
                 <div style={{display:'grid',gridTemplateColumns:'60px 56px 48px 70px 44px 44px 40px 44px 44px 60px 50px 1fr',gap:2,marginBottom:2,alignItems:'center'}}>
-
-                  {/* AWY */}
                   <div style={{fontSize:10,fontWeight:600,color:'#475569',fontFamily:'monospace',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{wpt.awy||'—'}</div>
-
-                  {/* WPT */}
                   <div>
                     <div style={{fontSize:11,fontWeight:700,fontFamily:'monospace',color:nc}}>{wpt.name}</div>
                     {isDivA&&<div style={{fontSize:8,color:'#f97316'}}>DIVERT</div>}
                     {wpt.custom&&!isDivA&&<div style={{fontSize:8,color:'#fbbf24'}}>ADDED</div>}
                   </div>
-
-                  {/* FIR */}
                   <div style={{fontSize:9,color:'#334155',fontFamily:'monospace'}}>{wpt.fir||'—'}</div>
-
-                  {/* WIND */}
                   <div style={{fontSize:9,color:'#475569',fontFamily:'monospace'}}>{wpt.wind||'—'}</div>
-
-                  {/* TAS */}
                   <div style={{fontSize:9,color:'#475569',fontFamily:'monospace'}}>{wpt.tas||'—'}</div>
-
-                  {/* MH */}
                   <div style={{fontSize:9,color:'#475569',fontFamily:'monospace'}}>{wpt.mh||'—'}</div>
-
-                  {/* W/C */}
-                  <div style={{fontSize:9,color: wpt.wcDir==='T'?'#4ade80':wpt.wcDir==='H'?'#f97316':'#475569',fontFamily:'monospace',fontWeight:700}}>{wcDisplay}</div>
-
-                  {/* DIS */}
+                  <div style={{fontSize:9,color:wpt.wcDir==='T'?'#4ade80':wpt.wcDir==='H'?'#f97316':'#475569',fontFamily:'monospace',fontWeight:700}}>{wcDisplay}</div>
                   <div style={{fontSize:9,color:'#64748b',fontFamily:'monospace'}}>{wpt.dis!=null?wpt.dis+'nm':'—'}</div>
-
-                  {/* STM */}
                   <div style={{fontSize:9,color:'#64748b',fontFamily:'monospace'}}>{wpt.stm!=null?wpt.stm+'\'':'—'}</div>
-
-                  {/* ETA plan */}
                   <div style={{fontSize:10,color:wpt.eta!=='—'?'#64748b':'#334155',fontFamily:'monospace'}}>{wpt.eta}</div>
-
-                  {/* S/BURN */}
                   <div style={{fontSize:9,color:'#475569',fontFamily:'monospace'}}>{wpt.sburn?wpt.sburn.toLocaleString():'—'}</div>
-
-                  {/* TPREM (plan fuel) */}
                   <div style={{fontSize:9,color:'#475569',fontFamily:'monospace'}}>{pF?pF.toLocaleString():'—'}</div>
                 </div>
 
-                {/* OFP Line 2: MORA — FL GS MT OAT — DTG ATM ATA±dev CORR status */}
+                {/* OFP Line 2 */}
                 <div style={{display:'grid',gridTemplateColumns:'60px 56px 48px 70px 44px 44px 40px 44px 44px 60px 50px 1fr',gap:2,alignItems:'center'}}>
-
-                  {/* MORA */}
                   <div style={{fontSize:9,color:'#334155',fontFamily:'monospace'}}>{wpt.mora!=null?wpt.mora:'—'}</div>
-
-                  {/* blank (WPT col) */}
                   <div/>
-
-                  {/* FL */}
                   <div style={{fontSize:9,color:'#64748b',fontFamily:'monospace',fontWeight:600}}>{wpt.fl&&wpt.fl!=='—'?wpt.fl:'—'}</div>
-
-                  {/* GS */}
                   <div style={{fontSize:9,color:'#475569',fontFamily:'monospace'}}>{wpt.gs?wpt.gs+'kt':'—'}</div>
-
-                  {/* MT */}
                   <div style={{fontSize:9,color:'#334155',fontFamily:'monospace'}}>{wpt.mt||'—'}</div>
-
-                  {/* OAT */}
                   <div style={{fontSize:9,color:'#38bdf8',fontFamily:'monospace'}}>{wpt.oat!=null?wpt.oat+'°C':'—'}</div>
-
-                  {/* blank */}
                   <div/>
-
-                  {/* DTG */}
                   <div style={{fontSize:9,color:'#334155',fontFamily:'monospace'}}>{wpt.dtg!=null?wpt.dtg+'nm':'—'}</div>
-
-                  {/* ATM (cumulative time) */}
                   <div style={{fontSize:9,color:'#334155',fontFamily:'monospace'}}>
                     {wpt.eta!=='—'&&std?fromMins((toMins(wpt.eta)||0)-(toMins(std)||0)):' '}
                   </div>
-
-                  {/* ATA actual + time deviation */}
                   <div style={{fontSize:10,fontFamily:'monospace'}}>
                     {actATA?(
                       <span style={{color:'#4ade80',fontWeight:700}}>
@@ -830,8 +786,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
                       <span style={{color:'#334155',fontStyle:'italic',fontSize:9}}>{estATA}~</span>
                     ):null}
                   </div>
-
-                  {/* Actual fuel + deviation */}
                   <div style={{fontSize:10,fontFamily:'monospace'}}>
                     {actFN?(
                       <span style={{color:'#4ade80',fontWeight:700}}>{actFN.toLocaleString()}{fDS&&<span style={{fontSize:9,color:fDS.color,marginLeft:2}}>{fDS.label}</span>}</span>
@@ -839,8 +793,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
                       <span style={{color:'#334155',fontSize:9}}>{estFN.toLocaleString()}~</span>
                     ):null}
                   </div>
-
-                  {/* STATUS */}
                   <div style={{textAlign:'right'}}>
                     {sk    ?<span style={{fontSize:9,color:'#334155'}}>SKIP</span>
                     :done  ?<span style={{fontSize:9,fontWeight:700,color:'#4ade80',background:'rgba(74,222,128,0.1)',padding:'1px 5px',borderRadius:3}}>✓</span>
@@ -865,7 +817,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
         {!flightClosed&&<div style={{padding:'10px'}}><button onClick={()=>setShowDivert(true)} style={{width:'100%',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.3)',borderRadius:7,padding:'10px',fontSize:11,fontWeight:700,color:'#f97316',cursor:'pointer',fontFamily:'inherit'}}>⚠ Add Divert ARPT</button></div>}
         {flightClosed&&<div style={{margin:'10px',padding:'8px 12px',borderRadius:6,background:'rgba(255,149,0,0.08)',border:'1px solid rgba(255,149,0,0.2)',fontSize:11,color:'#f97316',textAlign:'center'}}>⚠ Flight closed at divert airport</div>}
       </div>
-
       </React.Fragment>}
 
       {activeTab === 'erm' && (
@@ -878,7 +829,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
           />
         </div>
       )}
-
 
       {showGpsWarn&&(
         <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}}>
