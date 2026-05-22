@@ -6,8 +6,6 @@ import 'leaflet/dist/leaflet.css';
 const OPENAIP_KEY = '66ac62cad2142cb2ace71952b74e7722';
 
 
-import { Marker, Tooltip as LTooltip } from 'react-leaflet';
-import L from 'leaflet';
 
 function calcBearing(lat1, lon1, lat2, lon2) {
   const toRad = d => d * Math.PI / 180;
@@ -36,12 +34,12 @@ function AircraftMarker({ pos, waypoints }) {
 
   return (
     <Marker position={[pos.lat, pos.lon]} icon={icon}>
-      <LTooltip permanent direction="top" offset={[0,-20]}>
+      <Tooltip permanent direction="top" offset={[0,-20]}>
         <span style={{ fontFamily:"monospace", fontSize:11, fontWeight:700, color:"#4ade80" }}>
           ✈ {pos.lat.toFixed(4)}N {pos.lon.toFixed(4)}E
           <span style={{ fontSize:9, color:"#86efac", marginLeft:6 }}>±{Math.round(pos.acc)}m</span>
         </span>
-      </LTooltip>
+      </Tooltip>
     </Marker>
   );
 }
