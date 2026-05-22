@@ -442,8 +442,10 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
   const [flightClosed, setFlightClosed] = usePersistedState(`efb_navlog_flightClosed_${planKey}`, false);
   const [lastCheck,    setLastCheck]    = usePersistedState(`efb_navlog_lastCheck_${planKey}`, null);
   const [modal,        setModal]        = useState(null);
+  const [wxAptsState,  setWxAptsState]  = useState([]);
   const wxApts = React.useMemo(() => {
     if (wxAirportsProp && wxAirportsProp.length > 0) return wxAirportsProp;
+    if (wxAptsState.length > 0) return wxAptsState;
     if (!rawText) return [];
     const f=[], seen=new Set();
     const fgm = rawText.match(/Flight group airport\(s\):\s*([A-Z ,]+?)\./i);
@@ -461,7 +463,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
       if(seen.has(ic)===false){seen.add(ic);f.push({icao:ic,type:tp});}
     }
     return f;
-  }, [rawText, wxAirportsProp]); // eslint-disable-line
+  }, [rawText, wxAirportsProp, wxAptsState]); // eslint-disable-line
   const [activeTab,    setActiveTab]    = useState('log');
   const [showDivert,   setShowDivert]   = useState(false);
   const [alert50,      setAlert50]      = useState(false);
@@ -499,6 +501,15 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
           .eq('plan_id',activePlan.id).order('version_no',{ascending:false}).limit(1).single();
         if(data?.raw_text){
           const wpts=parseWaypoints(data.raw_text,dep,dest,std);
+          // Parse wx airports from supabase raw_text
+          const wxF=[], wxS=new Set();
+          const fgm=data.raw_text.match(/Flight group airport.s.:\s*([A-Z ,]+?)\./i);
+          if(fgm) fgm[1].split(/[,\s]+/).forEach(ic=>{ic=ic.trim();if(ic.length===4&&wxS.has(ic)===false){wxS.add(ic);wxF.push({icao:ic,type:'FLT GRP'});}});
+          const aqm=data.raw_text.match(/Adequate airport.s.:\s*([A-Z ,]+?)\./i);
+          if(aqm) aqm[1].split(/[,\s]+/).forEach(ic=>{ic=ic.trim();if(ic.length===4&&wxS.has(ic)===false){wxS.add(ic);wxF.push({icao:ic,type:'ADEQUATE'});}});
+          const re2=/(?:Departure|Destination|Alternate|Adequate)\s+airport\s+([A-Z]{4})/gi; let m2;
+          while((m2=re2.exec(data.raw_text))!==null){const ic=m2[1].toUpperCase(),raw=m2[0].toLowerCase();let tp='ADEQUATE';if(/departure/.test(raw))tp='DEPARTURE';else if(/destination/.test(raw))tp='DESTINATION';else if(/alternate/.test(raw))tp='ALTERNATE';if(wxS.has(ic)===false){wxS.add(ic);wxF.push({icao:ic,type:tp});}}
+          if(wxF.length>0) setWxAptsState(wxF);
 
           if(wpts.length>=2){
             const customs=waypoints.filter(w=>w.custom);
