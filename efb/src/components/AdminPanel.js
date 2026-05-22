@@ -663,7 +663,7 @@ function Statistics(){
 
 function SortableTable({flights, fmt}){
   const[sortKey,setSortKey]=useState('archived_at');const[sortDir,setSortDir]=useState('desc');
-  const COLS=[{key:'archived_at',label:'DATE'},{key:'dep',label:'DEP'},{key:'dest',label:'DEST'},{key:'reg',label:'REG'},{key:'block_minutes',label:'BLOCK'},{key:'airborne_minutes',label:'FLIGHT'},{key:'landing_count',label:'LANDINGS'},{key:'is_night_landing',label:'NIGHT'},{key:'rpt',label:'RPT'}];
+  const COLS=[{key:'archived_at',label:'DATE'},{key:'dep',label:'DEP'},{key:'dest',label:'DEST'},{key:'reg',label:'REG'},{key:'block_minutes',label:'BLOCK'},{key:'airborne_minutes',label:'FLIGHT'},{key:'landing_count',label:'LANDINGS'},{key:'is_night_landing',label:'NIGHT'}];
   const toggle=(key)=>{ if(sortKey===key)setSortDir(d=>d==='asc'?'desc':'asc'); else{setSortKey(key);setSortDir('asc');} };
   const getValue=(f,key)=>{ if(key==='dep')return f.departure_icao||f.plans?.dep||''; if(key==='dest')return f.destination_icao||f.plans?.dest||''; if(key==='reg')return f.plans?.reg||''; return f[key]??''; };
   const sorted=[...flights].sort((a,b)=>{ const av=getValue(a,sortKey),bv=getValue(b,sortKey); const dir=sortDir==='asc'?1:-1; if(typeof av==='number'&&typeof bv==='number')return(av-bv)*dir; return String(av).localeCompare(String(bv))*dir; });
