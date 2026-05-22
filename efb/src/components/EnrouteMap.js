@@ -25,31 +25,32 @@ function aptStyle(type) {
 export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, liveWxMap = {} }) {
 
   const [aptCoords, setAptCoords] = useState({});
+  const [missingApts, setMissingApts] = useState([]);
 
-  // Fetch coordinates from OpenAIP for WX airports not in waypoints
+  const SUPABASE_URL = 'https://ojvqdsqodpxkvpxvwgrm.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f';
+
   useEffect(() => {
     if (!wxAirports.length) return;
     const missing = wxAirports.filter(apt => {
       const inWpts = waypoints.find(w => w.name === apt.icao && w.coord);
-      const inCache = aptCoords[apt.icao];
-      return !inWpts && !inCache;
+      return !inWpts && !aptCoords[apt.icao];
     });
     if (!missing.length) return;
-
-    missing.forEach(apt => {
-      fetch(`https://api.core.openaip.net/api/airports?icaoCode=${apt.icao}&limit=1`, {
-        headers: { 'x-openaip-api-key': OPENAIP_KEY }
-      })
-      .then(r => r.json())
-      .then(data => {
-        const airport = data.items?.[0];
-        if (airport?.geometry?.coordinates) {
-          const [lon, lat] = airport.geometry.coordinates;
-          setAptCoords(prev => ({ ...prev, [apt.icao]: { lat, lon } }));
-        }
-      })
-      .catch(() => {});
-    });
+    const icaos = missing.map(a => a.icao).join(',');
+    fetch(`${SUPABASE_URL}/rest/v1/airports?icao=in.(${icaos})&select=icao,lat,lon,name`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    })
+    .then(r => r.json())
+    .then(rows => {
+      const found = new Set(rows.map(r => r.icao));
+      const notFound = missing.filter(a => !found.has(a.icao));
+      if (notFound.length) setMissingApts(notFound.map(a => a.icao));
+      const coords = {};
+      rows.forEach(r => { coords[r.icao] = { lat: r.lat, lon: r.lon, name: r.name }; });
+      setAptCoords(prev => ({ ...prev, ...coords }));
+    })
+    .catch(() => {});
   }, [wxAirports, waypoints]); // eslint-disable-line
 
   const wptCoords = waypoints.filter(w => w.coord);
