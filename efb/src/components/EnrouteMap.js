@@ -55,6 +55,8 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
     .catch(() => {});
   }, [wxAirports, waypoints]); // eslint-disable-line
 
+  console.log("ERM wxAirports:", wxAirports.length, wxAirports.slice(0,3));
+  console.log("ERM waypoints:", waypoints.length);
   const wptCoords = waypoints.filter(w => w.coord);
   const routeCoords = wptCoords.map(w => [w.coord.lat, w.coord.lon]);
 
