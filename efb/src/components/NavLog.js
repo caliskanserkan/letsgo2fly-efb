@@ -436,7 +436,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
   const wxApts = React.useMemo(() => {
     if (wxAirportsProp && wxAirportsProp.length > 0) return wxAirportsProp;
     const re = /(?:Departure|Destination|Alternate|Adequate)\s+airport\s+([A-Z]{4})/gi;
-    const f=[], s=new Set(); let m;
+    const f=[], seen=new Set(); let m;
     while((m=re.exec(rawText))!==null){
       const ic=m[1].toUpperCase(), raw=m[0].toLowerCase();
       let tp='ADEQUATE';
