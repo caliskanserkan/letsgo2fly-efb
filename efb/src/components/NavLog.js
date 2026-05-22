@@ -444,8 +444,14 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
   const [modal,        setModal]        = useState(null);
   const wxApts = React.useMemo(() => {
     if (wxAirportsProp && wxAirportsProp.length > 0) return wxAirportsProp;
+    if (!rawText) return [];
+    const f=[], seen=new Set();
+    const fgm = rawText.match(/Flight group airport\(s\):\s*([A-Z ,]+?)\./i);
+    if (fgm) fgm[1].split(/[,\s]+/).forEach(ic => { ic=ic.trim(); if(ic.length===4 && seen.has(ic)===false){seen.add(ic);f.push({icao:ic,type:'FLT GRP'});} });
+    const aqm = rawText.match(/Adequate airport\(s\):\s*([A-Z ,]+?)\./i);
+    if (aqm) aqm[1].split(/[,\s]+/).forEach(ic => { ic=ic.trim(); if(ic.length===4 && seen.has(ic)===false){seen.add(ic);f.push({icao:ic,type:'ADEQUATE'});} });
     const re = /(?:Departure|Destination|Alternate|Adequate)\s+airport\s+([A-Z]{4})/gi;
-    const f=[], seen=new Set(); let m;
+    let m;
     while((m=re.exec(rawText))!==null){
       const ic=m[1].toUpperCase(), raw=m[0].toLowerCase();
       let tp='ADEQUATE';
