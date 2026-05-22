@@ -3,6 +3,8 @@ import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from
 import 'leaflet/dist/leaflet.css';
 
 const OPENAIP_KEY = '66ac62cad2142cb2ace71952b74e7722';
+const SUPABASE_URL = 'https://ojvqdsqodpxkvpxvwgrm.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f';
 
 function FlyTo({ pos }) {
   const map = useMap();
@@ -15,49 +17,82 @@ function FlyTo({ pos }) {
   return null;
 }
 
+// WX airport tipi → renk/boyut
 function aptStyle(type) {
-  if (type === 'DEPARTURE')   return { color:'#fbbf24', r:10 };
-  if (type === 'DESTINATION') return { color:'#4ade80', r:10 };
-  if (type === 'ALTERNATE')   return { color:'#fb923c', r:8  };
-  return                             { color:'#a78bfa', r:7  };
+  if (type === 'DEPARTURE')   return { color:'#fbbf24', fill:'#fbbf24', r:11 };
+  if (type === 'DESTINATION') return { color:'#4ade80', fill:'#4ade80', r:11 };
+  if (type === 'ALTERNATE')   return { color:'#fb923c', fill:'#fb923c', r:9  };
+  // FLT GRP, ADEQUATE, varsayılan → MOR
+  return                             { color:'#c084fc', fill:'#a855f7', r:8  };
+}
+
+// OpenAIP REST API ile koordinat al (Supabase'de bulunamazsa)
+async function fetchFromOpenAIP(icao) {
+  try {
+    const res = await fetch(
+      `https://api.core.openaip.net/api/airports?page=1&limit=5&icaoCode=${icao}`,
+      { headers: { 'x-openaip-api-key': OPENAIP_KEY } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const item = data?.items?.[0];
+    if (!item) return null;
+    const [lon, lat] = item.geometry?.coordinates || [];
+    if (lat == null || lon == null) return null;
+    return { lat, lon, name: item.name || icao };
+  } catch { return null; }
 }
 
 export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, liveWxMap = {} }) {
-
   const [aptCoords, setAptCoords] = useState({});
-  const [missingApts, setMissingApts] = useState([]); // eslint-disable-line
-
-  const SUPABASE_URL = 'https://ojvqdsqodpxkvpxvwgrm.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f';
+  const fetchedRef = useRef(new Set());
 
   useEffect(() => {
     if (!wxAirports.length) return;
-    const missing = wxAirports.filter(apt => {
+
+    const toFetch = wxAirports.filter(apt => {
       const inWpts = waypoints.find(w => w.name === apt.icao && w.coord);
-      return !inWpts && !aptCoords[apt.icao];
+      return !inWpts && !aptCoords[apt.icao] && !fetchedRef.current.has(apt.icao);
     });
-    console.log('[ERM] missing apts:', missing.map(a=>a.icao));
-    if (!missing.length) return;
-    const icaos = missing.map(a => a.icao).join(',');
-    fetch(`${SUPABASE_URL}/rest/v1/airports?icao=in.(${icaos})&select=icao,lat,lon,name`, {
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
-    })
+    if (!toFetch.length) return;
+
+    toFetch.forEach(a => fetchedRef.current.add(a.icao));
+
+    const icaos = toFetch.map(a => a.icao);
+    console.log('[ERM] fetching coords for:', icaos);
+
+    // 1. Supabase airports tablosu
+    fetch(
+      `${SUPABASE_URL}/rest/v1/airports?icao=in.(${icaos.join(',')})&select=icao,lat,lon,name`,
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+    )
     .then(r => r.json())
-    .then(rows => {
-      console.log('[ERM] airport rows:', rows.length, rows.slice(0,3));
-      const found = new Set(rows.map(r => r.icao));
-      const notFound = missing.filter(a => !found.has(a.icao));
-      if (notFound.length) setMissingApts(notFound.map(a => a.icao));
-      const coords = {};
-      rows.forEach(r => { coords[r.icao] = { lat: r.lat, lon: r.lon, name: r.name }; });
-      setAptCoords(prev => ({ ...prev, ...coords }));
+    .then(async rows => {
+      const found = {};
+      (rows || []).forEach(r => {
+        if (r.icao && r.lat != null && r.lon != null)
+          found[r.icao] = { lat: parseFloat(r.lat), lon: parseFloat(r.lon), name: r.name || r.icao };
+      });
+      console.log('[ERM] Supabase found:', Object.keys(found));
+
+      // 2. Supabase'de bulunamayanlar → OpenAIP REST fallback
+      const stillMissing = icaos.filter(ic => !found[ic]);
+      if (stillMissing.length) {
+        console.log('[ERM] OpenAIP fallback for:', stillMissing);
+        const results = await Promise.allSettled(stillMissing.map(ic => fetchFromOpenAIP(ic)));
+        results.forEach((r, i) => {
+          if (r.status === 'fulfilled' && r.value)
+            found[stillMissing[i]] = r.value;
+        });
+      }
+
+      setAptCoords(prev => ({ ...prev, ...found }));
     })
-    .catch(() => {});
+    .catch(e => console.warn('[ERM] Supabase error:', e));
+
   }, [wxAirports, waypoints]); // eslint-disable-line
 
-  console.log("ERM wxAirports:", wxAirports.length, wxAirports.slice(0,3));
-  console.log("ERM waypoints:", waypoints.length);
-  const wptCoords = waypoints.filter(w => w.coord);
+  const wptCoords   = waypoints.filter(w => w.coord);
   const routeCoords = wptCoords.map(w => [w.coord.lat, w.coord.lon]);
 
   const center = (() => {
@@ -80,6 +115,15 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
     return 7;
   })();
 
+  // WX airport listesi (DEP/DEST/ALT hariç — zaten waypoints'te var)
+  const wxToShow = wxAirports.map(apt => {
+    const wpt   = waypoints.find(w => w.name === apt.icao && w.coord);
+    const coord = wpt?.coord || aptCoords[apt.icao];
+    return { ...apt, coord };
+  }).filter(a => a.coord);
+
+  console.log('[ERM] wxToShow:', wxToShow.length, '/', wxAirports.length);
+
   return (
     <div style={{ flex:1, position:'relative', overflow:'hidden', minHeight:500 }}>
       <MapContainer center={center} zoom={zoom}
@@ -98,7 +142,36 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
             pathOptions={{ color:'#38bdf8', weight:2, opacity:0.7, dashArray:'6 4' }} />
         )}
 
-        {/* Enroute WPTs — blue */}
+        {/* WX Airports — MOR (ADEQUATE/FLT GRP) veya tipin rengi */}
+        {wxToShow.map(apt => {
+          const s      = aptStyle(apt.type);
+          const hasLive = !!liveWxMap[apt.icao];
+          return (
+            <CircleMarker key={`wx_${apt.icao}`}
+              center={[apt.coord.lat, apt.coord.lon]}
+              radius={s.r}
+              pathOptions={{
+                color: s.color,
+                fillColor: s.fill,
+                fillOpacity: hasLive ? 0.95 : 0.55,
+                weight: 2
+              }}>
+              <Tooltip permanent direction="top" offset={[0, -(s.r + 3)]}>
+                <span style={{
+                  fontFamily:'monospace', fontSize:10, fontWeight:700,
+                  color: s.color, whiteSpace:'nowrap',
+                  textShadow:'0 0 4px rgba(0,0,0,0.9)'
+                }}>
+                  {apt.icao}
+                  <span style={{ fontSize:8, opacity:0.7, marginLeft:3 }}>{apt.type?.slice(0,3)}</span>
+                  {hasLive && <span style={{ color:'#4ade80', marginLeft:3 }}>●</span>}
+                </span>
+              </Tooltip>
+            </CircleMarker>
+          );
+        })}
+
+        {/* Enroute WPTs — mavi */}
         {wptCoords.filter(w => w.type === 'wpt').map(w => (
           <CircleMarker key={w.uid}
             center={[w.coord.lat, w.coord.lon]}
@@ -108,8 +181,7 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
               <span style={{
                 fontFamily:'monospace', fontSize:10, fontWeight:700,
                 color:'#fff', background:'rgba(30,64,175,0.92)',
-                padding:'1px 5px', borderRadius:3, whiteSpace:'nowrap',
-                boxShadow:'none', border:'none'
+                padding:'1px 5px', borderRadius:3, whiteSpace:'nowrap'
               }}>{w.name}</span>
             </Tooltip>
           </CircleMarker>
@@ -118,8 +190,7 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
         {/* DEP */}
         {wptCoords.filter(w => w.type === 'dep').map(w => (
           <CircleMarker key={w.uid}
-            center={[w.coord.lat, w.coord.lon]}
-            radius={10}
+            center={[w.coord.lat, w.coord.lon]} radius={10}
             pathOptions={{ color:'#92400e', fillColor:'#fbbf24', fillOpacity:1, weight:2 }}>
             <Tooltip permanent direction="top" offset={[0,-12]}>
               <span style={{fontFamily:'monospace',fontSize:11,fontWeight:700,color:'#fbbf24',whiteSpace:'nowrap'}}>
@@ -132,8 +203,7 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
         {/* DEST */}
         {wptCoords.filter(w => w.type === 'dest').map(w => (
           <CircleMarker key={w.uid}
-            center={[w.coord.lat, w.coord.lon]}
-            radius={10}
+            center={[w.coord.lat, w.coord.lon]} radius={10}
             pathOptions={{ color:'#166534', fillColor:'#4ade80', fillOpacity:1, weight:2 }}>
             <Tooltip permanent direction="top" offset={[0,-12]}>
               <span style={{fontFamily:'monospace',fontSize:11,fontWeight:700,color:'#4ade80',whiteSpace:'nowrap'}}>
@@ -142,32 +212,6 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
             </Tooltip>
           </CircleMarker>
         ))}
-
-        {/* WX Airports — coord from waypoints OR from OpenAIP cache */}
-        {wxAirports.map(apt => {
-          // Try waypoints first, then OpenAIP cache
-          const wpt = waypoints.find(w => w.name === apt.icao && w.coord);
-          const coord = wpt?.coord || aptCoords[apt.icao];
-          if (!coord) return null;
-          const s = aptStyle(apt.type);
-          const hasLive = !!liveWxMap[apt.icao];
-          return (
-            <CircleMarker key={apt.icao}
-              center={[coord.lat, coord.lon]}
-              radius={s.r}
-              pathOptions={{ color:s.color, fillColor:s.color, fillOpacity:hasLive?0.9:0.5, weight:2 }}>
-              <Tooltip permanent direction="top" offset={[0,-s.r-2]}>
-                <span style={{
-                  fontFamily:'monospace', fontSize:10, fontWeight:700,
-                  color:s.color, whiteSpace:'nowrap',
-                  textShadow:'0 0 3px rgba(0,0,0,0.8)'
-                }}>
-                  {apt.icao}{hasLive?' ●':''}
-                </span>
-              </Tooltip>
-            </CircleMarker>
-          );
-        })}
 
         {/* Aircraft */}
         {gpsPos && (
@@ -197,7 +241,7 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
           { color:'#fbbf24', label:'DEP' },
           { color:'#4ade80', label:'DEST' },
           { color:'#fb923c', label:'ALT' },
-          { color:'#a78bfa', label:'ADEQ' },
+          { color:'#c084fc', label:'WX ADEQ' },
           { color:'#3b82f6', label:'WPT' },
           { color:'#38bdf8', label:'ROUTE' },
           { color:'#4ade80', label:'✈ ACFT' },
@@ -207,6 +251,15 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
             <span style={{ color:'#94a3b8' }}>{label}</span>
           </div>
         ))}
+      </div>
+
+      {/* WX airport sayısı */}
+      <div style={{
+        position:'absolute', top:8, right:8, zIndex:1000,
+        background:'rgba(15,23,42,0.85)', borderRadius:6, padding:'3px 10px',
+        border:'1px solid #334155', fontSize:9, color:'#c084fc', fontFamily:'monospace'
+      }}>
+        WX: {wxToShow.length}/{wxAirports.length} airports
       </div>
 
       {!gpsPos && (
