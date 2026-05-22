@@ -97,6 +97,19 @@ const DEFAULT_DIVERT_DATA = {
 
 function parseWxAirports(t) { if(!t) return []; const re=/(?:(?:Departure|Destination|Alternate|Adequate)\s+airport|Flight\s+group\s+apt)\s+([A-Z]{4})/gi; const f=[],s=new Set(); let m; while((m=re.exec(t))!==null){const ic=m[1].toUpperCase(),raw=m[0].toLowerCase(); let tp="ADEQUATE"; if(/departure/.test(raw))tp="DEPARTURE"; else if(/destination/.test(raw))tp="DESTINATION"; else if(/alternate/.test(raw))tp="ALTERNATE"; if(!s.has(ic)){s.add(ic);f.push({icao:ic,type:tp});}} return f; }
 // ─── Parsers ──────────────────────────────────────────────────────────────────
+
+function parseWxAirports(t) {
+  const re = /(?:Departure|Destination|Alternate|Adequate)\s+airport\s+([A-Z]{4})/gi;
+  const f=[], s=new Set(); let m;
+  while((m=re.exec(t))!==null){
+    const ic=m[1].toUpperCase(), raw=m[0].toLowerCase();
+    let tp='ADEQUATE';
+    if(/departure/.test(raw)) tp='DEPARTURE';
+    else if(/destination/.test(raw)) tp='DESTINATION';
+    else if(/alternate/.test(raw)) tp='ALTERNATE';
+  }
+  return f;
+}
 function parseDispatchNo(text) {
   const match = text.match(/\[#(DISP\d+)#\]/);
   return match ? match[1] : null;
