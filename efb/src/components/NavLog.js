@@ -479,9 +479,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
   const [alert50,      setAlert50]      = useState(false);
   const [acPos,        setAcPos]        = useState(null);
   const { pos, error:gpsErr, active:gpsActive, start:startGPS, stop:stopGPS } = useGPS();
-  const [gpsOk, setGpsOk]               = useState(false);
-  const [showGpsWarn, setShowGpsWarn]   = useState(false);
-  const handleStartGPS = () => { if(!gpsOk){setShowGpsWarn(true);return;} startGPS(); };
 
   const dep  = activePlan?.dep  || 'DEP';
   const dest = activePlan?.dest || 'DEST';
@@ -642,7 +639,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
   const lastStr=lastCheck?new Date(lastCheck).toTimeString().slice(0,5)+' Z':'—';
   const mWpt=waypoints.find(w=>w.uid===modal);
   const hasCo=waypoints.some(w=>w.coord);
-  useEffect(() => { if(hasCo && gpsOk) startGPS(); }, [hasCo, gpsOk]); // eslint-disable-line
+  useEffect(() => { startGPS(); return () => stopGPS(); }, []); // eslint-disable-line — auto GPS
 
   return(
     <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
@@ -674,9 +671,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
             {!gpsActive&&<span style={{fontSize:10,color:'#475569'}}>GPS position tracking</span>}
             {gpsErr&&<span style={{fontSize:10,color:'#ef4444',marginLeft:8}}>⚠ {gpsErr}</span>}
           </div>
-          <button onClick={gpsActive?stopGPS:handleStartGPS} style={{background:gpsActive?'rgba(224,32,32,0.15)':'rgba(74,222,128,0.15)',border:`1px solid ${gpsActive?'#ef4444':'#4ade80'}`,borderRadius:6,padding:'4px 10px',fontSize:10,fontWeight:700,color:gpsActive?'#ef4444':'#4ade80',cursor:'pointer',fontFamily:'inherit'}}>
-            {gpsActive?'Stop':'Start GPS'}
-          </button>
+
         </div>
       )}
 
@@ -823,9 +818,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
         <div style={{flex:1,display:'flex',overflow:'hidden'}}>
           <EnrouteMap
             waypoints={waypoints}
-            wxAirports={wxApts}
             gpsPos={pos}
-            liveWxMap={{}}
           />
         </div>
       )}
