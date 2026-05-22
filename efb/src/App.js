@@ -683,6 +683,8 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
   useEffect(() => { loadPlans(); }, []);
 
   return (
+    <>
+    {reportPlan && <FlightReport plan={reportPlan} onClose={()=>setReportPlan(null)}/>}
     <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:'var(--bg)' }}>
       <div style={{ background:'#1a1a1a', borderBottom:'1px solid var(--border)', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <span style={{ fontSize:13, fontWeight:700, color:'var(--accent)', letterSpacing:1 }}>GO2 eFB</span>
@@ -752,7 +754,7 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
             )}
             {archivedPlans.map((p, i) => (
               <PlanCard key={i} plan={planCard(p)} active={false} archived={true}
-                onReport={() => setReportPlan(planCard(p))}
+                onReport={() => { console.log('REPORT:', JSON.stringify(planCard(p))); setReportPlan(planCard(p)); }}
                 onOpen={async () => {
                   try {
                     const { data: version } = await supabase
@@ -992,7 +994,6 @@ function App() {
         <div style={{ padding:24, color:'var(--t3)', fontSize:13 }}>Page under construction...</div>
       )}
       </div>
-    {reportPlan && <FlightReport plan={reportPlan} onClose={()=>setReportPlan(null)}/>}
     </Layout>
   );
 }
