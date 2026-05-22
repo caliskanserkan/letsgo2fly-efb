@@ -95,6 +95,7 @@ const DEFAULT_DIVERT_DATA = {
   active: false, icao: '', rwy: '', len: '', reason: '',
 };
 
+function parseWxAirports(t) { if(!t) return []; const re=/(?:(?:Departure|Destination|Alternate|Adequate)\s+airport|Flight\s+group\s+apt)\s+([A-Z]{4})/gi; const f=[],s=new Set(); let m; while((m=re.exec(t))!==null){const ic=m[1].toUpperCase(),raw=m[0].toLowerCase(); let tp="ADEQUATE"; if(/departure/.test(raw))tp="DEPARTURE"; else if(/destination/.test(raw))tp="DESTINATION"; else if(/alternate/.test(raw))tp="ALTERNATE"; if(!s.has(ic)){s.add(ic);f.push({icao:ic,type:tp});}} return f; }
 // ─── Parsers ──────────────────────────────────────────────────────────────────
 function parseDispatchNo(text) {
   const match = text.match(/\[#(DISP\d+)#\]/);
@@ -972,7 +973,7 @@ function App() {
       {activePage === 'fuel'      && <Fuel        setStatus={setStatusFuel}      activePlan={activePlan} />}
       {activePage === 'accept'    && <AcceptSign  pageStatus={pageStatus} setStatus={setStatusAccept} activePlan={activePlan} />}
       {activePage === 'takeoff'   && <TakeoffData setStatus={setStatusTakeoff}   activePlan={activePlan} />}
-      {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} setStatus={setStatusNavlog} activePlan={activePlan} updateDivert={updateDivert} rawText={rawText} />}
+      {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} setStatus={setStatusNavlog} activePlan={activePlan} updateDivert={updateDivert} rawText={rawText} wxAirports={parseWxAirports(rawText)} />}
       {activePage === 'landing'   && <LandingData flightData={flightData} divertData={divertData} updateDivert={updateDivert} setStatus={setStatusLanding} activePlan={activePlan} />}
       {activePage === 'endflt'    && <EndFlight   flightData={flightData} divertData={divertData} setStatus={setStatusEndflt} activePlan={activePlan} rawText={rawText} onArchive={() => setActivePlan(prev => prev ? {...prev, readOnly:true, status:'archived'} : prev)} />}
       {activePage === 'docupload' && <DocUpload   setStatus={setStatusDocupload} activePlan={activePlan} />}

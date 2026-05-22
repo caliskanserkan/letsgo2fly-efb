@@ -425,7 +425,7 @@ function DivertArptModal({ onClose, onAdd }) {
 }
 
 // ─── NavLog Main ──────────────────────────────────────────────────────────────
-function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert, rawText }) {
+function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert, rawText, wxAirports: wxAirportsProp = [] }) {
   const planKey = activePlan?.id || 'default';
   const [entries,      setEntries]      = usePersistedState(`efb_navlog_entries_${planKey}`, {});
   const [waypoints,    setWaypoints]    = usePersistedState(`efb_navlog_waypoints_${planKey}`, []);
@@ -433,7 +433,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
   const [flightClosed, setFlightClosed] = usePersistedState(`efb_navlog_flightClosed_${planKey}`, false);
   const [lastCheck,    setLastCheck]    = usePersistedState(`efb_navlog_lastCheck_${planKey}`, null);
   const [modal,        setModal]        = useState(null);
-  const [wxApts,       setWxApts]       = useState([]);
+  const wxApts = wxAirportsProp;
   const [activeTab,    setActiveTab]    = useState('log');
   const [showDivert,   setShowDivert]   = useState(false);
   const [alert50,      setAlert50]      = useState(false);
@@ -596,22 +596,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
   // Auto GPS
   useEffect(() => { if(hasCo && gpsOk) startGPS(); }, [hasCo, gpsOk]); // eslint-disable-line
 
-  // Parse WX airports from rawText prop
-  useEffect(() => {
-    if (!rawText) return;
-    const wxRe = /(?:(?:Departure|Destination|Alternate|Adequate|En[\s-]?route\s+alternate|ERA|ETOPS\s+\w+)\s+airport|Flight\s+group\s+apt)\s+([A-Z]{4})/gi;
-    const found=[], seen=new Set(); let m;
-    while((m=wxRe.exec(rawText))!==null){
-      const ic=m[1].toUpperCase(), raw=m[0].toLowerCase();
-      let tp='ADEQUATE';
-      if(/departure/.test(raw)) tp='DEPARTURE';
-      else if(/destination/.test(raw)) tp='DESTINATION';
-      else if(/alternate|era|en.?route/.test(raw)) tp='ALTERNATE';
-      if(!seen.has(ic)){seen.add(ic);found.push({icao:ic,type:tp});}
-    }
-    console.log('[NAV] wxApts from rawText:', found.length);
-    setWxApts(found);
-  }, [rawText]); // eslint-disable-line
 
 
   return(
