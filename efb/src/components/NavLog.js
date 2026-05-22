@@ -433,7 +433,19 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
   const [flightClosed, setFlightClosed] = usePersistedState(`efb_navlog_flightClosed_${planKey}`, false);
   const [lastCheck,    setLastCheck]    = usePersistedState(`efb_navlog_lastCheck_${planKey}`, null);
   const [modal,        setModal]        = useState(null);
-  const wxApts = wxAirportsProp;
+  const wxApts = React.useMemo(() => {
+    if (wxAirportsProp && wxAirportsProp.length > 0) return wxAirportsProp;
+    const re = /(?:Departure|Destination|Alternate|Adequate) airport ([A-Z]{4})/gi;
+    const f=[], s=new Set(); let m;
+    while((m=re.exec(rawText))!==null){
+      const ic=m[1].toUpperCase(), raw=m[0].toLowerCase();
+      let tp='ADEQUATE';
+      if(/departure/.test(raw)) tp='DEPARTURE';
+      else if(/destination/.test(raw)) tp='DESTINATION';
+      else if(/alternate/.test(raw)) tp='ALTERNATE';
+    }
+    return f;
+  }, [rawText, wxAirportsProp]); // eslint-disable-line
   const [activeTab,    setActiveTab]    = useState('log');
   const [showDivert,   setShowDivert]   = useState(false);
   const [alert50,      setAlert50]      = useState(false);
