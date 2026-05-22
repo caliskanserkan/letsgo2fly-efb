@@ -450,29 +450,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
   const [flightClosed, setFlightClosed] = usePersistedState(`efb_navlog_flightClosed_${planKey}`, false);
   const [lastCheck,    setLastCheck]    = usePersistedState(`efb_navlog_lastCheck_${planKey}`, null);
   const [modal,        setModal]        = useState(null);
-  const [wxAptsState,  setWxAptsState]  = useState([]);
 
-  const wxApts = React.useMemo(() => {
-    if (wxAirportsProp && wxAirportsProp.length > 0) return wxAirportsProp;
-    if (wxAptsState.length > 0) return wxAptsState;
-    if (!rawText) return [];
-    const f=[], seen=new Set();
-    const fgm = rawText.match(/Flight group airport\(s\):\s*([A-Z ,]+?)\./i);
-    if (fgm) fgm[1].split(/[,\s]+/).forEach(ic => { ic=ic.trim(); if(ic.length===4 && seen.has(ic)===false){seen.add(ic);f.push({icao:ic,type:'FLT GRP'});} });
-    const aqm = rawText.match(/Adequate airport\(s\):\s*([A-Z ,]+?)\./i);
-    if (aqm) aqm[1].split(/[,\s]+/).forEach(ic => { ic=ic.trim(); if(ic.length===4 && seen.has(ic)===false){seen.add(ic);f.push({icao:ic,type:'ADEQUATE'});} });
-    const re = /(?:Departure|Destination|Alternate|Adequate)\s+airport\s+([A-Z]{4})/gi;
-    let m;
-    while((m=re.exec(rawText))!==null){
-      const ic=m[1].toUpperCase(), raw=m[0].toLowerCase();
-      let tp='ADEQUATE';
-      if(/departure/.test(raw)) tp='DEPARTURE';
-      else if(/destination/.test(raw)) tp='DESTINATION';
-      else if(/alternate/.test(raw)) tp='ALTERNATE';
-      if(seen.has(ic)===false){seen.add(ic);f.push({icao:ic,type:tp});}
-    }
-    return f;
-  }, [rawText, wxAirportsProp, wxAptsState]); // eslint-disable-line
 
   const [activeTab,    setActiveTab]    = useState('log');
   const [showDivert,   setShowDivert]   = useState(false);
@@ -516,7 +494,6 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
           if(aqm) aqm[1].split(/[,\s]+/).forEach(ic=>{ic=ic.trim();if(ic.length===4&&wxS.has(ic)===false){wxS.add(ic);wxF.push({icao:ic,type:'ADEQUATE'});}});
           const re2=/(?:Departure|Destination|Alternate|Adequate)\s+airport\s+([A-Z]{4})/gi; let m2;
           while((m2=re2.exec(data.raw_text))!==null){const ic=m2[1].toUpperCase(),raw=m2[0].toLowerCase();let tp='ADEQUATE';if(/departure/.test(raw))tp='DEPARTURE';else if(/destination/.test(raw))tp='DESTINATION';else if(/alternate/.test(raw))tp='ALTERNATE';if(wxS.has(ic)===false){wxS.add(ic);wxF.push({icao:ic,type:tp});}}
-          if(wxF.length>0) setWxAptsState(wxF);
 
           if(wpts.length>=2){
             const customs=waypoints.filter(w=>w.custom);
@@ -639,7 +616,7 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
   const lastStr=lastCheck?new Date(lastCheck).toTimeString().slice(0,5)+' Z':'—';
   const mWpt=waypoints.find(w=>w.uid===modal);
   const hasCo=waypoints.some(w=>w.coord);
-  useEffect(() => { startGPS(); return () => stopGPS(); }, []); // eslint-disable-line — auto GPS
+  useEffect(() => { startGPS(); return () => stopGPS(); }, []); // eslint-disable-line
 
   return(
     <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
@@ -819,24 +796,11 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
           <EnrouteMap
             waypoints={waypoints}
             gpsPos={pos}
+            directTo={directTo}
           />
         </div>
       )}
 
-      {showGpsWarn&&(
-        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}}>
-          <div style={{background:'#1e293b',border:'2px solid #f97316',borderRadius:12,width:340,overflow:'hidden'}}>
-            <div style={{background:'rgba(232,115,26,0.15)',padding:'14px 16px',borderBottom:'1px solid #f97316',display:'flex',alignItems:'center',gap:10}}>
-              <span style={{fontSize:22}}>⚠️</span><div><div style={{fontSize:13,fontWeight:700,color:'#f97316'}}>NOT FOR NAVIGATION</div><div style={{fontSize:10,color:'#888',marginTop:2}}>AMC 20-25</div></div>
-            </div>
-            <div style={{padding:'16px',fontSize:12,color:'#ccc',lineHeight:1.8}}>GPS display is for situational awareness only — <b style={{color:'#fff'}}>NOT for primary navigation</b>. Per EASA AMC 20-25.</div>
-            <div style={{padding:'0 16px 16px',display:'flex',gap:8}}>
-              <button onClick={()=>setShowGpsWarn(false)} style={{flex:1,background:'#1e293b',border:'1px solid #334155',borderRadius:7,padding:10,fontSize:12,color:'#475569',cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
-              <button onClick={()=>{setGpsOk(true);setShowGpsWarn(false);startGPS();logEvent(activePlan?.id,'GPS_ACTIVATED',{notice:'acknowledged'});}} style={{flex:2,background:'#f97316',border:'none',borderRadius:7,padding:10,fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'inherit'}}>I Understand — Activate GPS</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <SyncButton/>
 

@@ -15,7 +15,7 @@ function FlyTo({ pos }) {
   return null;
 }
 
-export default function EnrouteMap({ waypoints = [], gpsPos }) {
+export default function EnrouteMap({ waypoints = [], gpsPos, directTo = null }) {
   const wptCoords   = waypoints.filter(w => w.coord);
   const routeCoords = wptCoords.map(w => [w.coord.lat, w.coord.lon]);
 
@@ -37,6 +37,13 @@ export default function EnrouteMap({ waypoints = [], gpsPos }) {
     if (span > 20) return 4; if (span > 10) return 5; if (span > 5) return 6; return 7;
   })();
 
+  // Direct To çizgisi için koordinatları bul
+  const dtFrom = directTo ? waypoints.find(w => w.uid === directTo.from) : null;
+  const dtTo   = directTo ? waypoints.find(w => w.uid === directTo.to)   : null;
+  const dtCoords = (dtFrom?.coord && dtTo?.coord)
+    ? [[dtFrom.coord.lat, dtFrom.coord.lon], [dtTo.coord.lat, dtTo.coord.lon]]
+    : null;
+
   return (
     <div style={{ flex:1, position:"relative", overflow:"hidden", minHeight:500 }}>
       <MapContainer center={center} zoom={zoom}
@@ -45,6 +52,23 @@ export default function EnrouteMap({ waypoints = [], gpsPos }) {
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <TileLayer url={`https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=${OPENAIP_KEY}`} opacity={0.85} />
         {routeCoords.length >= 2 && <Polyline positions={routeCoords} pathOptions={{ color:"#38bdf8", weight:2, opacity:0.7, dashArray:"6 4" }} />}
+        {dtCoords && <Polyline positions={dtCoords} pathOptions={{ color:"#f97316", weight:3, opacity:0.95, dashArray:"10 6" }} />}
+        {dtCoords && dtFrom?.coord && (
+          <CircleMarker center={[dtFrom.coord.lat, dtFrom.coord.lon]} radius={8}
+            pathOptions={{ color:"#f97316", fillColor:"#f97316", fillOpacity:0.3, weight:2 }}>
+            <Tooltip permanent direction="bottom" offset={[0,8]}>
+              <span style={{ fontFamily:"monospace", fontSize:10, fontWeight:700, color:"#f97316" }}>DIR FROM</span>
+            </Tooltip>
+          </CircleMarker>
+        )}
+        {dtCoords && dtTo?.coord && (
+          <CircleMarker center={[dtTo.coord.lat, dtTo.coord.lon]} radius={10}
+            pathOptions={{ color:"#f97316", fillColor:"#f97316", fillOpacity:0.9, weight:2 }}>
+            <Tooltip permanent direction="top" offset={[0,-12]}>
+              <span style={{ fontFamily:"monospace", fontSize:11, fontWeight:700, color:"#fff", background:"#f97316", padding:"1px 6px", borderRadius:3 }}>✈ DIRECT {dtTo.name}</span>
+            </Tooltip>
+          </CircleMarker>
+        )}
         {wptCoords.filter(w => w.type === "wpt").map(w => (
           <CircleMarker key={w.uid} center={[w.coord.lat, w.coord.lon]} radius={5} pathOptions={{ color:"#1e40af", fillColor:"#3b82f6", fillOpacity:1, weight:1.5 }}>
             <Tooltip permanent direction="top" offset={[0,-7]}><span style={{ fontFamily:"monospace", fontSize:10, fontWeight:700, color:"#fff", background:"rgba(30,64,175,0.92)", padding:"1px 5px", borderRadius:3, whiteSpace:"nowrap" }}>{w.name}</span></Tooltip>
@@ -69,7 +93,7 @@ export default function EnrouteMap({ waypoints = [], gpsPos }) {
         </>)}
       </MapContainer>
       <div style={{ position:"absolute", bottom:16, left:8, zIndex:1000, background:"rgba(15,23,42,0.92)", borderRadius:8, padding:"6px 10px", border:"1px solid #1e293b", fontSize:10, fontFamily:"monospace" }}>
-        {[{color:"#fbbf24",label:"DEP"},{color:"#4ade80",label:"DEST"},{color:"#3b82f6",label:"WPT"},{color:"#38bdf8",label:"ROUTE"},{color:"#4ade80",label:"✈ ACFT"}].map(({color,label})=>(
+        {[{color:"#fbbf24",label:"DEP"},{color:"#4ade80",label:"DEST"},{color:"#3b82f6",label:"WPT"},{color:"#38bdf8",label:"ROUTE"},{color:"#4ade80",label:"✈ ACFT"},{color:"#f97316",label:"DIRECT"}].map(({color,label})=>(
           <div key={label} style={{ display:"flex", alignItems:"center", gap:5, marginBottom:2 }}>
             <div style={{ width:8, height:8, borderRadius:"50%", background:color }} />
             <span style={{ color:"#94a3b8" }}>{label}</span>
