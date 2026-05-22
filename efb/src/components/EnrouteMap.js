@@ -17,7 +17,7 @@ function FlyTo({ pos }) {
 
 export default function EnrouteMap({ waypoints = [], gpsPos, directTo = null }) {
   const wptCoords   = waypoints.filter(w => w.coord);
-  const routeCoords = waypoints.filter(w => w.coord && w.type !== 'alt').map(w => [w.coord.lat, w.coord.lon]);
+  const routeCoords = waypoints.filter(w => w.coord && ['dep','wpt','dest'].includes(w.type)).map(w => [w.coord.lat, w.coord.lon]);
 
   const center = (() => {
     if (gpsPos) return [gpsPos.lat, gpsPos.lon];
@@ -68,7 +68,7 @@ export default function EnrouteMap({ waypoints = [], gpsPos, directTo = null }) 
             </Tooltip>
           </CircleMarker>
         )}
-        {wptCoords.filter(w => w.type === "wpt").map(w => (
+        {wptCoords.filter(w => w.type === "wpt" || w.type === "alt").map(w => (
           <CircleMarker key={w.uid} center={[w.coord.lat, w.coord.lon]} radius={5} pathOptions={{ color:"#1e40af", fillColor:"#3b82f6", fillOpacity:1, weight:1.5 }}>
             <Tooltip permanent direction="top" offset={[0,-7]}><span style={{ fontFamily:"monospace", fontSize:10, fontWeight:700, color:"#fff", background:"rgba(30,64,175,0.92)", padding:"1px 5px", borderRadius:3, whiteSpace:"nowrap" }}>{w.name}</span></Tooltip>
           </CircleMarker>
