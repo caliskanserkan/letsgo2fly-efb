@@ -36,6 +36,7 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
       const inWpts = waypoints.find(w => w.name === apt.icao && w.coord);
       return !inWpts && !aptCoords[apt.icao];
     });
+    console.log('[ERM] missing apts:', missing.map(a=>a.icao));
     if (!missing.length) return;
     const icaos = missing.map(a => a.icao).join(',');
     fetch(`${SUPABASE_URL}/rest/v1/airports?icao=in.(${icaos})&select=icao,lat,lon,name`, {
@@ -43,6 +44,7 @@ export default function EnrouteMap({ waypoints = [], wxAirports = [], gpsPos, li
     })
     .then(r => r.json())
     .then(rows => {
+      console.log('[ERM] airport rows:', rows.length, rows.slice(0,3));
       const found = new Set(rows.map(r => r.icao));
       const notFound = missing.filter(a => !found.has(a.icao));
       if (notFound.length) setMissingApts(notFound.map(a => a.icao));
