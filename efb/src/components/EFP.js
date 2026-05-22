@@ -203,7 +203,29 @@ function parseSigmet(rawText) {
 // CORS proxy chain — tries each proxy in order
 // ─────────────────────────────────────────────────────────────
 
-async function fetchLiveWx(icaoList) {
+async function saveWxToSupabase(planId, results) {
+  if (!planId || !Object.keys(results).length) return;
+  const rows = [];
+  Object.entries(results).forEach(([icao, data]) => {
+    if (data.metar.length) rows.push({ plan_id: String(planId), icao, type: 'METAR', raw_text: data.metar.join('\n') });
+    if (data.taf.length)   rows.push({ plan_id: String(planId), icao, type: 'TAF',   raw_text: data.taf.join('\n')   });
+  });
+  try {
+    await fetch('https://ojvqdsqodpxkvpxvwgrm.supabase.co/rest/v1/wx_snapshots', {
+      method: 'POST',
+      headers: {
+        'apikey': 'sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f',
+        'Authorization': 'Bearer sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f',
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify(rows)
+    });
+    console.log('[WXR] snapshot saved, rows:', rows.length);
+  } catch(e) { console.warn('[WXR] snapshot save failed:', e); }
+}
+
+async function fetchLiveWx(icaoList, planId = null) {
   if (!icaoList || icaoList.length === 0) return {};
   const ids     = icaoList.join(',');
   const results = {};
@@ -251,6 +273,7 @@ async function fetchLiveWx(icaoList) {
     console.log('[WXR] TAF fetched for:', Object.keys(results).filter(k => results[k].taf.length > 0));
   } catch (e) { console.error('[WXR] TAF fetch failed:', e.message); }
 
+  if (planId) saveWxToSupabase(planId, results);
   return results;
 }
 
@@ -288,7 +311,7 @@ function WXRView({ activePlan, rawText }) {
     if (!wxAirports.length) return;
     setLoading(true); setError('');
     try {
-      const live = await fetchLiveWx(wxAirports.map(a => a.icao));
+      const live = await fetchLiveWx(wxAirports.map(a => a.icao), activePlan?.id);
       setLiveWxMap(live);
       setLiveAt(new Date().toUTCString().slice(17, 25) + ' UTC');
     } catch(e) { setError(e.message); }
