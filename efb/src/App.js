@@ -666,10 +666,17 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
   };
 
   const planCard = (p) => ({
+    id: p.id,
     dep: p.dep || '—', dest: p.dest || '—', date: p.date || '—',
     std: p.std || '—', eta: p.eta || '—',
-    ac:  p.ac_type || p.ac || 'GLF4',
+    ac_type: p.ac_type || p.ac || 'GLF4',
     reg: p.reg || 'TC-REC', fob: p.fob || '—',
+    alternate: p.alternate || '—',
+    pax: p.pax || '—',
+    trip_fuel: p.trip_fuel || null,
+    pf_pilot: p.pf_pilot || null,
+    pm_pilot: p.pm_pilot || null,
+    operator: p.operator || '—',
     archived_at: p.archived_at,
   });
 
