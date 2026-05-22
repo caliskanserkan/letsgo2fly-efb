@@ -49,7 +49,6 @@ export default function EnrouteMap({ waypoints = [], gpsPos, directTo = null }) 
       <MapContainer center={center} zoom={zoom}
         style={{ width:"100%", height:"100%", background:"#e8f0f7" }}
         zoomControl attributionControl={false}>
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
         <TileLayer url={`https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=${OPENAIP_KEY}`} opacity={1.0} />
         {routeCoords.length >= 2 && <Polyline positions={routeCoords} pathOptions={{ color:"#38bdf8", weight:2, opacity:0.7, dashArray:"6 4" }} />}
         {dtCoords && <Polyline positions={dtCoords} pathOptions={{ color:"#f97316", weight:3, opacity:0.95, dashArray:"10 6" }} />}
