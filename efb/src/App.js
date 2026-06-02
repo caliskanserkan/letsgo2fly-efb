@@ -15,10 +15,11 @@ import FreeNote from './components/FreeNote';
 import RassView from './components/RassView';
 import { supabase, logEvent } from './supabaseClient';
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.entry';
 import AdminPanel from './components/AdminPanel';
 import FlightReport from './components/FlightReport';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.6.205/build/pdf.worker.min.js';
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 // ─── Global Font Size ─────────────────────────────────────────────────────────
 const FONT_KEY  = 'efb_font_size';
