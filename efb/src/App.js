@@ -450,7 +450,7 @@ function UploadPlanModal({ onClose, onUploaded }) {
               <div style={{ fontSize:13, color:'#555', textAlign:'center' }}>Tap to select PDF<br /><span style={{ fontSize:11, color:'#444' }}>Flight Briefing Package</span></div>
             </div>
           )}
-          <input ref={inputRef} type="file" accept=".pdf" onChange={handleFile} style={{ display:'none' }} />
+          <input ref={inputRef} type="file" accept=".pdf,application/pdf" onChange={handleFile} style={{ display:'none' }} />
           {loading && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(26,155,196,0.08)', borderLeft:'3px solid #1a9bc4', fontSize:11, color:'#7bbdd4' }}>⏳ Reading PDF...</div>}
           {error   && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(224,32,32,0.08)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>⚠ {error}</div>}
           {success && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(45,158,95,0.08)', borderLeft:'3px solid #2d9e5f', fontSize:11, color:'#6db890' }}>✓ {success}</div>}
