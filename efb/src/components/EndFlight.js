@@ -209,6 +209,34 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText, onA
       if (archiveError) throw archiveError;
       if (afData?.id) setArchivedFlightId(afData.id);
       logEvent(activePlan.id,'FLIGHT_ARCHIVED',{dep,dest:destIcao,block_minutes:blockMins,airborne_minutes:flightMins,landing_count:parseInt(cycles)||1,dep_rwy:depRwy,arr_rwy:arrRwy,sid:tkofSid});
+
+      // NAV LOG entries → Supabase
+      try {
+        const planKey = activePlan.id;
+        const wpts = JSON.parse(localStorage.getItem(`efb_navlog_waypoints_${planKey}`) || '[]');
+        const entries = JSON.parse(localStorage.getItem(`efb_navlog_entries_${planKey}`) || '{}');
+        if (wpts.length) {
+          const rows = wpts.map((w, i) => {
+            const e = entries[w.uid] || {};
+            const fuelActual = e.fuel ? parseInt(e.fuel.replace(/,/g,'')) : (w.type==='dep'&&e.toFuel ? parseInt(e.toFuel.replace(/,/g,'')) : (w.type==='dest'&&e.remFuel ? parseInt(e.remFuel.replace(/,/g,'')) : null));
+            const ata = e.ata || (w.type==='dep'?e.toTime:null) || (w.type==='dest'?e.lndTime:null);
+            return {
+              plan_id: activePlan.id,
+              wpt_uid: w.uid,
+              wpt_name: w.name,
+              wpt_type: w.type,
+              eta: w.eta || null,
+              ata: ata || null,
+              fuel_plan: w.planFuel || null,
+              fuel_actual: fuelActual,
+              rvsm: e.rvsm || null,
+              seq: i,
+            };
+          });
+          await supabase.from('navlog_entries').insert(rows);
+          console.log('[Archive] navlog_entries saved:', rows.length);
+        }
+      } catch(ne) { console.warn('[Archive] navlog save error:', ne); }
       setArchived(true);
       if (onArchive) onArchive();
     } catch(e) { console.error('Archive error:',e); }
