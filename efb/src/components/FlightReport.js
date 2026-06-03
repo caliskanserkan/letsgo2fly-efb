@@ -116,7 +116,7 @@ export default function FlightReport({ plan, onClose }) {
   const flightTime = diffMins(toTime, landTime);
   const tripBurn   = (toFuel!=='—'&&remFuel!=='—') ? parseInt(toFuel.replace(/,/g,''))-parseInt(remFuel.replace(/,/g,'')) : null;
   const planBurn   = plan?.trip_fuel ? parseInt(plan.trip_fuel) : null;
-  const burnDiff   = (tripBurn&&planBurn) ? tripBurn-planBurn : null;
+  const burnDiff   = (tripBurn&&planBurn) ? planBurn-tripBurn : null;
 
   // EASA FTL — pilot bazlı hesaplama
   const sectorCount = 1;
@@ -240,7 +240,7 @@ export default function FlightReport({ plan, onClose }) {
             <div style={S.cell(true,false)}><div style={S.lbl}>T/O Fuel</div><div style={S.val}>{toFuel!=='—'?parseInt(toFuel).toLocaleString()+' lb':'—'}</div></div>
             <div style={S.cell(true,false)}><div style={S.lbl}>Remaining</div><div style={S.val}>{remFuel!=='—'?parseInt(remFuel).toLocaleString()+' lb':'—'}</div></div>
             <div style={S.cell(true,false)}><div style={S.lbl}>Trip Burn</div><div style={S.val}>{tripBurn?tripBurn.toLocaleString()+' lb':'—'}</div></div>
-            <div style={S.cell(false,false)}><div style={S.lbl}>vs OFP Plan</div><div style={{...S.val,color:burnDiff===null?'#1e293b':burnDiff>0?'#ef4444':'#16a34a'}}>{burnDiff!==null?(burnDiff>0?'+':'')+burnDiff.toLocaleString()+' lb':'—'}</div></div>
+            <div style={S.cell(false,false)}><div style={S.lbl}>vs OFP Plan</div><div style={{...S.val,color:burnDiff===null?'#1e293b':burnDiff>0?'#16a34a':'#ef4444'}}>{burnDiff!==null?(burnDiff>0?'+':'')+burnDiff.toLocaleString()+' lb':'—'}</div></div>
           </div>
         </div>
 
