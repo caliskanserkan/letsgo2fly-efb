@@ -501,6 +501,22 @@ function NavLog({ flightData, updateFlight, setStatus, activePlan, updateDivert,
             const merged=[...wpts];
             customs.forEach(cw=>{ if(!merged.find(w=>w.uid===cw.uid)) merged.splice(destIdx,0,cw); });
             setWaypoints(merged);
+            // Waypoints'i Supabase flt_report'a yaz
+            try {
+              await supabase.from('flt_report').upsert({
+                plan_id: activePlan.id,
+                navlog: merged.map((w,i) => ({
+                  seq: i,
+                  wpt: w.name,
+                  type: w.type,
+                  eta: w.eta || null,
+                  ata: null,
+                  fuel_plan: w.planFuel || null,
+                  fuel_actual: null,
+                  rvsm: null,
+                }))
+              }, { onConflict: 'plan_id' });
+            } catch(e) { console.warn('[NavLog] flt_report write:', e); }
           }
         }
       }catch(e){
