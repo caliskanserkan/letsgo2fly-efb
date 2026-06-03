@@ -246,15 +246,15 @@ export default function FlightReport({ plan, onClose }) {
 
         {/* NAV LOG — flight_logs'tan */}
         {(()=>{
-          const offB = getLog('OFF_BLOCKS');
-          const toLog = getLog('TAKEOFF');
-          const lndLog = getLog('LANDING');
-          const onB = getLog('ON_BLOCKS');
+          const offB = logs.find(l=>l.action==='OFF_BLOCKS')?.details;
+          const toLog = logs.find(l=>l.action==='TAKEOFF')?.details;
+          const lndLog = logs.find(l=>l.action==='LANDING')?.details;
+          const remLog = logs.find(l=>l.action==='FUEL_REMAINING')?.details;
           const rvsms = logs.filter(l=>l.action==='RVSM_CHECK');
           const rows = [
             offB && { wpt: plan.dep, type:'DEP', ata: offB.time, fuel: toLog?.fuel_lb ? parseInt(toLog.fuel_lb).toLocaleString()+' lb' : '—', rvsm:'—', bg:'#fef9ec', color:'#b45309' },
             ...rvsms.map(l=>({ wpt: l.details.waypoint||'—', type:'WPT', ata: l.details.ata||'—', fuel: l.details.fuel_lb ? parseInt(l.details.fuel_lb).toLocaleString()+' lb' : '—', rvsm: l.details.rvsm||'—', bg:'#fff', color:'#1e40af' })),
-            lndLog && { wpt: plan.dest, type:'DEST', ata: lndLog.time, fuel: onB ? (getLog('FUEL_REMAINING')?.fuel_lb ? parseInt(getLog('FUEL_REMAINING').fuel_lb).toLocaleString()+' lb' : '—') : '—', rvsm:'—', bg:'#f0fdf4', color:'#166534' },
+            lndLog && { wpt: plan.dest, type:'DEST', ata: lndLog.time, fuel: remLog?.fuel_lb ? parseInt(remLog.fuel_lb).toLocaleString()+' lb' : '—', rvsm:'—', bg:'#f0fdf4', color:'#166534' },
           ].filter(Boolean);
           if(!rows.length) return null;
           return (
