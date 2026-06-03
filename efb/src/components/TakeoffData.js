@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SyncButton from './SyncButton';
 import { usePersistedState } from '../hooks/usePersistedState';
-import { logEvent } from '../supabaseClient';
+import { logEvent, supabase } from '../supabaseClient';
 
 function getStopMarginColor(margin) {
   if (margin === null) return '#94a3b8';
@@ -110,25 +110,13 @@ function TakeoffData({ setStatus, activePlan }) {
   const fetchRunways = async (code) => {
     setLoading(true); setNoData(false); setRunways([]); setSelRwy(null);
     try {
-      const url = `https://corsproxy.io/?https://ourairports.com/airports/${code}/runways.csv`;
-      const resp = await fetch(url);
-      const text = await resp.text();
-      const lines = text.trim().split('\n').slice(1);
-      const parsed = [];
-      lines.forEach(line => {
-        const cols = line.split(',');
-        if (cols.length > 4) {
-          const len = parseInt(cols[3]);
-          const id1 = cols[8]  ? cols[8].replace(/"/g,'').trim()  : '';
-          const id2 = cols[14] ? cols[14].replace(/"/g,'').trim() : '';
-          const lenFt = Math.round(len * 3.28084);
-          if (id1 && len) parsed.push({ id:id1, length:lenFt });
-          if (id2 && len) parsed.push({ id:id2, length:lenFt });
-        }
-      });
-      if (parsed.length > 0) { setRunways(parsed); setNoData(false); }
-      else setNoData(true);
-    } catch { setNoData(true); }
+      const { data } = await supabase.from('airport_risks').select('runways').eq('icao', code.toUpperCase()).single();
+      if (data?.runways) {
+        const rwys = data.runways.split(',').map(r => r.trim()).filter(Boolean);
+        if (rwys.length > 0) { setRunways(rwys.map(r => ({ id:r, length:null }))); setNoData(false); setLoading(false); return; }
+      }
+    } catch {}
+    setNoData(true);
     setLoading(false);
   };
 

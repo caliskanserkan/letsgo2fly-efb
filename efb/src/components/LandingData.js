@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import SyncButton from './SyncButton';
 import { usePersistedState } from '../hooks/usePersistedState';
-import { logEvent } from '../supabaseClient';
+import { logEvent, supabase } from '../supabaseClient';
 
 const RWY_CONDITIONS = [
   { id:'DRY',           label:'DRY',           factor:1.00, color:'#4ade80' },
@@ -92,25 +92,13 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
   const fetchRunways = useCallback(async (code) => {
     setLoading(true); setNoData(false); setRunways([]); setSelRwy(null); setAirportCoords(null);
     try {
-      const url = `https://corsproxy.io/?https://ourairports.com/airports/${code}/runways.csv`;
-      const resp = await fetch(url);
-      const text = await resp.text();
-      const lines = text.trim().split('\n').slice(1);
-      const parsed = []; let latSum=0,lonSum=0,coordCount=0;
-      lines.forEach(line => {
-        const cols = line.split(',');
-        if (cols.length > 4) {
-          const len=parseInt(cols[3]), id1=cols[8]?cols[8].replace(/"/g,'').trim():'', id2=cols[14]?cols[14].replace(/"/g,'').trim():'', lenFt=Math.round(len*3.28084);
-          const lat1=parseFloat(cols[9]),lon1=parseFloat(cols[10]),lat2=parseFloat(cols[15]),lon2=parseFloat(cols[16]);
-          if(!isNaN(lat1)&&!isNaN(lon1)){latSum+=lat1;lonSum+=lon1;coordCount++;}
-          if(!isNaN(lat2)&&!isNaN(lon2)){latSum+=lat2;lonSum+=lon2;coordCount++;}
-          if(id1&&len)parsed.push({id:id1,length:lenFt});
-          if(id2&&len)parsed.push({id:id2,length:lenFt});
-        }
-      });
-      if(coordCount>0)setAirportCoords({lat:latSum/coordCount,lon:lonSum/coordCount});
-      if(parsed.length>0){setRunways(parsed);setNoData(false);}else setNoData(true);
-    } catch { setNoData(true); }
+      const { data } = await supabase.from('airport_risks').select('runways').eq('icao', code.toUpperCase()).single();
+      if (data?.runways) {
+        const rwys = data.runways.split(',').map(r => r.trim()).filter(Boolean);
+        if (rwys.length > 0) { setRunways(rwys.map(r => ({ id:r, length:null }))); setNoData(false); setLoading(false); return; }
+      }
+    } catch {}
+    setNoData(true);
     setLoading(false);
   }, [setSelRwy]);
 
