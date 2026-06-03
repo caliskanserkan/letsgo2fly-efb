@@ -244,49 +244,47 @@ export default function FlightReport({ plan, onClose }) {
           </div>
         </div>
 
-        {/* NAV LOG */}
-        {navlogRows.length > 0 && (
-          <div style={S.card}>
-            <div style={S.hdr}>NAV LOG — Actual vs Plan</div>
-            <div style={{overflowX:'auto'}}>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:10,fontFamily:'monospace'}}>
-                <thead>
-                  <tr style={{background:'#f1f5f9'}}>
-                    {['WPT','TYPE','ETA','ATA','±TIME','FUEL PLAN','FUEL ACT','±FUEL','RVSM'].map(h=>(
-                      <th key={h} style={{padding:'4px 8px',textAlign:'left',fontSize:9,color:'#64748b',fontWeight:700,borderBottom:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {navlogRows.map((row, i) => {
-                    const timeDiff = (row.eta && row.ata) ? diffMins(row.eta, row.ata) : null;
-                    const fuelDiff = (row.fuel_plan && row.fuel_actual) ? row.fuel_actual - row.fuel_plan : null;
-                    const isDep  = row.wpt_type === 'dep';
-                    const isDest = row.wpt_type === 'dest';
-                    const rowBg  = isDep ? '#fef9ec' : isDest ? '#f0fdf4' : i%2===0 ? '#fff' : '#f8fafc';
-                    return (
-                      <tr key={row.id} style={{background:rowBg}}>
-                        <td style={{padding:'5px 8px',fontWeight:700,color: isDep?'#b45309': isDest?'#166534':'#1e40af',borderBottom:'1px solid #f1f5f9'}}>{row.wpt_name}</td>
-                        <td style={{padding:'5px 8px',color:'#94a3b8',fontSize:9,borderBottom:'1px solid #f1f5f9'}}>{row.wpt_type?.toUpperCase()}</td>
-                        <td style={{padding:'5px 8px',color:'#64748b',borderBottom:'1px solid #f1f5f9'}}>{row.eta||'—'}</td>
-                        <td style={{padding:'5px 8px',fontWeight:row.ata?700:400,color:row.ata?'#1e293b':'#94a3b8',borderBottom:'1px solid #f1f5f9'}}>{row.ata||'—'}</td>
-                        <td style={{padding:'5px 8px',fontWeight:700,color: timeDiff===null?'#94a3b8': Math.abs(timeDiff)<=2?'#16a34a': timeDiff>0?'#ef4444':'#16a34a',borderBottom:'1px solid #f1f5f9'}}>
-                          {timeDiff!==null ? fmtDiff(timeDiff) : '—'}
-                        </td>
-                        <td style={{padding:'5px 8px',color:'#64748b',borderBottom:'1px solid #f1f5f9'}}>{row.fuel_plan ? row.fuel_plan.toLocaleString() : '—'}</td>
-                        <td style={{padding:'5px 8px',fontWeight:row.fuel_actual?700:400,color:row.fuel_actual?'#1e293b':'#94a3b8',borderBottom:'1px solid #f1f5f9'}}>{row.fuel_actual ? row.fuel_actual.toLocaleString() : '—'}</td>
-                        <td style={{padding:'5px 8px',fontWeight:700,color: fuelDiff===null?'#94a3b8': Math.abs(fuelDiff)<50?'#16a34a': fuelDiff>0?'#16a34a':'#ef4444',borderBottom:'1px solid #f1f5f9'}}>
-                          {fuelDiff!==null ? (fuelDiff>=0?'+':'')+fuelDiff.toLocaleString() : '—'}
-                        </td>
-                        <td style={{padding:'5px 8px',color:'#64748b',fontSize:9,borderBottom:'1px solid #f1f5f9'}}>{row.rvsm||'—'}</td>
+        {/* NAV LOG — flight_logs'tan */}
+        {(()=>{
+          const offB = getLog('OFF_BLOCKS');
+          const toLog = getLog('TAKEOFF');
+          const lndLog = getLog('LANDING');
+          const onB = getLog('ON_BLOCKS');
+          const rvsms = logs.filter(l=>l.action==='RVSM_CHECK');
+          const rows = [
+            offB && { wpt: plan.dep, type:'DEP', ata: offB.time, fuel: toLog?.fuel_lb ? parseInt(toLog.fuel_lb).toLocaleString()+' lb' : '—', rvsm:'—', bg:'#fef9ec', color:'#b45309' },
+            ...rvsms.map(l=>({ wpt: l.details.waypoint||'—', type:'WPT', ata: l.details.ata||'—', fuel: l.details.fuel_lb ? parseInt(l.details.fuel_lb).toLocaleString()+' lb' : '—', rvsm: l.details.rvsm||'—', bg:'#fff', color:'#1e40af' })),
+            lndLog && { wpt: plan.dest, type:'DEST', ata: lndLog.time, fuel: onB ? (getLog('FUEL_REMAINING')?.fuel_lb ? parseInt(getLog('FUEL_REMAINING').fuel_lb).toLocaleString()+' lb' : '—') : '—', rvsm:'—', bg:'#f0fdf4', color:'#166534' },
+          ].filter(Boolean);
+          if(!rows.length) return null;
+          return (
+            <div style={S.card}>
+              <div style={S.hdr}>NAV LOG — Actual Times & Fuel</div>
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:11,fontFamily:'monospace'}}>
+                  <thead>
+                    <tr style={{background:'#f1f5f9'}}>
+                      {['WPT','TYPE','ATA (UTC)','FUEL','RVSM'].map(h=>(
+                        <th key={h} style={{padding:'6px 10px',textAlign:'left',fontSize:9,color:'#64748b',fontWeight:700,borderBottom:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row,i)=>(
+                      <tr key={i} style={{background:row.bg}}>
+                        <td style={{padding:'6px 10px',fontWeight:700,color:row.color,borderBottom:'1px solid #f1f5f9'}}>{row.wpt}</td>
+                        <td style={{padding:'6px 10px',color:'#94a3b8',fontSize:9,borderBottom:'1px solid #f1f5f9'}}>{row.type}</td>
+                        <td style={{padding:'6px 10px',fontWeight:700,color:'#1e293b',borderBottom:'1px solid #f1f5f9'}}>{row.ata}</td>
+                        <td style={{padding:'6px 10px',color:'#1e293b',borderBottom:'1px solid #f1f5f9'}}>{row.fuel}</td>
+                        <td style={{padding:'6px 10px',color:'#64748b',fontSize:10,borderBottom:'1px solid #f1f5f9',fontFamily:'monospace'}}>{row.rvsm}</td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* WX */}
         {Object.keys(wxByIcao).length>0&&(
