@@ -70,7 +70,10 @@ export default function FlightReport({ plan, onClose }) {
         { headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`} }).then(r=>r.json()).catch(()=>[]),
       fetch(`${SB_URL}/rest/v1/navlog_entries?plan_id=eq.${plan.id}&select=*&order=seq.asc`,
         { headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`} }).then(r=>r.json()).catch(()=>[]),
-    ]).then(([logsData, wxData, hbData, navData]) => {
+      fetch(`${SB_URL}/rest/v1/flt_report?plan_id=eq.${plan.id}&select=*&limit=1`,
+        { headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`} }).then(r=>r.json()).catch(()=>[]),
+    ]).then(([logsData, wxData, hbData, navData, fltReportData]) => {
+      const fltReport = fltReportData?.[0] || null;
       setLogs(logsData || []);
       // PF ve PM pilot ID'lerini CREW_ASSIGNED log'undan al
       const crewLog = (logsData||[]).filter(l=>l.action==='CREW_ASSIGNED').slice(-1)[0];
@@ -244,18 +247,18 @@ export default function FlightReport({ plan, onClose }) {
           </div>
         </div>
 
-        {/* NAV LOG — flight_logs'tan */}
+        {/* NAV LOG — flt_report.navlog'dan */}
         {(()=>{
-          const offB = logs.find(l=>l.action==='OFF_BLOCKS')?.details;
-          const toLog = logs.find(l=>l.action==='TAKEOFF')?.details;
-          const lndLog = logs.find(l=>l.action==='LANDING')?.details;
-          const remLog = logs.find(l=>l.action==='FUEL_REMAINING')?.details;
-          const rvsms = logs.filter(l=>l.action==='RVSM_CHECK');
-          const rows = [
-            offB && { wpt: plan.dep, type:'DEP', ata: offB.time, fuel: toLog?.fuel_lb ? parseInt(toLog.fuel_lb).toLocaleString()+' lb' : '—', rvsm:'—', bg:'#fef9ec', color:'#b45309' },
-            ...rvsms.map(l=>({ wpt: l.details.waypoint||'—', type:'WPT', ata: l.details.ata||'—', fuel: l.details.fuel_lb ? parseInt(l.details.fuel_lb).toLocaleString()+' lb' : '—', rvsm: l.details.rvsm||'—', bg:'#fff', color:'#1e40af' })),
-            lndLog && { wpt: plan.dest, type:'DEST', ata: lndLog.time, fuel: remLog?.fuel_lb ? parseInt(remLog.fuel_lb).toLocaleString()+' lb' : '—', rvsm:'—', bg:'#f0fdf4', color:'#166534' },
-          ].filter(Boolean);
+          const navlogData = fltReport?.navlog || [];
+          const rows = navlogData.map(row => ({
+            wpt: row.wpt,
+            type: row.type?.toUpperCase(),
+            ata: row.ata || '—',
+            fuel: row.fuel_actual ? parseInt(row.fuel_actual).toLocaleString()+' lb' : '—',
+            rvsm: row.rvsm || '—',
+            bg: row.type==='dep'?'#fef9ec': row.type==='dest'?'#f0fdf4':'#fff',
+            color: row.type==='dep'?'#b45309': row.type==='dest'?'#166534':'#1e40af',
+          }));
           if(!rows.length) return null;
           return (
             <div style={S.card}>
