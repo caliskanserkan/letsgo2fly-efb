@@ -54,6 +54,8 @@ export default function FlightReport({ plan, onClose }) {
   const [logs,        setLogs]        = useState([]);
   const [wx,          setWx]          = useState([]);
   const [homeBase,    setHomeBase]    = useState(null);
+  const [pfHomeBase,  setPfHomeBase]  = useState(null);
+  const [pmHomeBase,  setPmHomeBase]  = useState(null);
   const [navlogRows,  setNavlogRows]  = useState([]);
   const [loading,     setLoading]     = useState(true);
 
@@ -70,6 +72,19 @@ export default function FlightReport({ plan, onClose }) {
         { headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`} }).then(r=>r.json()).catch(()=>[]),
     ]).then(([logsData, wxData, hbData, navData]) => {
       setLogs(logsData || []);
+      // PF ve PM pilot ID'lerini CREW_ASSIGNED log'undan al
+      const crewLog = (logsData||[]).filter(l=>l.action==='CREW_ASSIGNED').slice(-1)[0];
+      const pfId = crewLog?.details?.pf_id;
+      const pmId = crewLog?.details?.pm_id;
+      // PF ve PM home base'lerini çek
+      const fetchHB = (id) => id
+        ? fetch(`${SB_URL}/rest/v1/home_bases?pilot_id=eq.${id}&select=icao&limit=1`,
+            { headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`} }).then(r=>r.json()).catch(()=>[])
+        : Promise.resolve([]);
+      Promise.all([fetchHB(pfId), fetchHB(pmId)]).then(([pfHB, pmHB]) => {
+        setPfHomeBase(pfHB?.[0]?.icao || null);
+        setPmHomeBase(pmHB?.[0]?.icao || null);
+      });
       const wxMap = {};
       (wxData || []).forEach(r => { const k=`${r.icao}_${r.type}`; if(!wxMap[k]) wxMap[k]=r; });
       setWx(Object.values(wxMap));
@@ -103,37 +118,43 @@ export default function FlightReport({ plan, onClose }) {
   const planBurn   = plan?.trip_fuel ? parseInt(plan.trip_fuel) : null;
   const burnDiff   = (tripBurn&&planBurn) ? tripBurn-planBurn : null;
 
-  // EASA FTL
-  const isHomeBase = (icao) => homeBase && (icao === homeBase || (homeBase === 'LTAC' && icao === 'ESB') || (homeBase === 'ESB' && icao === 'LTAC'));
-  const depIsHome  = isHomeBase(plan?.dep);
-  const destIsHome = isHomeBase(plan?.dest);
-
-  // Reporting time: DEP=home → ETD-01:15, else ETD-01:00
-  const reportOffset = depIsHome ? 75 : 60;
-  const reportTime   = plan?.std && plan.std !== '—' ? fromMins((toMins(plan.std)||0) - reportOffset) : '—';
-
-  // Duty end = On Block + 00:30
-  const dutyEnd    = onBlock !== '—' ? fromMins((toMins(onBlock)||0) + 30) : '—';
-
-  // FDP = Duty end - Report time
-  const fdpMins    = (reportTime !== '—' && dutyEnd !== '—') ? diffMins(reportTime, dutyEnd) : null;
-
-  // Sektör sayısı (navlog'dan dep+dest hariç wpt sayısı yaklaşımı — varsayılan 1)
+  // EASA FTL — pilot bazlı hesaplama
   const sectorCount = 1;
+  const dutyEnd = onBlock !== '—' ? fromMins((toMins(onBlock)||0) + 30) : '—';
 
-  // Max FDP
-  const reportMins = reportTime !== '—' ? toMins(reportTime) : null;
-  const maxFdpMins = reportMins !== null ? getMaxFDP(reportMins, sectorCount) : null;
-  const fdpOk      = (fdpMins !== null && maxFdpMins !== null) ? fdpMins <= maxFdpMins : null;
+  const calcFTL = (pilotHomeBase) => {
+    const isHome = (icao) => pilotHomeBase && (
+      icao === pilotHomeBase ||
+      (pilotHomeBase === 'LTAC' && icao === 'ESB') ||
+      (pilotHomeBase === 'ESB'  && icao === 'LTAC')
+    );
+    const depHome  = isHome(plan?.dep);
+    const destHome = isHome(plan?.dest);
+    const reportOffset = depHome ? 75 : 60;
+    const reportTime   = plan?.std && plan.std !== '—' ? fromMins((toMins(plan.std)||0) - reportOffset) : '—';
+    const fdpMins      = (reportTime !== '—' && dutyEnd !== '—') ? diffMins(reportTime, dutyEnd) : null;
+    const reportMins   = reportTime !== '—' ? toMins(reportTime) : null;
+    const maxFdpMins   = reportMins !== null ? getMaxFDP(reportMins, sectorCount) : null;
+    const fdpOk        = (fdpMins !== null && maxFdpMins !== null) ? fdpMins <= maxFdpMins : null;
+    const minRestBase  = destHome ? 720 : 600;
+    const minRestMins  = fdpMins !== null ? Math.max(fdpMins, minRestBase) : minRestBase;
+    const earliestNext = onBlock !== '—' ? fromMins((toMins(onBlock)||0) + 30 + minRestMins) : '—';
+    return { depHome, destHome, reportTime, reportOffset, fdpMins, maxFdpMins, fdpOk, minRestMins, earliestNext };
+  };
 
-  // Min rest: DEST=home → max(FDP,12h), away → max(FDP,10h)
-  const minRestBase = destIsHome ? 720 : 600;
-  const minRestMins = fdpMins !== null ? Math.max(fdpMins, minRestBase) : minRestBase;
+  const pfFTL = calcFTL(pfHomeBase);
+  const pmFTL = calcFTL(pmHomeBase);
 
-  // Earliest next duty = On Block + 00:30 + min rest
-  const earliestNextDuty = onBlock !== '—'
-    ? fromMins((toMins(onBlock)||0) + 30 + minRestMins)
-    : '—';
+  // Geriye dönük uyumluluk için (eski tek kişilik hesap — PF baz alınır)
+  const isHomeBase = (icao) => pfFTL.depHome || pfFTL.destHome;
+  const depIsHome  = pfFTL.depHome;
+  const destIsHome = pfFTL.destHome;
+  const reportTime = pfFTL.reportTime;
+  const fdpMins    = pfFTL.fdpMins;
+  const maxFdpMins = pfFTL.maxFdpMins;
+  const fdpOk      = pfFTL.fdpOk;
+  const minRestMins= pfFTL.minRestMins;
+  const earliestNextDuty = pfFTL.earliestNext;
 
   // Docs
   const docActions = logs.map(l=>l.action);
@@ -300,49 +321,29 @@ export default function FlightReport({ plan, onClose }) {
         {/* EASA FTL */}
         <div style={S.card}>
           <div style={S.hdr}>EASA FTL — ORO.FTL (CREW DUTY & REST)</div>
-          <div style={S.grid('1fr 1fr 1fr')}>
-            <div style={S.cell(true,false)}>
-              <div style={S.lbl}>Report Time</div>
-              <div style={S.val}>{reportTime} UTC</div>
-              <div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>{depIsHome?`Home (${homeBase}) STD −01:15`:'Away STD −01:00'}</div>
-            </div>
-            <div style={S.cell(true,false)}>
-              <div style={S.lbl}>Duty End</div>
-              <div style={S.val}>{dutyEnd} UTC</div>
-              <div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>On Block +00:30</div>
-            </div>
-            <div style={S.cell(false,false)}>
-              <div style={S.lbl}>FDP</div>
-              <div style={{...S.val, color: fdpOk===null?'#1e293b': fdpOk?'#16a34a':'#ef4444'}}>
-                {fdpMins!==null?fromMins(fdpMins):'—'}
-                {fdpOk===false && <span style={{fontSize:9,marginLeft:6,color:'#ef4444'}}>⚠ EXCEEDED</span>}
-                {fdpOk===true  && <span style={{fontSize:9,marginLeft:6,color:'#16a34a'}}>✓ OK</span>}
-              </div>
-            </div>
+          {/* Ortak satır */}
+          <div style={S.grid('1fr 1fr')}>
+            <div style={S.cell(true,false)}><div style={S.lbl}>Duty End (both crew)</div><div style={S.val}>{dutyEnd} UTC</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>On Block +00:30</div></div>
+            <div style={S.cell(false,false)}><div style={S.lbl}>Sectors</div><div style={S.val}>{sectorCount}</div></div>
           </div>
-          <div style={{...S.grid('1fr 1fr 1fr'),borderTop:'1px solid #e2e8f0'}}>
-            <div style={S.cell(true,false)}>
-              <div style={S.lbl}>Max FDP ({sectorCount} sector)</div>
-              <div style={S.val}>{maxFdpMins!==null?fromMins(maxFdpMins):'—'}</div>
-              <div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>EASA ORO.FTL tablo</div>
-            </div>
-            <div style={S.cell(true,false)}>
-              <div style={S.lbl}>Min Rest Required</div>
-              <div style={S.val}>{fromMins(minRestMins)}</div>
-              <div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>
-                {destIsHome ? `Home (${homeBase}) max(FDP, 12:00)` : 'Away max(FDP, 10:00)'}
-              </div>
-            </div>
-            <div style={S.cell(false,false)}>
-              <div style={S.lbl}>Earliest Next Duty</div>
-              <div style={{fontSize:14,fontWeight:700,color:'#1e293b'}}>{earliestNextDuty} UTC</div>
-              <div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>Duty end + {fromMins(minRestMins)} rest</div>
-            </div>
+          {/* PF */}
+          <div style={{borderTop:'2px solid #e2e8f0',background:'#f8fafc',padding:'4px 14px'}}><span style={{fontSize:9,fontWeight:700,color:'#1e40af'}}>PF — {pfName}</span>{pfHomeBase?<span style={{fontSize:9,color:'#94a3b8',marginLeft:8}}>Home: {pfHomeBase}</span>:<span style={{fontSize:9,color:'#ef4444',marginLeft:8}}>No home base set</span>}</div>
+          <div style={S.grid('1fr 1fr 1fr 1fr')}>
+            <div style={S.cell(true,false)}><div style={S.lbl}>Report Time</div><div style={S.val}>{pfFTL.reportTime} UTC</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>{pfFTL.depHome?'Home −01:15':'Away −01:00'}</div></div>
+            <div style={S.cell(true,false)}><div style={S.lbl}>FDP</div><div style={{...S.val,color:pfFTL.fdpOk===null?'#1e293b':pfFTL.fdpOk?'#16a34a':'#ef4444'}}>{pfFTL.fdpMins!==null?fromMins(pfFTL.fdpMins):'—'}{pfFTL.fdpOk===false&&<span style={{fontSize:9,marginLeft:4,color:'#ef4444'}}>⚠</span>}{pfFTL.fdpOk===true&&<span style={{fontSize:9,marginLeft:4,color:'#16a34a'}}>✓</span>}</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>Max: {pfFTL.maxFdpMins!==null?fromMins(pfFTL.maxFdpMins):'—'}</div></div>
+            <div style={S.cell(true,false)}><div style={S.lbl}>Min Rest</div><div style={S.val}>{fromMins(pfFTL.minRestMins)}</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>{pfFTL.destHome?'Home 12:00':'Away 10:00'}</div></div>
+            <div style={S.cell(false,false)}><div style={S.lbl}>Earliest Next Duty</div><div style={{fontSize:13,fontWeight:700,color:'#1e293b'}}>{pfFTL.earliestNext} UTC</div></div>
           </div>
-          <div style={{background:'#f8fafc',borderTop:'1px solid #e2e8f0',padding:'6px 14px'}}>
-            <div style={{fontSize:9,color:'#94a3b8'}}>
-              WOCL 02:00–05:59 · Cumulative: 60h/7d · 190h/28d · Flight Time: 100h/28d · 900h/year
-            </div>
+          {/* PM */}
+          <div style={{borderTop:'2px solid #e2e8f0',background:'#f8fafc',padding:'4px 14px'}}><span style={{fontSize:9,fontWeight:700,color:'#0f766e'}}>PM — {pmName}</span>{pmHomeBase?<span style={{fontSize:9,color:'#94a3b8',marginLeft:8}}>Home: {pmHomeBase}</span>:<span style={{fontSize:9,color:'#ef4444',marginLeft:8}}>No home base set</span>}</div>
+          <div style={S.grid('1fr 1fr 1fr 1fr')}>
+            <div style={S.cell(true,false)}><div style={S.lbl}>Report Time</div><div style={S.val}>{pmFTL.reportTime} UTC</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>{pmFTL.depHome?'Home −01:15':'Away −01:00'}</div></div>
+            <div style={S.cell(true,false)}><div style={S.lbl}>FDP</div><div style={{...S.val,color:pmFTL.fdpOk===null?'#1e293b':pmFTL.fdpOk?'#16a34a':'#ef4444'}}>{pmFTL.fdpMins!==null?fromMins(pmFTL.fdpMins):'—'}{pmFTL.fdpOk===false&&<span style={{fontSize:9,marginLeft:4,color:'#ef4444'}}>⚠</span>}{pmFTL.fdpOk===true&&<span style={{fontSize:9,marginLeft:4,color:'#16a34a'}}>✓</span>}</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>Max: {pmFTL.maxFdpMins!==null?fromMins(pmFTL.maxFdpMins):'—'}</div></div>
+            <div style={S.cell(true,false)}><div style={S.lbl}>Min Rest</div><div style={S.val}>{fromMins(pmFTL.minRestMins)}</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>{pmFTL.destHome?'Home 12:00':'Away 10:00'}</div></div>
+            <div style={S.cell(false,false)}><div style={S.lbl}>Earliest Next Duty</div><div style={{fontSize:13,fontWeight:700,color:'#1e293b'}}>{pmFTL.earliestNext} UTC</div></div>
+          </div>
+          <div style={{borderTop:'1px solid #e2e8f0',background:'#f8fafc',padding:'6px 14px'}}>
+            <div style={{fontSize:9,color:'#94a3b8'}}>WOCL 02:00–05:59 · Cumulative: 60h/7d · 190h/28d · Flight Time: 100h/28d · 900h/year</div>
           </div>
         </div>
 
