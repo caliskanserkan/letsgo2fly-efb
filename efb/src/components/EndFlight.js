@@ -237,6 +237,47 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText, onA
           console.log('[Archive] navlog_entries saved:', rows.length);
         }
       } catch(ne) { console.warn('[Archive] navlog save error:', ne); }
+
+      // FLT REPORT tablosuna yaz
+      try {
+        const planKey2 = activePlan.id || 'default';
+        const crewLog = (await supabase.from('flight_logs').select('details').eq('plan_id', activePlan.id).eq('action','CREW_ASSIGNED').order('created_at',{ascending:false}).limit(1).single()).data?.details || {};
+        const wpts = JSON.parse(localStorage.getItem(`efb_navlog_waypoints_${planKey2}`) || '[]');
+        const navEntries = JSON.parse(localStorage.getItem(`efb_navlog_entries_${planKey2}`) || '{}');
+        const wxData = JSON.parse(localStorage.getItem('efb_wxr_data') || 'null');
+
+        const navlog = wpts.map((w, i) => {
+          const e = navEntries[w.uid] || {};
+          return {
+            seq: i,
+            wpt: w.name,
+            type: w.type,
+            eta: w.eta || null,
+            ata: e.ata || (w.type==='dep'?e.toTime:null) || (w.type==='dest'?e.lndTime:null) || null,
+            fuel_plan: w.planFuel || null,
+            fuel_actual: e.fuel ? parseInt(e.fuel.replace(/,/g,'')) : (w.type==='dep'&&e.toFuel?parseInt(e.toFuel.replace(/,/g,'')):null) || null,
+            rvsm: e.rvsm || null,
+          };
+        });
+
+        await supabase.from('flt_report').upsert({
+          plan_id: activePlan.id,
+          pf_id: activePlan.pf_pilot || crewLog.pf_id || null,
+          pm_id: activePlan.pm_pilot || crewLog.pm_id || null,
+          pf_name: crewLog.pf_name || null,
+          pm_name: crewLog.pm_name || null,
+          off_block: offBlock || null,
+          takeoff_time: takeoffTime || null,
+          landing_time: landingTime || null,
+          on_block: onBlock || null,
+          takeoff_fuel: toFuelNum || null,
+          remaining_fuel: remFuelNum || null,
+          pax: pax ? parseInt(pax) : null,
+          navlog: navlog.length ? navlog : null,
+          wx: wxData || null,
+        }, { onConflict: 'plan_id' });
+        console.log('[Archive] flt_report saved');
+      } catch(re) { console.warn('[Archive] flt_report error:', re); }
       setArchived(true);
       if (onArchive) onArchive();
     } catch(e) { console.error('Archive error:',e); }
