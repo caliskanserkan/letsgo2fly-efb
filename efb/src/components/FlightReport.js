@@ -57,6 +57,7 @@ export default function FlightReport({ plan, onClose }) {
   const [pfHomeBase,  setPfHomeBase]  = useState(null);
   const [pmHomeBase,  setPmHomeBase]  = useState(null);
   const [navlogRows,  setNavlogRows]  = useState([]);
+  const [fltReport,   setFltReport]   = useState(null);
   const [loading,     setLoading]     = useState(true);
 
   useEffect(() => {
@@ -73,7 +74,7 @@ export default function FlightReport({ plan, onClose }) {
       fetch(`${SB_URL}/rest/v1/flt_report?plan_id=eq.${plan.id}&select=*&limit=1`,
         { headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`} }).then(r=>r.json()).catch(()=>[]),
     ]).then(([logsData, wxData, hbData, navData, fltReportData]) => {
-      const fltReport = fltReportData?.[0] || null;
+      setFltReport(fltReportData?.[0] || null);
       setLogs(logsData || []);
       // PF ve PM pilot ID'lerini CREW_ASSIGNED log'undan al
       const crewLog = (logsData||[]).filter(l=>l.action==='CREW_ASSIGNED').slice(-1)[0];
