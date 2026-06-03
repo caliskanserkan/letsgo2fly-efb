@@ -104,7 +104,7 @@ export default function FlightReport({ plan, onClose }) {
   const burnDiff   = (tripBurn&&planBurn) ? tripBurn-planBurn : null;
 
   // EASA FTL
-  const isHomeBase = (icao) => homeBase && icao === homeBase;
+  const isHomeBase = (icao) => homeBase && (icao === homeBase || (homeBase === 'LTAC' && icao === 'ESB') || (homeBase === 'ESB' && icao === 'LTAC'));
   const depIsHome  = isHomeBase(plan?.dep);
   const destIsHome = isHomeBase(plan?.dest);
 
