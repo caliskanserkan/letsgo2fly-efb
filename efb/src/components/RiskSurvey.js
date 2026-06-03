@@ -440,6 +440,7 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
       ra_assessed_by: f.assessed_by, ra_ops_approval: ops,
       section1: pps.section1, section2: pps.section2, section3: pps.section3,
       survey_state: surveyState,
+      runways: rwyData.map(r=>r.des).filter(Boolean).join(','),
       updated_at: now,
     },{onConflict:'icao'});
 
