@@ -19,7 +19,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import AdminPanel from './components/AdminPanel';
 import FlightReport from './components/FlightReport';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.6.205/build/pdf.worker.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 
 // ─── Global Font Size ─────────────────────────────────────────────────────────
 const FONT_KEY  = 'efb_font_size';
