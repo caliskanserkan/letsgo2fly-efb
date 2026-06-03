@@ -212,7 +212,7 @@ function EndFlight({ flightData, divertData, setStatus, activePlan, rawText, onA
 
       // NAV LOG entries → Supabase
       try {
-        const planKey = activePlan.id;
+        const planKey = activePlan.id || 'default';
         const wpts = JSON.parse(localStorage.getItem(`efb_navlog_waypoints_${planKey}`) || '[]');
         const entries = JSON.parse(localStorage.getItem(`efb_navlog_entries_${planKey}`) || '{}');
         if (wpts.length) {
