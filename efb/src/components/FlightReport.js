@@ -160,16 +160,6 @@ export default function FlightReport({ plan, onClose }) {
   const minRestMins= pfFTL.minRestMins;
   const earliestNextDuty = pfFTL.earliestNext;
 
-  // Docs
-  const docActions = logs.map(l=>l.action);
-  const hasDocs = {
-    ofp:  docActions.some(a=>['PLAN_DOWNLOADED','OFP_VIEWED'].includes(a)),
-    wx:   wx.length > 0,
-    fuel: docActions.includes('FUEL_RECEIPT'),
-    notam:docActions.includes('NOTAM_VIEWED'),
-    risk: docActions.includes('RISK_ACCEPTED'),
-    efp:  docActions.includes('EFP_SIGNED'),
-  };
 
   // WX
   const wxByIcao = {};
@@ -309,20 +299,7 @@ export default function FlightReport({ plan, onClose }) {
           </div>
         )}
 
-        {/* Documents */}
-        <div style={S.card}>
-          <div style={S.hdr}>DOCUMENTS ATTACHED</div>
-          <div style={S.grid('1fr 1fr 1fr')}>
-            {[{key:'ofp',label:'OFP'},{key:'wx',label:'WX Package'},{key:'fuel',label:'Fuel Receipt'},{key:'notam',label:'NOTAM'},{key:'risk',label:'Risk Assessment'},{key:'efp',label:'EFP'}].map((doc,i)=>(
-              <div key={doc.key} style={{padding:'10px 14px',display:'flex',alignItems:'center',gap:10,borderRight:i%3!==2?'1px solid #e2e8f0':'none',borderTop:i>=3?'1px solid #e2e8f0':'none'}}>
-                <div style={S.chk(hasDocs[doc.key])}>
-                  {hasDocs[doc.key]&&<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                </div>
-                <span style={{fontSize:11,fontWeight:hasDocs[doc.key]?700:400,color:hasDocs[doc.key]?'#1e293b':'#94a3b8'}}>{doc.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        
 
         {/* EASA FTL */}
         <div style={S.card}>
