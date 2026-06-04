@@ -224,7 +224,7 @@ export default function FlightReport({ plan, onClose }) {
             <div style={S.cell(true,false)}><div style={S.lbl}>DEP</div><div style={S.val}>{plan.dep}</div></div>
             <div style={S.cell(true,false)}><div style={S.lbl}>DEST</div><div style={S.val}>{plan.dest}</div></div>
             <div style={S.cell(true,false)}><div style={S.lbl}>ALT</div><div style={S.val}>{plan.alternate||'—'}</div></div>
-            <div style={S.cell(false,false)}><div style={S.lbl}>Pax</div><div style={S.val}>{plan.pax||'—'}</div></div>
+            <div style={S.cell(false,false)}><div style={S.lbl}>Pax</div><div style={S.val}>{fltReport?.pax ?? '—'}</div></div>
             <div style={S.cell(true,true)}><div style={S.lbl}>Off Block</div><div style={S.val}>{offBlock} UTC</div></div>
             <div style={S.cell(true,true)}><div style={S.lbl}>T/O</div><div style={S.val}>{toTime} UTC</div></div>
             <div style={S.cell(true,true)}><div style={S.lbl}>Landing</div><div style={S.val}>{landTime} UTC</div></div>
