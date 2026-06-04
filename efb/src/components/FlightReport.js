@@ -190,10 +190,12 @@ export default function FlightReport({ plan, onClose }) {
   if(loading) return <div style={S.overlay}><div style={{...S.wrap,color:'#94a3b8',textAlign:'center',paddingTop:80}}>Loading report...</div></div>;
 
   return (
-    <div style={S.overlay}>
+    <>
+    <style dangerouslySetInnerHTML={{__html: "@media print { .no-print { display:none!important; } #flt-report-wrap { position:static!important; overflow:visible!important; height:auto!important; background:#fff!important; } #flt-report-wrap * { color:#000!important; } }"}} />
+    <div style={S.overlay} id="flt-report-wrap">
       <div style={S.wrap}>
         {/* Toolbar */}
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:8}}>
+        <div className="no-print" style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:8}}>
           <div>
             <div style={{fontSize:16,fontWeight:700,color:'#fff'}}>GO2 eFB — Flight Report</div>
             <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{plan.reg} · {plan.dep}–{plan.dest} · {plan.date}</div>
@@ -356,5 +358,6 @@ export default function FlightReport({ plan, onClose }) {
         </div>
       </div>
     </div>
+    </>
   );
 }
