@@ -254,6 +254,7 @@ export default function FlightReport({ plan, onClose }) {
           const rows = navlogData.map(row => ({
             wpt: row.wpt,
             type: row.type?.toUpperCase(),
+            eta: (row.eta && row.eta !== '—') ? row.eta : '—',
             ata: row.ata || '—',
             fuel: row.fuel_actual ? parseInt(row.fuel_actual).toLocaleString()+' lb' : '—',
             rvsm: row.rvsm || '—',
@@ -268,7 +269,7 @@ export default function FlightReport({ plan, onClose }) {
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:11,fontFamily:'monospace'}}>
                   <thead>
                     <tr style={{background:'#f1f5f9'}}>
-                      {['WPT','TYPE','ATA (UTC)','FUEL','RVSM'].map(h=>(
+                      {['WPT','TYPE','ETA (UTC)','ATA (UTC)','FUEL','RVSM'].map(h=>(
                         <th key={h} style={{padding:'6px 10px',textAlign:'left',fontSize:9,color:'#64748b',fontWeight:700,borderBottom:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{h}</th>
                       ))}
                     </tr>
@@ -278,6 +279,7 @@ export default function FlightReport({ plan, onClose }) {
                       <tr key={i} style={{background:row.bg}}>
                         <td style={{padding:'6px 10px',fontWeight:700,color:row.color,borderBottom:'1px solid #f1f5f9'}}>{row.wpt}</td>
                         <td style={{padding:'6px 10px',color:'#94a3b8',fontSize:9,borderBottom:'1px solid #f1f5f9'}}>{row.type}</td>
+                        <td style={{padding:'6px 10px',color:'#94a3b8',borderBottom:'1px solid #f1f5f9'}}>{row.eta}</td>
                         <td style={{padding:'6px 10px',fontWeight:700,color:'#1e293b',borderBottom:'1px solid #f1f5f9'}}>{row.ata}</td>
                         <td style={{padding:'6px 10px',color:'#1e293b',borderBottom:'1px solid #f1f5f9'}}>{row.fuel}</td>
                         <td style={{padding:'6px 10px',color:'#64748b',fontSize:10,borderBottom:'1px solid #f1f5f9',fontFamily:'monospace'}}>{row.rvsm}</td>
