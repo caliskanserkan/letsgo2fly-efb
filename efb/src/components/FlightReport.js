@@ -193,7 +193,7 @@ export default function FlightReport({ plan, onClose }) {
     <>
     <style dangerouslySetInnerHTML={{__html: "@media print { .no-print { display:none!important; } #flt-report-wrap { position:static!important; overflow:visible!important; height:auto!important; background:#fff!important; } #flt-report-wrap * { color:#000!important; } }"}} />
     <div style={S.overlay} id="flt-report-wrap">
-      <div style={S.wrap}>
+      <div style={S.wrap} id="flt-report-content">
         {/* Toolbar */}
         <div className="no-print" style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:8}}>
           <div>
@@ -201,7 +201,7 @@ export default function FlightReport({ plan, onClose }) {
             <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{plan.reg} · {plan.dep}–{plan.dest} · {plan.date}</div>
           </div>
           <div style={{display:'flex',gap:8}}>
-            <button onClick={()=>window.print()} style={{background:'rgba(255,255,255,0.1)',border:'1px solid #475569',borderRadius:6,padding:'8px 16px',fontSize:12,color:'#fff',cursor:'pointer'}}>🖨 Print</button>
+            <button onClick={()=>{ const w=window.open('','_blank'); w.document.write('<html><head><style>body{font-family:monospace;padding:20px;background:#fff;color:#000;} table{width:100%;border-collapse:collapse;} th,td{padding:6px 10px;border:1px solid #ccc;font-size:11px;} th{background:#f1f5f9;} .hdr{background:#f8fafc;padding:6px 14px;font-size:10px;font-weight:700;color:#64748b;border:1px solid #e2e8f0;margin-top:12px;} .card{border:1px solid #e2e8f0;margin-bottom:10px;} .grid{display:grid;gap:0;} .cell{padding:8px 14px;border:1px solid #e2e8f0;} .lbl{font-size:9px;color:#94a3b8;} .val{font-size:12px;font-weight:700;}</style></head><body>'+document.getElementById("flt-report-content").innerHTML+'</body></html>'); w.document.close(); w.print(); }} style={{background:'rgba(255,255,255,0.1)',border:'1px solid #475569',borderRadius:6,padding:'8px 16px',fontSize:12,color:'#fff',cursor:'pointer'}}>🖨 Print</button>
             <button onClick={onClose} style={{background:'transparent',border:'1px solid #475569',borderRadius:6,padding:'8px 16px',fontSize:12,color:'#94a3b8',cursor:'pointer'}}>✕</button>
           </div>
         </div>
