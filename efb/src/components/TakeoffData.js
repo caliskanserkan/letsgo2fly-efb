@@ -132,7 +132,7 @@ function TakeoffData({ setStatus, activePlan }) {
   }, [runwayOk, speedsOk, atisOk, setStatus]);
 
   const selectedRwy  = runways.find(r => r.id === selRwy);
-  const activeLenFt  = selectedRwy ? selectedRwy.length : (manualLen ? parseInt(manualLen.replace(/[^0-9]/g,'')) : null);
+  const activeLenFt  = manualLen ? parseInt(manualLen.replace(/[^0-9]/g,'')) : null;
   const reqRwNum     = reqRw ? parseInt(reqRw.replace(/[^0-9]/g,'')) : null;
   const stopMargin   = activeLenFt && reqRwNum ? activeLenFt - reqRwNum : null;
   const marginColor  = getStopMarginColor(stopMargin);

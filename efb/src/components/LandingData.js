@@ -144,7 +144,7 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
 
   const selectedRwy=runways.find(r=>r.id===selRwy);
   const divLenNum=divertData.len?parseInt(divertData.len.replace(/[^0-9]/g,'')):null;
-  const activeLenFt=divert&&divLenNum?divLenNum:selectedRwy?selectedRwy.length:(manualLen?parseInt(manualLen.replace(/[^0-9]/g,'')):null);
+  const activeLenFt=divert&&divLenNum?divLenNum:(manualLen?parseInt(manualLen.replace(/[^0-9]/g,'')):null);
   const reqLndNum=reqLnd?parseInt(reqLnd.replace(/[^0-9]/g,'')):null;
   const condObj=RWY_CONDITIONS.find(c=>c.id===rwyCond)||RWY_CONDITIONS[0];
   const reqLndAdjusted=reqLndNum?Math.ceil(reqLndNum*condObj.factor):null;
