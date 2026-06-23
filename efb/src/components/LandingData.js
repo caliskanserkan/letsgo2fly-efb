@@ -241,11 +241,14 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
               <div style={{ fontSize:11, color:'#475569', marginBottom:10 }}>Select Runway</div>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                 {runways.map(r => (
-                  <button key={r.id} onClick={() => setSelRwy(r.id)}
+                  <button key={r.id} onClick={() => { setSelRwy(r.id); setManualRwy(''); }}
                     style={{ background:selRwy===r.id?'rgba(56,189,248,0.12)':'#0f172a', border:`1.5px solid ${selRwy===r.id?'#38bdf8':'#334155'}`, borderRadius:10, padding:'8px 14px', fontSize:12, fontWeight:600, color:selRwy===r.id?'#38bdf8':'#475569', cursor:'pointer', fontFamily:'inherit' }}>
-                    {r.id} <span style={{ fontSize:10, color:'#475569', marginLeft:4 }}>{r.length.toLocaleString()} ft</span>
+                    {r.id}
                   </button>
                 ))}
+                <button onClick={() => { setSelRwy(null); setManualRwy(''); }}
+                  ENTER
+                </button>
               </div>
             </div>
           )}
