@@ -209,6 +209,7 @@ async function saveWxToSupabase(planId, results) {
   Object.entries(results).forEach(([icao, data]) => {
     if (data.metar.length) rows.push({ plan_id: String(planId), icao, type: 'METAR', raw_text: data.metar.join('\n') });
     if (data.taf.length)   rows.push({ plan_id: String(planId), icao, type: 'TAF',   raw_text: data.taf.join('\n')   });
+    if (data.header)       rows.push({ plan_id: String(planId), icao, type: 'AIRPORT_INFO', raw_text: data.header });
   });
   try {
     await fetch('https://ojvqdsqodpxkvpxvwgrm.supabase.co/rest/v1/wx_snapshots', {
@@ -273,6 +274,7 @@ async function fetchLiveWx(icaoList, planId = null) {
     console.log('[WXR] TAF fetched for:', Object.keys(results).filter(k => results[k].taf.length > 0));
   } catch (e) { console.error('[WXR] TAF fetch failed:', e.message); }
 
+  airports.forEach(a => { if (!results[a.icao]) results[a.icao] = { metar: [], taf: [] }; results[a.icao].header = a.header; });
   if (planId) saveWxToSupabase(planId, results);
   return results;
 }

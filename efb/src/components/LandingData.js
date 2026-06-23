@@ -108,7 +108,7 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
     } catch {}
     setNoData(true);
     setLoading(false);
-  }, [setSelRwy]);
+  }, [setSelRwy, activePlan?.id]); // eslint-disable-line
 
   useEffect(() => { if(icao.length===4)fetchRunways(icao.toUpperCase()); }, [icao,fetchRunways]);
 
