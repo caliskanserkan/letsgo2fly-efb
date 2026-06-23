@@ -110,12 +110,17 @@ function TakeoffData({ setStatus, activePlan }) {
   const fetchRunways = async (code) => {
     setLoading(true); setNoData(false); setRunways([]); setSelRwy(null);
     try {
-      const { data: wxData } = await supabase.from('wx_snapshots').select('raw_text').eq('icao', code.toUpperCase()).order('fetched_at',{ascending:false}).limit(1).single();
-      if (wxData?.raw_text) {
-        const m = wxData.raw_text.match(/RWY\s+([\dLRC\s]+?)(?:\n|VAR|$)/);
-        if (m) {
-          const rwys = m[1].trim().split(/\s+/).filter(r => /^\d{2}[LRC]?$/.test(r));
-          if (rwys.length > 0) { setRunways(rwys.map(r => ({ id:r, length:null }))); setNoData(false); setLoading(false); return; }
+      const { data: wxRows } = await supabase.from('wx_snapshots').select('raw_text').eq('icao', code.toUpperCase()).order('fetched_at',{ascending:false}).limit(10);
+      if (wxRows && wxRows.length) {
+        const combined = wxRows.map(r=>r.raw_text||'').join('\n');
+        const lines = combined.split('\n');
+        const rwyLine = lines.find(l => l.includes(code.toUpperCase()) && l.includes('RWY'));
+        if (rwyLine) {
+          const m = rwyLine.match(/RWY\s+([\dLRC\s]+)/);
+          if (m) {
+            const rwys = m[1].trim().split(/\s+/).filter(r => /^\d{2}[LRC]?$/.test(r));
+            if (rwys.length > 0) { setRunways(rwys.map(r => ({ id:r, length:null }))); setNoData(false); setLoading(false); return; }
+          }
         }
       }
     } catch {}
