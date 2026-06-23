@@ -274,7 +274,6 @@ async function fetchLiveWx(icaoList, planId = null) {
     console.log('[WXR] TAF fetched for:', Object.keys(results).filter(k => results[k].taf.length > 0));
   } catch (e) { console.error('[WXR] TAF fetch failed:', e.message); }
 
-  airports.forEach(a => { if (!results[a.icao]) results[a.icao] = { metar: [], taf: [] }; results[a.icao].header = a.header; });
   if (planId) saveWxToSupabase(planId, results);
   return results;
 }
