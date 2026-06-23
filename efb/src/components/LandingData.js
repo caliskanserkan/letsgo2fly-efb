@@ -234,13 +234,12 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
             <div style={{ padding:'12px 16px', borderBottom:'1px solid #1e293b' }}>
               <div style={{ fontSize:11, color:'#475569', marginBottom:10 }}>Select Runway</div>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                {runways.map(r => (
-                  <button key={r.id} onClick={() => { setSelRwy(r.id); setManualRwy(''); }}
-                    style={{ background:selRwy===r.id?'rgba(56,189,248,0.12)':'#0f172a', border:`1.5px solid ${selRwy===r.id?'#38bdf8':'#334155'}`, borderRadius:10, padding:'8px 14px', fontSize:12, fontWeight:600, color:selRwy===r.id?'#38bdf8':'#475569', cursor:'pointer', fontFamily:'inherit' }}>
-                    {r.id}
-                  </button>
-                ))}
-                <button onClick={() => { setSelRwy(null); setManualRwy(''); }} style={{ background:'rgba(251,191,36,0.12)', border:'1.5px solid #fbbf24', borderRadius:10, padding:'8px 14px', fontSize:12, fontWeight:600, color:'#fbbf24', cursor:'pointer', fontFamily:'inherit' }}>ENTER</button>
+                <select value={selRwy||''} onChange={e => { if(e.target.value==='ENTER'){setSelRwy(null);}else{setSelRwy(e.target.value); setManualRwy('');} }} style={{ ...iStyle, width:'100%' }}>
+                  <option value=''>— Select RWY —</option>
+                  {runways.map(r => <option key={r.id} value={r.id}>RWY {r.id}</option>)}
+                  <option value='ENTER'>✏ Enter manually</option>
+                </select>
+                {selRwy===null && runways.length>0 && <div style={{ display:'flex', gap:8, marginTop:8 }}><input value={manualRwy} onChange={e => setManualRwy(e.target.value.toUpperCase())} placeholder='RWY' style={{ ...iStyle, width:100, textAlign:'center' }} /><input value={manualLen} onChange={e => setManualLen(e.target.value)} placeholder='Length (ft)' style={{ ...iStyle, flex:1 }} /></div>}
               </div>
             </div>
           )}
