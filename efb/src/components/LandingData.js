@@ -86,7 +86,7 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
   useEffect(() => { if (!selRwy||!activePlan?.id) return; logEvent(activePlan.id,'LND_RWY_SELECTED',{rwy:selRwy}); }, [selRwy]); // eslint-disable-line
   useEffect(() => { if (!arrAtis||!activePlan?.id) return; clearTimeout(atisTimer.current); atisTimer.current=setTimeout(()=>{ logEvent(activePlan.id,'LND_ATIS_ENTERED',{arr_atis:arrAtis,qnh:qnh||null,rwy_cond:rwyCond}); },2000); return ()=>clearTimeout(atisTimer.current); }, [arrAtis,qnh,rwyCond]); // eslint-disable-line
   useEffect(() => { if (!qnh||!activePlan?.id) return; clearTimeout(qnhTimer.current); qnhTimer.current=setTimeout(()=>{ logEvent(activePlan.id,'LND_QNH_ENTERED',{qnh_hpa:qnh,qnh_inhg:toInHg(qnh)}); },2000); return ()=>clearTimeout(qnhTimer.current); }, [qnh]); // eslint-disable-line
-  useEffect(() => { if (!actualLw&&!vref){perfLogged.current=false;return;} if(!activePlan?.id||perfLogged.current)return; perfLogged.current=true; logEvent(activePlan.id,'LND_PERF_DATA',{actual_lw:actualLw,vref,req_lnd_dist:reqLnd,rwy_cond:rwyCond,qnh:qnh||null,night:nightStatus||null}); }, [actualLw,vref,reqLnd,rwyCond,qnh,nightStatus]); // eslint-disable-line
+  useEffect(() => { if (!actualLw&&!vref) return; if(!activePlan?.id) return; const t=setTimeout(()=>{ logEvent(activePlan.id,'LND_PERF_DATA',{actual_lw:actualLw,vref,req_lnd_dist:reqLnd,rwy_cond:rwyCond,qnh:qnh||null,night:nightStatus||null}); },2000); return ()=>clearTimeout(t); }, [actualLw,vref,reqLnd,rwyCond,qnh,nightStatus]); // eslint-disable-line
   useEffect(() => { if (activePlan?.dest) setIcao(activePlan.dest); }, [activePlan?.dest]); // eslint-disable-line
 
   const fetchRunways = useCallback(async (code) => {
