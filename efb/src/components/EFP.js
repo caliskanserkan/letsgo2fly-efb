@@ -144,6 +144,7 @@ function parseAllWxAirports(rawText) {
     }
   }
 
+  const rwyMap = {}; airports.forEach(a => { const m = a.header && a.header.match(/RWY\s+([\dLRC\s/]+)/); if (m) { rwyMap[a.icao] = m[1].trim().split(/\s+/).filter(r => /^\d{2}[LRC]?$/.test(r)); } }); try { localStorage.setItem('efb_airport_rwys', JSON.stringify(rwyMap)); } catch(e) {}
   console.log('[WXR] parseAllWxAirports →', airports.map(a => `${a.icao}(${a.type})`));
   return airports;
 }
