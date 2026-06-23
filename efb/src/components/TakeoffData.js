@@ -110,10 +110,14 @@ function TakeoffData({ setStatus, activePlan }) {
   const fetchRunways = async (code) => {
     setLoading(true); setNoData(false); setRunways([]); setSelRwy(null);
     try {
-      const { data } = await supabase.from('airport_risks').select('runways').eq('icao', code.toUpperCase()).single();
-      if (data?.runways) {
-        const rwys = data.runways.split(',').map(r => r.trim()).filter(Boolean);
-        if (rwys.length > 0) { setRunways(rwys.map(r => ({ id:r, length:null }))); setNoData(false); setLoading(false); return; }
+      const { data: wxData } = await supabase.from('wx_snapshots').select('raw_text').eq('icao', code.toUpperCase()).order('fetched_at',{ascending:false}).limit(1).single();
+      if (wxData?.raw_text) {
+        const m = wxData.raw_text.match(/RWY\s+([\dLRC\s]+?)(?:
+|VAR|$)/);
+        if (m) {
+          const rwys = m[1].trim().split(/\s+/).filter(r => /^\d{2}[LRC]?$/.test(r));
+          if (rwys.length > 0) { setRunways(rwys.map(r => ({ id:r, length:null }))); setNoData(false); setLoading(false); return; }
+        }
       }
     } catch {}
     setNoData(true);
