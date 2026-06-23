@@ -245,9 +245,7 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
                     {r.id}
                   </button>
                 ))}
-                <button onClick={() => { setSelRwy(null); setManualRwy(''); }}
-                  ENTER
-                </button>
+                <button onClick={() => { setSelRwy(null); setManualRwy(''); }} style={{ background:'rgba(251,191,36,0.12)', border:'1.5px solid #fbbf24', borderRadius:10, padding:'8px 14px', fontSize:12, fontWeight:600, color:'#fbbf24', cursor:'pointer', fontFamily:'inherit' }}>ENTER</button>
               </div>
             </div>
           )}
