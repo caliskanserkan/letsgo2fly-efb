@@ -168,7 +168,8 @@ function TakeoffData({ setStatus, activePlan }) {
                 <option value='ENTER'>✏ Enter manually</option>
               </select>
             </div>
-            {selRwy && <input value={manualLen} onChange={e => setManualLen(e.target.value)} placeholder='RWY Length (ft)' style={{ ...iStyle, width:'100%', marginTop:8 }} />}
+            {selRwy && selRwy!=='ENTER' && <input value={manualLen} onChange={e => setManualLen(e.target.value)} placeholder='RWY Length (ft)' style={{ ...iStyle, width:'100%', marginTop:8 }} />}
+            {!selRwy && <div style={{ display:'flex', gap:8, marginTop:8 }}><input value={manualRwy} onChange={e => setManualRwy(e.target.value.toUpperCase())} placeholder='RWY' style={{ ...iStyle, width:100, textAlign:'center' }} /><input value={manualLen} onChange={e => setManualLen(e.target.value)} placeholder='Length (ft)' style={{ ...iStyle, flex:1 }} /></div>}
           </div>
         )}
 
