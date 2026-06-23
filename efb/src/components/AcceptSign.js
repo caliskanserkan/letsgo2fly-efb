@@ -88,12 +88,13 @@ function AcceptSign({ setStatus, pageStatus, activePlan }) {
   };
 
   const selectedPilot = crewPilots.find(p => p.id === preflightPilotId);
+  const picPilot = crewPilots.find(p => p.role === 'PF');
 
   const handleAccept = () => {
     if (!signed || !allOk) return;
     const t = nowUTC();
     setAccepted(true); setAcceptedAt(t);
-    logEvent(activePlan?.id, 'PLAN_ACCEPTED', { accepted_at:t, preflight_by:preflightPilotId, pilot_code:selectedPilot?.code, pilot_name:selectedPilot?.full_name });
+    logEvent(activePlan?.id, 'PLAN_ACCEPTED', { accepted_at:t, preflight_by:preflightPilotId, preflight_by_name:selectedPilot?.full_name, pic_code:picPilot?.code, pic_name:picPilot?.full_name });
   };
 
   const handleReEvaluate = () => {
@@ -174,7 +175,7 @@ function AcceptSign({ setStatus, pageStatus, activePlan }) {
       <div style={{ margin:'0 12px 16px', background:'#1e293b', borderRadius:14, border:`1.5px solid ${accepted?'#4ade80':'rgba(239,68,68,0.4)'}`, overflow:'hidden' }}>
         <div style={{ padding:'10px 14px', borderBottom:`1px solid ${accepted?'rgba(74,222,128,0.2)':'rgba(239,68,68,0.2)'}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <span style={{ fontSize:11, color:accepted?'#4ade80':'#ef4444', fontWeight:600 }}>
-            {accepted ? '✓ Signed & Accepted' : '✍️ PIC Signature'}
+            {accepted ? `✓ Signed & Accepted — ${picPilot?.full_name || 'PIC'}` : `✍️ PIC Signature — ${picPilot?.full_name || 'Select crew first'}`}
           </span>
           {signed && !accepted && (
             <span onClick={clearSig} style={{ fontSize:11, color:'#ef4444', cursor:'pointer', padding:'3px 8px', background:'rgba(239,68,68,0.1)', borderRadius:6 }}>Clear</span>
