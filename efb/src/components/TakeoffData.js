@@ -110,7 +110,7 @@ function TakeoffData({ setStatus, activePlan }) {
   const fetchRunways = async (code) => {
     setLoading(true); setNoData(false); setRunways([]); setSelRwy(null);
     try {
-      const { data: wxRows } = await supabase.from('wx_snapshots').select('raw_text').eq('icao', code.toUpperCase()).order('fetched_at',{ascending:false}).limit(10);
+      const { data: wxRows } = await supabase.from('wx_snapshots').select('raw_text').eq('plan_id', activePlan?.id).order('fetched_at',{ascending:false}).limit(20);
       if (wxRows && wxRows.length) {
         const combined = wxRows.map(r=>r.raw_text||'').join('\n');
         const lines = combined.split('\n');
