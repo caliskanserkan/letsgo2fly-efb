@@ -312,7 +312,7 @@ function WXRView({ activePlan, rawText }) {
     if (!wxAirports.length) return;
     setLoading(true); setError('');
     try {
-      const live = await fetchLiveWx(wxAirports.map(a => a.icao), activePlan?.id);
+      const headers = {}; wxAirports.forEach(a => { if (a.header) headers[a.icao] = a.header; }); const live = await fetchLiveWx(wxAirports.map(a => a.icao), activePlan?.id, headers);
       setLiveWxMap(live);
       setLiveAt(new Date().toUTCString().slice(17, 25) + ' UTC');
     } catch(e) { setError(e.message); }
