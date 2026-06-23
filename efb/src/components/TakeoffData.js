@@ -112,8 +112,7 @@ function TakeoffData({ setStatus, activePlan }) {
     try {
       const { data: wxData } = await supabase.from('wx_snapshots').select('raw_text').eq('icao', code.toUpperCase()).order('fetched_at',{ascending:false}).limit(1).single();
       if (wxData?.raw_text) {
-        const m = wxData.raw_text.match(/RWY\s+([\dLRC\s]+?)(?:
-|VAR|$)/);
+        const m = wxData.raw_text.match(/RWY\s+([\dLRC\s]+?)(?:\n|VAR|$)/);
         if (m) {
           const rwys = m[1].trim().split(/\s+/).filter(r => /^\d{2}[LRC]?$/.test(r));
           if (rwys.length > 0) { setRunways(rwys.map(r => ({ id:r, length:null }))); setNoData(false); setLoading(false); return; }
