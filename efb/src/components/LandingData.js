@@ -239,7 +239,8 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
                   {runways.map(r => <option key={r.id} value={r.id}>RWY {r.id}</option>)}
                   <option value='ENTER'>✏ Enter manually</option>
                 </select>
-                {selRwy===null && runways.length>0 && <div style={{ display:'flex', gap:8, marginTop:8 }}><input value={manualRwy} onChange={e => setManualRwy(e.target.value.toUpperCase())} placeholder='RWY' style={{ ...iStyle, width:100, textAlign:'center' }} /><input value={manualLen} onChange={e => setManualLen(e.target.value)} placeholder='Length (ft)' style={{ ...iStyle, flex:1 }} /></div>}
+                {selRwy && selRwy!=='ENTER' && <input value={manualLen} onChange={e => setManualLen(e.target.value)} placeholder='RWY Length (ft)' style={{ ...iStyle, width:'100%', marginTop:8 }} />}
+                {!selRwy && <div style={{ display:'flex', gap:8, marginTop:8 }}><input value={manualRwy} onChange={e => setManualRwy(e.target.value.toUpperCase())} placeholder='RWY' style={{ ...iStyle, width:100, textAlign:'center' }} /><input value={manualLen} onChange={e => setManualLen(e.target.value)} placeholder='Length (ft)' style={{ ...iStyle, flex:1 }} /></div>}
               </div>
             </div>
           )}
