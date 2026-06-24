@@ -63,6 +63,7 @@ const WEIGHTS = {
   nadp_required: 1,       // NADP procedures
 };
 
+// eslint-disable-next-line no-unused-vars
 function calcWeightedScore(points, weight) {
   return (points || 0) * (weight || 1);
 }
