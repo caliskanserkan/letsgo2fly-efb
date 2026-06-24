@@ -7,6 +7,66 @@ const APPR_RANK = {
 };
 const isPrecision = (apr) => APPR_RANK[apr] >= 2;
 
+// IOSA Weighted Scoring — Phase 1 (10 block mapping)
+const WEIGHTS = {
+  // Block 1: Aerodrome Class — CRITICAL factors
+  cat_c: 3,               // CAT C auto-override
+  sp_approval: 2,         // Special approval
+  
+  // Block 2-3: Runway Infrastructure — CRITICAL
+  rwy_length_marginal: 3, // Runway length <100% TODA
+  rwy_width_narrow: 2,    // <30m
+  rwy_width_medium: 1,    // 30-44m
+  
+  // Block 2-3: Approach Complexity — HIGH
+  precision_approach: 2,  // Precision vs non-precision
+  approach_angle_steep: 3, // ≥4.5°
+  approach_angle_elev: 2,  // 3.5-4.5°
+  high_da: 1,             // Terrain-limited minima
+  
+  // Block 4: Departure — HIGH
+  oei_sid: 3,             // Special OEI SID
+  oei_gradient: 2,        // Demanding gradient
+  perf_limited: 1,        // Performance-limited
+  
+  // Block 5: Weather — MEDIUM
+  lvp_frequent: 2,        // Frequent LVP/fog
+  lvp_sometimes: 1,       // Occasional
+  xwind_shear: 2,         // Crosswind/windshear
+  msa_high: 2,            // MSA ≥8000 ft
+  msa_moderate: 1,        // MSA 5000-8000 ft
+  
+  // Block 6: ATC — MEDIUM
+  atc_significant: 2,     // Significant complexity
+  atc_moderate: 1,        // Moderate
+  mil_traffic: 2,         // Military/mixed
+  gnss_active: 4,         // ACTIVE JAMMING (critical!)
+  gnss_notam: 2,          // NOTAM interference
+  
+  // Block 7: Security & State — CRITICAL
+  pol_risk_high: 3,       // High political/terror risk (AUTO OVERRIDE)
+  pol_risk_caution: 2,    // Caution advisories
+  arpt_sec_poor: 3,       // Poor security/handling
+  arpt_sec_uncertain: 2,  // Uncertain standards
+  
+  // Block 8: Alternate, Fuel, Crew — CRITICAL
+  fuel_quality_poor: 3,   // Poor fuel quality
+  fuel_quality_uncertain: 1,
+  alt_none: 3,            // No adequate alternate
+  alt_limited: 1,         // Limited alternates
+  crew_recent: 1,         // No recent experience
+  
+  // Base modifiers
+  sp_crew: 1,             // Special crew qualification
+  sp_desig: 1,            // Special designation
+  curfew: 1,              // Curfew restrictions
+  nadp_required: 1,       // NADP procedures
+};
+
+function calcWeightedScore(points, weight) {
+  return (points || 0) * (weight || 1);
+}
+
 function scoreToMatrix(score) {
   if (!score || score <= 0) return { s:1, l:1 };
   const clamped = Math.min(Math.max(Math.round(score), 1), 25);
@@ -91,78 +151,113 @@ function calcRisk(s) {
   let overrideReasons = [], drivers = [], actions = [];
   const pc = s.precisionCount || 0;
   const sm = (scope) => getScopeMultiplier(scope, pc);
-  const add = (pts, d, a, mult=1) => { score += pts * mult; if(d) drivers.push(d); if(a) actions.push(a); };
+  
+  // Weighted add: (points, weight, driver, action, scopeMult)
+  const add = (pts, weight, d, a, mult=1) => { 
+    const weighted = (pts || 0) * (weight || 1) * mult;
+    score += weighted; 
+    if(d) drivers.push(d); 
+    if(a) actions.push(a); 
+  };
 
+  // ─── AUTO OVERRIDES ───
   if(s.cat==='C'){overrideHigh=true;overrideReasons.push('CAT C aerodrome (auto override)');}
-  if(s.pol_risk==='high'){overrideHigh=true;overrideReasons.push('High security / political threat');}
+  if(s.pol_risk==='high'){overrideHigh=true;overrideReasons.push('High security / political threat (weight ×3)');}
+  if(s.gnss_risk==='active'){overrideHigh=true;overrideReasons.push('ACTIVE GNSS JAMMING/SPOOFING');}
   if(!s.prec&&s.angle==='steep'&&s.oei_sid&&s.angle_scope==='all'&&s.oei_sid_scope==='all'){overrideHigh=true;overrideReasons.push('No precision + steep approach + OEI SID (all runways)');}
   if(s.sp_approval){overrideMedium=true;overrideReasons.push('Special operator approval required');}
   if(s.lvp==='frequent'&&s.alt==='no'){overrideMedium=true;overrideReasons.push('Frequent LVP + no adequate alternate');}
 
-  if(s.sp_desig) add(2,'Special aerodrome designation','Verify operator-specific procedures');
-  if(s.sp_crew)  add(2,'Special crew qualification required','Verify crew qualification');
-  if(s.sp_approval) add(2,'Special operator approval required','Obtain approval documentation');
-  if(!s.prec) add(2,'No precision approach available','Confirm crew currency on non-precision approach');
+  // ─── SPECIAL DESIGNATIONS ───
+  if(s.sp_desig) add(2, WEIGHTS.sp_desig, 'Special aerodrome designation','Verify operator-specific procedures');
+  if(s.sp_crew)  add(2, WEIGHTS.sp_crew, 'Special crew qualification required','Verify crew qualification');
+  if(s.sp_approval) add(2, WEIGHTS.sp_approval, 'Special operator approval required','Obtain approval documentation');
+  if(!s.prec) add(2, WEIGHTS.precision_approach, 'No precision approach available','Confirm crew currency on non-precision approach');
 
-  if(s.angle==='slight')        add(1,'Slightly elevated approach (3.0–3.49°)',null,sm(s.angle_scope));
-  else if(s.angle==='moderate_low') add(2,'Non-standard approach (3.5–3.89°)','Brief glide path technique',sm(s.angle_scope));
-  else if(s.angle==='moderate') add(2,'Elevated approach (3.9–4.49°)','Enhanced briefing required',sm(s.angle_scope));
-  else if(s.angle==='steep')    add(3,'Steep approach (>=4.5°)','Dedicated crew briefing mandatory',sm(s.angle_scope));
+  // ─── APPROACH COMPLEXITY ───
+  if(s.angle==='slight')        add(1, WEIGHTS.approach_angle_elev, 'Slightly elevated approach (3.0–3.49°)',null,sm(s.angle_scope));
+  else if(s.angle==='moderate_low') add(2, WEIGHTS.approach_angle_elev, 'Non-standard approach (3.5–3.89°)','Brief glide path technique',sm(s.angle_scope));
+  else if(s.angle==='moderate') add(2, WEIGHTS.approach_angle_elev, 'Elevated approach (3.9–4.49°)','Enhanced briefing required',sm(s.angle_scope));
+  else if(s.angle==='steep')    add(3, WEIGHTS.approach_angle_steep, 'Steep approach (>=4.5°)','Dedicated crew briefing mandatory',sm(s.angle_scope));
 
-  if(s.high_da)      add(1,'Terrain-limited minima DA/DH >= 400 ft',null,sm(s.high_da_scope));
-  if(s.gnss_risk==='active') add(4,'ACTIVE GNSS JAMMING/SPOOFING','Do NOT rely on GNSS; revert to raw data');
-  else if(s.gnss_risk==='notam') add(2,'GNSS reliability concern (NOTAM)','Cross-check raw data');
-  if(s.offset)       add(1,'Offset localizer / offset approach',null,sm(s.offset_scope));
-  if(s.madem)        add(2,'Demanding missed approach / gradient','Brief missed approach in detail',sm(s.madem_scope));
-  if(s.oei_ma_brief) add(2,'Engine-out go-around dedicated briefing required',null,sm(s.oei_ma_scope));
+  if(s.high_da)      add(1, WEIGHTS.high_da, 'Terrain-limited minima DA/DH >= 400 ft',null,sm(s.high_da_scope));
+  if(s.gnss_risk==='active') add(4, WEIGHTS.gnss_active, 'ACTIVE GNSS JAMMING/SPOOFING','Do NOT rely on GNSS; revert to raw data');
+  else if(s.gnss_risk==='notam') add(2, WEIGHTS.gnss_notam, 'GNSS reliability concern (NOTAM)','Cross-check raw data');
+  if(s.offset)       add(1, 1, 'Offset localizer / offset approach',null,sm(s.offset_scope));
+  if(s.madem)        add(2, 1, 'Demanding missed approach / gradient','Brief missed approach in detail',sm(s.madem_scope));
+  if(s.oei_ma_brief) add(2, 1, 'Engine-out go-around dedicated briefing required',null,sm(s.oei_ma_scope));
 
-  if(s.rwy_w==='narrow') add(3,'Narrow runway (<30m)','Confirm crosswind limits',sm(s.rwy_w_scope));
-  else if(s.rwy_w==='medium') add(1,'Reduced runway width (30–44m)',null,sm(s.rwy_w_scope));
-  if(s.rwy_marg)  add(2,'Marginal runway length','Compute performance with actual conditions',sm(s.rwy_marg_scope));
-  if(s.phys_comp) add(2,'Physical runway complexity',null,sm(s.phys_comp_scope));
+  // ─── RUNWAY INFRASTRUCTURE ───
+  if(s.rwy_w==='narrow') add(3, WEIGHTS.rwy_width_narrow, 'Narrow runway (<30m)','Confirm crosswind limits',sm(s.rwy_w_scope));
+  else if(s.rwy_w==='medium') add(1, WEIGHTS.rwy_width_medium, 'Reduced runway width (30–44m)',null,sm(s.rwy_w_scope));
+  if(s.rwy_marg)  add(2, WEIGHTS.rwy_length_marginal, 'Marginal runway length','Compute performance with actual conditions',sm(s.rwy_marg_scope));
+  if(s.phys_comp) add(2, 1, 'Physical runway complexity',null,sm(s.phys_comp_scope));
 
-  if(s.oei_sid)  add(3,'Special OEI SID required','Complete OEI SID analysis; brief engine failure',sm(s.oei_sid_scope));
-  if(s.oei_grad) add(2,'Demanding OEI climb gradient','Review obstacle clearance margins',sm(s.oei_grad_scope));
-  if(s.perf_lim) add(1,'Performance-limited departure','Review WAT/CLG limits',sm(s.perf_lim_scope));
+  // ─── DEPARTURE ───
+  if(s.oei_sid)  add(3, WEIGHTS.oei_sid, 'Special OEI SID required','Complete OEI SID analysis; brief engine failure',sm(s.oei_sid_scope));
+  if(s.oei_grad) add(2, WEIGHTS.oei_gradient, 'Demanding OEI climb gradient','Review obstacle clearance margins',sm(s.oei_grad_scope));
+  if(s.perf_lim) add(1, WEIGHTS.perf_limited, 'Performance-limited departure','Review WAT/CLG limits',sm(s.perf_lim_scope));
 
-  if(s.lvp==='sometimes') add(1,'Occasional LVP / low ceiling');
-  if(s.lvp==='frequent')  add(2,'Frequent LVP / fog / low visibility','Monitor forecast; verify LVP procedures');
-  if(s.xw_risk) add(2,'Crosswind / windshear / contamination','Review limits; brief windshear escape');
+  // ─── WEATHER & TERRAIN ───
+  if(s.lvp==='sometimes') add(1, WEIGHTS.lvp_sometimes, 'Occasional LVP / low ceiling');
+  if(s.lvp==='frequent')  add(2, WEIGHTS.lvp_frequent, 'Frequent LVP / fog / low visibility','Monitor forecast; verify LVP procedures');
+  if(s.xw_risk) add(2, WEIGHTS.xwind_shear, 'Crosswind / windshear / contamination','Review limits; brief windshear escape');
   const msa=parseInt(s.msa_ft)||0;
-  if(msa>=12000) add(3,'High terrain MSA '+msa+' ft','Review terrain escape; enhanced GPWS/TAWS awareness');
-  else if(msa>=8000) add(2,'Elevated terrain MSA '+msa+' ft','Verify terrain awareness; confirm missed approach clearance');
-  else if(msa>=5000) add(1,'Moderate terrain MSA '+msa+' ft');
-  if(msa>=8000&&!s.prec) add(1,'High MSA + non-precision approach','Increase terrain-focused briefing');
-  if(msa>=8000&&(s.angle==='moderate'||s.angle==='steep')) add(1,'High MSA + elevated/steep approach');
-  if(s.terr_hh) add(2,'Significant terrain / mountain wave / hot-high','Compute hot-high performance; enhanced TAWS awareness');
+  if(msa>=12000) add(3, WEIGHTS.msa_high, 'High terrain MSA '+msa+' ft','Review terrain escape; enhanced GPWS/TAWS awareness');
+  else if(msa>=8000) add(2, WEIGHTS.msa_high, 'Elevated terrain MSA '+msa+' ft','Verify terrain awareness; confirm missed approach clearance');
+  else if(msa>=5000) add(1, WEIGHTS.msa_moderate, 'Moderate terrain MSA '+msa+' ft');
+  if(msa>=8000&&!s.prec) add(1, WEIGHTS.precision_approach, 'High MSA + non-precision approach','Increase terrain-focused briefing');
+  if(msa>=8000&&(s.angle==='moderate'||s.angle==='steep')) add(1, 1, 'High MSA + elevated/steep approach');
+  if(s.terr_hh) add(2, 1, 'Significant terrain / mountain wave / hot-high','Compute hot-high performance; enhanced TAWS awareness');
 
-  if(s.atc==='moderate') add(1,'Moderate ATC / taxi complexity');
-  if(s.atc==='significant') add(2,'Significant ATC / sequencing complexity','Allow extra margins; pre-brief complex taxi');
-  if(s.mil_traff) add(2,'Military / mixed traffic / unusual phraseology','Review local ATC procedures');
+  // ─── ATC & TRAFFIC ───
+  if(s.atc==='moderate') add(1, WEIGHTS.atc_moderate, 'Moderate ATC / taxi complexity');
+  if(s.atc==='significant') add(2, WEIGHTS.atc_significant, 'Significant ATC / sequencing complexity','Allow extra margins; pre-brief complex taxi');
+  if(s.mil_traff) add(2, WEIGHTS.mil_traffic, 'Military / mixed traffic / unusual phraseology','Review local ATC procedures');
 
-  if(s.pol_risk==='caution') add(3,'Political / security caution advisories','Obtain security briefing; review emergency protocols');
-  if(s.arpt_sec==='uncertain') add(3,'Airport security / handling uncertain','Coordinate with handler for enhanced measures');
-  if(s.arpt_sec==='poor') add(4,'Poor airport security / handling','Consult security team; consider enhanced measures');
-  if(s.st_oversight==='partial') add(2,'Partial state safety oversight');
-  if(s.st_oversight==='no') add(4,'Inadequate state safety oversight','Verify OM requirements; obtain safety bulletins');
+  // ─── SECURITY & STATE OVERSIGHT ───
+  if(s.pol_risk==='caution') add(3, 2, 'Political / security caution advisories','Obtain security briefing; review emergency protocols');
+  if(s.arpt_sec==='uncertain') add(3, WEIGHTS.arpt_sec_uncertain, 'Airport security / handling uncertain','Coordinate with handler for enhanced measures');
+  if(s.arpt_sec==='poor') add(4, WEIGHTS.arpt_sec_poor, 'Poor airport security / handling','Consult security team; consider enhanced measures');
+  if(s.st_oversight==='partial') add(2, 1, 'Partial state safety oversight');
+  if(s.st_oversight==='no') add(4, 2, 'Inadequate state safety oversight','Verify OM requirements; obtain safety bulletins');
 
-  if(s.alt==='limited') add(2,'Limited alternate options','Identify extended-range alternates; plan contingency fuel');
-  if(s.alt==='no') add(3,'No adequate alternate','Reassess dispatch; carry contingency fuel; notify OCC');
-  if(s.fuel==='uncertain') add(1,'Fuel / ground handling uncertain','Confirm availability 48h before departure');
-  if(s.fuel==='poor') add(2,'Poor fuel / ground handling','Arrange alternative source; coordinate with handler');
-  if(!s.crew_rec) add(1,'No recent crew experience (<12 months)','Brief aerodrome-specific material; consider refresher');
-  if(s.curfew){ const t=s.curfew_open&&s.curfew_close?' ('+s.curfew_open+'–'+s.curfew_close+' UTC)':''; add(1,'Curfew in effect'+t,'Plan within curfew window'); }
-  if(s.nadp){ const t=s.nadp_types&&s.nadp_types.length?' — '+s.nadp_types.join(', '):''; add(1,'NADP required'+t,'Brief NADP; ensure crew familiar with thrust reduction'); }
+  // ─── ALTERNATE, FUEL, CREW ───
+  if(s.alt==='limited') add(2, WEIGHTS.alt_limited, 'Limited alternate options','Identify extended-range alternates; plan contingency fuel');
+  if(s.alt==='no') add(3, WEIGHTS.alt_none, 'No adequate alternate','Reassess dispatch; carry contingency fuel; notify OCC');
+  if(s.fuel==='uncertain') add(1, WEIGHTS.fuel_quality_uncertain, 'Fuel / ground handling uncertain','Confirm availability 48h before departure');
+  if(s.fuel==='poor') add(2, WEIGHTS.fuel_quality_poor, 'Poor fuel / ground handling','Arrange alternative source; coordinate with handler');
+  if(!s.crew_rec) add(1, WEIGHTS.crew_recent, 'No recent crew experience (<12 months)','Brief aerodrome-specific material; consider refresher');
+  if(s.curfew){ const t=s.curfew_open&&s.curfew_close?' ('+s.curfew_open+'–'+s.curfew_close+' UTC)':''; add(1, WEIGHTS.curfew, 'Curfew in effect'+t,'Plan within curfew window'); }
+  if(s.nadp){ const t=s.nadp_types&&s.nadp_types.length?' — '+s.nadp_types.join(', '):''; add(1, WEIGHTS.nadp_required, 'NADP required'+t,'Brief NADP; ensure crew familiar with thrust reduction'); }
 
   score = Math.round(score * 10) / 10;
   const uniqueDrivers=[...new Set(drivers.filter(Boolean))];
   const uniqueActions=[...new Set(actions.filter(Boolean))];
-  let risk,basis;
-  if(overrideHigh){risk='HIGH';basis=overrideReasons;}
-  else if(score>=10){risk='HIGH';basis=['Weighted risk score: '+score+' (threshold >= 10)',...overrideReasons];}
-  else if(overrideMedium||score>=5){risk='MEDIUM';basis=overrideMedium?[...overrideReasons,...(score?['Score: '+score]:[])]:[`Weighted risk score: ${score} (threshold >= 5)`];}
-  else{risk='LOW';basis=['Weighted risk score: '+score+' (threshold < 5)'];}
-  return {risk,score,basis,drivers:uniqueDrivers,actions:uniqueActions};
+  
+  let risk, basis, approval;
+  if(overrideHigh){
+    risk='HIGH';
+    basis=overrideReasons;
+    approval='OPS_MANAGER_APPROVAL_REQUIRED';
+  }
+  else if(score>=161){
+    risk='HIGH';
+    basis=['Weighted risk score: '+score+' (threshold >= 161)',...overrideReasons];
+    approval='OPS_MANAGER_APPROVAL_REQUIRED';
+  }
+  else if(score>=111){
+    risk='MEDIUM';
+    basis=overrideMedium?[...overrideReasons,...(score?['Score: '+score]:[])]:[`Weighted risk score: ${score} (threshold >= 111)`];
+    approval='CHIEF_PILOT_REVIEW';
+  }
+  else{
+    risk='LOW';
+    basis=['Weighted risk score: '+score+' (threshold < 111)'];
+    approval='DISPATCH_OK';
+  }
+  
+  return {risk,score,basis,drivers:uniqueDrivers,actions:uniqueActions,approval};
 }
 
 function rwyLabel(rwys) {
@@ -214,7 +309,7 @@ function generatePpsBriefing(f, result, prec, bestRwy, rwyData) {
   if(msa>=8000&&!prec) lines2.push('HIGH MSA + NON-PRECISION: Increased terrain-focused approach briefing required');
   if(!lines2.length) lines2.push('WEATHER/TERRAIN: No significant constraints identified');
 
-  const gm={no:null,notam:"GNSS: NOTAM'd interference — cross-check raw data; do not rely solely on GNSS",active:'GNSS: ACTIVE JAMMING/SPOOFING — do NOT use GNSS navigation; revert to raw ILS/VOR/DME'};
+  const gm={no:null,notam:`GNSS: NOTAM'd interference — cross-check raw data; do not rely solely on GNSS`,active:'GNSS: ACTIVE JAMMING/SPOOFING — do NOT use GNSS navigation; revert to raw ILS/VOR/DME'};
   if(gm[f.gnss_risk]) lines3.push(gm[f.gnss_risk]);
   const pm={no:null,caution:'SECURITY: Caution advisories in effect — obtain pre-flight security briefing; review diversion protocols',high:'SECURITY: HIGH RISK — mandatory security briefing; contingency plan filed with OCC'};
   if(pm[f.pol_risk]) lines3.push(pm[f.pol_risk]);
@@ -422,7 +517,15 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
     const now = new Date().toISOString();
     const today = now.split('T')[0];
     const due = new Date(Date.now()+365*86400000).toISOString().split('T')[0];
-    const ops = result.risk==='HIGH'?'OPS MANAGER APPROVAL REQUIRED':result.risk==='MEDIUM'?'CAPTAIN REVIEW / DISPATCH COORDINATION':'DISPATCH OK';
+    
+    // Approval mapping from weighted system
+    const approvalMap = {
+      'DISPATCH_OK': 'DISPATCH OK',
+      'CHIEF_PILOT_REVIEW': 'CAPTAIN REVIEW / DISPATCH COORDINATION',
+      'OPS_MANAGER_APPROVAL_REQUIRED': 'OPS MANAGER APPROVAL REQUIRED',
+    };
+    const ops = approvalMap[result.approval] || 'DISPATCH OK';
+    
     const pps = generatePpsBriefing(f,result,prec,bestRwy,rwyData);
     const matrixPos = scoreToMatrix(result.score);
     const surveyState = { ...f };
@@ -793,6 +896,16 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
               <div>
                 <div style={{fontSize:20,fontWeight:700,color:rc.text}}>Score: {result.score}</div>
                 {precisionCount>0&&<div style={{fontSize:9,color:rc.text,opacity:0.6}}>Scope proportioning active — {precisionCount} precision RWY</div>}
+              </div>
+            </div>
+            
+            {/* Approval Workflow */}
+            <div style={{background:'rgba(0,0,0,0.3)',border:`1px solid ${rc.border}30`,borderRadius:6,padding:'10px 12px',marginBottom:10}}>
+              <div style={{fontSize:9,color:rc.text,fontWeight:700,letterSpacing:1,marginBottom:4,textTransform:'uppercase'}}>APPROVAL REQUIRED</div>
+              <div style={{fontSize:12,fontWeight:700,color:rc.text}}>
+                {result.approval === 'DISPATCH_OK' && '✓ DISPATCH OK — No approval required'}
+                {result.approval === 'CHIEF_PILOT_REVIEW' && '👤 CAPTAIN REVIEW — Chief Pilot must review'}
+                {result.approval === 'OPS_MANAGER_APPROVAL_REQUIRED' && '🚫 OPS MANAGER APPROVAL — Operations Manager approval required'}
               </div>
             </div>
             <div style={{fontSize:10,color:'#777',lineHeight:1.8,marginBottom:10}}>
