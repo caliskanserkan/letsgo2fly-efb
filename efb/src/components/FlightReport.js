@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { supabase } from '../config/supabaseClient';
 
 const SB_URL = 'https://ojvqdsqodpxkvpxvwgrm.supabase.co';
 const SB_KEY = 'sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f';
@@ -63,16 +64,11 @@ export default function FlightReport({ plan, onClose }) {
   useEffect(() => {
     if (!plan?.id) return;
     Promise.all([
-      fetch(`${SB_URL}/rest/v1/flight_logs?plan_id=eq.${plan.id}&select=action,details,created_at&order=created_at.asc`,
-        { headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`} }).then(r=>r.json()),
-      fetch(`${SB_URL}/rest/v1/wx_snapshots?plan_id=eq.${plan.id}&select=icao,type,raw_text,fetched_at&order=fetched_at.desc`,
-        { headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`} }).then(r=>r.json()),
-      fetch(`${SB_URL}/rest/v1/home_bases?reg=eq.${plan.reg}&select=icao&limit=1`,
-        { headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`} }).then(r=>r.json()).catch(()=>[]),
-      fetch(`${SB_URL}/rest/v1/navlog_entries?plan_id=eq.${plan.id}&select=*&order=seq.asc`,
-        { headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`} }).then(r=>r.json()).catch(()=>[]),
-      fetch(`${SB_URL}/rest/v1/flt_report?plan_id=eq.${plan.id}&select=*&limit=1`,
-        { headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`} }).then(r=>r.json()).catch(()=>[]),
+      supabase.from('flight_logs').select('action,details,created_at').eq('plan_id', plan.id).order('created_at',{ascending:true}).then(({data})=>data||[]),
+      supabase.from('wx_snapshots').select('icao,type,raw_text,fetched_at').eq('plan_id', plan.id).order('fetched_at',{ascending:false}).then(({data})=>data||[]),
+      supabase.from('home_bases').select('icao').eq('reg', plan.reg).limit(1).then(({data})=>data||[]),
+      supabase.from('navlog_entries').select('*').eq('plan_id', plan.id).order('seq',{ascending:true}).then(({data})=>data||[]),
+      supabase.from('flt_report').select('*').eq('plan_id', plan.id).limit(1).then(({data})=>data||[]),
     ]).then(([logsData, wxData, hbData, navData, fltReportData]) => {
       setFltReport(fltReportData?.[0] || null);
       setLogs(logsData || []);
@@ -82,8 +78,7 @@ export default function FlightReport({ plan, onClose }) {
       const pmId = crewLog?.details?.pm_id;
       // PF ve PM home base'lerini çek
       const fetchHB = (id) => id
-        ? fetch(`${SB_URL}/rest/v1/home_bases?pilot_id=eq.${id}&select=icao&limit=1`,
-            { headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`} }).then(r=>r.json()).catch(()=>[])
+        ? supabase.from('home_bases').select('icao').eq('pilot_id', id).limit(1).then(({data})=>data||[]).catch(()=>[])
         : Promise.resolve([]);
       Promise.all([fetchHB(pfId), fetchHB(pmId)]).then(([pfHB, pmHB]) => {
         setPfHomeBase(pfHB?.[0]?.icao || null);

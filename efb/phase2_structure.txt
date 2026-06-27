@@ -1,0 +1,24 @@
+Phase 2 Integration Plan
+========================
+
+NEW BLOCKS (B-I):
+- Block 2B: Approach & Departure (Q11-20)
+- Block 3C: Weather (Q21-30)
+- Block 4D: ATC (Q31-36)
+- Block 5E: Emergency Response (Q37-41)
+- Block 6F: Security (Q42-49)
+- Block 7G: Ground Operations (Q50-55)
+- Block 8H: Fuel Services (Q56-60)
+- Block 9I: Operational Experience (Q61-70)
+
+DEFAULT_STATE additions:
+- q11 to q70 (defaults to 2)
+
+calcRisk() changes:
+- 70 weights
+- Risk matrix: 70-110=LOW, 111-160=MEDIUM, 161-220=HIGH, 221-280=VERY HIGH, 281-350=EXTREME
+- Category A-I averages
+
+UI:
+- 9 blocks (A + B-I)
+- Dropdown: 1=Excellent, 2=Good, 3=Acceptable, 4=Poor, 5=Critical
