@@ -153,7 +153,7 @@ function parseAllSectors(text) {
 
   const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
   const dof = text.match(/DOF\/(\d{2})(\d{2})(\d{2})/);
-  const globalDate     = dof ? `${dof[1]} ${months[parseInt(dof[2])-1]} 20${dof[3]}` : '';
+  const globalDate     = dof ? `${dof[3]} ${months[parseInt(dof[2])-1]} 20${dof[1]}` : '';
   const globalOperator = text.match(/OPR\/([A-Z][A-Z\s]+?)(?:\s+RMK|\s+SEL|\s+PBN|\n)/)?.[1]?.trim() || '';
   const globalAcType   = text.match(/GLF4|GLF5|GIV|GIV-SP|GV|CL60|CL35|GL5T|GL6T|GLEX|C550|C560|C680|F900|FA7X|FA8X/)?.[0] || '';
   const globalReg = (() => {
