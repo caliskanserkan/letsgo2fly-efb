@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { supabase } from '../config/supabaseClient';
+import { supabase } from '../supabaseClient';
 
 const SB_URL = 'https://ojvqdsqodpxkvpxvwgrm.supabase.co';
 const SB_KEY = 'sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f';
