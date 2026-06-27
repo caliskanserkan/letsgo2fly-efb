@@ -153,7 +153,31 @@ function parseAllSectors(text) {
 
   const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
   const dof = text.match(/DOF\/(\d{2})(\d{2})(\d{2})/);
-  const globalDate     = dof ? `${dof[3]} ${months[parseInt(dof[2])-1]} 20${dof[1]}` : '';
+  // --- Tarih parse + cross-validation ---
+  // BIRINCIL kaynak: DOF/YYMMDD (resmi ICAO FPL string)
+  // CAPRAZ KONTROL: baslikta "STD DD-MMM-YY" (PPS dispatch etiketi)
+  let globalDate = '';
+  if (dof) {
+    const dofDay = dof[3], dofMon = parseInt(dof[2]) - 1, dofYearFull = `20${dof[1]}`;
+    globalDate = `${dofDay} ${months[dofMon]} ${dofYearFull}`;
+
+    // Capraz kontrol: baslik tarihi (STD 24-MAY-26 veya STD 24-MAY-2026)
+    const hdr = text.match(/STD\s+(\d{2})-([A-Z]{3})-(\d{2,4})/);
+    if (hdr) {
+      const hDay = hdr[1];
+      const hMonIdx = months.indexOf(hdr[2].toUpperCase());
+      const hYearFull = hdr[3].length === 2 ? `20${hdr[3]}` : hdr[3];
+      const dofKey = `${dofDay.padStart(2,'0')}-${dofMon}-${dofYearFull}`;
+      const hdrKey = `${hDay.padStart(2,'0')}-${hMonIdx}-${hYearFull}`;
+      if (hMonIdx === -1) {
+        console.warn(`[OFP DATE] Baslik ay parse edilemedi: ${hdr[2]} — DOF kullanildi (${globalDate})`);
+      } else if (dofKey !== hdrKey) {
+        console.warn(`[OFP DATE] UYUSMAZLIK! DOF=${globalDate} ile baslik=${hDay} ${hdr[2]} ${hYearFull} farkli. DOF (resmi FPL) kullanildi.`);
+      }
+    } else {
+      console.warn(`[OFP DATE] Baslikta STD tarihi bulunamadi, sadece DOF kullanildi (${globalDate}).`);
+    }
+  }
   const globalOperator = text.match(/OPR\/([A-Z][A-Z\s]+?)(?:\s+RMK|\s+SEL|\s+PBN|\n)/)?.[1]?.trim() || '';
   const globalAcType   = text.match(/GLF4|GLF5|GIV|GIV-SP|GV|CL60|CL35|GL5T|GL6T|GLEX|C550|C560|C680|F900|FA7X|FA8X/)?.[0] || '';
   const globalReg = (() => {
