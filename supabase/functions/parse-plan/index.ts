@@ -6,7 +6,7 @@
 // Cikti: { ok, results: [{dep,dest,status}], count }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { extractText, getDocumentProxy } from "https://esm.sh/unpdf@0.11.0";
+import { getDocumentProxy } from "https://esm.sh/unpdf@0.11.0";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -22,10 +22,31 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 }
 
-// ─── PDF text extraction (unpdf, Deno-native, worker yok) ─────────────────────
+// ─── PDF text extraction (Y-koordinat mantigi, eski pdf.js formatiyla BIREBIR) ──
+// unpdf sadece text extraction icin degil; getDocumentProxy ile pdf.js proxy'sine
+// erisip, her item'in Y koordinatina gore newline ekleyerek gercek satir yapisini
+// koruyoruz. Boylece NavLog/WX/koordinat parse'lari eski formatla ayni calisir.
 async function extractPdfText(bytes: Uint8Array): Promise<string> {
   const pdf = await getDocumentProxy(bytes);
-  const { text } = await extractText(pdf, { mergePages: true });
+  let text = "";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    let lastY: number | null = null;
+    let pageText = "";
+    for (const item of (content.items as any[])) {
+      if (!("str" in item)) continue;
+      const y = item.transform[5];
+      if (lastY !== null && Math.abs(y - lastY) > 2) {
+        pageText += "\n";
+      }
+      pageText += item.str;
+      if (item.hasEOL) pageText += "\n";
+      else pageText += " ";
+      lastY = y;
+    }
+    text += pageText + "\n";
+  }
   return text;
 }
 
