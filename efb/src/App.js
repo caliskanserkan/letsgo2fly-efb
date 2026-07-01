@@ -14,13 +14,11 @@ import DocUpload from './components/DocUpload';
 import FreeNote from './components/FreeNote';
 import RassView from './components/RassView';
 import { supabase, logEvent } from './supabaseClient';
-import * as pdfjsLib from 'pdfjs-dist';
 
 import AdminPanel from './components/AdminPanel';
 import SuperAdminPanel from './components/SuperAdminPanel';
 import FlightReport from './components/FlightReport';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL || ''}/pdf.worker.min.mjs`;
 
 // ─── Global Font Size ─────────────────────────────────────────────────────────
 const FONT_KEY  = 'efb_font_size';
@@ -98,160 +96,8 @@ const DEFAULT_DIVERT_DATA = {
   active: false, icao: '', rwy: '', len: '', reason: '',
 };
 
-function parseDispatchNo(text) {
-  const match = text.match(/\[#(DISP\d+)#\]/);
-  return match ? match[1] : null;
-}
 
-function parseAllSectors(text) {
-  const sectors = [];
 
-  const tableRows = [...text.matchAll(
-    /TC-([A-Z]{3})\s+(\d{1,2}\s+\w{3}\s+\d{4})\s+([A-Z]{4})\s+(\d{2}:\d{2})\s+\d{2}:\d{2}\s+(\d{1,2}\s+\w{3}\s+\d{4})\s+([A-Z]{4})\s+(\d{2}:\d{2})\s+\d{2}:\d{2}\s+(\d{2}:\d{2})\s+(\d+)/g
-  )];
-
-  for (const row of tableRows) {
-    sectors.push({
-      reg:  `TC-${row[1]}`,
-      date: row[2],
-      dep:  row[3],
-      std:  row[4],
-      dest: row[6],
-      eta:  row[7],
-      ete:  row[8],
-      pax:  row[9],
-    });
-  }
-
-  if (sectors.length === 0) {
-    const fplMatches = [...text.matchAll(
-      /\(FPL-([A-Z0-9]+)-[A-Z]{2}[\s\S]*?-([A-Z]{4})(\d{4})[\s\S]*?-([A-Z]{4})(\d{4})/g
-    )];
-    for (const m of fplMatches) {
-      const stdRaw = m[3];
-      const eteRaw = m[5];
-      const regRaw = text.match(/REG\/([A-Z0-9]{4,6})/)?.[1] || '';
-      const reg = regRaw ? `TC-${regRaw.slice(2)}` : '';
-      sectors.push({
-        callsign: m[1],
-        dep:  m[2],
-        std:  `${stdRaw.slice(0,2)}:${stdRaw.slice(2)}`,
-        dest: m[4],
-        ete:  `${eteRaw.slice(0,2)}:${eteRaw.slice(2)}`,
-        reg, date: '', pax: '', eta: '',
-      });
-    }
-  }
-
-  const ofpBlocks = [...text.matchAll(
-    /FMS IDENT=\S+\s+Log Nr\.?:?\s*\d+\s+Page\s+1\s+([A-Z]{4}-[A-Z]{4})\s+([A-Z0-9]+)([\s\S]*?)(?=FMS IDENT=|$)/g
-  )];
-
-  const blockMap = {};
-  for (const b of ofpBlocks) {
-    blockMap[b[1]] = b[3];
-  }
-
-  const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-  const dof = text.match(/DOF\/(\d{2})(\d{2})(\d{2})/);
-  // --- Tarih parse + cross-validation ---
-  // BIRINCIL kaynak: DOF/YYMMDD (resmi ICAO FPL string)
-  // CAPRAZ KONTROL: baslikta "STD DD-MMM-YY" (PPS dispatch etiketi)
-  let globalDate = '';
-  if (dof) {
-    const dofDay = dof[3], dofMon = parseInt(dof[2]) - 1, dofYearFull = `20${dof[1]}`;
-    globalDate = `${dofDay} ${months[dofMon]} ${dofYearFull}`;
-
-    // Capraz kontrol: baslik tarihi (STD 24-MAY-26 veya STD 24-MAY-2026)
-    const hdr = text.match(/STD\s+(\d{2})-([A-Z]{3})-(\d{2,4})/);
-    if (hdr) {
-      const hDay = hdr[1];
-      const hMonIdx = months.indexOf(hdr[2].toUpperCase());
-      const hYearFull = hdr[3].length === 2 ? `20${hdr[3]}` : hdr[3];
-      const dofKey = `${dofDay.padStart(2,'0')}-${dofMon}-${dofYearFull}`;
-      const hdrKey = `${hDay.padStart(2,'0')}-${hMonIdx}-${hYearFull}`;
-      if (hMonIdx === -1) {
-        console.warn(`[OFP DATE] Baslik ay parse edilemedi: ${hdr[2]} — DOF kullanildi (${globalDate})`);
-      } else if (dofKey !== hdrKey) {
-        console.warn(`[OFP DATE] UYUSMAZLIK! DOF=${globalDate} ile baslik=${hDay} ${hdr[2]} ${hYearFull} farkli. DOF (resmi FPL) kullanildi.`);
-      }
-    } else {
-      console.warn(`[OFP DATE] Baslikta STD tarihi bulunamadi, sadece DOF kullanildi (${globalDate}).`);
-    }
-  }
-  const globalOperator = text.match(/OPR\/([A-Z][A-Z\s]+?)(?:\s+RMK|\s+SEL|\s+PBN|\n)/)?.[1]?.trim() || '';
-  const globalAcType   = text.match(/GLF4|GLF5|GIV|GIV-SP|GV|CL60|CL35|GL5T|GL6T|GLEX|C550|C560|C680|F900|FA7X|FA8X/)?.[0] || '';
-  const globalReg = (() => {
-    const raw = text.match(/REG\/([A-Z0-9]{4,6})/)?.[1] || text.match(/REGISTRATION:\s*TC-([A-Z]{3})/)?.[1] || '';
-    if (!raw) return '';
-    if (raw.startsWith('TC')) return raw;
-    return `TC-${raw.slice(2)}`;
-  })();
-  const globalCallsign = text.match(/\(FPL-([A-Z0-9]+)-/)?.[1] || '';
-
-  sectors.forEach((sector) => {
-    const routeKey = `${sector.dep}-${sector.dest}`;
-    const block = blockMap[routeKey] || '';
-
-    sector.trip_fuel      = block.match(/\bTRIP\s+([\d]+)/)?.[1] || '';
-    sector.alternate_fuel = block.match(/\bALTERNATE\s+([\d]+)/)?.[1] || '';
-    sector.reserve_fuel   = block.match(/\bFINAL RESERVE\s+([\d]+)/)?.[1] || '';
-    sector.total_fob      = block.match(/\bTOTAL FOB\s+([\d]+)/)?.[1] || '';
-    sector.fob            = sector.total_fob ? `${parseInt(sector.total_fob).toLocaleString()} lb` : '';
-    sector.tow            = block.match(/\bTOW\s+([\d]+)\s*Lbs/i)?.[1] || '';
-    sector.zfw            = block.match(/\bZFW\s+([\d]+)\s*Lbs/i)?.[1] || '';
-    sector.route          = block.match(/ROUTE:\s*([^\n]+)/)?.[1]?.trim() || '';
-
-    const alt1 = block.match(/1\s*ST\s+ALT\s+([A-Z]{4})/)?.[1];
-    const alt2 = text.match(new RegExp(`-${sector.dest}\\s*\\d{4}\\s+([A-Z]{4})`))?.[1];
-    const alt3 = text.match(new RegExp(`${sector.dep}\\s*\\d{4}\\s+([A-Z]{4})`))?.[1];
-    sector.alternate = alt1 || alt2 || alt3 || '';
-
-    const flMatch = block.match(/CRUISE:[^\d]*(\d{3})/);
-    sector.cruise_fl = flMatch ? `FL${flMatch[1]}` : '';
-
-    const logMatch = text.match(new RegExp(`Log Nr\\.?:?\\s*(\\d+)\\s+Page\\s+1\\s+${sector.dep}-${sector.dest}`));
-    sector.log_nr = logMatch?.[1] || '';
-
-    sector.ac_type  = sector.ac_type  || globalAcType;
-    sector.reg      = sector.reg      || globalReg;
-    sector.date     = sector.date     || globalDate;
-    sector.operator = sector.operator || globalOperator;
-    sector.callsign = sector.callsign || globalCallsign;
-
-    if (!sector.eta && sector.std && sector.ete) {
-      const [sh, sm] = sector.std.split(':').map(Number);
-      const [eh, em] = sector.ete.split(':').map(Number);
-      const total = sh * 60 + sm + eh * 60 + em;
-      sector.eta = `${String(Math.floor(total / 60) % 24).padStart(2,'0')}:${String(total % 60).padStart(2,'0')}`;
-    }
-  });
-
-  return sectors;
-}
-
-async function extractPdfText(file) {
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  let text = '';
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    let lastY = null;
-    let pageText = '';
-    for (const item of content.items) {
-      if (lastY !== null && Math.abs(item.transform[5] - lastY) > 2) {
-        pageText += '\n';
-      }
-      pageText += item.str;
-      if (item.hasEOL) pageText += '\n';
-      else pageText += ' ';
-      lastY = item.transform[5];
-    }
-    text += pageText + '\n';
-  }
-  return text;
-}
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 function Login({ onLogin }) {

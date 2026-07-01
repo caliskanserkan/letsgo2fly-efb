@@ -181,6 +181,10 @@ Deno.serve(async (req) => {
         if (insErr) return json({ error: `Insert failed: ${insErr.message}` }, 400);
 
         await admin.from("plan_versions").insert({ plan_id: plan.id, dispatch_no: dispatchNo, version_no: 1, raw_text: pdfText });
+        // PDF'i Storage'a yukle (OFP viewer icin)
+        try {
+          await admin.storage.from("ofp-pdfs").upload(`active/${plan.id}.pdf`, bytes, { upsert: true, contentType: "application/pdf" });
+        } catch (e) { console.warn("PDF storage upload failed:", e); }
         results.push({ dep: s.dep, dest: s.dest, status: "created" });
       } else {
         const { count } = await admin.from("plan_versions").select("*", { count: "exact", head: true }).eq("plan_id", existing.id);
