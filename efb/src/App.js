@@ -364,8 +364,11 @@ function UploadPlanModal({ onClose, onUploaded }) {
     if (!file) return;
     setLoading(true); setError(''); setSuccess('');
     try {
+      console.log('[UPLOAD] step 1: extractPdfText start');
       const pdfText = await extractPdfText(file);
+      console.log('[UPLOAD] step 2: extractPdfText OK, length=', pdfText?.length);
       const sectors = parseAllSectors(pdfText);
+      console.log('[UPLOAD] step 3: parseAllSectors OK, sectors=', sectors?.length);
 
       if (sectors.length === 0) throw new Error('No flight sectors found in PDF.');
 
@@ -458,7 +461,7 @@ function UploadPlanModal({ onClose, onUploaded }) {
 
       setSuccess(`${results.length} sector(s): ${results.join(', ')}`);
       onUploaded();
-    } catch (err) { setError('Upload failed: ' + err.message); }
+    } catch (err) { console.error('[UPLOAD] FAILED:', err); console.error('[UPLOAD] stack:', err?.stack); setError('Upload failed: ' + err.message); }
     setLoading(false);
   };
 
