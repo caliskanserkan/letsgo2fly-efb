@@ -560,17 +560,17 @@ function AircraftForm({form, setForm, onSave, onCancel, saveLabel='SAVE'}){
 }
 
 // ─── 3. Aircrafts ─────────────────────────────────────────────────────────────
-function Aircrafts({toast}){
+function Aircrafts({toast,myProfile,customerId}){
   const[list,setList]=useState([]);const[loading,setLoading]=useState(true);
   const[showAdd,setShowAdd]=useState(false);const[selected,setSelected]=useState(null);
   const[editing,setEditing]=useState(false);
   const[form,setForm]=useState({registration:'',manufacturer:'',model:'',ac_type:'',landing_cat:'CAT1',total_hours:0,total_cycles:0});
   const[editForm,setEditForm]=useState({});const[saving,setSaving]=useState(false);const[acStats,setAcStats]=useState({});
-  const load=useCallback(async()=>{ setLoading(true); const[{data:acData},{data:flData}]=await Promise.all([supabase.from('aircraft').select('*').order('registration'),supabase.from('archived_flights').select('airborne_minutes,landing_count,plans(reg)')]); setList(acData||[]); const stats={}; (flData||[]).forEach(f=>{ const reg=f.plans?.reg; if(!reg)return; if(!stats[reg])stats[reg]={mins:0,cycles:0}; stats[reg].mins+=(f.airborne_minutes||0); stats[reg].cycles+=(f.landing_count||0); }); setAcStats(stats); setLoading(false); },[]);
+  const load=useCallback(async()=>{ setLoading(true); let acq=supabase.from('aircraft').select('*').order('registration'); if(customerId){acq=acq.eq('customer_id',customerId);} const[{data:acData},{data:flData}]=await Promise.all([acq,supabase.from('archived_flights').select('airborne_minutes,landing_count,plans(reg)')]); setList(acData||[]); const stats={}; (flData||[]).forEach(f=>{ const reg=f.plans?.reg; if(!reg)return; if(!stats[reg])stats[reg]={mins:0,cycles:0}; stats[reg].mins+=(f.airborne_minutes||0); stats[reg].cycles+=(f.landing_count||0); }); setAcStats(stats); setLoading(false); },[customerId]);
   useEffect(()=>{load();},[load]);
   const sel=list.find(a=>a.id===selected);
   const getTotals=(a)=>{ const s=acStats[a.registration]||{mins:0,cycles:0}; const baseMins=Math.round((parseFloat(a.total_hours)||0)*60); const totalMins=baseMins+s.mins; const totalHours=totalMins/60; const totalCycles=(a.total_cycles||0)+s.cycles; return{ hours: totalMins>0?`${Math.floor(totalHours)}:${String(Math.round((totalHours%1)*60)).padStart(2,'0')}`:'0:00', cycles:totalCycles, appMins:s.mins, appCycles:s.cycles }; };
-  const handleAdd=async()=>{ if(!form.registration||!form.ac_type){toast('Registration and type required.','error');return;} const{registration,manufacturer,model,ac_type,landing_cat,total_hours,total_cycles}=form; const{error}=await supabase.from('aircraft').insert({registration,manufacturer,model,ac_type,landing_cat,total_hours:parseFloat(total_hours)||0,total_cycles:parseInt(total_cycles)||0}); if(error){toast(error.message,'error');return;} toast('Aircraft added.','success'); setShowAdd(false); setForm({registration:'',manufacturer:'',model:'',ac_type:'',landing_cat:'CAT1',total_hours:0,total_cycles:0}); load(); };
+  const handleAdd=async()=>{ if(!form.registration||!form.ac_type){toast('Registration and type required.','error');return;} const targetCustomer=myProfile?.is_super_admin?customerId:myProfile?.customer_id; if(!targetCustomer){toast('No company context for aircraft.','error');return;} const{registration,manufacturer,model,ac_type,landing_cat,total_hours,total_cycles}=form; const{error}=await supabase.from('aircraft').insert({registration,manufacturer,model,ac_type,landing_cat,total_hours:parseFloat(total_hours)||0,total_cycles:parseInt(total_cycles)||0,customer_id:targetCustomer}); if(error){toast(error.message,'error');return;} toast('Aircraft added.','success'); setShowAdd(false); setForm({registration:'',manufacturer:'',model:'',ac_type:'',landing_cat:'CAT1',total_hours:0,total_cycles:0}); load(); };
   const openEdit=()=>{ if(!sel)return; setEditForm({registration:sel.registration||'',manufacturer:sel.manufacturer||'',model:sel.model||'',ac_type:sel.ac_type||'',landing_cat:sel.landing_cat||'CAT1',total_hours:sel.total_hours||0,total_cycles:sel.total_cycles||0}); setEditing(true); };
   const handleSaveEdit=async()=>{ if(!editForm.registration||!editForm.ac_type){toast('Registration and type required.','error');return;} setSaving(true); const{registration,manufacturer,model,ac_type,landing_cat,total_hours,total_cycles}=editForm; const{error}=await supabase.from('aircraft').update({registration,manufacturer,model,ac_type,landing_cat,total_hours:parseFloat(total_hours)||0,total_cycles:parseInt(total_cycles)||0}).eq('id',sel.id); if(error){toast(error.message,'error');}else{toast('Aircraft updated.','success');setEditing(false);load();} setSaving(false); };
   return(
@@ -929,7 +929,7 @@ export default function AdminPanel({onBack}){
           <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
             {tab==='active'    && <ActiveFlts   toast={showToast}/>}
             {tab==='archived'  && <ArchivedFlts toast={showToast} user={user}/>}
-            {tab==='aircrafts' && <Aircrafts    toast={showToast}/>}
+            {tab==='aircrafts' && <Aircrafts    toast={showToast} myProfile={myProfile}/>}
             {tab==='crews'     && <Crews        toast={showToast} myProfile={myProfile}/>}
             {tab==='stats'     && <Statistics/>}
             {tab==='stations'  && <StationInfo  toast={showToast}/>}
