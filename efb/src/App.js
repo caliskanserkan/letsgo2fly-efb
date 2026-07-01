@@ -17,6 +17,7 @@ import { supabase, logEvent } from './supabaseClient';
 import * as pdfjsLib from 'pdfjs-dist';
 
 import AdminPanel from './components/AdminPanel';
+import SuperAdminPanel from './components/SuperAdminPanel';
 import FlightReport from './components/FlightReport';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.6.205/build/pdf.worker.min.mjs';
@@ -581,7 +582,7 @@ function parseWxrChartsFromRawText(rawText) {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate, onDeactivate }) {
+function Dashboard({ onOpen, onOpenArchived, user, myProfile, onLogout, onAdmin, onActivate, onDeactivate }) {
   const [tab, setTab]                       = useState('active');
   const [availablePlans, setAvailablePlans] = useState([]);
   const [activePlans, setActivePlans]       = useState([]);
@@ -715,7 +716,9 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
         <span style={{ fontSize:13, fontWeight:700, color:'var(--accent)', letterSpacing:1 }}>GO2 eFB</span>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           <span style={{ fontSize:11, color:'var(--t3)' }}>{user?.email || ''}</span>
-          <button onClick={onAdmin} style={{ background:'transparent', border:'1px solid #1a9bc4', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#1a9bc4', cursor:'pointer', fontFamily:'inherit' }}>Admin</button>
+          {(myProfile?.is_super_admin || ['admin','admin_pilot'].includes(myProfile?.role)) && (
+            <button onClick={onAdmin} style={{ background:'transparent', border:'1px solid #1a9bc4', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#1a9bc4', cursor:'pointer', fontFamily:'inherit' }}>{myProfile?.is_super_admin ? 'Super Admin' : 'Admin'}</button>
+          )}
           <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #383838', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>Logout</button>
         </div>
       </div>
@@ -811,9 +814,7 @@ function Dashboard({ onOpen, onOpenArchived, user, onLogout, onAdmin, onActivate
 function App() {
   const [page, setPage]                   = useState('loading');
   const [user, setUser]                   = useState(null);
-  const [showAdminAuth, setShowAdminAuth] = useState(false);
-  const [adminPin, setAdminPin]           = useState('');
-  const [adminPinError, setAdminPinError] = useState('');
+  const [myProfile, setMyProfile]         = useState(null);
   const [offlineSince, setOfflineSince]   = useState(null);
 
   useEffect(() => {
@@ -885,9 +886,14 @@ function App() {
   };
 
   useEffect(() => {
+    const loadProfile = async (u) => {
+      const { data: prof } = await supabase.from('profiles').select('id,role,customer_id,is_super_admin').eq('id', u.id).single();
+      setMyProfile(prof || null);
+    };
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setUser(session.user);
+        loadProfile(session.user);
         setPage('dashboard');
       } else {
         setPage('login');
@@ -895,27 +901,13 @@ function App() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) { setUser(session.user); }
-      else { setUser(null); setPage('login'); }
+      if (session) { setUser(session.user); loadProfile(session.user); }
+      else { setUser(null); setMyProfile(null); setPage('login'); }
     });
     return () => subscription.unsubscribe();
   }, []);
 
   const handleLogout = async () => { await supabase.auth.signOut(); };
-
-  const handleAdminAuth = async () => {
-    try {
-      const { data } = await supabase.from('system_settings').select('admin_password').single();
-      if (data?.admin_password === adminPin) {
-        setShowAdminAuth(false); setAdminPin(''); setAdminPinError('');
-        setPage('admin');
-      } else {
-        setAdminPinError('Incorrect password.');
-      }
-    } catch {
-      setAdminPinError('Could not verify. Check connection.');
-    }
-  };
 
   const navigate = (target) => {
     if (target === 'dashboard') { setPage('dashboard'); }
@@ -946,32 +938,11 @@ function App() {
 
   if (page === 'login') return <Login onLogin={() => setPage('dashboard')} />;
   if (page === 'admin') return <AdminPanel onBack={() => setPage('dashboard')} />;
-
-  if (showAdminAuth) return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
-      <div style={{ width:300, background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-        <div style={{ background:'#1f1f1f', borderBottom:'1px solid var(--border)', padding:'10px 18px', fontSize:10, color:'#e8a020', fontWeight:700, letterSpacing:2 }}>ADMIN ACCESS</div>
-        <div style={{ padding:'20px 18px' }}>
-          <label style={{ display:'block', fontSize:10, color:'#ffffff', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Admin Password</label>
-          <input type="password" value={adminPin} onChange={e => { setAdminPin(e.target.value); setAdminPinError(''); }}
-            onKeyDown={e => e.key === 'Enter' && handleAdminAuth()} placeholder="Enter password"
-            style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} />
-          {adminPinError && (
-            <div style={{ marginTop:8, padding:'7px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>{adminPinError}</div>
-          )}
-        </div>
-        <div style={{ padding:'0 18px 18px', display:'flex', gap:8 }}>
-          <button onClick={() => { setShowAdminAuth(false); setAdminPin(''); setAdminPinError(''); }}
-            style={{ flex:1, background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
-          <button onClick={handleAdminAuth}
-            style={{ flex:1, background:'#e8a020', border:'none', borderRadius:7, padding:10, fontSize:13, fontWeight:700, color:'#000', cursor:'pointer', fontFamily:'inherit' }}>Enter</button>
-        </div>
-      </div>
-    </div>
-  );
+  if (page === 'superadmin') return <SuperAdminPanel onBack={() => setPage('dashboard')} />;
 
   if (page === 'dashboard') return (
     <Dashboard
+      myProfile={myProfile}
       onOpen={() => navigate('flt-crew')}
       onOpenArchived={(plan) => {
         setActivePlan(plan);
@@ -979,7 +950,7 @@ function App() {
       }}
       user={user}
       onLogout={handleLogout}
-      onAdmin={() => { setAdminPin(''); setAdminPinError(''); setShowAdminAuth(true); }}
+      onAdmin={() => { if (myProfile?.is_super_admin) setPage('superadmin'); else if (['admin','admin_pilot'].includes(myProfile?.role)) setPage('admin'); }}
       onActivate={(plan) => {
         setActivePlan(plan);
         if (plan) { localStorage.setItem('activePlan', JSON.stringify(plan)); navigate('flt-crew'); }

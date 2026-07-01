@@ -599,7 +599,7 @@ function HomeBaseCell({ pilotId }) {
 }
 
 // ─── 4. Crews ─────────────────────────────────────────────────────────────────
-function Crews({toast}){
+export function Crews({toast,myProfile,customerId}){
   const[pilots,setPilots]=useState([]);const[quals,setQuals]=useState([]);
   const[loading,setLoading]=useState(true);const[selected,setSelected]=useState(null);
   const[showQual,setShowQual]=useState(false);const[showEfb,setShowEfb]=useState(false);
@@ -610,12 +610,12 @@ function Crews({toast}){
   const[addForm,setAddForm]=useState({full_name:'',code:'',email:'',role:'pilot',password:''});
   const[qualForm,setQualForm]=useState({ac_type:'',seat:'CPT',hand:'BOTH',landing_cat:'CAT1',valid_from:'',valid_until:''});
   const[efbForm,setEfbForm]=useState({efb_training_date:'',efb_training_valid_until:'',efb_training_type:'Initial',efb_trained_by:''});
-  const load=useCallback(async()=>{ setLoading(true); const[{data:p},{data:q}]=await Promise.all([supabase.from('profiles').select('*').order('full_name'),supabase.from('crew_qualifications').select('*')]); setPilots(p||[]); setQuals(q||[]); setLoading(false); },[]);
+  const load=useCallback(async()=>{ setLoading(true); let pq=supabase.from('profiles').select('*').order('full_name'); if(customerId){pq=pq.eq('customer_id',customerId);} const[{data:p},{data:q}]=await Promise.all([pq,supabase.from('crew_qualifications').select('*')]); setPilots(p||[]); setQuals(q||[]); setLoading(false); },[customerId]);
   useEffect(()=>{load();},[load]);
   const sel=pilots.find(p=>p.id===selected);
   const selQuals=quals.filter(q=>q.pilot_id===selected);
   const efbRecord=selQuals.find(q=>q.efb_training_date);
-  const handleAddCrew=async()=>{ if(!addForm.full_name||!addForm.code||!addForm.email||!addForm.password){toast('All fields required.','error');return;} setSaving(true); try{ const{data:{session}}=await supabase.auth.getSession(); if(!session){toast('Session expired, please log in again.','error');setSaving(false);return;} const res=await fetch(`${process.env.REACT_APP_SUPABASE_URL}/functions/v1/manage-user`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action:'create',email:addForm.email,password:addForm.password,full_name:addForm.full_name,code:addForm.code,role:addForm.role})}); const result=await res.json(); if(!res.ok){toast(result.error||'User creation failed','error');setSaving(false);return;} toast(`${addForm.full_name} added successfully.`,'success'); setShowAdd(false); setAddForm({full_name:'',code:'',email:'',role:'pilot',password:''}); load(); }catch(e){toast(e.message,'error');} setSaving(false); };
+  const handleAddCrew=async()=>{ if(!addForm.full_name||!addForm.code||!addForm.email||!addForm.password){toast('All fields required.','error');return;} if(myProfile?.is_super_admin&&!customerId){toast('Please select a company first.','error');return;} setSaving(true); try{ const{data:{session}}=await supabase.auth.getSession(); if(!session){toast('Session expired, please log in again.','error');setSaving(false);return;} const payload={action:'create',email:addForm.email,password:addForm.password,full_name:addForm.full_name,code:addForm.code,role:addForm.role}; if(myProfile?.is_super_admin){payload.target_customer_id=customerId;} const res=await fetch(`${process.env.REACT_APP_SUPABASE_URL}/functions/v1/manage-user`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`},body:JSON.stringify(payload)}); const result=await res.json(); if(!res.ok){toast(result.error||'User creation failed','error');setSaving(false);return;} toast(`${addForm.full_name} added successfully.`,'success'); setShowAdd(false); setAddForm({full_name:'',code:'',email:'',role:'pilot',password:''}); load(); }catch(e){toast(e.message,'error');} setSaving(false); };
   const handleDeleteStep1=(pilot)=>{setDeleteTarget(pilot);setDeleteModal(true);setDeleteConfirm(false);};
   const handleDeleteConfirm=async()=>{ if(!deleteTarget)return; setSaving(true); try{ const{data:{session}}=await supabase.auth.getSession(); if(!session){toast('Session expired, please log in again.','error');setSaving(false);return;} const res=await fetch(`${process.env.REACT_APP_SUPABASE_URL}/functions/v1/manage-user`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action:'delete',target_user_id:deleteTarget.id})}); const result=await res.json(); if(!res.ok){toast(result.error||'Delete failed','error');setSaving(false);return;} toast(`${deleteTarget.full_name} deleted.`,'success'); setDeleteModal(false);setDeleteTarget(null);setSelected(null);load(); }catch(e){toast(e.message,'error');} setSaving(false); };
   const handleAddQual=async()=>{ if(!qualForm.ac_type){toast('Aircraft type required.','error');return;} const{error}=await supabase.from('crew_qualifications').upsert({pilot_id:selected,...qualForm}); if(error){toast(error.message,'error');return;} toast('Qualification saved.','success');setShowQual(false);load(); };
@@ -809,6 +809,7 @@ export default function AdminPanel({onBack}){
   const [tab,         setTab]         = useState('active');
   const [ready,       setReady]       = useState(false);
   const [user,        setUser]        = useState(null);
+  const [myProfile,   setMyProfile]   = useState(null);
   const [toast,       setToast]       = useState({msg:'',type:'success'});
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile,    setIsMobile]    = useState(window.innerWidth < 900);
@@ -836,6 +837,8 @@ export default function AdminPanel({onBack}){
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { onBack(); return; }
       setUser(session.user);
+      const { data: prof } = await supabase.from('profiles').select('id,role,customer_id,is_super_admin').eq('id', session.user.id).single();
+      setMyProfile(prof || null);
       setReady(true);
     })();
   }, [onBack]);
@@ -927,7 +930,7 @@ export default function AdminPanel({onBack}){
             {tab==='active'    && <ActiveFlts   toast={showToast}/>}
             {tab==='archived'  && <ArchivedFlts toast={showToast} user={user}/>}
             {tab==='aircrafts' && <Aircrafts    toast={showToast}/>}
-            {tab==='crews'     && <Crews        toast={showToast}/>}
+            {tab==='crews'     && <Crews        toast={showToast} myProfile={myProfile}/>}
             {tab==='stats'     && <Statistics/>}
             {tab==='stations'  && <StationInfo  toast={showToast}/>}
             {tab==='logs'      && <FltLogsAndTimes/>}
