@@ -364,104 +364,32 @@ function UploadPlanModal({ onClose, onUploaded }) {
     if (!file) return;
     setLoading(true); setError(''); setSuccess('');
     try {
-      console.log('[UPLOAD] step 1: extractPdfText start');
-      const pdfText = await extractPdfText(file);
-      console.log('[UPLOAD] step 2: extractPdfText OK, length=', pdfText?.length);
-      const sectors = parseAllSectors(pdfText);
-      console.log('[UPLOAD] step 3: parseAllSectors OK, sectors=', sectors?.length);
+      // PDF'i base64'e cevir
+      const arrayBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      const pdf_base64 = btoa(binary);
 
-      if (sectors.length === 0) throw new Error('No flight sectors found in PDF.');
+      // JWT al
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Session expired, please log in again.');
 
-      const results = [];
+      // Edge Function'a gonder (sunucuda parse + plans/plan_versions yazma)
+      const res = await fetch(`${process.env.REACT_APP_SUPABASE_URL}/functions/v1/parse-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ filename: file.name, pdf_base64 }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Parse failed');
 
-      for (let i = 0; i < sectors.length; i++) {
-        const sector = sectors[i];
-
-        const baseDispatch = parseDispatchNo(pdfText)
-          || parseDispatchNo(file.name)
-          || `${sector.reg || 'MANUAL'}-${(sector.date || '').replace(/\s/g, '')}`;
-        const dispatchNo = sectors.length > 1 ? `${baseDispatch}-S${i + 1}` : baseDispatch;
-
-        const { data: existing } = await supabase.from('plans').select('id')
-          .eq('dep',  sector.dep)
-          .eq('dest', sector.dest)
-          .eq('std',  sector.std)
-          .eq('date', sector.date)
-          .maybeSingle();
-
-        if (!existing) {
-          const { data: plan, error: insertError } = await supabase.from('plans').insert({
-            dispatch_no:    dispatchNo,
-            subject:        file.name,
-            dep:            sector.dep,
-            dest:           sector.dest,
-            date:           sector.date,
-            std:            sector.std,
-            eta:            sector.eta,
-            ete:            sector.ete,
-            fob:            sector.fob,
-            ac_type:        sector.ac_type,
-            reg:            sector.reg,
-            route:          sector.route,
-            operator:       sector.operator,
-            callsign:       sector.callsign,
-            alternate:      sector.alternate,
-            trip_fuel:      sector.trip_fuel,
-            alternate_fuel: sector.alternate_fuel,
-            reserve_fuel:   sector.reserve_fuel,
-            tow:            sector.tow,
-            zfw:            sector.zfw,
-            pax:            sector.pax,
-            cruise_fl:      sector.cruise_fl,
-            log_nr:         sector.log_nr,
-            status:         'available',
-          }).select().single();
-
-          if (insertError) throw insertError;
-
-          await supabase.from('plan_versions').insert({
-            plan_id:     plan.id,
-            dispatch_no: dispatchNo,
-            version_no:  1,
-            raw_text:    pdfText,
-          });
-
-          try { await supabase.storage.from('ofp-pdfs').upload('active/' + plan.id + '.pdf', file, { upsert: true, contentType: 'application/pdf' }); } catch(e) { console.warn('PDF upload:', e); }
-          logEvent(plan.id, 'PLAN_RELEASED', {
-            dispatch_no: dispatchNo,
-            dep: sector.dep,
-            dest: sector.dest,
-            filename: file.name,
-          });
-
-          if (sector.ac_type) {
-            const { data: profiles } = await supabase
-              .from('profiles')
-              .select('customer_id')
-              .eq('aircraft_type', sector.ac_type)
-              .not('customer_id', 'is', null)
-              .limit(1);
-            if (profiles?.[0]?.customer_id) {
-              await supabase.from('plans').update({ customer_id: profiles[0].customer_id }).eq('id', plan.id);
-            }
-          }
-
-          results.push(`${sector.dep} → ${sector.dest}`);
-        } else {
-          const { count } = await supabase.from('plan_versions').select('*', { count: 'exact' }).eq('plan_id', existing.id);
-          await supabase.from('plan_versions').insert({
-            plan_id:     existing.id,
-            dispatch_no: dispatchNo,
-            version_no:  (count || 0) + 1,
-            raw_text:    pdfText,
-          });
-          results.push(`${sector.dep} → ${sector.dest} (updated v${(count || 0) + 1})`);
-        }
-      }
-
-      setSuccess(`${results.length} sector(s): ${results.join(', ')}`);
+      // PDF dosyasini Storage'a yukle (her created plan icin)
+      // Not: parse-plan plan.id dondurmuyor su an; storage'i ayri ele alacagiz.
+      const summary = (result.results || []).map(r => `${r.dep} → ${r.dest}${r.status && r.status.startsWith('updated') ? ' ('+r.status+')' : ''}`).join(', ');
+      setSuccess(`${result.count} sector(s): ${summary}`);
       onUploaded();
-    } catch (err) { console.error('[UPLOAD] FAILED:', err); console.error('[UPLOAD] stack:', err?.stack); setError('Upload failed: ' + err.message); }
+    } catch (err) { console.error('[UPLOAD] FAILED:', err); setError('Upload failed: ' + err.message); }
     setLoading(false);
   };
 
