@@ -531,8 +531,12 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
     const matrixPos = scoreToMatrix(result.score);
     const surveyState = { ...f };
 
+    // customer_id — RLS ile tutarlı (çağıranın şirketi)
+    const { data: myCid } = await supabase.rpc('my_customer_id');
+    if (!myCid) { alert('Şirket bilgisi alınamadı (customer_id boş).'); setSaving(false); return; }
     // 1 — airport_risks güncelle (en güncel)
     const { error: e1 } = await supabase.from('airport_risks').upsert({
+      customer_id: myCid,
       icao: icao.toUpperCase(), category: f.cat,
       base_score: Math.round(result.score), risk_level: result.risk, ops_approval: ops,
       max_s: matrixPos.s, max_l: matrixPos.l,
@@ -546,12 +550,13 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
       survey_state: surveyState,
       runways: rwyData.map(r=>r.des).filter(Boolean).join(','),
       updated_at: now,
-    },{onConflict:'icao'});
+    },{onConflict:'icao,customer_id'});
 
     if(e1){ alert('Save error: '+e1.message); setSaving(false); return; }
 
     // 2 — rass_assessments'a yeni satır ekle (geçmiş)
     await supabase.from('rass_assessments').insert({
+      customer_id: myCid,
       icao: icao.toUpperCase(),
       assessed_by: f.assessed_by,
       assessed_at: now,
