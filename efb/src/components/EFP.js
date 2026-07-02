@@ -460,7 +460,10 @@ function parseNotamsByAirport(rawText) {
   if (!rawText) return [];
   const startIdx = rawText.search(/NOTAMs\s+for\s+Flight\s+Group/i);
   if (startIdx === -1) return [];
-  const block = rawText.slice(startIdx);
+  let block = rawText.slice(startIdx);
+  // NOTAM bolumunun sonunu bul — chart/flight plan verisi sizmasin
+  const endM = block.search(/End of NOTAM information|Short ICAO ATC Flight Plans|WIND\/TEMPERATURE|PROGNOSTIC CHART/i);
+  if (endM !== -1) block = block.slice(0, endM);
   const aptRe = /Flight\s+group\s+apt\s+([A-Z]{4})\s*-\s*([^\n]*?)(?:\((?:I+,?)+\))?\s*\n([\s\S]*?)(?=Flight\s+group\s+apt\s+[A-Z]{4}\s*-|$)/gi;
   const airports = [];
   let m;
@@ -477,8 +480,10 @@ function parseNotamsByAirport(rawText) {
       const idMatch = chunk.match(/^([A-Z]\d{3,4}\/\d{2})\s+(NOTAM[NRC])\s*(?:\[([^\]]+)\])?/);
       const notamNo = idMatch?.[1] || '';
       const tag = idMatch?.[3]?.trim() || '';
-      const eMatch = chunk.match(/\bE\)\s*([\s\S]*?)(?=\n\s*[A-Z]\)\s|$)/);
-      const eText = eMatch?.[1]?.trim().replace(/\s+/g, ' ') || '';
+      const eMatch = chunk.match(/\bE\)\s*([\s\S]*?)(?=\n\s*[A-Z]\)\s|NOTAMs?\s+Page|End of NOTAM|Short ICAO|Total Pages|$)/);
+      let eText = eMatch?.[1]?.trim().replace(/\s+/g, ' ') || '';
+      // Guvenlik: cok uzun (>500 char) ise muhtemelen tasma — ilk cumleye kes
+      if (eText.length > 500) eText = eText.slice(0, 500) + '…';
       const qMatch = chunk.match(/\bQ\)\s*([^\n]+)/);
       const qText = qMatch?.[1]?.trim() || '';
       const bMatch = chunk.match(/\bB\)\s*(\d{10})/);
