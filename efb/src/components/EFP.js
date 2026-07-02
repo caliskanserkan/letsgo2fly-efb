@@ -458,13 +458,13 @@ function ColoredNotam({ text }) {
 
 function parseNotamsByAirport(rawText) {
   if (!rawText) return [];
-  const startIdx = rawText.search(/NOTAMs\s+for\s+Flight\s+Group/i);
+  const startIdx = rawText.search(/NOTAMs\s+for\s+(?:Flight\s+Group|flight)/i);
   if (startIdx === -1) return [];
   let block = rawText.slice(startIdx);
   // NOTAM bolumunun sonunu bul — chart/flight plan verisi sizmasin
   const endM = block.search(/End of NOTAM information|Short ICAO ATC Flight Plans|WIND\/TEMPERATURE|PROGNOSTIC CHART/i);
   if (endM !== -1) block = block.slice(0, endM);
-  const aptRe = /Flight\s+group\s+apt\s+([A-Z]{4})\s*-\s*([^\n]*?)(?:\((?:I+,?)+\))?\s*\n([\s\S]*?)(?=Flight\s+group\s+apt\s+[A-Z]{4}\s*-|$)/gi;
+  const aptRe = /(?:Flight\s+group\s+apt|(?:Departure|Destination|Alternate|Adequate)\s+airport(?:\(s\))?)\s+([A-Z]{4})\s*-\s*([^\n]*?)(?:\((?:I+,?)+\))?\s*\n([\s\S]*?)(?=(?:Flight\s+group\s+apt|(?:Departure|Destination|Alternate|Adequate)\s+airport(?:\(s\))?)\s+[A-Z]{4}\s*-|$)/gi;
   const airports = [];
   let m;
   while ((m = aptRe.exec(block)) !== null) {
