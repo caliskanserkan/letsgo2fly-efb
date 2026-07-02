@@ -45,7 +45,7 @@ function OFPView({ rawText, activePlan }) {
         {loading && <span style={{ fontSize:11, color:'#475569' }}>Loading PDF...</span>}
       </div>
       {pdfUrl ? (
-        <iframe src={pdfUrl} style={{ flex:1, border:'none', background:'#fff' }} title="OFP PDF" />
+        <iframe src={`${pdfUrl}#view=FitH`} style={{ flex:1, border:'none', background:'#fff' }} title="OFP PDF" />
       ) : !loading ? (
         <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, padding:24 }}>
           <span style={{ fontSize:40 }}>📄</span>
