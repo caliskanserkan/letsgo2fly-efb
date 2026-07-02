@@ -3,7 +3,7 @@ import { parseWeatherText } from '../config/weatherRules';
 import { usePersistedState } from '../hooks/usePersistedState';
 // import { supabase } from '../supabaseClient';
 
-const ALL_TABS = ['ofp', 'wxr'];
+const ALL_TABS = ['ofp', 'wxr', 'notam'];
 
 // ─── OFP PDF Viewer ──────────────────────────────────────────
 function OFPView({ rawText, activePlan }) {
@@ -409,6 +409,155 @@ function WXRView({ activePlan, rawText }) {
   );
 }
 
+
+// ─── NOTAM Helpers ────────────────────────────────────────────
+// Renk kurallari (oncelik: kirmizi > turuncu > sari > yesil > mavi)
+const NOTAM_RULES = [
+  { color: '#ef4444', words: ['CLOSED','CLSD','U/S','UNSERVICEABLE','NOT AVBL','NOT AVAILABLE','PROHIBITED','WITHDRAWN'] },
+  { color: '#fb923c', words: ['RESTRICTED','LIMITED','CAUTION','WORK IN PROGRESS','WIP','CONSTRUCTION','MAINTENANCE'] },
+  { color: '#fbbf24', words: ['TEMPORARY','TEMPO','TRIGGER','AMENDED','REVISED','NEW TODAY'] },
+  { color: '#4ade80', words: ['AVBL','AVAILABLE','SERVICEABLE','OPERATIONAL','IN SERVICE'] },
+  { color: '#38bdf8', words: ['RUNWAY','TAXIWAY','APRON','THR','STAND',' RWY',' TWY',' ILS',' DME',' VOR',' NDB'] },
+];
+
+function colorizeNotam(text) {
+  if (!text) return [{ text: '', color: null }];
+  const matches = [];
+  NOTAM_RULES.forEach(rule => {
+    rule.words.forEach(w => {
+      const re = new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        matches.push({ start: m.index, end: m.index + m[0].length, color: rule.color });
+      }
+    });
+  });
+  if (matches.length === 0) return [{ text, color: null }];
+  matches.sort((a, b) => a.start - b.start || a.end - b.end);
+  const parts = [];
+  let cursor = 0;
+  matches.forEach(mt => {
+    if (mt.start < cursor) return;
+    if (mt.start > cursor) parts.push({ text: text.slice(cursor, mt.start), color: null });
+    parts.push({ text: text.slice(mt.start, mt.end), color: mt.color, bold: true });
+    cursor = mt.end;
+  });
+  if (cursor < text.length) parts.push({ text: text.slice(cursor), color: null });
+  return parts;
+}
+
+function ColoredNotam({ text }) {
+  return (
+    <span>
+      {colorizeNotam(text).map((t, i) => (
+        <span key={i} style={{ color: t.color || '#cbd5e1', fontWeight: t.bold ? 700 : 400 }}>{t.text}</span>
+      ))}
+    </span>
+  );
+}
+
+function parseNotamsByAirport(rawText) {
+  if (!rawText) return [];
+  const startIdx = rawText.search(/NOTAMs\s+for\s+Flight\s+Group/i);
+  if (startIdx === -1) return [];
+  const block = rawText.slice(startIdx);
+  const aptRe = /Flight\s+group\s+apt\s+([A-Z]{4})\s*-\s*([^\n]*?)(?:\((?:I+,?)+\))?\s*\n([\s\S]*?)(?=Flight\s+group\s+apt\s+[A-Z]{4}\s*-|$)/gi;
+  const airports = [];
+  let m;
+  while ((m = aptRe.exec(block)) !== null) {
+    const icao = m[1].toUpperCase();
+    const header = `${icao} - ${(m[2] || '').trim()}`;
+    const body = m[3] || '';
+    const notams = [];
+    const nRe = /\|#\d+\|[-\s]*(?:\((?:I+,?)+\))?\s*([\s\S]*?)(?=\|#\d+\||$)/g;
+    let nm;
+    while ((nm = nRe.exec(body)) !== null) {
+      const chunk = nm[1].trim();
+      if (!chunk) continue;
+      const idMatch = chunk.match(/^([A-Z]\d{3,4}\/\d{2})\s+(NOTAM[NRC])\s*(?:\[([^\]]+)\])?/);
+      const notamNo = idMatch?.[1] || '';
+      const tag = idMatch?.[3]?.trim() || '';
+      const eMatch = chunk.match(/\bE\)\s*([\s\S]*?)(?=\n\s*[A-Z]\)\s|$)/);
+      const eText = eMatch?.[1]?.trim().replace(/\s+/g, ' ') || '';
+      const qMatch = chunk.match(/\bQ\)\s*([^\n]+)/);
+      const qText = qMatch?.[1]?.trim() || '';
+      const bMatch = chunk.match(/\bB\)\s*(\d{10})/);
+      const cMatch = chunk.match(/\bC\)\s*(\d{10}|PERM)/);
+      notams.push({ notamNo, tag, eText, qText, from: bMatch?.[1] || '', to: cMatch?.[1] || '' });
+    }
+    if (notams.length) airports.push({ icao, header, notams });
+  }
+  return airports;
+}
+
+function fmtNotamTime(s) {
+  if (!s) return '';
+  if (s === 'PERM') return 'PERM';
+  if (s.length !== 10) return s;
+  return `${s.slice(4,6)}/${s.slice(2,4)} ${s.slice(6,8)}:${s.slice(8,10)}Z`;
+}
+
+function NOTAMView({ rawText }) {
+  const airports = useMemo(() => parseNotamsByAirport(rawText), [rawText]);
+  const totalNotams = useMemo(() => airports.reduce((s, a) => s + a.notams.length, 0), [airports]);
+
+  if (!rawText) {
+    return (
+      <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, padding:24, background:'#0f172a' }}>
+        <span style={{ fontSize:40 }}>📢</span>
+        <div style={{ fontSize:14, color:'#475569', textAlign:'center' }}>No plan data — activate a flight plan</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', background:'#0f172a' }}>
+      <div style={{ background:'#0f172a', borderBottom:'1px solid #1e293b', padding:'8px 14px', flexShrink:0 }}>
+        <div style={{ fontSize:11, fontWeight:600, color:'#94a3b8', fontFamily:'monospace' }}>
+          NOTAM · <span style={{ color:'#38bdf8' }}>{airports.length} airports</span>
+          <span style={{ color:'#334155', marginLeft:6 }}>{totalNotams} notams</span>
+        </div>
+        <div style={{ fontSize:9, color:'#475569', marginTop:3, display:'flex', gap:10, flexWrap:'wrap' }}>
+          <span style={{ color:'#ef4444' }}>● Closed/US</span>
+          <span style={{ color:'#fb923c' }}>● Restricted</span>
+          <span style={{ color:'#fbbf24' }}>● Temp/Trigger</span>
+          <span style={{ color:'#4ade80' }}>● Available</span>
+          <span style={{ color:'#38bdf8' }}>● Infra</span>
+        </div>
+      </div>
+      <div style={{ flex:1, overflowY:'auto', padding:'12px 16px' }}>
+        {airports.length === 0 && (
+          <div style={{ color:'#334155', fontSize:13, textAlign:'center', marginTop:40 }}>No NOTAMs found in plan data</div>
+        )}
+        {airports.map((apt) => (
+          <div key={apt.icao} style={{ marginBottom:28 }}>
+            <div style={{ marginBottom:10, paddingBottom:6, borderBottom:'1px solid #38bdf830' }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'#38bdf8', fontFamily:'monospace', lineHeight:1.5 }}>{apt.header}</div>
+              <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{apt.notams.length} NOTAM</div>
+            </div>
+            {apt.notams.map((n, i) => (
+              <div key={i} style={{ marginBottom:12, padding:'10px 12px', background:'#111827', border:'1px solid #1e293b', borderRadius:8 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                  <span style={{ fontSize:12, fontWeight:700, color:'#38bdf8', fontFamily:'monospace' }}>{n.notamNo}</span>
+                  {n.tag && <span style={{ fontSize:9, color:'#64748b', background:'#1e293b', padding:'2px 6px', borderRadius:4 }}>{n.tag}</span>}
+                  {(n.from || n.to) && (
+                    <span style={{ fontSize:9, color:'#475569', marginLeft:'auto', fontFamily:'monospace' }}>
+                      {fmtNotamTime(n.from)} → {fmtNotamTime(n.to)}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontFamily:'monospace', fontSize:12, lineHeight:1.7 }}>
+                  <ColoredNotam text={n.eText || n.qText} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── EFP Main ─────────────────────────────────────────────────
 function EFP({ setStatus, activePlan, rawText = '' }) {
   const [activeTab, setActiveTab] = usePersistedState('efb_efp_activeTab', 'ofp');
@@ -430,7 +579,7 @@ function EFP({ setStatus, activePlan, rawText = '' }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#0f172a' }}>
       <div style={{ display:'flex', background:'#1e293b', borderBottom:'1px solid #334155', flexShrink:0 }}>
-        {[{ id:'ofp', label:'📋 OFP' }, { id:'wxr', label:'🌤 WXR' }].map(t => (
+        {[{ id:'ofp', label:'📋 OFP' }, { id:'wxr', label:'🌤 WXR' }, { id:'notam', label:'📢 NOTAM' }].map(t => (
           <div key={t.id} onClick={() => setActiveTab(t.id)}
             style={{ padding:'12px 24px', fontSize:13, fontWeight:600, cursor:'pointer', color: activeTab === t.id ? '#38bdf8' : '#475569', borderBottom: activeTab === t.id ? '2px solid #38bdf8' : '2px solid transparent', display:'flex', alignItems:'center', gap:6 }}>
             {t.label}
@@ -447,6 +596,7 @@ function EFP({ setStatus, activePlan, rawText = '' }) {
 
       {activeTab === 'ofp' && <OFPView activePlan={activePlan} rawText={rawText} />}
       {activeTab === 'wxr' && <WXRView activePlan={activePlan} rawText={rawText} />}
+      {activeTab === 'notam' && <NOTAMView rawText={rawText} />}
     </div>
   );
 }

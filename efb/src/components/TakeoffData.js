@@ -53,12 +53,17 @@ function AtisRow({ label, value, onChange, photo, onPhoto }) {
   );
 }
 
-function RvsmRow({ label, value, onChange }) {
+function RvsmRow({ label, value, onChange, warn, warnMsg }) {
+  const bad = !!warn;
+  const col = bad ? '#ef4444' : '#4ade80';
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:'1px solid rgba(74,222,128,0.1)', minHeight:52 }}>
-      <span style={{ fontSize:13, color:'#94a3b8' }}>{label}</span>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:'1px solid rgba(74,222,128,0.1)', minHeight:52, background: bad ? 'rgba(239,68,68,0.08)' : 'transparent' }}>
+      <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+        <span style={{ fontSize:13, color:'#94a3b8' }}>{label}</span>
+        {bad && <span style={{ fontSize:10, color:'#ef4444', fontWeight:700 }}>⚠ {warnMsg}</span>}
+      </div>
       <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-        <input style={{ background:'#0f172a', border:'1.5px solid rgba(74,222,128,0.4)', borderRadius:10, padding:'9px 12px', fontSize:14, fontWeight:700, color:'#4ade80', fontFamily:'monospace', outline:'none', textAlign:'center', width:100, WebkitAppearance:'none' }}
+        <input style={{ background:'#0f172a', border:`1.5px solid ${bad ? '#ef4444' : 'rgba(74,222,128,0.4)'}`, borderRadius:10, padding:'9px 12px', fontSize:14, fontWeight:700, color:col, fontFamily:'monospace', outline:'none', textAlign:'center', width:100, WebkitAppearance:'none' }}
           value={value} onChange={e => onChange(e.target.value)} placeholder="——" />
         <span style={{ fontSize:12, color:'#475569' }}>ft</span>
       </div>
@@ -66,8 +71,17 @@ function RvsmRow({ label, value, onChange }) {
   );
 }
 
-function TakeoffData({ setStatus, activePlan }) {
+function TakeoffData({ setStatus, activePlan, rawText = '' }) {
   const dep = activePlan?.dep || 'LTAC';
+  // Kalkis meydani irtifasi (plandaki NavLog ilk noktasi: "3158ft")
+  const fieldElev = React.useMemo(() => {
+    if (!rawText) return null;
+    const navIdx = rawText.search(/MORA[\s\S]{0,80}?\b[A-Z]{4}\b/);
+    const searchArea = navIdx !== -1 ? rawText.slice(navIdx, navIdx + 300) : rawText;
+    const m = searchArea.match(/(\d{1,5})\s*ft/i);
+    return m ? parseInt(m[1]) : null;
+  }, [rawText]);
+  const RVSM_TOL = 75;
 
   const [icao,      setIcao]      = usePersistedState('efb_tkof_icao',      dep);
   const [selRwy,    setSelRwy]    = usePersistedState('efb_tkof_selRwy',    null);
@@ -243,14 +257,38 @@ function TakeoffData({ setStatus, activePlan }) {
 
       {/* RVSM */}
       <SectionTitle title="RVSM Ground Check" icon="📊" />
-      <div style={{ margin:'0 12px 16px', background:'rgba(74,222,128,0.04)', borderRadius:14, border:'1px solid rgba(74,222,128,0.2)', overflow:'hidden' }}>
-        <div style={{ padding:'10px 14px', borderBottom:'1px solid rgba(74,222,128,0.15)', fontSize:11, color:'#4ade80', fontWeight:600 }}>
-          Altimeter Cross-check
-        </div>
-        <RvsmRow label="PRI 1 (ALT)" value={rvsm1}   onChange={setRvsm1}   />
-        <RvsmRow label="SBY ALT"     value={rvsmSby} onChange={setRvsmSby} />
-        <RvsmRow label="PRI 2 (ALT)" value={rvsm2}   onChange={setRvsm2}   />
-      </div>
+      {(() => {
+        const vals = { rvsm1: parseInt(rvsm1), rvsmSby: parseInt(rvsmSby), rvsm2: parseInt(rvsm2) };
+        const chk = (v) => {
+          if (isNaN(v)) return null;
+          // 1) Meydan irtifasi ile karsilastir
+          if (fieldElev != null && Math.abs(v - fieldElev) > RVSM_TOL)
+            return `Field ${fieldElev}ft ±${RVSM_TOL} disi (${v > fieldElev ? '+' : ''}${v - fieldElev}ft)`;
+          return null;
+        };
+        // 2) Altimetreler arasi karsilastirma
+        const entered = [vals.rvsm1, vals.rvsmSby, vals.rvsm2].filter(v => !isNaN(v));
+        let spreadBad = false;
+        if (entered.length >= 2) {
+          const mx = Math.max(...entered), mn = Math.min(...entered);
+          if (mx - mn > RVSM_TOL) spreadBad = true;
+        }
+        const w1 = chk(vals.rvsm1)  || (spreadBad && !isNaN(vals.rvsm1)  ? `Altimetreler arasi >${RVSM_TOL}ft fark` : null);
+        const wS = chk(vals.rvsmSby)|| (spreadBad && !isNaN(vals.rvsmSby)? `Altimetreler arasi >${RVSM_TOL}ft fark` : null);
+        const w2 = chk(vals.rvsm2)  || (spreadBad && !isNaN(vals.rvsm2)  ? `Altimetreler arasi >${RVSM_TOL}ft fark` : null);
+        const anyBad = w1 || wS || w2;
+        return (
+          <div style={{ margin:'0 12px 16px', background: anyBad ? 'rgba(239,68,68,0.06)' : 'rgba(74,222,128,0.04)', borderRadius:14, border:`1px solid ${anyBad ? 'rgba(239,68,68,0.4)' : 'rgba(74,222,128,0.2)'}`, overflow:'hidden' }}>
+            <div style={{ padding:'10px 14px', borderBottom:`1px solid ${anyBad ? 'rgba(239,68,68,0.15)' : 'rgba(74,222,128,0.15)'}`, fontSize:11, color: anyBad ? '#ef4444' : '#4ade80', fontWeight:600, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span>Altimeter Cross-check</span>
+              <span style={{ fontSize:10, color:'#64748b' }}>Field Elev: {fieldElev != null ? `${fieldElev}ft` : '—'} · Tol ±{RVSM_TOL}ft</span>
+            </div>
+            <RvsmRow label="PRI 1 (ALT)" value={rvsm1}   onChange={setRvsm1}   warn={!!w1} warnMsg={w1} />
+            <RvsmRow label="SBY ALT"     value={rvsmSby} onChange={setRvsmSby} warn={!!wS} warnMsg={wS} />
+            <RvsmRow label="PRI 2 (ALT)" value={rvsm2}   onChange={setRvsm2}   warn={!!w2} warnMsg={w2} />
+          </div>
+        );
+      })()}
 
       <div style={{ margin:'0 12px' }}>
         <SyncButton />
