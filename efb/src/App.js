@@ -755,7 +755,7 @@ function App() {
       {activePage === 'flt-crew'  && <FlightCrew  setStatus={setStatusFltCrew}   activePlan={activePlan} />}
       {activePage === 'mandatory' && <Mandatory   setStatus={setStatusMandatory} activePlan={activePlan} />}
       {activePage === 'efp'       && <EFP         setStatus={setStatusEfp}       activePlan={activePlan} rawText={rawText} />}
-      {activePage === 'fuel'      && <Fuel        setStatus={setStatusFuel}      activePlan={activePlan} />}
+      {activePage === 'fuel'      && <Fuel        setStatus={setStatusFuel}      activePlan={activePlan} rawText={rawText} />}
       {activePage === 'accept'    && <AcceptSign  pageStatus={pageStatus} setStatus={setStatusAccept} activePlan={activePlan} />}
       {activePage === 'takeoff'   && <TakeoffData setStatus={setStatusTakeoff}   activePlan={activePlan} rawText={rawText} />}
       {activePage === 'navlog'    && <NavLog flightData={flightData} updateFlight={updateFlight} setStatus={setStatusNavlog} activePlan={activePlan} updateDivert={updateDivert} rawText={rawText} />}
