@@ -179,7 +179,6 @@ function FlightCrew({ setStatus, activePlan }) {
         <InfoRow label="FMS Ident"           value={fmsIdent} />
         <InfoRow label="Level / Speed"       value={levelSpeed} accent />
         <RouteRow  label="Route"    value={routeTxt} />
-        <RouteRow  label="ATC Flight Plan" value={atcFpl} copyOnly />
       </div>
 
       {/* Crew Assignment Section */}
