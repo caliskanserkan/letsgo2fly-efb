@@ -11,6 +11,33 @@ function InfoRow({ label, value, accent }) {
     </div>
   );
 }
+// ─── Route/ATC Row (kopyala butonlu) ──────────────────────────
+function RouteRow({ label, value, copyOnly }) {
+  const [copied, setCopied] = React.useState(false);
+  const has = value && value !== '—';
+  const doCopy = () => {
+    if (!has) return;
+    navigator.clipboard?.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'13px 16px', borderBottom:'1px solid #1e293b', minHeight:48, gap:12 }}>
+      <span style={{ fontSize:13, color:'#475569', flex:'0 0 auto', paddingTop:2 }}>{label}</span>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6, flex:1 }}>
+        {!copyOnly && has && (
+          <span style={{ fontSize:12, color:'#38bdf8', textAlign:'right', fontFamily:'monospace', lineHeight:1.5, wordBreak:'break-word' }}>{value}</span>
+        )}
+        {has && (
+          <button onClick={doCopy} style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontWeight:600, color: copied ? '#22c55e' : '#38bdf8', background:'transparent', border:`1px solid ${copied ? '#22c55e' : '#38bdf8'}`, borderRadius:6, padding:'5px 10px', cursor:'pointer' }}>
+            {copied ? '✓ Copied' : '⧉ Copy'}
+          </button>
+        )}
+        {!has && <span style={{ fontSize:13, color:'#475569' }}>—</span>}
+      </div>
+    </div>
+  );
+}
 
 // ─── Pilot Row ────────────────────────────────────────────────
 function PilotRow({ pilot, role, onSelect }) {
@@ -129,6 +156,10 @@ function FlightCrew({ setStatus, activePlan }) {
   const dep       = activePlan?.dep      || '—';
   const dest      = activePlan?.dest     || '—';
   const alternate = activePlan?.alternate|| '—';
+  const fmsIdent   = activePlan?.fms_ident   || '—';
+  const levelSpeed = activePlan?.level_speed || '—';
+  const routeTxt   = activePlan?.route       || '—';
+  const atcFpl     = activePlan?.atc_fpl     || '';
 
   return (
     <div style={{ background:'#0f172a', minHeight:'100%' }}>
@@ -139,12 +170,16 @@ function FlightCrew({ setStatus, activePlan }) {
       </div>
 
       <div style={{ margin:'0 12px 16px', background:'#1e293b', borderRadius:14, border:'1px solid #334155', overflow:'hidden' }}>
-        <InfoRow label="Flight ID / Log no." value={`${flightId} / FMS ${logNr}`} />
+        <InfoRow label="Flight ID / Log no." value={`${flightId} / ${logNr}`} />
         <InfoRow label="DOF / STD"           value={`${dof} · ${std} Z`} />
         <InfoRow label="Aircraft"            value={aircraft} accent />
         <InfoRow label="Departure"           value={dep} accent />
         <InfoRow label="Destination"         value={dest} accent />
         <InfoRow label="Alternate 1"         value={alternate} />
+        <InfoRow label="FMS Ident"           value={fmsIdent} />
+        <InfoRow label="Level / Speed"       value={levelSpeed} accent />
+        <RouteRow  label="Route"    value={routeTxt} />
+        <RouteRow  label="ATC Flight Plan" value={atcFpl} copyOnly />
       </div>
 
       {/* Crew Assignment Section */}

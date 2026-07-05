@@ -79,10 +79,11 @@ function parseAllSectors(text: string): any[] {
   }
 
   const ofpBlocks = [...text.matchAll(
-    /FMS IDENT=\S+\s+Log Nr\.?:?\s*\d+\s+Page\s+1\s+([A-Z]{4}-[A-Z]{4})\s+([A-Z0-9]+)([\s\S]*?)(?=FMS IDENT=|$)/g
+    /FMS IDENT=(\S+)\s+Log Nr\.?:?\s*\d+\s+Page\s+1\s+([A-Z]{4}-[A-Z]{4})\s+([A-Z0-9]+)([\s\S]*?)(?=FMS IDENT=|$)/g
   )];
   const blockMap: Record<string,string> = {};
-  for (const b of ofpBlocks) { blockMap[b[1]] = b[3]; }
+  const fmsMap: Record<string,string> = {};
+  for (const b of ofpBlocks) { blockMap[b[2]] = b[4]; fmsMap[b[2]] = b[1]; }
 
   const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
   const dof = text.match(/DOF\/(\d{2})(\d{2})(\d{2})/);
@@ -120,7 +121,46 @@ function parseAllSectors(text: string): any[] {
     sector.fob            = sector.total_fob ? `${parseInt(sector.total_fob).toLocaleString()} lb` : '';
     sector.tow            = block.match(/\bTOW\s+([\d]+)\s*Lbs/i)?.[1] || '';
     sector.zfw            = block.match(/\bZFW\s+([\d]+)\s*Lbs/i)?.[1] || '';
-    sector.route          = block.match(/ROUTE:\s*([^\n]+)/)?.[1]?.trim() || '';
+    // FPL (ICAO Field 15) — bu sector'in dep'ine uyan FPL blogundan rota + seviye/hiz cek.
+    // FPL yapisi: (FPL-...  -<dep><4d>  -<spd><lvl> ROUTE  -<dest><4d> <ALT>
+    // Guvenlik: dep ESLESMESI zorunlu (paket ucusta yanlis bacak alinmasin).
+    let fplRoute = '';
+    let fplLevelSpeed = '';
+    const fplBlocks = [...text.matchAll(/\(FPL-[\s\S]*?(?=\(FPL-|$)/g)];
+    for (const fb of fplBlocks) {
+      const fbText = fb[0];
+      // dep satiri: -LTFE1300 gibi (sector.dep ile basla)
+      const depRe = new RegExp(`^-${sector.dep}\\d{3,4}`, 'm');
+      if (!depRe.test(fbText)) continue;
+      // dest satiri kontrolu (dogru bacak): -LTAC0053 ...
+      const destRe = new RegExp(`^-${sector.dest}\\d{3,4}`, 'm');
+      if (!destRe.test(fbText)) continue;
+      // rota satiri: -N0485F330 KAVAK ... veya -M080F330 ...
+      const rmatch = fbText.match(/^-([NKM]\d{3,4})(F\d{3}|S\d{4}|A\d{3}|M\d{4})\s+([\s\S]*?)(?=\n-[A-Z]{4}\d)/m);
+      if (rmatch) {
+        const spd = rmatch[1];   // N0485
+        const lvl = rmatch[2];   // F330
+        fplRoute = rmatch[3].replace(/\s+/g, ' ').trim();
+        // Seviye: F330 -> FL330
+        let lvlStr = '';
+        if (lvl.startsWith('F')) lvlStr = 'FL' + lvl.slice(1);
+        else lvlStr = lvl;
+        // Hiz: N0485 -> 485 TAS
+        let spdStr = '';
+        if (spd.startsWith('N')) spdStr = parseInt(spd.slice(1)) + ' TAS';
+        else if (spd.startsWith('M')) spdStr = 'M.' + spd.slice(2);
+        else if (spd.startsWith('K')) spdStr = parseInt(spd.slice(1)) + ' KMH';
+        fplLevelSpeed = `${lvlStr} / ${spdStr}`;
+      }
+      // Tam ATC FPL blogu (oldugu gibi, parantezden parantize)
+      const fplFull = fbText.match(/\(FPL-[\s\S]*?\)/);
+      sector.atc_fpl = fplFull ? fplFull[0].trim() : fbText.trim();
+      break;
+    }
+    // Rota: FPL varsa onu kullan (temiz noktalar), yoksa ROUTE: fallback
+    sector.route          = fplRoute || (block.match(/ROUTE:\s*([\s\S]*?)(?=\n\s*FUEL\s+TIME|\n\s*1\s*ST\s+ALT|\n\s*Take Off|\n\s*\n|$)/)?.[1]?.replace(/\s+/g, ' ').trim() || '');
+    sector.level_speed    = fplLevelSpeed;
+    sector.fms_ident      = fmsMap[routeKey] || '';
     const alt1 = block.match(/1\s*ST\s+ALT\s+([A-Z]{4})/)?.[1];
     const alt2 = text.match(new RegExp(`-${sector.dest}\\s*\\d{4}\\s+([A-Z]{4})`))?.[1];
     const alt3 = text.match(new RegExp(`${sector.dep}\\s*\\d{4}\\s+([A-Z]{4})`))?.[1];
@@ -194,7 +234,7 @@ Deno.serve(async (req) => {
         const { data: plan, error: insErr } = await admin.from("plans").insert({
           dispatch_no: dispatchNo, subject: filename, dep: s.dep, dest: s.dest, date: s.date,
           std: s.std, eta: s.eta, ete: s.ete, fob: s.fob, ac_type: s.ac_type, reg: s.reg,
-          route: s.route, operator: s.operator, callsign: s.callsign, alternate: s.alternate,
+          route: s.route, fms_ident: s.fms_ident, level_speed: s.level_speed, atc_fpl: s.atc_fpl, operator: s.operator, callsign: s.callsign, alternate: s.alternate,
           trip_fuel: s.trip_fuel, alternate_fuel: s.alternate_fuel, reserve_fuel: s.reserve_fuel,
           tow: s.tow, zfw: s.zfw, pax: s.pax, cruise_fl: s.cruise_fl, log_nr: s.log_nr,
           status: "available", customer_id: callerCustomerId,
