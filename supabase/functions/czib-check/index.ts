@@ -196,14 +196,31 @@ serve(async (req: Request) => {
 
     // ── 6) Durum ──
     // INCONCLUSIVE her zaman NO_CONFLICT'ten oncelikli. Eslesme varsa CONFLICT.
-    let status: string;
-    if (conflicts.length > 0) status = "CONFLICT";
-    else if (warnings.length > 0) status = "INCONCLUSIVE";
-    else status = "NO_CONFLICT";
+    // Veri bayatligi: czib-sync gunluk cron ile calisir. Ama crona GUVENMEYIZ:
+    // cron duserse, EASA formati degisirse veya ag koparsa tablo sessizce eskir.
+    // Eski veriye karsi yesil vermek, hic kontrol etmemekten daha tehlikelidir
+    // (pilot kontrol edildigini sanir). Esik asilirsa durum INCONCLUSIVE olur.
+    const MAX_AGE_HOURS = 48;
 
     const czibFetchedAt = active.length > 0
       ? active.map((z) => z.fetched_at).sort().reverse()[0]
       : null;
+
+    if (czibFetchedAt) {
+      const ageH = Math.floor((Date.now() - new Date(czibFetchedAt).getTime()) / 3_600_000);
+      if (ageH >= MAX_AGE_HOURS) {
+        const days = Math.floor(ageH / 24);
+        warnings.push(
+          `CZIB data is ${days} day(s) old — EASA bulletins may have changed since. ` +
+          `Verify against the EASA publication.`
+        );
+      }
+    }
+
+    let status: string;
+    if (conflicts.length > 0) status = "CONFLICT";
+    else if (warnings.length > 0) status = "INCONCLUSIVE";
+    else status = "NO_CONFLICT";
 
     // ── 7) Snapshot (EASA denetim izi) ──
     const { error: snapErr } = await admin.from("czib_snapshots").upsert({
