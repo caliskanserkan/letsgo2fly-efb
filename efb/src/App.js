@@ -185,7 +185,6 @@ function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate, onRe
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
             <span style={{ fontSize:10, color:'#555', fontWeight:700 }}>🔒 Read Only</span>
             {onReport && <button onClick={onReport} style={{ background:'rgba(56,189,248,0.12)', border:'1px solid #38bdf8', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#38bdf8', cursor:'pointer', fontFamily:'inherit' }}>📄 Report</button>}
-            <button onClick={onOpen} style={{ background:'rgba(100,100,100,0.15)', border:'1px solid #555', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#888', cursor:'pointer', fontFamily:'inherit' }}>View →</button>
           </div>
         )}
         {plan.archived_at && archived && (
@@ -359,7 +358,7 @@ function parseWxrChartsFromRawText(rawText) {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-function Dashboard({ onOpen, onOpenArchived, user, myProfile, onLogout, onAdmin, onActivate, onDeactivate }) {
+function Dashboard({ onOpen, user, myProfile, onLogout, onAdmin, onActivate, onDeactivate }) {
   const [tab, setTab]                       = useState('active');
   const [availablePlans, setAvailablePlans] = useState([]);
   const [activePlans, setActivePlans]       = useState([]);
@@ -560,21 +559,6 @@ function Dashboard({ onOpen, onOpenArchived, user, myProfile, onLogout, onAdmin,
             {archivedPlans.map((p, i) => (
               <PlanCard key={i} plan={planCard(p)} active={false} archived={true}
                 onReport={() => setReportPlan(planCard(p))}
-                onOpen={async () => {
-                  try {
-                    const { data: version } = await supabase
-                      .from('plan_versions')
-                      .select('raw_text')
-                      .eq('plan_id', p.id)
-                      .order('version_no', { ascending: false })
-                      .limit(1)
-                      .single();
-                    if (version?.raw_text) {
-                      try { localStorage.setItem('efb_rawText', version.raw_text); } catch {}
-                    }
-                  } catch {}
-                  onOpenArchived({ ...p, readOnly: true });
-                }}
               />
             ))}
           </>
@@ -721,10 +705,6 @@ function App() {
     <Dashboard
       myProfile={myProfile}
       onOpen={() => navigate('flt-crew')}
-      onOpenArchived={(plan) => {
-        setActivePlan(plan);
-        navigate('flt-crew');
-      }}
       user={user}
       onLogout={handleLogout}
       onAdmin={() => { if (myProfile?.is_super_admin) setPage('superadmin'); else if (['admin','admin_pilot'].includes(myProfile?.role)) setPage('admin'); }}
