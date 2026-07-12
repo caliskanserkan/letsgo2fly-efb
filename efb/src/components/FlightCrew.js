@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { supabase, logEvent } from '../supabaseClient';
+import CzibCheck from './CzibCheck';
 
 // ─── Info Row ─────────────────────────────────────────────────
 function InfoRow({ label, value, accent }) {
@@ -180,6 +181,9 @@ function FlightCrew({ setStatus, activePlan }) {
         <InfoRow label="Level / Speed"       value={levelSpeed} accent />
         <RouteRow  label="Route"    value={routeTxt} />
       </div>
+
+      {/* EASA CZIB — catisma bolgesi kontrolu (ROUTE altinda) */}
+      <CzibCheck activePlan={activePlan} />
 
       {/* Crew Assignment Section */}
       <div style={{ padding:'0 16px 8px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>

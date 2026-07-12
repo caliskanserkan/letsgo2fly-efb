@@ -423,6 +423,9 @@ Deno.serve(async (req) => {
       flight_time: hhmm(airborneMinutes),
       is_divert: isDivert,
       destination: destIcao,
+      departure: plan.dep ?? null,
+      reg: plan.reg ?? null,
+      flight_date: plan.date ?? null,
       report_pdf_path: reportPath,
     });
   } catch (e) {
