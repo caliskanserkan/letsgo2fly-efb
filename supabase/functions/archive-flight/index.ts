@@ -279,6 +279,8 @@ Deno.serve(async (req) => {
       };
     });
 
+    // regen modunda ARSIV VERISI DEGISMEZ (EASA) — sadece PDF yeniden uretilir
+    if (!regenOnly) {
     const { error: frErr } = await admin.from("flt_report").upsert({
       plan_id: String(planId),
       pf_id: pfPilot, pm_id: pmPilot,
@@ -331,6 +333,7 @@ Deno.serve(async (req) => {
       archived_at: new Date().toISOString(),
     }, { onConflict: "plan_id" });
     if (frErr) console.warn("[archive] flt_report:", frErr.message);
+    }
 
     // ── 11b) RAPOR PDF (sunucuda uretilir — web + iOS ayni dosyayi gosterir) ──
     let reportPath: string | null = null;
@@ -374,13 +377,14 @@ Deno.serve(async (req) => {
           // efb_documents'a REPORT olarak kaydet (web + iOS ayni akisla erisir)
           await admin.from("efb_documents").delete()
             .eq("plan_id", planId).eq("section", "REPORT");
-          await admin.from("efb_documents").insert({
-            plan_id: planId, customer_id: callerCustomerId,
+          const { error: docErr } = await admin.from("efb_documents").insert({
+            plan_id: planId,
             section: "REPORT", file_name: fname, file_path: reportPath,
             mime_type: "application/pdf", file_size: pdfBytes.byteLength,
             uploaded_by: callerId, uploaded_at: new Date().toISOString(),
-            archived_flight_id: afId,
+            archived_flight_id: afId, status: "CURRENT",
           });
+          if (docErr) console.warn("[archive] report doc insert:", docErr.message);
         }
       }
     } catch (e) {
