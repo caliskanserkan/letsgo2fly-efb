@@ -53,23 +53,22 @@ function getMaxFDP(reportTimeMins, sectorCount) {
 
 export default function FlightReport({ plan, onClose }) {
   const [logs,        setLogs]        = useState([]);
-  const [wx,          setWx]          = useState([]);
   const [homeBase,    setHomeBase]    = useState(null);
   const [pfHomeBase,  setPfHomeBase]  = useState(null);
   const [pmHomeBase,  setPmHomeBase]  = useState(null);
   const [navlogRows,  setNavlogRows]  = useState([]);
   const [fltReport,   setFltReport]   = useState(null);
+  const [signedUrls,  setSignedUrls]  = useState({});
   const [loading,     setLoading]     = useState(true);
 
   useEffect(() => {
     if (!plan?.id) return;
     Promise.all([
       supabase.from('flight_logs').select('action,details,created_at').eq('plan_id', plan.id).order('created_at',{ascending:true}).then(({data})=>data||[]),
-      supabase.from('wx_snapshots').select('icao,type,raw_text,fetched_at').eq('plan_id', plan.id).order('fetched_at',{ascending:false}).then(({data})=>data||[]),
       supabase.from('home_bases').select('icao').eq('reg', plan.reg).limit(1).then(({data})=>data||[]),
       supabase.from('navlog_entries').select('*').eq('plan_id', plan.id).order('seq',{ascending:true}).then(({data})=>data||[]),
       supabase.from('flt_report').select('*').eq('plan_id', plan.id).limit(1).then(({data})=>data||[]),
-    ]).then(([logsData, wxData, hbData, navData, fltReportData]) => {
+    ]).then(([logsData, hbData, navData, fltReportData]) => {
       setFltReport(fltReportData?.[0] || null);
       setLogs(logsData || []);
       // PF ve PM pilot ID'lerini CREW_ASSIGNED log'undan al
@@ -84,9 +83,6 @@ export default function FlightReport({ plan, onClose }) {
         setPfHomeBase(pfHB?.[0]?.icao || null);
         setPmHomeBase(pmHB?.[0]?.icao || null);
       });
-      const wxMap = {};
-      (wxData || []).forEach(r => { const k=`${r.icao}_${r.type}`; if(!wxMap[k]) wxMap[k]=r; });
-      setWx(Object.values(wxMap));
       setHomeBase(hbData?.[0]?.icao || null);
       setNavlogRows(navData || []);
       setLoading(false);
@@ -98,24 +94,60 @@ export default function FlightReport({ plan, onClose }) {
     return found.length ? found[found.length-1].details : null;
   }, [logs]);
 
-  // Crew
-  const crewLog     = getLog('CREW_ASSIGNED');
-  const pfName      = crewLog?.pf_name || plan.pf_pilot || '—';
-  const pmName      = crewLog?.pm_name || plan.pm_pilot || '—';
+  // VERI KAYNAGI: flt_report birincil, flight_logs fallback (eski web ucuslari)
+  const FR = fltReport;
 
-  // Zamanlar
-  const offBlock  = getLog('OFF_BLOCKS')?.time  || '—';
-  const toTime    = getLog('TAKEOFF')?.time      || '—';
-  const toFuel    = getLog('TAKEOFF')?.fuel_lb   || '—';
-  const landTime  = getLog('LANDING')?.time      || '—';
-  const onBlock   = getLog('ON_BLOCKS')?.time    || '—';
-  const remFuel   = getLog('FUEL_REMAINING')?.fuel_lb || '—';
+  // efb-documents bucket PRIVATE -> signed URL (belgeler + imzalar)
+  useEffect(() => {
+    if (!FR) return;
+    const paths = [];
+    (Array.isArray(FR.documents) ? FR.documents : []).forEach(d => { if (d && d.file_path) paths.push(d.file_path); });
+    if (FR.mandatory && FR.mandatory.signature_url) paths.push(FR.mandatory.signature_url);
+    if (FR.accept && FR.accept.signature_url) paths.push(FR.accept.signature_url);
+    if (!paths.length) return;
+    supabase.storage.from('efb-documents').createSignedUrls(paths, 3600)
+      .then(({ data }) => {
+        const map = {};
+        (data || []).forEach(r => { if (r && r.path && r.signedUrl) map[r.path] = r.signedUrl; });
+        setSignedUrls(map);
+      })
+      .catch(() => {});
+  }, [FR]);
 
-  const blockTime  = diffMins(offBlock, onBlock);
-  const flightTime = diffMins(toTime, landTime);
-  const tripBurn   = (toFuel!=='—'&&remFuel!=='—') ? parseInt(toFuel.replace(/,/g,''))-parseInt(remFuel.replace(/,/g,'')) : null;
-  const planBurn   = plan?.trip_fuel ? parseInt(plan.trip_fuel) : null;
-  const burnDiff   = (tripBurn&&planBurn) ? planBurn-tripBurn : null;
+  const numLb = (v) => {
+    if (v === null || v === undefined || v === '' || v === '\u2014') return null;
+    const n = parseInt(String(v).replace(/,/g,''), 10);
+    return Number.isFinite(n) ? n : null;
+  };
+  const pick = (a, b) => (a !== null && a !== undefined && a !== '') ? a : (b || '\u2014');
+  const crewLog = getLog('CREW_ASSIGNED');
+  const pfName  = pick(FR?.pf_name, crewLog?.pf_name || plan.pf_pilot);
+  const pmName  = pick(FR?.pm_name, crewLog?.pm_name || plan.pm_pilot);
+  const sigName = (id) => {
+    if (!id) return '—';
+    if (id === FR?.crew?.pf?.id) return FR.crew.pf.name || id;
+    if (id === FR?.crew?.pm?.id) return FR.crew.pm.name || id;
+    return id;
+  };
+  const pfHB    = FR?.crew?.pf?.home_base || pfHomeBase;
+  const pmHB    = FR?.crew?.pm?.home_base || pmHomeBase;
+  const depIcao      = FR?.dep_icao  || plan.dep;
+  const destIcao     = FR?.dest_icao || plan.dest;
+  const isDivert     = !!FR?.is_divert;
+  const divertReason = FR?.divert_reason || null;
+  const offBlock = pick(FR?.off_block,    getLog('OFF_BLOCKS')?.time);
+  const toTime   = pick(FR?.takeoff_time, getLog('TAKEOFF')?.time);
+  const landTime = pick(FR?.landing_time, getLog('LANDING')?.time);
+  const onBlock  = pick(FR?.on_block,     getLog('ON_BLOCKS')?.time);
+  const toFuelN  = numLb(FR?.takeoff_fuel)   ?? numLb(getLog('TAKEOFF')?.fuel_lb);
+  const remFuelN = numLb(FR?.remaining_fuel) ?? numLb(getLog('FUEL_REMAINING')?.fuel_lb);
+  const toFuel   = toFuelN  !== null ? toFuelN  : '\u2014';
+  const remFuel  = remFuelN !== null ? remFuelN : '\u2014';
+  const blockTime  = (FR?.block_minutes    ?? null) !== null ? FR.block_minutes    : diffMins(offBlock, onBlock);
+  const flightTime = (FR?.airborne_minutes ?? null) !== null ? FR.airborne_minutes : diffMins(toTime, landTime);
+  const tripBurn   = (toFuelN !== null && remFuelN !== null) ? toFuelN - remFuelN : null;
+  const planBurn   = numLb(FR?.fuel?.plan_trip) ?? numLb(plan?.trip_fuel);
+  const burnDiff   = (tripBurn !== null && planBurn !== null) ? planBurn - tripBurn : null;
 
   // EASA FTL — pilot bazlı hesaplama
   const sectorCount = 1;
@@ -127,9 +159,9 @@ export default function FlightReport({ plan, onClose }) {
       (pilotHomeBase === 'LTAC' && icao === 'ESB') ||
       (pilotHomeBase === 'ESB'  && icao === 'LTAC')
     );
-    const depHome  = isHome(plan?.dep);
-    const destHome = isHome(plan?.dest);
-    const reportOffset = depHome ? 75 : 60;
+    const depHome  = isHome(depIcao);
+    const destHome = isHome(destIcao);
+    const reportOffset = 60; // EASA: her ucus icin STD - 01:00
     const reportTime   = plan?.std && plan.std !== '—' ? fromMins((toMins(plan.std)||0) - reportOffset) : '—';
     const fdpMins      = (reportTime !== '—' && dutyEnd !== '—') ? diffMins(reportTime, dutyEnd) : null;
     const reportMins   = reportTime !== '—' ? toMins(reportTime) : null;
@@ -141,8 +173,8 @@ export default function FlightReport({ plan, onClose }) {
     return { depHome, destHome, reportTime, reportOffset, fdpMins, maxFdpMins, fdpOk, minRestMins, earliestNext };
   };
 
-  const pfFTL = calcFTL(pfHomeBase);
-  const pmFTL = calcFTL(pmHomeBase);
+  const pfFTL = calcFTL(pfHB);
+  const pmFTL = calcFTL(pmHB);
 
   // Geriye dönük uyumluluk için (eski tek kişilik hesap — PF baz alınır)
   const isHomeBase = (icao) => pfFTL.depHome || pfFTL.destHome;
@@ -156,9 +188,6 @@ export default function FlightReport({ plan, onClose }) {
   const earliestNextDuty = pfFTL.earliestNext;
 
 
-  // WX
-  const wxByIcao = {};
-  wx.forEach(r => { if(!wxByIcao[r.icao]) wxByIcao[r.icao]={}; wxByIcao[r.icao][r.type]=r.raw_text; });
 
   const S = {
     overlay:{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.85)',zIndex:200,overflowY:'auto'},
@@ -238,16 +267,31 @@ export default function FlightReport({ plan, onClose }) {
         {/* NAV LOG — flt_report.navlog'dan */}
         {(()=>{
           const navlogData = fltReport?.navlog || [];
-          const rows = navlogData.map(row => ({
-            wpt: row.wpt,
-            type: row.type?.toUpperCase(),
-            eta: (row.eta && row.eta !== '—') ? row.eta : '—',
-            ata: row.ata || '—',
-            fuel: row.fuel_actual ? parseInt(row.fuel_actual).toLocaleString()+' lb' : '—',
-            rvsm: row.rvsm || '—',
-            bg: row.type==='dep'?'#fef9ec': row.type==='dest'?'#f0fdf4':'#fff',
-            color: row.type==='dep'?'#b45309': row.type==='dest'?'#166534':'#1e40af',
-          }));
+          // Divert noktasindan SONRAKI planli WPT'ler uculmadi (dest + alt dahil)
+          const divertIdx = navlogData.findIndex(r => r.type === 'divert-arpt');
+          const rows = navlogData.map((row, idx) => {
+            const notFlown = divertIdx >= 0 && idx > divertIdx;
+            const isDiv    = row.type === 'divert-arpt';
+            const isPlt    = row.custom === true && !isDiv;
+            return {
+              wpt: row.wpt,
+              type: row.type?.toUpperCase(),
+              eta: (row.eta && row.eta !== '—') ? row.eta : '—',
+              ata: row.ata || '—',
+              fuel: row.fuel_actual ? parseInt(row.fuel_actual).toLocaleString()+' lb' : '—',
+              rvsm: row.rvsm || '—',
+              notFlown, isDiv, isPlt,
+              bg: notFlown ? '#f8fafc'
+                : isDiv    ? '#fef2f2'
+                : isPlt    ? '#faf5ff'
+                : row.type==='dep'  ? '#fef9ec'
+                : row.type==='dest' ? '#f0fdf4' : '#fff',
+              color: isDiv ? '#dc2626'
+                : isPlt    ? '#7c3aed'
+                : row.type==='dep'  ? '#b45309'
+                : row.type==='dest' ? '#166534' : '#1e40af',
+            };
+          });
           if(!rows.length) return null;
           return (
             <div style={S.card}>
@@ -263,9 +307,13 @@ export default function FlightReport({ plan, onClose }) {
                   </thead>
                   <tbody>
                     {rows.map((row,i)=>(
-                      <tr key={i} style={{background:row.bg}}>
-                        <td style={{padding:'6px 10px',fontWeight:700,color:row.color,borderBottom:'1px solid #f1f5f9'}}>{row.wpt}</td>
-                        <td style={{padding:'6px 10px',color:'#94a3b8',fontSize:9,borderBottom:'1px solid #f1f5f9'}}>{row.type}</td>
+                      <tr key={i} style={{background:row.bg,opacity:row.notFlown?0.4:1}}>
+                        <td style={{padding:'6px 10px',fontWeight:700,color:row.color,borderBottom:'1px solid #f1f5f9',textDecoration:row.notFlown?'line-through':'none'}}>
+                          {row.wpt}
+                          {row.isDiv && <span style={{marginLeft:6,fontSize:8,fontWeight:700,color:'#dc2626',border:'1px solid #dc2626',borderRadius:3,padding:'1px 3px'}}>DIVERT</span>}
+                          {row.isPlt && <span style={{marginLeft:6,fontSize:8,fontWeight:700,color:'#7c3aed',border:'1px solid #7c3aed',borderRadius:3,padding:'1px 3px'}}>+PLT</span>}
+                        </td>
+                        <td style={{padding:'6px 10px',color:'#94a3b8',fontSize:9,borderBottom:'1px solid #f1f5f9'}}>{row.notFlown?'NOT FLOWN':row.type}</td>
                         <td style={{padding:'6px 10px',color:'#94a3b8',borderBottom:'1px solid #f1f5f9'}}>{row.eta}</td>
                         <td style={{padding:'6px 10px',fontWeight:700,color:'#1e293b',borderBottom:'1px solid #f1f5f9'}}>{row.ata}</td>
                         <td style={{padding:'6px 10px',color:'#1e293b',borderBottom:'1px solid #f1f5f9'}}>{row.fuel}</td>
@@ -279,22 +327,110 @@ export default function FlightReport({ plan, onClose }) {
           );
         })()}
 
-        {/* WX */}
-        {Object.keys(wxByIcao).length>0&&(
+        {/* T/O & LANDING */}
+        {(FR?.takeoff || FR?.landing) && (
           <div style={S.card}>
-            <div style={S.hdr}>WX — {Object.keys(wxByIcao).join(' / ')}</div>
-            <div style={{padding:'10px 14px',display:'flex',flexDirection:'column',gap:8}}>
-              {Object.entries(wxByIcao).map(([icao,data])=>(
-                <div key={icao}>
-                  {data.METAR&&<><div style={{fontSize:10,color:'#64748b',fontWeight:700,marginBottom:3}}>{icao} METAR</div><div style={{fontSize:10,color:'#1e293b',background:'#f8fafc',padding:'6px 10px',borderRadius:4,border:'1px solid #e2e8f0',fontFamily:'monospace',lineHeight:1.6,marginBottom:6}}>{data.METAR}</div></>}
-                  {data.TAF&&<><div style={{fontSize:10,color:'#64748b',fontWeight:700,marginBottom:3}}>{icao} TAF</div><div style={{fontSize:10,color:'#1e293b',background:'#f8fafc',padding:'6px 10px',borderRadius:4,border:'1px solid #e2e8f0',fontFamily:'monospace',lineHeight:1.6,marginBottom:6}}>{data.TAF}</div></>}
-                </div>
-              ))}
+            <div style={S.hdr}>T/O &amp; LANDING DATA</div>
+            {FR?.takeoff && (<>
+              <div style={{background:'#f8fafc',padding:'4px 14px',borderTop:'1px solid #e2e8f0'}}><span style={{fontSize:9,fontWeight:700,color:'#b45309'}}>TAKEOFF — {FR.takeoff.icao||depIcao}</span></div>
+              <div style={S.grid('1fr 1fr 1fr 1fr 1fr')}>
+                <div style={S.cell(true,false)}><div style={S.lbl}>RWY</div><div style={S.val}>{FR.takeoff.rwy||'\u2014'}</div></div>
+                <div style={S.cell(true,false)}><div style={S.lbl}>V1</div><div style={S.val}>{FR.takeoff.v1||'\u2014'}</div></div>
+                <div style={S.cell(true,false)}><div style={S.lbl}>VR</div><div style={S.val}>{FR.takeoff.vr||'\u2014'}</div></div>
+                <div style={S.cell(true,false)}><div style={S.lbl}>V2</div><div style={S.val}>{FR.takeoff.v2||'\u2014'}</div></div>
+                <div style={S.cell(false,false)}><div style={S.lbl}>TRIM</div><div style={S.val}>{FR.takeoff.trim||'\u2014'}</div></div>
+                <div style={S.cell(true,true)}><div style={S.lbl}>SID</div><div style={S.val}>{FR.takeoff.sid||'\u2014'}</div></div>
+                <div style={S.cell(true,true)}><div style={S.lbl}>REQ RW</div><div style={S.val}>{FR.takeoff.req_rw||'\u2014'}</div></div>
+                <div style={S.cell(true,true)}><div style={S.lbl}>RWY LEN</div><div style={S.val}>{FR.takeoff.rwy_len||'\u2014'}</div></div>
+                <div style={S.cell(true,true)}><div style={S.lbl}>ATIS</div><div style={S.val}>{FR.takeoff.atis||'\u2014'}</div></div>
+                <div style={S.cell(false,true)}><div style={S.lbl}>RVSM (P1/SBY/P2)</div><div style={{...S.val,fontSize:10}}>{[FR.takeoff.rvsm?.pri1,FR.takeoff.rvsm?.sby,FR.takeoff.rvsm?.pri2].map(x=>x||'\u2014').join(' / ')}</div></div>
+              </div>
+            </>)}
+            {FR?.landing && (<>
+              <div style={{background:'#f8fafc',padding:'4px 14px',borderTop:'2px solid #e2e8f0'}}><span style={{fontSize:9,fontWeight:700,color:'#166534'}}>LANDING — {FR.landing.icao||destIcao}</span>{FR.landing.is_divert&&<span style={{fontSize:9,color:'#ef4444',marginLeft:8,fontWeight:700}}>DIVERT</span>}</div>
+              <div style={S.grid('1fr 1fr 1fr 1fr 1fr')}>
+                <div style={S.cell(true,false)}><div style={S.lbl}>RWY</div><div style={S.val}>{FR.landing.rwy||'\u2014'}</div></div>
+                <div style={S.cell(true,false)}><div style={S.lbl}>VREF</div><div style={S.val}>{FR.landing.vref||'\u2014'}</div></div>
+                <div style={S.cell(true,false)}><div style={S.lbl}>QNH</div><div style={S.val}>{FR.landing.qnh||'\u2014'}</div></div>
+                <div style={S.cell(true,false)}><div style={S.lbl}>REQ LND</div><div style={S.val}>{FR.landing.req_lnd||'\u2014'}</div></div>
+                <div style={S.cell(false,false)}><div style={S.lbl}>ACTUAL LW</div><div style={S.val}>{FR.landing.actual_lw||'\u2014'}</div></div>
+                <div style={S.cell(true,true)}><div style={S.lbl}>RWY COND</div><div style={S.val}>{FR.landing.rwy_cond||'\u2014'}</div></div>
+                <div style={S.cell(true,true)}><div style={S.lbl}>RWY LEN</div><div style={S.val}>{FR.landing.rwy_len||'\u2014'}</div></div>
+                <div style={S.cell(false,true)}><div style={S.lbl}>ATIS</div><div style={S.val}>{FR.landing.arr_atis||FR.landing.atis||'\u2014'}</div></div>
+              </div>
+            </>)}
+          </div>
+        )}
+
+        {/* SIGNATURES */}
+        {(FR?.mandatory || FR?.accept) && (
+          <div style={S.card}>
+            <div style={S.hdr}>SIGNATURES</div>
+            <div style={S.grid('1fr 1fr')}>
+              <div style={S.cell(true,false)}>
+                <div style={S.lbl}>Mandatory Check — {sigName(FR?.mandatory?.signed_by)}</div>
+                {FR?.mandatory?.signature_url
+                  ? <img src={signedUrls[FR.mandatory.signature_url]} alt="mandatory signature" style={{height:44,marginTop:4,background:'#fff'}} />
+                  : <div style={S.val}>Not signed</div>}
+                <div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>{FR?.mandatory?.signed_at ? new Date(FR.mandatory.signed_at).toUTCString() : ''}</div>
+              </div>
+              <div style={S.cell(false,false)}>
+                <div style={S.lbl}>Plan Accepted (PIC) — {FR?.accept?.pic_id ? sigName(FR.accept.pic_id) : pfName}</div>
+                {FR?.accept?.signature_url
+                  ? <img src={signedUrls[FR.accept.signature_url]} alt="accept signature" style={{height:44,marginTop:4,background:'#fff'}} />
+                  : <div style={S.val}>{FR?.accept?.accepted ? 'Accepted' : 'Not signed'}</div>}
+                <div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>{FR?.accept?.signed_at ? new Date(FR.accept.signed_at).toUTCString() : ''}</div>
+              </div>
             </div>
           </div>
         )}
 
-        
+        {/* DOCUMENTS */}
+        {Array.isArray(FR?.documents) && FR.documents.length>0 && (
+          <div style={S.card}>
+            <div style={S.hdr}>DOCUMENTS ({FR.documents.length})</div>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:11,fontFamily:'monospace'}}>
+              <thead><tr style={{background:'#f1f5f9'}}>
+                {['SECTION','FILE','SIZE','UPLOADED'].map(h=>(<th key={h} style={{padding:'6px 10px',textAlign:'left',fontSize:9,color:'#64748b',fontWeight:700,borderBottom:'1px solid #e2e8f0'}}>{h}</th>))}
+              </tr></thead>
+              <tbody>
+                {FR.documents.map((d,i)=>(
+                  <tr key={d.id||i}>
+                    <td style={{padding:'6px 10px',fontWeight:700,color:'#1e40af',fontSize:10,borderBottom:'1px solid #f1f5f9'}}>{(d.section||'\u2014').toUpperCase()}</td>
+                    <td style={{padding:'6px 10px',color:'#1e293b',borderBottom:'1px solid #f1f5f9'}}>
+                      <a href={signedUrls[d.file_path]} target="_blank" rel="noopener noreferrer" style={{color:'#1e40af'}}>{d.file_name}</a>
+                    </td>
+                    <td style={{padding:'6px 10px',color:'#64748b',fontSize:10,borderBottom:'1px solid #f1f5f9'}}>{d.file_size?Math.round(d.file_size/1024)+' KB':'\u2014'}</td>
+                    <td style={{padding:'6px 10px',color:'#94a3b8',fontSize:10,borderBottom:'1px solid #f1f5f9'}}>{d.uploaded_at?new Date(d.uploaded_at).toISOString().slice(0,16).replace('T',' '):'\u2014'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {FR.documents.filter(d=>(d.mime_type||'').includes('pdf')).map((d,i)=>(
+              <div key={'emb'+i} style={{borderTop:'1px solid #e2e8f0'}}>
+                <div style={{padding:'6px 14px',background:'#f8fafc',fontSize:9,fontWeight:700,color:'#64748b'}}>{(d.section||'').toUpperCase()} — {d.file_name}</div>
+                <iframe
+                  title={d.file_name}
+                  src={signedUrls[d.file_path]}
+                  style={{width:'100%',height:900,border:'none',display:'block',background:'#fff'}}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* AIRCRAFT / ENGINE HOURS */}
+        {FR?.ac_hours && (
+          <div style={S.card}>
+            <div style={S.hdr}>AIRCRAFT &amp; ENGINE HOURS (after this flight)</div>
+            <div style={S.grid('1fr 1fr 1fr 1fr')}>
+              <div style={S.cell(true,false)}><div style={S.lbl}>Airframe</div><div style={S.val}>{FR.ac_hours.airframe||'\u2014'}</div></div>
+              <div style={S.cell(true,false)}><div style={S.lbl}>Engine 1</div><div style={S.val}>{FR.ac_hours.eng1||'\u2014'}</div></div>
+              <div style={S.cell(true,false)}><div style={S.lbl}>Engine 2</div><div style={S.val}>{FR.ac_hours.eng2||'\u2014'}</div></div>
+              <div style={S.cell(false,false)}><div style={S.lbl}>Cycles</div><div style={S.val}>{FR.ac_hours.cycles ?? '\u2014'}</div></div>
+            </div>
+          </div>
+        )}
 
         {/* EASA FTL */}
         <div style={S.card}>
@@ -305,17 +441,17 @@ export default function FlightReport({ plan, onClose }) {
             <div style={S.cell(false,false)}><div style={S.lbl}>Sectors</div><div style={S.val}>{sectorCount}</div></div>
           </div>
           {/* PF */}
-          <div style={{borderTop:'2px solid #e2e8f0',background:'#f8fafc',padding:'4px 14px'}}><span style={{fontSize:9,fontWeight:700,color:'#1e40af'}}>PF — {pfName}</span>{pfHomeBase?<span style={{fontSize:9,color:'#94a3b8',marginLeft:8}}>Home: {pfHomeBase}</span>:<span style={{fontSize:9,color:'#ef4444',marginLeft:8}}>No home base set</span>}</div>
+          <div style={{borderTop:'2px solid #e2e8f0',background:'#f8fafc',padding:'4px 14px'}}><span style={{fontSize:9,fontWeight:700,color:'#1e40af'}}>PF — {pfName}</span>{pfHB?<span style={{fontSize:9,color:'#94a3b8',marginLeft:8}}>Home: {pfHB}</span>:<span style={{fontSize:9,color:'#ef4444',marginLeft:8}}>No home base set</span>}</div>
           <div style={S.grid('1fr 1fr 1fr 1fr')}>
-            <div style={S.cell(true,false)}><div style={S.lbl}>Report Time</div><div style={S.val}>{pfFTL.reportTime} UTC</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>{pfFTL.depHome?'Home −01:15':'Away −01:00'}</div></div>
+            <div style={S.cell(true,false)}><div style={S.lbl}>Report Time</div><div style={S.val}>{pfFTL.reportTime} UTC</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>STD − 01:00</div></div>
             <div style={S.cell(true,false)}><div style={S.lbl}>FDP</div><div style={{...S.val,color:pfFTL.fdpOk===null?'#1e293b':pfFTL.fdpOk?'#16a34a':'#ef4444'}}>{pfFTL.fdpMins!==null?fromMins(pfFTL.fdpMins):'—'}{pfFTL.fdpOk===false&&<span style={{fontSize:9,marginLeft:4,color:'#ef4444'}}>⚠</span>}{pfFTL.fdpOk===true&&<span style={{fontSize:9,marginLeft:4,color:'#16a34a'}}>✓</span>}</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>Max: {pfFTL.maxFdpMins!==null?fromMins(pfFTL.maxFdpMins):'—'}</div></div>
             <div style={S.cell(true,false)}><div style={S.lbl}>Min Rest</div><div style={S.val}>{fromMins(pfFTL.minRestMins)}</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>{pfFTL.destHome?'Home 12:00':'Away 10:00'}</div></div>
             <div style={S.cell(false,false)}><div style={S.lbl}>Earliest Next Duty</div><div style={{fontSize:13,fontWeight:700,color:'#1e293b'}}>{pfFTL.earliestNext} UTC</div></div>
           </div>
           {/* PM */}
-          <div style={{borderTop:'2px solid #e2e8f0',background:'#f8fafc',padding:'4px 14px'}}><span style={{fontSize:9,fontWeight:700,color:'#0f766e'}}>PM — {pmName}</span>{pmHomeBase?<span style={{fontSize:9,color:'#94a3b8',marginLeft:8}}>Home: {pmHomeBase}</span>:<span style={{fontSize:9,color:'#ef4444',marginLeft:8}}>No home base set</span>}</div>
+          <div style={{borderTop:'2px solid #e2e8f0',background:'#f8fafc',padding:'4px 14px'}}><span style={{fontSize:9,fontWeight:700,color:'#0f766e'}}>PM — {pmName}</span>{pmHB?<span style={{fontSize:9,color:'#94a3b8',marginLeft:8}}>Home: {pmHB}</span>:<span style={{fontSize:9,color:'#ef4444',marginLeft:8}}>No home base set</span>}</div>
           <div style={S.grid('1fr 1fr 1fr 1fr')}>
-            <div style={S.cell(true,false)}><div style={S.lbl}>Report Time</div><div style={S.val}>{pmFTL.reportTime} UTC</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>{pmFTL.depHome?'Home −01:15':'Away −01:00'}</div></div>
+            <div style={S.cell(true,false)}><div style={S.lbl}>Report Time</div><div style={S.val}>{pmFTL.reportTime} UTC</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>STD − 01:00</div></div>
             <div style={S.cell(true,false)}><div style={S.lbl}>FDP</div><div style={{...S.val,color:pmFTL.fdpOk===null?'#1e293b':pmFTL.fdpOk?'#16a34a':'#ef4444'}}>{pmFTL.fdpMins!==null?fromMins(pmFTL.fdpMins):'—'}{pmFTL.fdpOk===false&&<span style={{fontSize:9,marginLeft:4,color:'#ef4444'}}>⚠</span>}{pmFTL.fdpOk===true&&<span style={{fontSize:9,marginLeft:4,color:'#16a34a'}}>✓</span>}</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>Max: {pmFTL.maxFdpMins!==null?fromMins(pmFTL.maxFdpMins):'—'}</div></div>
             <div style={S.cell(true,false)}><div style={S.lbl}>Min Rest</div><div style={S.val}>{fromMins(pmFTL.minRestMins)}</div><div style={{fontSize:9,color:'#94a3b8',marginTop:2}}>{pmFTL.destHome?'Home 12:00':'Away 10:00'}</div></div>
             <div style={S.cell(false,false)}><div style={S.lbl}>Earliest Next Duty</div><div style={{fontSize:13,fontWeight:700,color:'#1e293b'}}>{pmFTL.earliestNext} UTC</div></div>

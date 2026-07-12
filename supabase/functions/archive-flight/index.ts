@@ -1,0 +1,358 @@
+// GO2 eFB — archive-flight Edge Function
+// Ucusu arsivler. iOS (ve gerekirse web) tek kapidan cagirir.
+//
+// TEK KAYNAK: Sure/yakit/saat hesaplari BURADA. Istemciye kopyalanmaz.
+// Girdi (POST JSON): { plan_id, pax?, cycles?, divert_reason? }
+// Cikti: { ok, archived_flight_id, block_minutes, airborne_minutes }
+//
+// Okur : plans, flight_crew_data, mandatory_data, efp_data, fuel_data, rass_data,
+//        accept_data, takeoff_data, lnd_data, navlog_data, wx_snapshots,
+//        efb_documents, profiles, home_bases, aircraft
+// Yazar: archived_flights, navlog_entries, flt_report, efb_documents(link),
+//        plans(status=archived), flight_logs(FLIGHT_ARCHIVED)
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANON_KEY     = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+}
+
+// ─── Zaman yardimcilari ───────────────────────────────────────────────────────
+function toMins(t?: string | null): number | null {
+  if (!t || !t.includes(":")) return null;
+  const [h, m] = t.split(":").map(Number);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+}
+// Gece yarisi gecisi: negatifse +24h
+function diffMins(a?: string | null, b?: string | null): number | null {
+  const am = toMins(a), bm = toMins(b);
+  if (am === null || bm === null) return null;
+  let d = bm - am;
+  if (d < 0) d += 1440;
+  return d;
+}
+function toIsoDate(dateStr?: string | null): string {
+  if (!dateStr) return new Date().toISOString().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+  const months: Record<string,string> = {JAN:"01",FEB:"02",MAR:"03",APR:"04",MAY:"05",JUN:"06",
+                                         JUL:"07",AUG:"08",SEP:"09",OCT:"10",NOV:"11",DEC:"12"};
+  const m = dateStr.trim().match(/^(\d{1,2})\s+([A-Z]{3})\s+(\d{4})$/i);
+  if (m) return `${m[3]}-${months[m[2].toUpperCase()] ?? "01"}-${m[1].padStart(2,"0")}`;
+  const p = new Date(dateStr);
+  return isNaN(p.getTime()) ? new Date().toISOString().slice(0,10) : p.toISOString().slice(0,10);
+}
+function ts(hhmm?: string | null, isoDate?: string): string | null {
+  if (!hhmm || !isoDate) return null;
+  const d = new Date(`${isoDate}T${hhmm}:00.000Z`);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+function num(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = parseInt(String(v).replace(/[^0-9-]/g, ""), 10);
+  return isNaN(n) ? null : n;
+}
+function hhmm(mins?: number | null): string {
+  if (mins === null || mins === undefined) return "—";
+  return `${Math.floor(mins/60)}:${String(mins%60).padStart(2,"0")}`;
+}
+// DEST koordinati (raw_text'ten) — is_night_landing hesabi ileride buna dayanir
+function parseDestCoords(raw?: string | null): { lat: number|null; lon: number|null } {
+  if (!raw) return { lat: null, lon: null };
+  const m = raw.match(/^DEST\s+\S+\s+.*?N(\d+):(\d+\.?\d*)\s+E(\d+):(\d+\.?\d*)/m);
+  if (!m) return { lat: null, lon: null };
+  return { lat: +m[1] + +m[2]/60, lon: +m[3] + +m[4]/60 };
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST")    return json({ error: "POST only" }, 405);
+
+  try {
+    // ── 1) Caller dogrula (parse-plan ile ayni desen) ────────────────────────
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const jwt = authHeader.replace("Bearer ", "").trim();
+    if (!jwt) return json({ error: "Missing Authorization token" }, 401);
+
+    const asCaller = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+    });
+    const { data: userData, error: userErr } = await asCaller.auth.getUser();
+    if (userErr || !userData?.user) return json({ error: "Invalid token" }, 401);
+    const callerId = userData.user.id;
+
+    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+    const { data: prof } = await admin.from("profiles")
+      .select("customer_id, full_name").eq("id", callerId).single();
+    const callerCustomerId = prof?.customer_id ?? null;
+    if (!callerCustomerId) return json({ error: "Caller has no customer_id" }, 403);
+
+    // ── 2) Girdi ─────────────────────────────────────────────────────────────
+    const body = await req.json().catch(() => ({}));
+    const planId: string | undefined = body.plan_id;
+    if (!planId) return json({ error: "plan_id required" }, 400);
+    const paxIn    = num(body.pax);
+    const cyclesIn = num(body.cycles) ?? 1;
+    const divertReason: string | null = body.divert_reason ?? null;
+
+    // ── 3) Plan (tenant kontrolu) ────────────────────────────────────────────
+    const { data: plan } = await admin.from("plans").select("*").eq("id", planId).single();
+    if (!plan) return json({ error: "Plan not found" }, 404);
+    if (plan.customer_id !== callerCustomerId) return json({ error: "Forbidden" }, 403);
+    if (plan.status === "archived") return json({ error: "Already archived" }, 409);
+
+    // ── 4) Modul tablolarini oku (paralel) ───────────────────────────────────
+    const one = async (t: string) =>
+      (await admin.from(t).select("*").eq("plan_id", planId).maybeSingle()).data;
+
+    const [crewD, mandD, fuelD, rassD, acceptD, tkofD, lndD, navD, rawV] = await Promise.all([
+      one("flight_crew_data"), one("mandatory_data"), one("fuel_data"), one("rass_data"),
+      one("accept_data"), one("takeoff_data"), one("lnd_data"), one("navlog_data"),
+      admin.from("plan_versions").select("raw_text").eq("plan_id", planId)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle()
+        .then(r => r.data),
+    ]);
+
+    // Crew kaynagi: flight_crew_data birincil (iOS buraya yazar), plans fallback
+    const pfPilot = crewD?.crew_pf ?? plan.pf_pilot ?? null;
+    const pmPilot = crewD?.crew_pm ?? plan.pm_pilot ?? null;
+
+    const [wxRows, docRows] = await Promise.all([
+      admin.from("wx_snapshots").select("icao,type,raw_text,fetched_at")
+        .eq("plan_id", planId).order("fetched_at", { ascending: false }).then(r => r.data ?? []),
+      admin.from("efb_documents").select("id,section,file_name,file_path,mime_type,file_size,uploaded_at")
+        .eq("plan_id", planId).then(r => r.data ?? []),
+    ]);
+
+    // ── 5) NavLog: zamanlar ve yakit BURADAN gelir (tek kaynak) ──────────────
+    const wpts: any[] = navD?.waypoints ?? [];
+    const entries: Record<string, any> = navD?.entries ?? {};
+
+    const depWpt  = wpts.find(w => w.type === "dep");
+    const divWpt  = wpts.find(w => w.type === "divert-arpt");
+    const arrWpt  = divWpt ?? wpts.find(w => w.type === "dest");
+
+    const depE = depWpt ? entries[depWpt.uid] ?? {} : {};
+    const arrE = arrWpt ? entries[arrWpt.uid] ?? {} : {};
+
+    const offBlock    = depE.offBlock ?? null;
+    const takeoffTime = depE.toTime   ?? null;
+    const landingTime = arrE.lndTime  ?? null;
+    const onBlock     = arrE.onBlock  ?? null;
+    const toFuel      = num(depE.toFuel);
+    const remFuel     = num(arrE.remFuel);
+
+    const blockMinutes    = diffMins(offBlock, onBlock);
+    const airborneMinutes = diffMins(takeoffTime, landingTime);
+
+    const isDivert = !!divWpt;
+    const destIcao = isDivert ? divWpt.name : (plan.dest ?? null);
+    const isoDate  = toIsoDate(plan.date);
+    const { lat: destLat, lon: destLon } = parseDestCoords(rawV?.raw_text);
+
+    // ── 6) archived_flights INSERT ───────────────────────────────────────────
+    const depRwy = tkofD?.sel_rwy || tkofD?.manual_rwy || null;
+    const arrRwy = lndD?.sel_rwy  || lndD?.manual_rwy  || null;
+
+    const { data: af, error: afErr } = await admin.from("archived_flights").insert({
+      plan_id: planId,
+      pic_id: pfPilot, sic_id: pmPilot, pf_id: pfPilot,
+      departure_icao: plan.dep, destination_icao: destIcao,
+      off_blocks:   ts(offBlock, isoDate),
+      on_blocks:    ts(onBlock, isoDate),
+      takeoff_time: ts(takeoffTime, isoDate),
+      landing_time: ts(landingTime, isoDate),
+      block_minutes: blockMinutes, airborne_minutes: airborneMinutes,
+      landing_count: cyclesIn,
+      dest_lat: destLat, dest_lon: destLon, is_night_landing: false,
+      takeoff_fuel: toFuel, remaining_fuel: remFuel,
+      pax: paxIn ?? num(plan.pax),
+      archived_at: new Date().toISOString(),
+      dep_rwy: depRwy, sid: tkofD?.sid ?? null, dep_atis: tkofD?.dep_atis ?? null,
+      arr_rwy: arrRwy, arr_atis: lndD?.arr_atis ?? null,
+      actual_lw: num(lndD?.actual_lw), vref: num(lndD?.vref),
+      req_landing_dist: num(lndD?.req_lnd),
+      arr_qnh: num(lndD?.qnh), rwy_condition: lndD?.rwy_cond ?? null,
+      // CHECK constraint: sadece 'PIC' | 'SIC'.
+      // Accept & Sign'da PIC olarak atanan kisi mi arsivliyor?
+      archived_by_pilot_id: callerId,
+      archived_by_role: (acceptD?.pic_id === callerId) ? "PIC" : "SIC",
+    }).select("id").single();
+    if (afErr) return json({ error: "archive insert failed", detail: afErr.message }, 500);
+    const afId = af.id;
+
+    // ── 7) navlog_entries (plan_id TEXT tipinde — dikkat) ────────────────────
+    if (wpts.length) {
+      const rows = wpts.map((w, i) => {
+        const e = entries[w.uid] ?? {};
+        const fuelActual =
+          num(e.fuel) ??
+          (w.type === "dep"  ? num(e.toFuel)  : null) ??
+          (w.type === "dest" || w.type === "divert-arpt" ? num(e.remFuel) : null);
+        const ata =
+          e.ata ??
+          (w.type === "dep" ? e.toTime : null) ??
+          (w.type === "dest" || w.type === "divert-arpt" ? e.lndTime : null) ?? null;
+        return {
+          plan_id: String(planId),
+          wpt_uid: w.uid, wpt_name: w.name, wpt_type: w.type,
+          eta: (w.eta && w.eta !== "—") ? w.eta : null,
+          ata, fuel_plan: w.planFuel ?? null, fuel_actual: fuelActual,
+          rvsm: e.rvsm ?? null, seq: i,
+        };
+      });
+      await admin.from("navlog_entries").delete().eq("plan_id", String(planId));
+      const { error: neErr } = await admin.from("navlog_entries").insert(rows);
+      if (neErr) console.warn("[archive] navlog_entries:", neErr.message);
+    }
+
+    // ── 8) Crew + home_base (FTL raporu icin) ───────────────────────────────
+    const pilotIds = [pfPilot, pmPilot].filter(Boolean);
+    const { data: pilots } = pilotIds.length
+      ? await admin.from("profiles").select("id,full_name").in("id", pilotIds)
+      : { data: [] as any[] };
+    const { data: hbs } = pilotIds.length
+      ? await admin.from("home_bases").select("pilot_id,icao").in("pilot_id", pilotIds)
+      : { data: [] as any[] };
+    const nameOf = (id: string | null) => pilots?.find(p => p.id === id)?.full_name ?? null;
+    const hbOf   = (id: string | null) => hbs?.find(h => h.pilot_id === id)?.icao ?? null;
+
+    const crew = {
+      pf: { id: pfPilot, name: nameOf(pfPilot), home_base: hbOf(pfPilot) },
+      pm: { id: pmPilot, name: nameOf(pmPilot), home_base: hbOf(pmPilot) },
+    };
+
+    // ── 9) Ucak / motor saatleri (arsivden SONRAKI toplam) ───────────────────
+    let acHours: unknown = null;
+    if (plan.reg) {
+      const { data: ah } = await admin.rpc("aircraft_hours", { p_reg: plan.reg });
+      const r = Array.isArray(ah) ? ah[0] : ah;
+      if (r) {
+        acHours = {
+          airframe_minutes: r.airframe_minutes, airframe: r.airframe_hhmm,
+          eng1_minutes: r.eng1_minutes, eng1: r.eng1_hhmm,
+          eng2_minutes: r.eng2_minutes, eng2: r.eng2_hhmm,
+          cycles: r.cycles,
+        };
+      }
+    }
+
+    // ── 10) WX (ICAO+tip basina en guncel) ──────────────────────────────────
+    const wxMap: Record<string, any> = {};
+    for (const r of wxRows) {
+      const k = `${r.icao}_${r.type}`;
+      if (!wxMap[k]) wxMap[k] = { icao: r.icao, type: r.type, raw_text: r.raw_text };
+    }
+
+    // ── 11) flt_report UPSERT — RAPORUN TEK KAYNAGI ─────────────────────────
+    const navlogJson = wpts.map((w, i) => {
+      const e = entries[w.uid] ?? {};
+      return {
+        seq: i, wpt: w.name, type: w.type, custom: w.custom === true,
+        eta: (w.eta && w.eta !== "—") ? w.eta : null,
+        ata: e.ata ?? (w.type === "dep" ? e.toTime : null)
+                   ?? ((w.type === "dest" || w.type === "divert-arpt") ? e.lndTime : null) ?? null,
+        fuel_plan: w.planFuel ?? null,
+        fuel_actual: num(e.fuel) ?? (w.type === "dep" ? num(e.toFuel) : null)
+                                 ?? ((w.type === "dest" || w.type === "divert-arpt") ? num(e.remFuel) : null),
+        rvsm: e.rvsm ?? null,
+      };
+    });
+
+    const { error: frErr } = await admin.from("flt_report").upsert({
+      plan_id: String(planId),
+      pf_id: pfPilot, pm_id: pmPilot,
+      pf_name: crew.pf.name, pm_name: crew.pm.name,
+      off_block: offBlock, takeoff_time: takeoffTime,
+      landing_time: landingTime, on_block: onBlock,
+      takeoff_fuel: toFuel, remaining_fuel: remFuel,
+      pax: paxIn ?? num(plan.pax),
+      block_minutes: blockMinutes, airborne_minutes: airborneMinutes,
+      dep_icao: plan.dep, dest_icao: destIcao,
+      is_divert: isDivert, divert_reason: divertReason,
+      navlog: navlogJson.length ? navlogJson : null,
+      wx: Object.values(wxMap),
+      crew,
+      takeoff: tkofD ? {
+        icao: tkofD.icao, rwy: depRwy, rwy_len: tkofD.manual_len,
+        atis: tkofD.dep_atis, sid: tkofD.sid, fl: tkofD.fl, sq: tkofD.sq, oth: tkofD.oth,
+        v1: tkofD.v1, vr: tkofD.vr, v2: tkofD.v2, vse: tkofD.vse, trim: tkofD.trim,
+        req_rw: tkofD.req_rw,
+        rvsm: { pri1: tkofD.rvsm1, sby: tkofD.rvsm_sby, pri2: tkofD.rvsm2 },
+        lmc: { lb: tkofD.lmc_lb, kg: tkofD.lmc_kg },
+      } : null,
+      landing: lndD ? {
+        icao: lndD.icao, rwy: arrRwy, rwy_len: lndD.manual_len,
+        atis: lndD.arr_atis, qnh: lndD.qnh, rwy_cond: lndD.rwy_cond,
+        req_lnd: lndD.req_lnd, actual_lw: lndD.actual_lw, vref: lndD.vref,
+        is_divert: lndD.is_divert === "true",
+      } : null,
+      fuel: fuelD ? {
+        fob: fuelD.fob, density: fuelD.density,
+        uplift_lt: fuelD.uplift_lt, uplift_lb: fuelD.uplift_lb,
+        plan_trip: plan.trip_fuel, plan_alternate: plan.alternate_fuel,
+        plan_reserve: plan.reserve_fuel, plan_fob: plan.fob,
+      } : null,
+      rass: rassD ? {
+        dep_reviewed_at: rassD.dep_reviewed_at,
+        dest_reviewed_at: rassD.dest_reviewed_at,
+        altn_reviewed_at: rassD.altn_reviewed_at,
+      } : null,
+      mandatory: mandD ? {
+        checks: mandD.checks, signed_by: mandD.signed_by,
+        signature_url: mandD.signature_url, signed_at: mandD.signed_at,
+      } : null,
+      accept: acceptD ? {
+        accepted: acceptD.accepted, pic_id: acceptD.pic_id,
+        signature_url: acceptD.signature_url, signed_at: acceptD.signed_at,
+      } : null,
+      documents: docRows.length ? docRows : null,
+      ac_hours: acHours,
+      archived_at: new Date().toISOString(),
+    }, { onConflict: "plan_id" });
+    if (frErr) console.warn("[archive] flt_report:", frErr.message);
+
+    // ── 12) Belgeleri arsive bagla ──────────────────────────────────────────
+    if (docRows.length) {
+      await admin.from("efb_documents")
+        .update({ archived_flight_id: afId }).eq("plan_id", planId);
+    }
+
+    // ── 13) Plan durumu + audit log ─────────────────────────────────────────
+    await admin.from("plans")
+      .update({ status: "archived", archived_at: new Date().toISOString() })
+      .eq("id", planId);
+
+    await admin.from("flight_logs").insert({
+      plan_id: planId, pilot_id: callerId, action: "FLIGHT_ARCHIVED",
+      details: {
+        dep: plan.dep, dest: destIcao, is_divert: isDivert,
+        block_minutes: blockMinutes, airborne_minutes: airborneMinutes,
+        landing_count: cyclesIn, dep_rwy: depRwy, arr_rwy: arrRwy,
+        archived_by: prof?.full_name ?? callerId,
+      },
+    });
+
+    return json({
+      ok: true,
+      archived_flight_id: afId,
+      block_minutes: blockMinutes,
+      airborne_minutes: airborneMinutes,
+      block_time: hhmm(blockMinutes),
+      flight_time: hhmm(airborneMinutes),
+      is_divert: isDivert,
+      destination: destIcao,
+    });
+  } catch (e) {
+    return json({ error: "Unhandled", detail: String(e) }, 500);
+  }
+});
