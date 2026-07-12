@@ -12,6 +12,7 @@
 //        plans(status=archived), flight_logs(FLIGHT_ARCHIVED)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildReportPdf } from "./report-pdf.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -103,12 +104,14 @@ Deno.serve(async (req) => {
     const paxIn    = num(body.pax);
     const cyclesIn = num(body.cycles) ?? 1;
     const divertReason: string | null = body.divert_reason ?? null;
+    const regenOnly: boolean = body.regenerate_pdf === true;
 
     // ── 3) Plan (tenant kontrolu) ────────────────────────────────────────────
     const { data: plan } = await admin.from("plans").select("*").eq("id", planId).single();
     if (!plan) return json({ error: "Plan not found" }, 404);
     if (plan.customer_id !== callerCustomerId) return json({ error: "Forbidden" }, 403);
-    if (plan.status === "archived") return json({ error: "Already archived" }, 409);
+    if (!regenOnly && plan.status === "archived") return json({ error: "Already archived" }, 409);
+    if (regenOnly && plan.status !== "archived") return json({ error: "Not archived yet" }, 409);
 
     // ── 4) Modul tablolarini oku (paralel) ───────────────────────────────────
     const one = async (t: string) =>
@@ -163,6 +166,13 @@ Deno.serve(async (req) => {
     const depRwy = tkofD?.sel_rwy || tkofD?.manual_rwy || null;
     const arrRwy = lndD?.sel_rwy  || lndD?.manual_rwy  || null;
 
+    let afId: string;
+    if (regenOnly) {
+      const { data: exAf } = await admin.from("archived_flights")
+        .select("id").eq("plan_id", planId).single();
+      if (!exAf) return json({ error: "archived_flights row not found" }, 404);
+      afId = exAf.id;
+    } else {
     const { data: af, error: afErr } = await admin.from("archived_flights").insert({
       plan_id: planId,
       pic_id: pfPilot, sic_id: pmPilot, pf_id: pfPilot,
@@ -188,10 +198,11 @@ Deno.serve(async (req) => {
       archived_by_role: (acceptD?.pic_id === callerId) ? "PIC" : "SIC",
     }).select("id").single();
     if (afErr) return json({ error: "archive insert failed", detail: afErr.message }, 500);
-    const afId = af.id;
+    afId = af.id;
+    }
 
     // ── 7) navlog_entries (plan_id TEXT tipinde — dikkat) ────────────────────
-    if (wpts.length) {
+    if (!regenOnly && wpts.length) {
       const rows = wpts.map((w, i) => {
         const e = entries[w.uid] ?? {};
         const fuelActual =
@@ -321,6 +332,61 @@ Deno.serve(async (req) => {
     }, { onConflict: "plan_id" });
     if (frErr) console.warn("[archive] flt_report:", frErr.message);
 
+    // ── 11b) RAPOR PDF (sunucuda uretilir — web + iOS ayni dosyayi gosterir) ──
+    let reportPath: string | null = null;
+    try {
+      // flt_report'u geri oku (upsert edilmis hali — tek kaynak)
+      const { data: frRow } = await admin.from("flt_report")
+        .select("*").eq("plan_id", planId).single();
+
+      if (frRow) {
+        // Imza PNG'lerini indir
+        const sigs: Record<string, Uint8Array> = {};
+        for (const sp of [frRow.mandatory?.signature_url, frRow.accept?.signature_url]) {
+          if (!sp) continue;
+          const { data: blob } = await admin.storage.from("efb-documents").download(sp);
+          if (blob) sigs[sp] = new Uint8Array(await blob.arrayBuffer());
+        }
+
+        // Ek PDF belgeleri indir (orijinal sayfa olarak eklenecek)
+        const atts: { name: string; bytes: Uint8Array }[] = [];
+        for (const d of docRows) {
+          if (!(d.mime_type ?? "").includes("pdf")) continue;
+          const { data: blob } = await admin.storage.from("efb-documents").download(d.file_path);
+          if (blob) atts.push({ name: d.file_name, bytes: new Uint8Array(await blob.arrayBuffer()) });
+        }
+
+        const pdfBytes = await buildReportPdf({
+          fr: frRow, plan, signatures: sigs, attachments: atts,
+        });
+
+        const fname = `GO2_FltReport_${plan.reg ?? "AC"}_${plan.dep ?? ""}-${destIcao ?? ""}_${isoDate}.pdf`
+          .replace(/\s+/g, "");
+        reportPath = `${planId}/report/${fname}`;
+
+        const { error: upErr } = await admin.storage.from("efb-documents")
+          .upload(reportPath, pdfBytes, { contentType: "application/pdf", upsert: true });
+
+        if (upErr) {
+          console.warn("[archive] report pdf upload:", upErr.message);
+          reportPath = null;
+        } else {
+          // efb_documents'a REPORT olarak kaydet (web + iOS ayni akisla erisir)
+          await admin.from("efb_documents").delete()
+            .eq("plan_id", planId).eq("section", "REPORT");
+          await admin.from("efb_documents").insert({
+            plan_id: planId, customer_id: callerCustomerId,
+            section: "REPORT", file_name: fname, file_path: reportPath,
+            mime_type: "application/pdf", file_size: pdfBytes.byteLength,
+            uploaded_by: callerId, uploaded_at: new Date().toISOString(),
+            archived_flight_id: afId,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("[archive] report pdf:", String(e));
+    }
+
     // ── 12) Belgeleri arsive bagla ──────────────────────────────────────────
     if (docRows.length) {
       await admin.from("efb_documents")
@@ -328,11 +394,13 @@ Deno.serve(async (req) => {
     }
 
     // ── 13) Plan durumu + audit log ─────────────────────────────────────────
-    await admin.from("plans")
-      .update({ status: "archived", archived_at: new Date().toISOString() })
-      .eq("id", planId);
+    if (!regenOnly) {
+      await admin.from("plans")
+        .update({ status: "archived", archived_at: new Date().toISOString() })
+        .eq("id", planId);
+    }
 
-    await admin.from("flight_logs").insert({
+    if (!regenOnly) await admin.from("flight_logs").insert({
       plan_id: planId, pilot_id: callerId, action: "FLIGHT_ARCHIVED",
       details: {
         dep: plan.dep, dest: destIcao, is_divert: isDivert,
@@ -351,6 +419,7 @@ Deno.serve(async (req) => {
       flight_time: hhmm(airborneMinutes),
       is_divert: isDivert,
       destination: destIcao,
+      report_pdf_path: reportPath,
     });
   } catch (e) {
     return json({ error: "Unhandled", detail: String(e) }, 500);
