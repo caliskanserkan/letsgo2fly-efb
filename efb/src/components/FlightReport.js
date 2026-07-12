@@ -1,5 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
+import { PDFDocument } from 'pdf-lib';
 
 const SB_URL = 'https://ojvqdsqodpxkvpxvwgrm.supabase.co';
 const SB_KEY = 'sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f';
@@ -189,6 +192,88 @@ export default function FlightReport({ plan, onClose }) {
 
 
 
+  // ---- SAVE PDF: rapor + belgeler (orijinal PDF sayfalari) tek dosyada ----
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  const savePdf = async (mode = 'download') => {
+    setPdfBusy(true);
+    const node = document.getElementById('flt-report-content');
+    const hidden = [];
+    try {
+      // 1) Yazdirmaya girmeyecek ogeleri gecici gizle (toolbar + gomulu iframe onizleme)
+      node.querySelectorAll('.no-print, iframe').forEach(el => {
+        hidden.push([el, el.style.display]);
+        el.style.display = 'none';
+      });
+
+      // 2) Imzalar signed URL (cross-origin) -> html2canvas CORS icin base64'e cevir
+      const imgs = Array.from(node.querySelectorAll('img'));
+      const restore = [];
+      await Promise.all(imgs.map(async (img) => {
+        if (img.src.startsWith('data:')) return;
+        try {
+          const blob = await (await fetch(img.src)).blob();
+          const b64 = await new Promise(res => {
+            const r = new FileReader(); r.onloadend = () => res(r.result); r.readAsDataURL(blob);
+          });
+          restore.push([img, img.src]);
+          img.src = b64;
+        } catch { /* imza gelmezse bos birak */ }
+      }));
+
+      // 3) Rapor DOM -> canvas -> A4 sayfalara bol
+      const canvas = await html2canvas(node, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      restore.forEach(([img, src]) => { img.src = src; });
+
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+      const pw = pdf.internal.pageSize.getWidth();
+      const ph = pdf.internal.pageSize.getHeight();
+      const imgW = pw - 12;
+      const imgH = (canvas.height * imgW) / canvas.width;
+      let rest = imgH, pos = 6;
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 6, pos, imgW, imgH);
+      rest -= (ph - 12);
+      while (rest > 0) {
+        pos = rest - imgH + 6;
+        pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 6, pos, imgW, imgH);
+        rest -= (ph - 12);
+      }
+
+      // 4) Rapor PDF + belge PDF'lerini birlestir (belgeler ORIJINAL boyutunda, tam)
+      const merged = await PDFDocument.load(pdf.output('arraybuffer'));
+      const docs = (Array.isArray(FR?.documents) ? FR.documents : [])
+        .filter(d => (d.mime_type || '').includes('pdf') && signedUrls[d.file_path]);
+      for (const d of docs) {
+        try {
+          const bytes = await (await fetch(signedUrls[d.file_path])).arrayBuffer();
+          const src = await PDFDocument.load(bytes);
+          const pages = await merged.copyPages(src, src.getPageIndices());
+          pages.forEach(pg => merged.addPage(pg));
+        } catch { /* belge acilmazsa atla */ }
+      }
+
+      const bytes = await merged.save();
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      if (mode === 'print') {
+        const w = window.open(url, '_blank');
+        if (!w) alert('Popup engellendi - tarayici ayarlarindan izin verin');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `GO2_FltReport_${plan.reg}_${depIcao}-${destIcao}_${(plan.date||'').replace(/\s/g,'')}.pdf`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      }
+    } catch (e) {
+      alert('PDF olusturulamadi: ' + (e?.message || e));
+    } finally {
+      hidden.forEach(([el, d]) => { el.style.display = d; });
+      setPdfBusy(false);
+    }
+  };
+
   const S = {
     overlay:{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.85)',zIndex:200,overflowY:'auto'},
     wrap:{maxWidth:760,margin:'0 auto',padding:'20px 16px 40px',fontFamily:'monospace'},
@@ -215,7 +300,8 @@ export default function FlightReport({ plan, onClose }) {
             <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{plan.reg} · {plan.dep}–{plan.dest} · {plan.date}</div>
           </div>
           <div style={{display:'flex',gap:8}}>
-            <button onClick={()=>{ const html='<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:monospace;padding:16px;background:#fff;color:#000;font-size:11px;} table{width:100%;border-collapse:collapse;margin-bottom:12px;} th,td{padding:5px 8px;border:1px solid #ccc;font-size:10px;text-align:left;} th{background:#f1f5f9;font-weight:700;} h2{font-size:13px;margin:12px 0 4px;border-bottom:2px solid #1e3a5f;padding-bottom:4px;} .grid{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #e2e8f0;margin-bottom:12px;} .cell{padding:8px 10px;border:1px solid #e2e8f0;} .lbl{font-size:8px;color:#94a3b8;margin-bottom:2px;} .val{font-size:11px;font-weight:700;} @media print{body{padding:0;}}</style></head><body>'+document.getElementById('flt-report-content').innerHTML+'</body></html>'; const blob=new Blob([html],{type:'text/html;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(()=>URL.revokeObjectURL(url),10000); }} style={{background:'rgba(255,255,255,0.1)',border:'1px solid #475569',borderRadius:6,padding:'8px 16px',fontSize:12,color:'#fff',cursor:'pointer'}}>🖨 Print</button>
+            <button onClick={()=>savePdf('print')} disabled={pdfBusy}  style={{background:'rgba(255,255,255,0.1)',border:'1px solid #475569',borderRadius:6,padding:'8px 16px',fontSize:12,color:'#fff',cursor:'pointer'}}>🖨 Print</button>
+            <button onClick={savePdf} disabled={pdfBusy} style={{background:pdfBusy?'#334155':'#1e40af',border:'1px solid #1e40af',borderRadius:6,padding:'8px 16px',fontSize:12,color:'#fff',cursor:pdfBusy?'wait':'pointer'}}>{pdfBusy?'… PDF':'⬇ Save PDF'}</button>
             <button onClick={onClose} style={{background:'transparent',border:'1px solid #475569',borderRadius:6,padding:'8px 16px',fontSize:12,color:'#94a3b8',cursor:'pointer'}}>✕</button>
           </div>
         </div>
