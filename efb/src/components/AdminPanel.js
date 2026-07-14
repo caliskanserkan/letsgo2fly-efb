@@ -123,52 +123,174 @@ const ACTION_META = {
   LND_PERF_DATA:              {icon:'LW', label:'LND Perf Data',         color:'#e8a020'},
   FLIGHT_ARCHIVED:            {icon:'ARC',label:'Flight Archived',       color:'#4ade80'},
   ADMIN_EDIT:                 {icon:'EDT',label:'Admin Edit',            color:'#ef4444'},
+  PLAN_ACTIVATED:             {icon:'>',  label:'Plan Activated',        color:'#38bdf8'},
+  LND_QNH_ENTERED:            {icon:'QNH',label:'ARR QNH Entered',       color:'#38bdf8'},
 };
 
-const MILESTONE_ACTIONS = new Set([
-  'PLAN_RELEASED','PLAN_DOWNLOADED','PLAN_ACTIVATED','CREW_ASSIGNED',
-  'PREFLIGHT_MANDATORY_COMPLETE','MANDATORY_SIGNED','FUEL_CHECKED',
-  'PLAN_ACCEPTED','PLAN_ACCEPTANCE_REVOKED','SYNC_TO_PM',
-  'TKOF_SPEEDS_ENTERED','TKOF_RVSM_GROUND',
-  'OFF_BLOCKS','TAKEOFF','LANDING','ON_BLOCKS','FUEL_REMAINING',
-  'LND_PERF_DATA','FLIGHT_ARCHIVED',
-]);
+// ─── Module Log View — denetci-okunur pilot hareket dokumu ──────────────────
+// Modul baslıklari altinda satirlar: SAAT + ne yapildi + [girilen deger] + KIM (ad soyad).
+// Teknik id gosterilmez. Realtime: yeni log satiri saniyesinde ekrana duser
+// (flight_logs publication'a ekli olmali); 30s polling yedek olarak kalir.
 
-function FlightTimeline({ planId, live=false, milestoneOnly=false }) {
+const MODULE_ORDER = ['PLAN','FLT CREW','MANDATORY','eFP','FUEL','RASS','ACCEPT & SIGN','T/O DATA','NAV LOG','LND DATA','END FLT','DOC UPLOAD','OTHER'];
+
+// iOS ModuleKey rawValue -> ekran adi (MODULE_COMPLETE icin)
+const MODULE_KEY_MAP = {
+  'flight-crew':'FLT CREW', mandatory:'MANDATORY', efp:'eFP', fuel:'FUEL', rass:'RASS',
+  'accept-sign':'ACCEPT & SIGN', todata:'T/O DATA', navlog:'NAV LOG', lnddata:'LND DATA',
+  endflt:'END FLT', docupload:'DOC UPLOAD',
+};
+
+const ACTION_MODULE = {
+  PLAN_RELEASED:'PLAN', PLAN_DOWNLOADED:'PLAN', PLAN_ACTIVATED:'PLAN', PLAN_DEACTIVATED:'PLAN',
+  CZIB_CHECKED:'FLT CREW', CREW_ASSIGNED:'FLT CREW',
+  MANDATORY_CHECK_DONE:'MANDATORY', MANDATORY_CHECK_UNDONE:'MANDATORY',
+  MANDATORY_SIGNED:'MANDATORY', PREFLIGHT_MANDATORY_COMPLETE:'MANDATORY',
+  OFP_OPENED:'eFP', OFP_MARKUP:'eFP', WXR_REFRESHED:'eFP', NOTAM_SEEN:'eFP',
+  FUEL_CHECKED:'FUEL',
+  RASS_REVIEWED:'RASS',
+  PLAN_ACCEPTED:'ACCEPT & SIGN', PLAN_ACCEPTANCE_REVOKED:'ACCEPT & SIGN', SYNC_TO_PM:'ACCEPT & SIGN',
+  TKOF_RWY_SELECTED:'T/O DATA', TKOF_ATIS_ENTERED:'T/O DATA', TKOF_SPEEDS_ENTERED:'T/O DATA',
+  TKOF_ATC_CLR:'T/O DATA', TKOF_RVSM_GROUND:'T/O DATA',
+  OFF_BLOCKS:'NAV LOG', TAKEOFF:'NAV LOG', RVSM_CHECK:'NAV LOG', GPS_ACTIVATED:'NAV LOG',
+  LANDING:'NAV LOG', ON_BLOCKS:'NAV LOG', FUEL_REMAINING:'NAV LOG', DIVERT_SET:'NAV LOG',
+  LND_RWY_SELECTED:'LND DATA', LND_ATIS_ENTERED:'LND DATA', LND_QNH_ENTERED:'LND DATA', LND_PERF_DATA:'LND DATA',
+  FLIGHT_ARCHIVED:'END FLT',
+  DOC_UPLOADED:'DOC UPLOAD', DOC_DELETED:'DOC UPLOAD',
+};
+
+function logModule(l){
+  const d = l.details || {};
+  if (l.action === 'FIELD_ENTRY')     return d.module || 'OTHER';
+  if (l.action === 'MODULE_COMPLETE') return MODULE_KEY_MAP[d.module] || 'OTHER';
+  if (l.action === 'SYNC_SENT')       return d.type === 'NAVLOG' ? 'NAV LOG' : d.type === 'ENDFLIGHT' ? 'END FLT' : 'ACCEPT & SIGN';
+  return ACTION_MODULE[l.action] || 'OTHER';
+}
+
+// Her satir icin insan cumlesi: {label, value?, tone?}
+// tone: 'ok' yesil, 'warn' turuncu, 'accept' vurgulu yesil
+function logRow(l){
+  const d = l.details || {};
+  switch (l.action) {
+    case 'FIELD_ENTRY':            return { label:`${d.field} entry`, value:d.value };
+    case 'MODULE_COMPLETE':        return { label:'MODULE COMPLETE', tone:'ok' };
+    case 'MANDATORY_CHECK_DONE':   return { label:`Check done — ${d.check || d.check_label || ''}` };
+    case 'MANDATORY_CHECK_UNDONE': return { label:`Check UNDONE — ${d.check || d.check_label || ''}`, tone:'warn' };
+    case 'MANDATORY_SIGNED':       return { label:`Signed by ${d.pilot || d.pilot_name || '—'}` };
+    case 'PREFLIGHT_MANDATORY_COMPLETE': return { label:'All checks complete', tone:'ok' };
+    case 'CREW_ASSIGNED':          return { label:`Crew assigned — PF ${d.pf || d.pf_name || '—'} / PM ${d.pm || d.pm_name || '—'}` };
+    case 'CZIB_CHECKED':           return { label:'CZIB conflict check', value:d.result, tone:d.result==='CONFLICT'?'warn':undefined };
+    case 'OFP_OPENED':             return { label:'OFP opened' };
+    case 'OFP_MARKUP':             return { label:'OFP markup — pilot drew on OFP' };
+    case 'WXR_REFRESHED':          return { label:'WXR updated (live)', value:d.airports };
+    case 'NOTAM_SEEN':             return { label:'NOTAM reviewed' };
+    case 'FUEL_CHECKED':           return { label:'Fuel checked', value:d.fob_lb ? `FOB ${d.fob_lb} lb` : undefined };
+    case 'RASS_REVIEWED':          return { label:`${d.airport || 'Airport'} risk reviewed`, value:d.risk };
+    case 'PLAN_ACCEPTED':          return { label:`PLAN ACCEPTED — READY FOR FLIGHT · PIC ${d.pic || '—'}${d.sic ? ` / SIC ${d.sic}` : ''}`, tone:'accept' };
+    case 'PLAN_ACCEPTANCE_REVOKED':return { label:'Acceptance REVOKED', tone:'warn' };
+    case 'SYNC_SENT':              return { label:'Data synced to other EFB' };
+    case 'SYNC_TO_PM':             return { label:'Synced to PM' };
+    case 'DIVERT_SET':             return { label:`DIVERT to ${d.to || '?'} (from ${d.from || '?'})`, tone:'warn' };
+    case 'FLIGHT_ARCHIVED':        return { label:`Flight archived — ${d.route || ''}`, value:d.flight_time ? `FLT ${d.flight_time} · BLK ${d.block_time}` : undefined, tone:'ok' };
+    case 'DOC_UPLOADED':           return { label:'Document uploaded', value:d.file };
+    case 'DOC_DELETED':            return { label:'Document DELETED', value:d.file, tone:'warn' };
+    case 'PLAN_ACTIVATED':         return { label:'Plan activated', value:d.route };
+    case 'PLAN_DEACTIVATED':       return { label:'Plan deactivated', value:d.route, tone:'warn' };
+    case 'PLAN_DOWNLOADED':        return { label:'Plan downloaded' };
+    case 'PLAN_RELEASED':          return { label:'Plan released by dispatch' };
+    case 'OFF_BLOCKS':             return { label:'Off blocks', value:d.time };
+    case 'TAKEOFF':                return { label:'Takeoff', value:d.time };
+    case 'LANDING':                return { label:'Landing', value:d.time };
+    case 'ON_BLOCKS':              return { label:'On blocks', value:d.time };
+    case 'FUEL_REMAINING':         return { label:'Fuel remaining', value:d.fuel_lb ? `${d.fuel_lb} lb` : undefined };
+    default: {
+      const meta = ACTION_META[l.action];
+      const detail = Object.entries(d).filter(([k]) => !['platform','timestamp_utc'].includes(k)).map(([k,v]) => `${k}: ${v}`).join(' · ');
+      return { label: meta ? meta.label : l.action.replace(/_/g,' '), value: detail || undefined };
+    }
+  }
+}
+
+function ModuleLogView({ planId, live=false }) {
   const [logs,setLogs]=useState([]);
   const [loading,setLoading]=useState(true);
+  const [pilots,setPilots]=useState([]);
+
+  useEffect(()=>{ supabase.from('profiles').select('id,full_name,code').then(({data})=>setPilots(data||[])); },[]);
+  const who = id => { if (!id) return null; const p = pilots.find(x=>x.id===id); return p ? p.full_name : null; };
+
   const load = useCallback(async () => {
     if (!planId) return;
     const { data } = await supabase.from('flight_logs').select('*').eq('plan_id', planId).order('created_at', { ascending: true });
-    const all = data || [];
-    setLogs(milestoneOnly ? all.filter(l=>MILESTONE_ACTIONS.has(l.action)) : all);
+    setLogs(data || []);
     setLoading(false);
-  }, [planId, milestoneOnly]);
-  useEffect(() => { load(); if (!live) return; const iv = setInterval(load, 30000); return () => clearInterval(iv); }, [load, live]);
-  const fmtTime = iso => { const d = new Date(iso); return `${d.toLocaleDateString('en-GB')} ${d.toTimeString().slice(0,8)} UTC`; };
-  const detailStr = details => { if (!details) return ''; return Object.entries(details).filter(([k]) => !['platform','timestamp_utc'].includes(k)).map(([k,v]) => `${k}: ${v}`).join('  ·  '); };
-  if (loading) return <div style={{padding:20,color:C.t3,fontSize:11,textAlign:'center',fontFamily:"'Courier New',monospace"}}>LOADING TIMELINE...</div>;
-  if (!logs.length) return <div style={{padding:20,color:C.t3,fontSize:11,textAlign:'center',fontFamily:"'Courier New',monospace"}}>NO LOG ENTRIES</div>;
+  }, [planId]);
+
+  // Ilk yukleme + canli ucusta 30s polling (Realtime yedegi)
+  useEffect(() => { setLoading(true); load(); if (!live) return; const iv = setInterval(load, 30000); return () => clearInterval(iv); }, [load, live]);
+
+  // Realtime: yeni log satiri saniyesinde eklenir
+  useEffect(() => {
+    if (!planId) return;
+    const ch = supabase.channel(`flt-logs-${planId}`)
+      .on('postgres_changes', { event:'INSERT', schema:'public', table:'flight_logs', filter:`plan_id=eq.${planId}` },
+        payload => setLogs(prev => prev.some(x => x.id === payload.new.id)
+          ? prev
+          : [...prev, payload.new].sort((a,b) => new Date(a.created_at) - new Date(b.created_at))))
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [planId]);
+
+  const mono = { fontFamily:"'Courier New',monospace" };
+  const fmtT = iso => { const dt = new Date(iso); return `${String(dt.getUTCDate()).padStart(2,'0')}/${String(dt.getUTCMonth()+1).padStart(2,'0')} ${dt.toISOString().slice(11,19)}Z`; };
+  const toneColor = t => t === 'ok' ? '#4ade80' : t === 'warn' ? '#f97316' : t === 'accept' ? '#4ade80' : C.t1;
+
+  if (loading) return <div style={{padding:20,color:C.t3,fontSize:11,textAlign:'center',...mono}}>LOADING LOGS...</div>;
+  if (!logs.length) return <div style={{padding:20,color:C.t3,fontSize:11,textAlign:'center',...mono}}>NO LOG ENTRIES</div>;
+
+  // Modul basina grupla, sabit operasyonel sirada goster
+  const groups = {};
+  for (const l of logs) { const m = logModule(l); (groups[m] = groups[m] || []).push(l); }
+  const ordered = MODULE_ORDER.filter(m => groups[m]?.length);
+
   return (
-    <div style={{padding:'12px 16px'}}>
-      {live && (<div style={{display:'flex',alignItems:'center',gap:6,marginBottom:12}}><div style={{width:7,height:7,borderRadius:4,background:'#40d080',boxShadow:'0 0 6px rgba(64,208,128,0.6)'}}/><span style={{fontSize:10,color:'#40d080',fontFamily:"'Courier New',monospace",letterSpacing:1}}>LIVE — 30s refresh</span><span style={{marginLeft:'auto',fontSize:10,color:C.t3,fontFamily:"'Courier New',monospace"}}>{logs.length} entries</span></div>)}
-      {logs.map((l, idx) => {
-        const meta = ACTION_META[l.action] || { icon:'·', label: l.action, color: C.t3 };
-        const isLast = idx === logs.length - 1;
+    <div style={{height:'100%',overflowY:'auto',padding:'12px 16px'}}>
+      {live && (
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:12}}>
+          <div style={{width:7,height:7,borderRadius:4,background:'#40d080',boxShadow:'0 0 6px rgba(64,208,128,0.6)'}}/>
+          <span style={{fontSize:10,color:'#40d080',...mono,letterSpacing:1}}>LIVE</span>
+          <span style={{marginLeft:'auto',fontSize:10,color:C.t3,...mono}}>{logs.length} entries</span>
+        </div>
+      )}
+      {ordered.map(m => {
+        const complete = groups[m].find(l => l.action === 'MODULE_COMPLETE');
         return (
-          <div key={l.id} style={{display:'flex',gap:10}}>
-            <div style={{display:'flex',flexDirection:'column',alignItems:'center',width:28,flexShrink:0}}>
-              <div style={{width:26,height:26,borderRadius:13,background:`${meta.color}20`,border:`2px solid ${meta.color}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:meta.color,fontWeight:700,flexShrink:0,fontFamily:"'Courier New',monospace"}}>{meta.icon}</div>
-              {!isLast && <div style={{width:2,flex:1,background:C.border,minHeight:12,margin:'2px 0'}}/>}
+          <div key={m} style={{marginBottom:14,border:`1px solid ${C.border}`,borderRadius:8,overflow:'hidden'}}>
+            <div style={{padding:'7px 12px',background:C.bg3,display:'flex',alignItems:'center',gap:8}}>
+              <span style={{fontSize:11,fontWeight:700,letterSpacing:2,color:C.accent,...mono}}>{m}</span>
+              {complete && (
+                <span style={{fontSize:9,fontWeight:700,color:'#4ade80',background:'rgba(74,222,128,0.12)',padding:'2px 8px',borderRadius:4,...mono}}>
+                  COMPLETE {fmtT(complete.created_at)}
+                </span>
+              )}
+              <span style={{marginLeft:'auto',fontSize:9,color:C.t3,...mono}}>{groups[m].length}</span>
             </div>
-            <div style={{flex:1,paddingBottom:12}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:2}}>
-                <span style={{fontSize:12,fontWeight:700,color:meta.color,fontFamily:"'Courier New',monospace"}}>{meta.label}</span>
-                <span style={{fontSize:9,color:C.t3,fontFamily:"'Courier New',monospace",whiteSpace:'nowrap',marginLeft:8}}>{fmtTime(l.created_at)}</span>
-              </div>
-              {l.profiles && (<div style={{fontSize:10,color:C.t1,marginBottom:2,fontFamily:"'Courier New',monospace"}}><span style={{color:C.accent,fontWeight:700}}>{l.profiles.code}</span>{' · '}{l.profiles.full_name}</div>)}
-              {l.details && Object.keys(l.details).filter(k=>!['platform','timestamp_utc'].includes(k)).length > 0 && (<div style={{fontSize:10,color:C.t3,fontFamily:"'Courier New',monospace",background:C.bg3,padding:'4px 8px',borderLeft:`2px solid ${meta.color}40`,lineHeight:1.7}}>{detailStr(l.details)}</div>)}
-            </div>
+            {groups[m].map(l => {
+              const r = logRow(l);
+              const name = who(l.pilot_id);
+              return (
+                <div key={l.id} style={{display:'flex',gap:10,alignItems:'baseline',padding:'5px 12px',borderTop:`1px solid ${C.border}40`,background:r.tone==='accept'?'rgba(74,222,128,0.06)':'transparent'}}>
+                  <span style={{fontSize:10,color:C.t3,whiteSpace:'nowrap',...mono}}>{fmtT(l.created_at)}</span>
+                  <span style={{fontSize:11.5,color:toneColor(r.tone),fontWeight:r.tone?700:400,...mono,flex:1}}>
+                    {r.label}
+                    {r.value != null && r.value !== '' && (
+                      <span style={{color:C.accent,fontWeight:700}}> [{r.value}]</span>
+                    )}
+                  </span>
+                  {name && <span style={{fontSize:10,color:C.t2,whiteSpace:'nowrap',...mono}}>{name}</span>}
+                </div>
+              );
+            })}
           </div>
         );
       })}
@@ -298,7 +420,7 @@ function ActiveFlts({toast}){
             {['details','timeline'].map(tab=>(<div key={tab} onClick={()=>setDetailTab(tab)} style={{flex:1,padding:'10px',textAlign:'center',cursor:'pointer',fontFamily:"'Courier New',monospace",fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:detailTab===tab?C.accent:C.t3,borderBottom:detailTab===tab?`2px solid ${C.accent}`:'2px solid transparent',background:detailTab===tab?`${C.accent}08`:'transparent'}}>{tab==='timeline'?'TIMELINE':'DETAILS'}</div>))}
           </div>
           {detailTab==='details'&&(<div><DetailRow label="Route" value={`${sel.dep} → ${sel.dest}`} accent/><DetailRow label="Registration" value={sel.reg}/><DetailRow label="Type" value={sel.ac_type}/><DetailRow label="Dispatch No" value={sel.dispatch_no}/><DetailRow label="STD" value={sel.std}/><DetailRow label="ETA" value={sel.eta}/><DetailRow label="PF Pilot" value={pilotName(sel.pf_pilot)}/><DetailRow label="PM Pilot" value={pilotName(sel.pm_pilot)}/></div>)}
-          {detailTab==='timeline'&&(<FlightTimeline planId={sel.id} live={true} milestoneOnly={true}/>)}
+          {detailTab==='timeline'&&(<ModuleLogView planId={sel.id} live={true}/>)}
         </DetailPanel>
       )}
     </div>
@@ -404,7 +526,7 @@ function ArchivedFlts({toast,user}){
     </div>
   );
 
-  const DETAIL_TABS = [{ id:'details', label:'DETAILS' }, { id:'docs', label:'DOCUMENTS' }];
+  const DETAIL_TABS = [{ id:'details', label:'DETAILS' }, { id:'logs', label:'LOGS' }, { id:'docs', label:'DOCUMENTS' }];
 
   return(
     <div style={{display:'flex',flex:1,overflow:'hidden'}}>
@@ -480,6 +602,10 @@ function ArchivedFlts({toast,user}){
                 <button style={S.btnDanger}  onClick={()=>setDeleteModal(true)}>DELETE RECORD</button>
               </div>
             </>
+          )}
+
+          {detailTab==='logs'&&(
+            <ModuleLogView planId={sel.plan_id}/>
           )}
 
           {detailTab==='docs'&&(
@@ -772,7 +898,7 @@ function FltLogsAndTimes(){
       </div>
       <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
         {!selected&&<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:C.t3,fontSize:13,letterSpacing:2}}>SELECT A FLIGHT</div>}
-        {selected&&(<><div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,background:C.bg3,display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><span style={{fontSize:14,fontWeight:700,color:C.accent,fontFamily:"'Courier New',monospace"}}>{selectedPlan?.dep} → {selectedPlan?.dest}</span><span style={{fontSize:11,color:C.t3,marginLeft:12,fontFamily:"'Courier New',monospace"}}>{selectedPlan?.date}  ·  {selectedPlan?.reg}</span></div></div><div style={{flex:1,overflow:'hidden'}}><FlightTimeline planId={selected} live={selectedPlan?.status==='active'}/></div></>)}
+        {selected&&(<><div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,background:C.bg3,display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><span style={{fontSize:14,fontWeight:700,color:C.accent,fontFamily:"'Courier New',monospace"}}>{selectedPlan?.dep} → {selectedPlan?.dest}</span><span style={{fontSize:11,color:C.t3,marginLeft:12,fontFamily:"'Courier New',monospace"}}>{selectedPlan?.date}  ·  {selectedPlan?.reg}</span></div></div><div style={{flex:1,overflow:'hidden'}}><ModuleLogView planId={selected} live={selectedPlan?.status==='active'}/></div></>)}
       </div>
     </div>
   );
