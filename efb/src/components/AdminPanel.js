@@ -169,7 +169,8 @@ function logModule(l){
 
 // Her satir icin insan cumlesi: {label, value?, tone?}
 // tone: 'ok' yesil, 'warn' turuncu, 'accept' vurgulu yesil
-function logRow(l){
+// who: pilot_id -> ad soyad cozucu (eski loglar isim yerine id tasir)
+function logRow(l, who = () => null){
   const d = l.details || {};
   switch (l.action) {
     case 'FIELD_ENTRY':            return { label:`${d.field} entry`, value:d.value };
@@ -186,12 +187,24 @@ function logRow(l){
     case 'NOTAM_SEEN':             return { label:'NOTAM reviewed' };
     case 'FUEL_CHECKED':           return { label:'Fuel checked', value:d.fob_lb ? `FOB ${d.fob_lb} lb` : undefined };
     case 'RASS_REVIEWED':          return { label:`${d.airport || 'Airport'} risk reviewed`, value:d.risk };
-    case 'PLAN_ACCEPTED':          return { label:`PLAN ACCEPTED — READY FOR FLIGHT · PIC ${d.pic || '—'}${d.sic ? ` / SIC ${d.sic}` : ''}`, tone:'accept' };
+    case 'PLAN_ACCEPTED': {
+      // Eski loglar isim degil id tasir -> profiles'tan coz.
+      const pic = d.pic || who(d.pic_id) || d.pic_name || '—';
+      const sic = d.sic || who(d.sic_id) || '';
+      return { label:`PLAN ACCEPTED — READY FOR FLIGHT · PIC ${pic}${sic ? ` / SIC ${sic}` : ''}`, tone:'accept' };
+    }
     case 'PLAN_ACCEPTANCE_REVOKED':return { label:'Acceptance REVOKED', tone:'warn' };
     case 'SYNC_SENT':              return { label:'Data synced to other EFB' };
     case 'SYNC_TO_PM':             return { label:'Synced to PM' };
     case 'DIVERT_SET':             return { label:`DIVERT to ${d.to || '?'} (from ${d.from || '?'})`, tone:'warn' };
-    case 'FLIGHT_ARCHIVED':        return { label:`Flight archived — ${d.route || ''}`, value:d.flight_time ? `FLT ${d.flight_time} · BLK ${d.block_time}` : undefined, tone:'ok' };
+    case 'FLIGHT_ARCHIVED': {
+      // Eski web formati: dep/dest + dakika sayilari; yeni iOS: route + hazir metin.
+      const route = d.route || (d.dep && d.dest ? `${d.dep} → ${d.dest}` : '');
+      const hm = x => (x || x === 0) ? `${Math.floor(x/60)}:${String(x%60).padStart(2,'0')}` : null;
+      const t = d.flight_time ? `FLT ${d.flight_time} · BLK ${d.block_time}`
+              : hm(d.airborne_minutes) ? `FLT ${hm(d.airborne_minutes)} · BLK ${hm(d.block_minutes)}` : undefined;
+      return { label:`Flight archived${route ? ` — ${route}` : ''}`, value:t, tone:'ok' };
+    }
     case 'DOC_UPLOADED':           return { label:'Document uploaded', value:d.file };
     case 'DOC_DELETED':            return { label:'Document DELETED', value:d.file, tone:'warn' };
     case 'PLAN_ACTIVATED':         return { label:'Plan activated', value:d.route };
@@ -215,6 +228,7 @@ function ModuleLogView({ planId, live=false }) {
   const [logs,setLogs]=useState([]);
   const [loading,setLoading]=useState(true);
   const [pilots,setPilots]=useState([]);
+  const [expanded,setExpanded]=useState(()=>new Set());   // acilmis xN gruplari
 
   useEffect(()=>{ supabase.from('profiles').select('id,full_name,code').then(({data})=>setPilots(data||[])); },[]);
   const who = id => { if (!id) return null; const p = pilots.find(x=>x.id===id); return p ? p.full_name : null; };
@@ -275,22 +289,46 @@ function ModuleLogView({ planId, live=false }) {
               )}
               <span style={{marginLeft:'auto',fontSize:9,color:C.t3,...mono}}>{groups[m].length}</span>
             </div>
-            {groups[m].map(l => {
-              const r = logRow(l);
-              const name = who(l.pilot_id);
-              return (
-                <div key={l.id} style={{display:'flex',gap:10,alignItems:'baseline',padding:'5px 12px',borderTop:`1px solid ${C.border}40`,background:r.tone==='accept'?'rgba(74,222,128,0.06)':'transparent'}}>
-                  <span style={{fontSize:10,color:C.t3,whiteSpace:'nowrap',...mono}}>{fmtT(l.created_at)}</span>
-                  <span style={{fontSize:11.5,color:toneColor(r.tone),fontWeight:r.tone?700:400,...mono,flex:1}}>
-                    {r.label}
-                    {r.value != null && r.value !== '' && (
-                      <span style={{color:C.accent,fontWeight:700}}> [{r.value}]</span>
-                    )}
-                  </span>
-                  {name && <span style={{fontSize:10,color:C.t2,whiteSpace:'nowrap',...mono}}>{name}</span>}
-                </div>
-              );
-            })}
+            {(() => {
+              // Ardisik AYNI satirlar (etiket+deger) tek satirda toplanir (xN),
+              // tiklayinca tum zamanlar acilir. Eski test dongulerinin tekrarlari
+              // (5x PLAN ACCEPTED gibi) denetciyi bogmasin diye.
+              const packed = [];
+              for (const l of groups[m]) {
+                const r = logRow(l, who);
+                const last = packed[packed.length - 1];
+                if (last && last.r.label === r.label && last.r.value === r.value) last.items.push(l);
+                else packed.push({ r, items: [l] });
+              }
+              return packed.map(g => {
+                const first = g.items[0], lastItem = g.items[g.items.length - 1];
+                const multi = g.items.length > 1;
+                const isOpen = expanded.has(first.id);
+                const name = who(lastItem.pilot_id);
+                const toggle = () => setExpanded(prev => { const n = new Set(prev); n.has(first.id) ? n.delete(first.id) : n.add(first.id); return n; });
+                return (
+                  <div key={first.id} style={{borderTop:`1px solid ${C.border}40`,background:g.r.tone==='accept'?'rgba(74,222,128,0.06)':'transparent'}}>
+                    <div onClick={multi ? toggle : undefined} style={{display:'flex',gap:10,alignItems:'baseline',padding:'5px 12px',cursor:multi?'pointer':'default'}}>
+                      <span style={{fontSize:10,color:C.t3,whiteSpace:'nowrap',...mono}}>{fmtT(lastItem.created_at)}</span>
+                      <span style={{fontSize:11.5,color:toneColor(g.r.tone),fontWeight:g.r.tone?700:400,...mono,flex:1}}>
+                        {g.r.label}
+                        {g.r.value != null && g.r.value !== '' && (
+                          <span style={{color:C.accent,fontWeight:700}}> [{g.r.value}]</span>
+                        )}
+                        {multi && <span style={{color:C.t3,fontWeight:700}}> ×{g.items.length} {isOpen ? '▾' : '▸'}</span>}
+                      </span>
+                      {name && <span style={{fontSize:10,color:C.t2,whiteSpace:'nowrap',...mono}}>{name}</span>}
+                    </div>
+                    {multi && isOpen && g.items.map(item => (
+                      <div key={item.id} style={{display:'flex',gap:10,padding:'2px 12px 2px 28px'}}>
+                        <span style={{fontSize:10,color:C.t3,...mono}}>{fmtT(item.created_at)}</span>
+                        {who(item.pilot_id) && <span style={{fontSize:10,color:C.t3,...mono}}>{who(item.pilot_id)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                );
+              });
+            })()}
           </div>
         );
       })}
