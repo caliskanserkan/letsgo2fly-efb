@@ -474,7 +474,10 @@ Deno.serve(async (req) => {
             ...sectors[idx], off_block: offBlock, on_block: onBlock, plan_id: planId,
             ...(isDivert ? { actual_dest: destIcao } : {}),
           };
-          const upd: Record<string, unknown> = { sectors };
+          const upd: Record<string, unknown> = {
+            sectors,
+            plan_ids: [...new Set([...(duty.plan_ids ?? []), planId])],
+          };
 
           // tum sektorler actual aldiysa gorev penceresini gercek degerlerle kur
           const allActual = sectors.every((s: any) => s.off_block && s.on_block);
