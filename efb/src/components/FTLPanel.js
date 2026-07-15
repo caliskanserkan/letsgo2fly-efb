@@ -36,6 +36,17 @@ const badge = (kind) => {
   return { display:'inline-block', padding:'2px 8px', fontSize:9, letterSpacing:1, fontWeight:700, border:`1px solid ${map.bd}`, color:map.c, background:map.bg, fontFamily:"'Courier New',monospace" };
 };
 
+// saat girişi otomatik format: "0645" → "06:45" (yazarken). Yalnız SAAT hücreleri —
+// süre alanları (388:10 gibi 24h üstü) bu formatı KULLANMAZ.
+const normTime = (v) => {
+  const d = String(v).replace(/[^\d]/g, '').slice(0, 4);
+  if (d.length <= 2) return d;
+  let hh = d.slice(0, 2), mm = d.slice(2);
+  if (Number(hh) > 23) hh = '23';
+  if (mm.length === 2 && Number(mm) > 59) mm = '59';
+  return `${hh}:${mm}`;
+};
+
 // tarih + yerel "HH:MM" → ISO (dispatcher'ın tarayıcı saat dilimi — Faz 1: TR operasyonu)
 const localISO = (dateStr, hhmm) => {
   if (!dateStr || !hhmm) return null;
@@ -119,9 +130,12 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
   const [off, setOff] = useState({ subtype:'OFF', endDate:'' });
   const [saving, setSaving] = useState(false);
 
-  const win = useMemo(() => dutyType === 'flight'
-    ? dutyWindow(legs.filter(l => l.etd && l.eta), accommodation, ruleset)
-    : null, [legs, accommodation, ruleset, dutyType]);
+  const timeOk = (t) => /^\d{2}:\d{2}$/.test(t || '');
+  const win = useMemo(() => {
+    if (dutyType !== 'flight') return null;
+    const complete = legs.filter(l => timeOk(l.etd) && timeOk(l.eta));
+    return complete.length === legs.length ? dutyWindow(complete, accommodation, ruleset) : null;
+  }, [legs, accommodation, ruleset, dutyType]);
 
   const { rules } = useMemo(() => effectiveRules(ruleset), [ruleset]);
   const lim = rules.cumulative_limits || {};
@@ -243,8 +257,8 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
               <option value="sim">SIM</option><option value="airport_standby">AIRPORT STANDBY</option>
             </select>
           </div>
-          <div style={{ width:110 }}><span style={S.label}>Start (LT)</span><input style={S.input} value={gnd.start} onChange={e => setGnd(g => ({ ...g, start: e.target.value }))} /></div>
-          <div style={{ width:110 }}><span style={S.label}>End (LT)</span><input style={S.input} value={gnd.end} onChange={e => setGnd(g => ({ ...g, end: e.target.value }))} /></div>
+          <div style={{ width:110 }}><span style={S.label}>Start (LT)</span><input style={S.input} value={gnd.start} onChange={e => setGnd(g => ({ ...g, start: normTime(e.target.value) }))} /></div>
+          <div style={{ width:110 }}><span style={S.label}>End (LT)</span><input style={S.input} value={gnd.end} onChange={e => setGnd(g => ({ ...g, end: normTime(e.target.value) }))} /></div>
         </>)}
       </div>
 
@@ -255,8 +269,8 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
             <div style={{ fontSize:11, color:C.t3, textAlign:'center', fontFamily:"'Courier New',monospace" }}>{i + 1}</div>
             <input style={S.input} placeholder="DEP" maxLength={4} value={l.dep} onChange={e => setLeg(i, 'dep', e.target.value.toUpperCase())} />
             <input style={S.input} placeholder="DEST" maxLength={4} value={l.dest} onChange={e => setLeg(i, 'dest', e.target.value.toUpperCase())} />
-            <input style={S.input} placeholder="ETD LT (06:30)" value={l.etd} onChange={e => setLeg(i, 'etd', e.target.value)} />
-            <input style={S.input} placeholder="ETA LT (07:45)" value={l.eta} onChange={e => setLeg(i, 'eta', e.target.value)} />
+            <input style={S.input} placeholder="ETD LT (06:30)" value={l.etd} onChange={e => setLeg(i, 'etd', normTime(e.target.value))} />
+            <input style={S.input} placeholder="ETA LT (07:45)" value={l.eta} onChange={e => setLeg(i, 'eta', normTime(e.target.value))} />
             <button style={{ ...S.btnS, padding:'8px 10px', color:C.red }} onClick={() => setLegs(ls => ls.length > 1 ? ls.filter((_, j) => j !== i) : ls)}>✕</button>
           </div>
         ))}
