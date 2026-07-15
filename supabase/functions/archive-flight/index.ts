@@ -414,6 +414,103 @@ Deno.serve(async (req) => {
       },
     });
 
+    // ── 14) FTL: actual saatleri crew_duties'e isle ──────────────────────────
+    // Eslestirme kurali (tasarim): (1) tarih, (2) DEP/DEST, (3) saat yakinligi —
+    // ayni gun ayni sektor iki kez ucildiysa actual, ETD'ye en yakin ve henuz
+    // actual almamis sektore yazilir. Belirsizse SESSIZCE YAZMA → match_review.
+    // duty_finished: iOS End Flt "DUTY FINISHED?" cevabi (body.duty_finished);
+    // gelmezse gorev ACIK kalir (status='open') — kapatma karari pilotundur.
+    let ftlUpdate: Record<string, string> = {};
+    if (!regenOnly && offBlock && onBlock) {
+      const dutyFinishedIn: boolean | null =
+        typeof body.duty_finished === "boolean" ? body.duty_finished : null;
+      const hm = (s: string | null) => {
+        if (!s) return null;
+        const m = String(s).match(/(\d{1,2}):?(\d{2})/);
+        return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+      };
+      const offMin = hm(offBlock);
+      for (const pid of [pfPilot, pmPilot].filter(Boolean)) {
+        try {
+          const { data: cands } = await admin.from("crew_duties")
+            .select("*").eq("pilot_id", pid).eq("duty_type", "flight")
+            .eq("duty_date", isoDate).neq("status", "actual");
+          if (!cands?.length) { ftlUpdate[pid] = "no_duty_found"; continue; }
+
+          // aday sektorler: dep + planlanan dest eslesir, henuz actual yok
+          type Cand = { duty: any; idx: number; dist: number };
+          const matches: Cand[] = [];
+          for (const duty of cands) {
+            (duty.sectors ?? []).forEach((s: any, idx: number) => {
+              if (s.off_block) return;                     // zaten actual almis
+              if ((s.dep ?? "").toUpperCase() !== (plan.dep ?? "").toUpperCase()) return;
+              if ((s.dest ?? "").toUpperCase() !== (plan.dest ?? "").toUpperCase()) return;
+              const etd = hm(s.etd);
+              const dist = etd != null && offMin != null
+                ? Math.min(Math.abs(etd - offMin), 1440 - Math.abs(etd - offMin)) : 9999;
+              matches.push({ duty, idx, dist });
+            });
+          }
+          if (!matches.length) {
+            // tarih tutuyor ama sektor eslesmiyor (divert/degisiklik) → bayrakla, yazma
+            await admin.from("crew_duties").update({ match_review: true })
+              .in("id", cands.map(c => c.id));
+            ftlUpdate[pid] = "match_review";
+            continue;
+          }
+          matches.sort((a, b) => a.dist - b.dist);
+          // belirsizlik: iki aday esit uzaklikta ve farkli gorevlerde → yazma
+          if (matches.length > 1 && matches[0].dist === matches[1].dist &&
+              matches[0].duty.id !== matches[1].duty.id) {
+            await admin.from("crew_duties").update({ match_review: true })
+              .eq("id", matches[0].duty.id);
+            ftlUpdate[pid] = "match_review";
+            continue;
+          }
+
+          const { duty, idx } = matches[0];
+          const sectors = [...(duty.sectors ?? [])];
+          sectors[idx] = {
+            ...sectors[idx], off_block: offBlock, on_block: onBlock, plan_id: planId,
+            ...(isDivert ? { actual_dest: destIcao } : {}),
+          };
+          const upd: Record<string, unknown> = { sectors };
+
+          // tum sektorler actual aldiysa gorev penceresini gercek degerlerle kur
+          const allActual = sectors.every((s: any) => s.off_block && s.on_block);
+          if (allActual) {
+            const snap = duty.ruleset_snapshot?.company ?? {};
+            const postMin = snap.post_flight_duty_minutes ?? 30;
+            const repHours = snap.mandatory_report_hours ?? 72;
+            const lastOn = ts(sectors[sectors.length - 1].on_block, isoDate);
+            if (lastOn && duty.report_time) {
+              const endMs = new Date(lastOn).getTime() + postMin * 60000;
+              const dutyEnd = new Date(endMs).toISOString();
+              const fdpMin = Math.round((new Date(lastOn).getTime() -
+                new Date(duty.report_time).getTime()) / 60000);
+              const fdpExceeded = duty.max_fdp_minutes != null && fdpMin > duty.max_fdp_minutes;
+              const dutyMin = fdpMin + postMin;
+              const minRest = Math.max(duty.min_rest_minutes ?? 0, dutyMin);
+              upd.duty_end = dutyEnd;
+              upd.fdp_minutes = fdpMin;
+              upd.fdp_exceeded = fdpExceeded;
+              upd.min_rest_minutes = minRest;
+              upd.earliest_next_report = new Date(endMs + minRest * 60000).toISOString();
+              if (fdpExceeded) upd.mandatory_report_due =
+                new Date(endMs + repHours * 3600000).toISOString();
+            }
+            if (dutyFinishedIn === true) { upd.status = "actual"; upd.duty_finished = true; }
+            else upd.status = "open";
+          }
+          const { error: updErr } = await admin.from("crew_duties")
+            .update(upd).eq("id", duty.id);
+          ftlUpdate[pid] = updErr ? `error: ${updErr.message}` : (allActual ? upd.status as string : "sector_updated");
+        } catch (e) {
+          ftlUpdate[pid] = `error: ${String(e)}`;   // FTL adimi arsivlemeyi ASLA dusurmez
+        }
+      }
+    }
+
     return json({
       ok: true,
       archived_flight_id: afId,
@@ -427,6 +524,7 @@ Deno.serve(async (req) => {
       reg: plan.reg ?? null,
       flight_date: plan.date ?? null,
       report_pdf_path: reportPath,
+      ftl_update: ftlUpdate,
     });
   } catch (e) {
     return json({ error: "Unhandled", detail: String(e) }, 500);
