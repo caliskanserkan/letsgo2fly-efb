@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import {
   toMin, fmtMin, spanMin, effectiveRules, overrideDirection,
-  fitness, cumulatives, dutyWindow,
+  fitness, dutyWindow,
 } from './FTLEngine';
 
 const C = {

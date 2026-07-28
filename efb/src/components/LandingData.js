@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import SyncButton from './SyncButton';
 import { usePersistedState } from '../hooks/usePersistedState';
-import { logEvent, supabase } from '../supabaseClient';
+import { logEvent } from '../supabaseClient';
 
 const RWY_CONDITIONS = [
   { id:'DRY',           label:'DRY',           factor:1.00, color:'#4ade80' },
@@ -81,7 +81,6 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
 
   const atisTimer  = useRef(null);
   const qnhTimer   = useRef(null);
-  const perfLogged = useRef(false);
 
   useEffect(() => { if (!selRwy||!activePlan?.id) return; logEvent(activePlan.id,'LND_RWY_SELECTED',{rwy:selRwy}); }, [selRwy]); // eslint-disable-line
   useEffect(() => { if (!arrAtis||!activePlan?.id) return; clearTimeout(atisTimer.current); atisTimer.current=setTimeout(()=>{ logEvent(activePlan.id,'LND_ATIS_ENTERED',{arr_atis:arrAtis,qnh:qnh||null,rwy_cond:rwyCond}); },2000); return ()=>clearTimeout(atisTimer.current); }, [arrAtis,qnh,rwyCond]); // eslint-disable-line

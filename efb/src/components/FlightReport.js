@@ -1,9 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 
-const SB_URL = 'https://ojvqdsqodpxkvpxvwgrm.supabase.co';
-const SB_KEY = 'sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f';
-
 function toMins(t) {
   if (!t || !t.includes(':')) return null;
   const [h, m] = t.split(':').map(Number);
@@ -19,12 +16,6 @@ function diffMins(a, b) {
   if (am === null || bm === null) return null;
   let d = bm - am; if (d < 0) d += 1440; return d;
 }
-function fmtDiff(mins) {
-  if (mins === null || mins === undefined) return '—';
-  const sign = mins >= 0 ? '+' : '';
-  return `${sign}${mins}'`;
-}
-
 // EASA ORO.FTL — Max FDP tablosu (1-2 sektör)
 function getMaxFDP(reportTimeMins, sectorCount) {
   const s = Math.min(sectorCount, 6);
@@ -53,10 +44,8 @@ function getMaxFDP(reportTimeMins, sectorCount) {
 
 export default function FlightReport({ plan, onClose }) {
   const [logs,        setLogs]        = useState([]);
-  const [homeBase,    setHomeBase]    = useState(null);
   const [pfHomeBase,  setPfHomeBase]  = useState(null);
   const [pmHomeBase,  setPmHomeBase]  = useState(null);
-  const [navlogRows,  setNavlogRows]  = useState([]);
   const [fltReport,   setFltReport]   = useState(null);
   const [signedUrls,  setSignedUrls]  = useState({});
   const [loading,     setLoading]     = useState(true);
@@ -65,10 +54,8 @@ export default function FlightReport({ plan, onClose }) {
     if (!plan?.id) return;
     Promise.all([
       supabase.from('flight_logs').select('action,details,created_at').eq('plan_id', plan.id).order('created_at',{ascending:true}).then(({data})=>data||[]),
-      supabase.from('home_bases').select('icao').eq('reg', plan.reg).limit(1).then(({data})=>data||[]),
-      supabase.from('navlog_entries').select('*').eq('plan_id', plan.id).order('seq',{ascending:true}).then(({data})=>data||[]),
       supabase.from('flt_report').select('*').eq('plan_id', plan.id).limit(1).then(({data})=>data||[]),
-    ]).then(([logsData, hbData, navData, fltReportData]) => {
+    ]).then(([logsData, fltReportData]) => {
       setFltReport(fltReportData?.[0] || null);
       setLogs(logsData || []);
       // PF ve PM pilot ID'lerini CREW_ASSIGNED log'undan al
@@ -83,8 +70,6 @@ export default function FlightReport({ plan, onClose }) {
         setPfHomeBase(pfHB?.[0]?.icao || null);
         setPmHomeBase(pmHB?.[0]?.icao || null);
       });
-      setHomeBase(hbData?.[0]?.icao || null);
-      setNavlogRows(navData || []);
       setLoading(false);
     });
   }, [plan?.id]); // eslint-disable-line
@@ -133,8 +118,6 @@ export default function FlightReport({ plan, onClose }) {
   const pmHB    = FR?.crew?.pm?.home_base || pmHomeBase;
   const depIcao      = FR?.dep_icao  || plan.dep;
   const destIcao     = FR?.dest_icao || plan.dest;
-  const isDivert     = !!FR?.is_divert;
-  const divertReason = FR?.divert_reason || null;
   const offBlock = pick(FR?.off_block,    getLog('OFF_BLOCKS')?.time);
   const toTime   = pick(FR?.takeoff_time, getLog('TAKEOFF')?.time);
   const landTime = pick(FR?.landing_time, getLog('LANDING')?.time);
@@ -175,19 +158,6 @@ export default function FlightReport({ plan, onClose }) {
 
   const pfFTL = calcFTL(pfHB);
   const pmFTL = calcFTL(pmHB);
-
-  // Geriye dönük uyumluluk için (eski tek kişilik hesap — PF baz alınır)
-  const isHomeBase = (icao) => pfFTL.depHome || pfFTL.destHome;
-  const depIsHome  = pfFTL.depHome;
-  const destIsHome = pfFTL.destHome;
-  const reportTime = pfFTL.reportTime;
-  const fdpMins    = pfFTL.fdpMins;
-  const maxFdpMins = pfFTL.maxFdpMins;
-  const fdpOk      = pfFTL.fdpOk;
-  const minRestMins= pfFTL.minRestMins;
-  const earliestNextDuty = pfFTL.earliestNext;
-
-
 
   // ---- RAPOR PDF: sunucuda uretilir (archive-flight). Web + iOS AYNI dosya. ----
   const [pdfBusy, setPdfBusy] = useState(false);

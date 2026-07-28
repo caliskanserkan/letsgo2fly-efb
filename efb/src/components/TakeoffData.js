@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SyncButton from './SyncButton';
 import { usePersistedState } from '../hooks/usePersistedState';
-import { logEvent, supabase } from '../supabaseClient';
+import { logEvent } from '../supabaseClient';
 
 function getStopMarginColor(margin) {
   if (margin === null) return '#94a3b8';

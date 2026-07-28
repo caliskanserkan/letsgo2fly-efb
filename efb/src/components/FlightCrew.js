@@ -160,7 +160,6 @@ function FlightCrew({ setStatus, activePlan }) {
   const fmsIdent   = activePlan?.fms_ident   || '—';
   const levelSpeed = activePlan?.level_speed || '—';
   const routeTxt   = activePlan?.route       || '—';
-  const atcFpl     = activePlan?.atc_fpl     || '';
 
   return (
     <div style={{ background:'#0f172a', minHeight:'100%' }}>

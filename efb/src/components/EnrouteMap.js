@@ -1,9 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, Marker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-const OPENAIP_KEY = '66ac62cad2142cb2ace71952b74e7722';
 
 
 
