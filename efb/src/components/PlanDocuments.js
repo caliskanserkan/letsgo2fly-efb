@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 
-const BUCKET = 'efb-docs';
+const BUCKET = 'efb-documents';
 const SECTION_META = {
   fuel:     { label:'Fuel Receipt',      icon:'⛽' },
   handling: { label:'Handling Receipt',  icon:'🤝' },
