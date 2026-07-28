@@ -366,28 +366,131 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
   const flyable = pilots.filter(p => ['pilot', 'admin_pilot'].includes(p.role));
   const [pilotId, setPilotId] = useState('');
   useEffect(() => { if (!pilotId && flyable.length) setPilotId(flyable[0].id); }, [flyable, pilotId]);
+
+  // Tarih aralığı — varsayılan: içinde bulunulan ay
+  const now = new Date();
+  const [from, setFrom] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`);
+  const [to, setTo] = useState(now.toISOString().slice(0, 10));
+
   const rows = useMemo(() => duties
     .filter(d => d.pilot_id === pilotId)
+    .filter(d => (!from || (d.duty_date || '') >= from) && (!to || (d.duty_date || '') <= to))
     .sort((a, b) => new Date(a.report_time || a.duty_date) - new Date(b.report_time || b.duty_date)),
-  [duties, pilotId]);
+  [duties, pilotId, from, to]);
   const baseline = baselines[pilotId];
   const pilot = pilots.find(p => p.id === pilotId);
+
+  // Kümülatif özet — PLN (planned) satırlar toplamlara girmez
+  const summary = useMemo(() => {
+    const s = { pfCount:0, pfMin:0, pmCount:0, pmMin:0, fltDays:0, gndDays:0, offDays:0, dutyMin:0 };
+    rows.forEach(d => {
+      const actual = d.status !== 'planned';
+      if (d.duty_type === 'off') { s.offDays++; return; }
+      if (!actual) return;
+      if (d.duty_type === 'flight') s.fltDays++;
+      if (d.duty_type === 'ground') s.gndDays++;
+      if (d.report_time && d.duty_end) s.dutyMin += (new Date(d.duty_end) - new Date(d.report_time)) / 60000;
+      if (d.duty_type === 'flight') (d.sectors || []).forEach(l => {
+        const m = spanMin(l.off_block || l.etd, l.on_block || l.eta) || 0;
+        if ((l.role || 'PF') === 'PM') { s.pmCount++; s.pmMin += m; }
+        else { s.pfCount++; s.pfMin += m; }
+      });
+    });
+    return s;
+  }, [rows]);
 
   const srcBadge = (d) => d.status === 'planned' ? <span style={badge('dim')}>PLN</span>
     : d.status === 'open' ? <span style={badge('amber')}>OPEN</span>
     : <span style={badge('green')}>ACT</span>;
 
+  // Yazdırma: tüm sayfa yerine SADECE rapor içeriği — beyaz kâğıt formatında
+  // ayrı pencerede kümülatif uçuş/görev süresi raporu üretir.
+  const printReport = () => {
+    if (!pilot) return;
+    const esc = (x) => String(x ?? '—').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const dRows = rows.map(d => {
+      const actual = d.status !== 'planned';
+      const st = d.status === 'planned' ? 'PLN' : d.status === 'open' ? 'OPEN' : 'ACT';
+      const dutyT = d.report_time && d.duty_end ? fmtMin((new Date(d.duty_end) - new Date(d.report_time)) / 60000) : '—';
+      if (d.duty_type === 'flight' && (d.sectors || []).length) {
+        return d.sectors.map((l, i) => {
+          const blkS = l.off_block || l.etd, blkE = l.on_block || l.eta;
+          return `<tr class="${actual ? '' : 'pln'}">
+            <td>${i === 0 ? esc(fmtD(d.duty_date)) : ''}</td><td>${i === 0 ? 'FLT' : ''}</td>
+            <td>${esc(l.dep)}–${esc(l.dest)}</td><td>${esc(blkS)}–${esc(blkE)}</td>
+            <td>${fmtMin(spanMin(blkS, blkE))}</td><td class="role">${esc(l.role || 'PF')}</td>
+            <td>${i === 0 ? dutyT : ''}</td><td>${i === 0 ? st : ''}</td></tr>`;
+        }).join('');
+      }
+      const kind = d.duty_type === 'off' ? `OFF · ${esc(d.off_subtype || '—')}` : `GND · ${esc((d.ground_kind || '—').toUpperCase())}`;
+      return `<tr class="${actual ? '' : 'pln'}"><td>${esc(fmtD(d.duty_date))}</td><td>${d.duty_type === 'off' ? 'OFF' : 'GND'}</td>
+        <td colspan="4">${kind}</td><td>${d.duty_type === 'off' ? '—' : dutyT}</td><td>${st}</td></tr>`;
+    }).join('');
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) return;
+    w.document.write(`<!doctype html><html><head><title>FTL Report — ${esc(pilot.code)}</title><style>
+      body{font-family:-apple-system,'Helvetica Neue',sans-serif;color:#0f172a;background:#fff;margin:28px;font-size:12px}
+      h1{font-size:15px;letter-spacing:2px;margin:0 0 2px}
+      .sub{font-size:10px;color:#64748b;margin-bottom:14px}
+      .meta{display:flex;gap:28px;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:14px;background:#f8fafc}
+      .meta div{font-size:11px}.meta b{display:block;font-size:9px;color:#64748b;letter-spacing:1px;margin-bottom:2px}
+      table{width:100%;border-collapse:collapse;font-family:ui-monospace,Menlo,monospace;font-size:10.5px}
+      th{background:#f1f5f9;border-bottom:1px solid #cbd5e1;padding:6px 8px;text-align:left;font-size:9px;letter-spacing:1px;color:#475569}
+      td{padding:5px 8px;border-bottom:1px solid #eef2f7}
+      tr.pln td{color:#94a3b8;font-style:italic}
+      td.role{font-weight:700}
+      .baseline{font-size:10px;color:#64748b;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:7px 10px;margin-bottom:10px}
+      .sum{margin-top:16px;border:2px solid #0f172a;border-radius:8px;padding:12px 16px}
+      .sum h2{font-size:11px;letter-spacing:2px;margin:0 0 8px}
+      .sumgrid{display:flex;gap:32px;flex-wrap:wrap}
+      .sumgrid div{font-size:11px}.sumgrid b{display:block;font-size:9px;color:#64748b;letter-spacing:1px;margin-bottom:2px}
+      .big{font-size:16px;font-weight:800}
+      .note{font-size:9px;color:#94a3b8;margin-top:8px}
+      @media print{body{margin:10mm}}
+    </style></head><body>
+      <h1>CREW DUTY &amp; FLIGHT TIME REPORT</h1>
+      <div class="sub">GO2 Aviation · Generated ${new Date().toLocaleString('en-GB')} · crew_duties</div>
+      <div class="meta">
+        <div><b>PILOT</b>${esc(pilot.full_name)} (${esc(pilot.code)})</div>
+        <div><b>PERIOD</b>${esc(from)} → ${esc(to)}</div>
+        <div><b>DUTIES</b>${rows.length}</div>
+      </div>
+      ${baseline ? `<div class="baseline">BASELINE (carried over, ${esc(fmtD(baseline.effective_date))}): FLT 28d ${fmtMin(baseline.flt_28d_min)} · FLT 12mo ${fmtMin(baseline.flt_12mo_min)} · DUTY 28d ${fmtMin(baseline.duty_28d_min)}</div>` : ''}
+      <table><thead><tr><th>DATE</th><th>TYPE</th><th>SECTOR</th><th>BLOCKS</th><th>FLT TIME</th><th>ROLE</th><th>DUTY TIME</th><th>SRC</th></tr></thead>
+      <tbody>${dRows || '<tr><td colspan="8">No duties in selected period.</td></tr>'}</tbody></table>
+      <div class="sum"><h2>PERIOD TOTALS — ${esc(pilot.code)}</h2>
+        <div class="sumgrid">
+          <div><b>SECTORS AS PF</b>${summary.pfCount} · ${fmtMin(summary.pfMin)}</div>
+          <div><b>SECTORS AS PM</b>${summary.pmCount} · ${fmtMin(summary.pmMin)}</div>
+          <div><b>TOTAL FLIGHT TIME</b><span class="big">${fmtMin(summary.pfMin + summary.pmMin)}</span></div>
+          <div><b>TOTAL DUTY TIME</b>${fmtMin(summary.dutyMin)}</div>
+          <div><b>FLT / GND / OFF DAYS</b>${summary.fltDays} / ${summary.gndDays} / ${summary.offDays}</div>
+        </div>
+        <div class="note">Planned (PLN) duties are listed in italics and excluded from totals. All times local.</div>
+      </div>
+    <script>window.onload=function(){window.print();}</${'script'}></body></html>`);
+    w.document.close();
+  };
+
   return (
     <div>
-      <div style={{ display:'flex', gap:14, alignItems:'flex-end', marginBottom:16 }}>
-        <div style={{ width:300 }}>
+      <div style={{ display:'flex', gap:14, alignItems:'flex-end', marginBottom:16, flexWrap:'wrap' }}>
+        <div style={{ width:280 }}>
           <span style={S.label}>Pilot</span>
           <select style={S.input} value={pilotId} onChange={e => setPilotId(e.target.value)}>
             {flyable.map(p => <option key={p.id} value={p.id}>{p.code} — {p.full_name}</option>)}
           </select>
         </div>
+        <div style={{ width:160 }}>
+          <span style={S.label}>From</span>
+          <input type="date" style={S.input} value={from} onChange={e => setFrom(e.target.value)} />
+        </div>
+        <div style={{ width:160 }}>
+          <span style={S.label}>To</span>
+          <input type="date" style={S.input} value={to} onChange={e => setTo(e.target.value)} />
+        </div>
         <div style={{ flex:1 }} />
-        <button style={S.btnS} onClick={() => window.print()}>🖨 PRINT / PDF</button>
+        <button style={S.btnS} onClick={printReport}>🖨 PRINT / PDF</button>
       </div>
 
       <div style={{ ...S.panel }}>
@@ -452,6 +555,22 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
               )}
             </tbody>
           </table>
+        </div>
+        {/* Dönem özeti — PLN hariç kümülatif toplamlar */}
+        <div style={{ display:'flex', gap:28, flexWrap:'wrap', padding:'11px 14px', borderTop:`2px solid ${C.border2}`, background:C.bg3, fontFamily:'var(--mono)' }}>
+          {[
+            ['SECTORS AS PF', `${summary.pfCount} · ${fmtMin(summary.pfMin)}`, false],
+            ['SECTORS AS PM', `${summary.pmCount} · ${fmtMin(summary.pmMin)}`, false],
+            ['TOTAL FLT TIME', fmtMin(summary.pfMin + summary.pmMin), true],
+            ['TOTAL DUTY TIME', fmtMin(summary.dutyMin), false],
+            ['FLT / GND / OFF DAYS', `${summary.fltDays} / ${summary.gndDays} / ${summary.offDays}`, false],
+          ].map(([l, v, big]) => (
+            <div key={l}>
+              <div style={{ fontSize:8.5, color:C.t3, fontWeight:700, letterSpacing:1.2, marginBottom:2 }}>{l}</div>
+              <div style={{ fontSize:big ? 15 : 12, fontWeight:700, color:big ? C.accent : 'var(--t1)' }}>{v}</div>
+            </div>
+          ))}
+          <div style={{ alignSelf:'flex-end', marginLeft:'auto', fontSize:8.5, color:C.t3 }}>PLN excluded from totals</div>
         </div>
         <div style={{ display:'flex', gap:20, flexWrap:'wrap', padding:'9px 14px', borderTop:`1px solid ${C.border}`, fontSize:9.5, color:C.t3, alignItems:'center', fontFamily:'var(--mono)' }}>
           <span><span style={badge('green')}>ACT</span> actual — auto-filled at archive</span>
