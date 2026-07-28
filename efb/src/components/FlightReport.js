@@ -162,6 +162,43 @@ export default function FlightReport({ plan, onClose }) {
   // ---- RAPOR PDF: sunucuda uretilir (archive-flight). Web + iOS AYNI dosya. ----
   const [pdfBusy, setPdfBusy] = useState(false);
 
+  // TEK RAPOR ILKESI (28 Tem): once arsiv PDF'i denenir — iOS/Statistics/Archived FLTs
+  // ayni dosyayi gosterir. PDF varsa uygulama ici onizleyici (PRINT/DOWNLOAD/CLOSE);
+  // yoksa (cok eski web ucuslari) asagidaki yeniden-insa gorunumune dusulur.
+  // undefined = araniyor, null = PDF yok (legacy), {url,name} = hazir
+  const [pdfView, setPdfView] = useState(undefined);
+  useEffect(() => {
+    let revoke = null;
+    (async () => {
+      try {
+        const { data: rows } = await supabase
+          .from('efb_documents')
+          .select('file_name,file_path')
+          .eq('plan_id', plan.id)
+          .eq('section', 'REPORT')
+          .order('uploaded_at', { ascending: false })
+          .limit(1);
+        if (!rows?.length) { setPdfView(null); return; }
+        const { data: signed, error } = await supabase.storage
+          .from('efb-documents').createSignedUrl(rows[0].file_path, 3600);
+        if (error || !signed?.signedUrl) { setPdfView(null); return; }
+        const resp = await fetch(signed.signedUrl);
+        if (!resp.ok) { setPdfView(null); return; }
+        const url = URL.createObjectURL(await resp.blob());
+        revoke = url;
+        setPdfView({ url, name: rows[0].file_name || 'GO2_FltReport.pdf' });
+      } catch { setPdfView(null); }
+    })();
+    return () => { if (revoke) URL.revokeObjectURL(revoke); };
+  }, [plan.id]); // eslint-disable-line
+
+  const downloadPdfView = () => {
+    if (!pdfView) return;
+    const a = document.createElement('a');
+    a.href = pdfView.url; a.download = pdfView.name;
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+
   const openReportPdf = async (mode = 'download') => {
     setPdfBusy(true);
     const w = window.open('', '_blank');
@@ -206,6 +243,26 @@ export default function FlightReport({ plan, onClose }) {
     val:{fontSize:12,fontWeight:700,color:'#1e293b'},
     chk:(on)=>({width:18,height:18,border:on?'3px solid #1e293b':'2px solid #cbd5e1',borderRadius:3,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,background:on?'#1e293b':'transparent'}),
   };
+
+  // TEK RAPOR: arsiv PDF'i araniyor / bulundu ise onizleyici (legacy gorunume hic girilmez)
+  if (pdfView === undefined) return <div style={S.overlay}><div style={{...S.wrap,color:'#94a3b8',textAlign:'center',paddingTop:80}}>Loading report...</div></div>;
+  if (pdfView) return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.9)',zIndex:200,display:'flex',flexDirection:'column'}}>
+      <div style={{background:'#0f172a',borderBottom:'1px solid #334155',padding:'10px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#fff'}}>GO2 eFB — Flight Report</div>
+          <div style={{fontSize:10,color:'#94a3b8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{plan.reg} · {plan.dep}–{plan.dest} · {plan.date} · {pdfView.name}</div>
+        </div>
+        <button onClick={()=>{const f=document.getElementById('flt-report-pdf-frame');try{f?.contentWindow?.print();}catch{window.print();}}}
+          style={{background:'#1e40af',border:'none',borderRadius:6,padding:'8px 16px',fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>🖨 Print</button>
+        <button onClick={downloadPdfView}
+          style={{background:'none',border:'1px solid #1e40af',borderRadius:6,padding:'8px 16px',fontSize:12,fontWeight:700,color:'#60a5fa',cursor:'pointer'}}>⬇ Download</button>
+        <button onClick={onClose}
+          style={{background:'transparent',border:'1px solid #475569',borderRadius:6,padding:'8px 16px',fontSize:12,color:'#94a3b8',cursor:'pointer'}}>✕ Close</button>
+      </div>
+      <iframe id="flt-report-pdf-frame" title="GO2 Flight Report" src={pdfView.url} style={{flex:1,border:'none',background:'#525659'}}/>
+    </div>
+  );
 
   if(loading) return <div style={S.overlay}><div style={{...S.wrap,color:'#94a3b8',textAlign:'center',paddingTop:80}}>Loading report...</div></div>;
 
