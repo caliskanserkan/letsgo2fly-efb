@@ -83,7 +83,7 @@ serve(async (req: Request) => {
     // ── Plan ──
     const { data: plan, error: planErr } = await admin
       .from("plans")
-      .select("id, customer_id, dep, dest, alternate, atc_fpl, route")
+      .select("id, customer_id, dep, dest, alternate, atc_fpl, route, route_firs")
       .eq("id", plan_id)
       .single();
 
@@ -91,12 +91,21 @@ serve(async (req: Request) => {
 
     const warnings: string[] = [];
 
-    // ── 1) Enroute FIR'lar (EET/) ──
-    const routeFirs = extractEetFirs(plan.atc_fpl ?? "");
-    if (!plan.atc_fpl) {
-      warnings.push("ATC flight plan not available — enroute FIRs could not be checked");
-    } else if (routeFirs.length === 0) {
-      warnings.push("No EET/ field in ATC flight plan — enroute FIRs could not be checked");
+    // ── 1) Enroute FIR'lar ──
+    // Iki kaynak BIRLESTIRILIR (muhafazakar ust kume — fazladan FIR yalniz fazladan uyari uretir):
+    //   a) atc_fpl Item 18 "EET/" (FIR sinir gecisleri — kalkis FIR'ini YAZMAZ)
+    //   b) plans.route_firs — parse-plan'in OFP navlog FIR kolonundan cikardigi liste
+    //      (sektore ozel, kalkis FIR'i DAHIL; ic hat/tek-FIR ucuslarda tek kaynak budur)
+    // Uyari YALNIZ iki kaynak da bossa uretilir; FIR biliniyorsa EET uyarisi gosterilmez.
+    const eetFirs = extractEetFirs(plan.atc_fpl ?? "");
+    const navFirs: string[] = Array.isArray(plan.route_firs) ? plan.route_firs : [];
+    const routeFirs = [...new Set([...eetFirs, ...navFirs])].sort();
+    if (routeFirs.length === 0) {
+      if (!plan.atc_fpl) {
+        warnings.push("ATC flight plan not available and no FIR data in OFP — enroute FIRs could not be checked");
+      } else {
+        warnings.push("No EET/ field in ATC flight plan and no FIR data in OFP — enroute FIRs could not be checked");
+      }
     }
 
     // ── 2) Meydanlar -> ulke ──

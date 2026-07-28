@@ -157,6 +157,25 @@ function parseAllSectors(text: string): any[] {
       sector.atc_fpl = fplFull ? fplFull[0].trim() : fbText.trim();
       break;
     }
+    // FIR'lar — iç hat dahil her bacakta bilinmeli (CZIB kontrolü için).
+    // Öncelik: (1) navlog FIR kolonu (sektöre özel, KALKIŞ FIR'ı dahil — EET/ onu yazmaz),
+    //          (2) paket SIGMET FIR listesi (sektör bazlı değil ama muhafazakâr üst küme:
+    //              fazladan FIR kontrolü yalnız fazladan uyarı üretir, atlama üretmez).
+    // DİKKAT: blockMap yalnız 1. sayfayı taşır; navlog satırları 2. sayfadan itibaren gelir.
+    // Bu yüzden FIR taraması sektörün TÜM sayfalarında yapılır.
+    // Navlog satır deseni: "IVGU1B DE23 LTBB 308029 311 190 ..." -> 3. kolon FIR,
+    // 4. kolon 6 haneli rüzgar, ardından TAS+MH kolonları GELMEK ZORUNDA.
+    // (SIGMET başlığı "WS TU31 LTAC 110435" rüzgardan sonra bittiği için elenir.)
+    const navFirs = new Set<string>();
+    for (const pb of text.matchAll(/FMS IDENT=\S+\s+Log Nr\.?:?\s*\d+\s+Page\s+\d+\s+([A-Z]{4}-[A-Z]{4})\s+[A-Z0-9]+([\s\S]*?)(?=FMS IDENT=|$)/g)) {
+      if (pb[1] !== routeKey) continue;
+      for (const fm of pb[2].matchAll(/^\s*\S+\s+\S+\s+([A-Z]{4})\s+\d{6}\s+\d{2,3}\s+\d/gm)) navFirs.add(fm[1]);
+    }
+    if (navFirs.size === 0) {
+      const sig = text.match(/SIGMET reports are searched for following FIR ICAO list:\s*([A-Z\s]+?)\./);
+      if (sig) for (const f of sig[1].matchAll(/\b[A-Z]{4}\b/g)) navFirs.add(f[0]);
+    }
+    sector.route_firs = [...navFirs].sort();
     // Rota: FPL varsa onu kullan (temiz noktalar), yoksa ROUTE: fallback
     sector.route          = fplRoute || (block.match(/ROUTE:\s*([\s\S]*?)(?=\n\s*FUEL\s+TIME|\n\s*1\s*ST\s+ALT|\n\s*Take Off|\n\s*\n|$)/)?.[1]?.replace(/\s+/g, ' ').trim() || '');
     sector.level_speed    = fplLevelSpeed;
@@ -234,7 +253,7 @@ Deno.serve(async (req) => {
         const { data: plan, error: insErr } = await admin.from("plans").insert({
           dispatch_no: dispatchNo, subject: filename, dep: s.dep, dest: s.dest, date: s.date,
           std: s.std, eta: s.eta, ete: s.ete, fob: s.fob, ac_type: s.ac_type, reg: s.reg,
-          route: s.route, fms_ident: s.fms_ident, level_speed: s.level_speed, atc_fpl: s.atc_fpl, operator: s.operator, callsign: s.callsign, alternate: s.alternate,
+          route: s.route, fms_ident: s.fms_ident, level_speed: s.level_speed, atc_fpl: s.atc_fpl, route_firs: s.route_firs, operator: s.operator, callsign: s.callsign, alternate: s.alternate,
           trip_fuel: s.trip_fuel, alternate_fuel: s.alternate_fuel, reserve_fuel: s.reserve_fuel,
           tow: s.tow, zfw: s.zfw, pax: s.pax, cruise_fl: s.cruise_fl, log_nr: s.log_nr,
           status: "available", customer_id: callerCustomerId,
@@ -250,6 +269,8 @@ Deno.serve(async (req) => {
       } else {
         const { count } = await admin.from("plan_versions").select("*", { count: "exact", head: true }).eq("plan_id", existing.id);
         await admin.from("plan_versions").insert({ plan_id: existing.id, dispatch_no: dispatchNo, version_no: (count || 0) + 1, raw_text: pdfText });
+        // Parser türevi alanlar yeniden yüklemede tazelenir (elle düzenlenen alanlara dokunulmaz)
+        await admin.from("plans").update({ atc_fpl: s.atc_fpl, route_firs: s.route_firs }).eq("id", existing.id);
         results.push({ dep: s.dep, dest: s.dest, status: `updated v${(count || 0) + 1}` });
       }
     }
