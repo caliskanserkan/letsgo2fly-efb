@@ -229,6 +229,19 @@ function logRow(l, who = () => null){
   }
 }
 
+// Log sirasi: kronolojik; AYNI saniye icinde MODULE_COMPLETE her zaman SONA.
+// (iOS, tamamlayici girisle COMPLETE'i ayni saniyede loglar; ms sirasi bazen
+// ters duser — denetci "giris -> complete" akisini gormeli. Damga degismez,
+// yalniz gosterim sirasi duzeltilir.)
+function logOrder(a, b) {
+  const ta = new Date(a.created_at).getTime(), tb = new Date(b.created_at).getTime();
+  const sa = Math.floor(ta / 1000), sb = Math.floor(tb / 1000);
+  if (sa !== sb) return ta - tb;
+  const ca = a.action === 'MODULE_COMPLETE' ? 1 : 0, cb = b.action === 'MODULE_COMPLETE' ? 1 : 0;
+  if (ca !== cb) return ca - cb;
+  return ta - tb;
+}
+
 function ModuleLogView({ planId, live=false }) {
   const [logs,setLogs]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -241,7 +254,7 @@ function ModuleLogView({ planId, live=false }) {
   const load = useCallback(async () => {
     if (!planId) return;
     const { data } = await supabase.from('flight_logs').select('*').eq('plan_id', planId).order('created_at', { ascending: true });
-    setLogs(data || []);
+    setLogs((data || []).slice().sort(logOrder));
     setLoading(false);
   }, [planId]);
 
@@ -255,7 +268,7 @@ function ModuleLogView({ planId, live=false }) {
       .on('postgres_changes', { event:'INSERT', schema:'public', table:'flight_logs', filter:`plan_id=eq.${planId}` },
         payload => setLogs(prev => prev.some(x => x.id === payload.new.id)
           ? prev
-          : [...prev, payload.new].sort((a,b) => new Date(a.created_at) - new Date(b.created_at))))
+          : [...prev, payload.new].sort(logOrder)))
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [planId]);
