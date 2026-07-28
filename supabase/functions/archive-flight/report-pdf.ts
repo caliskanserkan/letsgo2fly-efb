@@ -108,10 +108,15 @@ function cardHeader(c: Ctx, title: string): void {
   c.y -= 14;
 }
 
-/** Etiket/deger hucrelerinden olusan satir ciz */
+function truncS(s: string, n = 14): string {
+  return s.length > n ? s.slice(0, n - 1) + ".." : s;
+}
+
+/** Etiket/deger hucrelerinden olusan satir ciz.
+ *  amend: eski deger KIRMIZI ustu cizili + yaninda YESIL yeni deger. */
 function cellRow(
   c: Ctx,
-  cells: { lbl: string; val: string; note?: string; color?: any }[],
+  cells: { lbl: string; val: string; note?: string; color?: any; amend?: { o: string; n: string } }[],
 ): void {
   const h = 28;
   ensure(c, h);
@@ -120,8 +125,20 @@ function cellRow(
     const x = M + i * w;
     box(c, x, c.y - h, w, h);
     txt(c, cell.lbl, x + 6, c.y - 10, 6.5, c.mono, C.label);
-    txt(c, cell.val, x + 6, c.y - 21, 9, c.monoBold, cell.color ?? C.text);
-    if (cell.note) txt(c, cell.note, x + 6, c.y - 26, 5.5, c.mono, C.label);
+    if (cell.amend) {
+      const oldS = truncS(cell.amend.o);
+      txt(c, oldS, x + 6, c.y - 21, 7.5, c.mono, C.red);
+      const ow = c.mono.widthOfTextAtSize(oldS, 7.5);
+      c.page.drawLine({
+        start: { x: x + 6, y: c.y - 18.5 }, end: { x: x + 6 + ow, y: c.y - 18.5 },
+        thickness: 1, color: C.red,
+      });
+      txt(c, truncS(cell.amend.n), x + 6 + ow + 6, c.y - 21, 8.5, c.monoBold, C.green);
+      txt(c, "AMENDED", x + 6, c.y - 26.5, 5, c.monoBold, C.red);
+    } else {
+      txt(c, cell.val, x + 6, c.y - 21, 9, c.monoBold, cell.color ?? C.text);
+      if (cell.note) txt(c, cell.note, x + 6, c.y - 26, 5.5, c.mono, C.label);
+    }
   });
   c.y -= h;
 }
@@ -147,10 +164,15 @@ export interface ReportInput {
   plan: any;               // plans satiri
   signatures: Record<string, Uint8Array>;  // path -> PNG bytes
   attachments: { name: string; bytes: Uint8Array }[]; // eklenecek PDF belgeler
+  // Admin duzeltmeleri (admin_edits): PDF'e GORSEL katman olarak islenir —
+  // orijinal deger ustu cizili + yaninda yesil YENI deger (kagit logbook gelenegi).
+  // fr verisi ORIJINALDIR; duzeltme yalniz gosterimdir (EASA: kayit degismez).
+  amendments?: { field_name: string; old_value: string | null; new_value: string | null; reason?: string | null; created_at?: string | null }[];
 }
 
 export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   const { fr, plan, signatures, attachments } = input;
+  const amendments = input.amendments ?? [];
 
   const pdf = await PDFDocument.create();
   const c: Ctx = {
@@ -167,6 +189,12 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   const destIcao = fr.dest_icao || plan?.dest || DASH;
   const isDivert = !!fr.is_divert;
 
+  // Duzeltme haritasi: alan basina SON duzeltme gecerli (eski->yeni zinciri annexte tam durur)
+  const am = new Map<string, { o: string; n: string }>();
+  for (const a of amendments) am.set(a.field_name, { o: V(a.old_value), n: V(a.new_value) });
+  // Hucreye duzeltme bagla: alan duzeltilmisse amend eklenir
+  const A = (field: string, cell: any) => am.has(field) ? { ...cell, amend: am.get(field) } : cell;
+
   // ── Baslik ────────────────────────────────────────────────────────────────
   txt(c, "GO2 eFB - FLIGHT REPORT", M, c.y - 12, 13, c.monoBold, C.text);
   txt(
@@ -180,6 +208,17 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   }
   c.y -= 34;
 
+  // ── Duzeltme bandi ────────────────────────────────────────────────────────
+  if (amendments.length) {
+    ensure(c, 18);
+    fill(c, M, c.y - 14, CONTENT_W, 14, rgb(0.996, 0.906, 0.906));
+    box(c, M, c.y - 14, CONTENT_W, 14, C.red);
+    txt(c,
+      `AMENDED RECORD - ${amendments.length} CORRECTION(S) AFTER ARCHIVING - original struck through, new value in green. See AMENDMENTS annex.`,
+      M + 6, c.y - 10, 6.2, c.monoBold, C.red);
+    c.y -= 18;
+  }
+
   // ── 1) AIRCRAFT & CREW ────────────────────────────────────────────────────
   cardHeader(c, "AIRCRAFT & CREW");
   cellRow(c, [
@@ -190,7 +229,7 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   cellRow(c, [
     { lbl: "PIC (PF)", val: V(fr.pf_name) },
     { lbl: "SIC (PM)", val: V(fr.pm_name) },
-    { lbl: "Pax", val: V(fr.pax) },
+    A("pax", { lbl: "Pax", val: V(fr.pax) }),
   ]);
 
   // ── 2) FLIGHT DATA ────────────────────────────────────────────────────────
@@ -202,16 +241,16 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
     { lbl: "STD", val: V(plan?.std) },
   ]);
   cellRow(c, [
-    { lbl: "Off Block", val: V(fr.off_block) + " UTC" },
-    { lbl: "T/O", val: V(fr.takeoff_time) + " UTC" },
-    { lbl: "Landing", val: V(fr.landing_time) + " UTC" },
-    { lbl: "On Block", val: V(fr.on_block) + " UTC" },
+    A("off_blocks", { lbl: "Off Block", val: V(fr.off_block) + " UTC" }),
+    A("takeoff_time", { lbl: "T/O", val: V(fr.takeoff_time) + " UTC" }),
+    A("landing_time", { lbl: "Landing", val: V(fr.landing_time) + " UTC" }),
+    A("on_blocks", { lbl: "On Block", val: V(fr.on_block) + " UTC" }),
   ]);
   cellRow(c, [
-    { lbl: "Block Time", val: fromMins(fr.block_minutes) },
-    { lbl: "Flight Time", val: fromMins(fr.airborne_minutes) },
+    A("block_minutes", { lbl: "Block Time", val: fromMins(fr.block_minutes) }),
+    A("airborne_minutes", { lbl: "Flight Time", val: fromMins(fr.airborne_minutes) }),
     { lbl: "STA", val: V(plan?.eta) },
-    { lbl: "Landings", val: V(fr.landing_count ?? 1) },
+    A("landing_count", { lbl: "Landings", val: V(fr.landing_count ?? 1) }),
   ]);
 
   // ── 3) FUEL ───────────────────────────────────────────────────────────────
@@ -224,8 +263,8 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   cardHeader(c, "FUEL");
   cellRow(c, [
     { lbl: "FOB Plan", val: fmtLb(fr.fuel?.plan_fob ?? plan?.fob) },
-    { lbl: "T/O Fuel", val: fmtLb(fr.takeoff_fuel) },
-    { lbl: "Remaining", val: fmtLb(fr.remaining_fuel) },
+    A("takeoff_fuel", { lbl: "T/O Fuel", val: fmtLb(fr.takeoff_fuel) }),
+    A("remaining_fuel", { lbl: "Remaining", val: fmtLb(fr.remaining_fuel) }),
     { lbl: "Trip Burn", val: tripBurn !== null ? tripBurn.toLocaleString("en-US") + " lb" : DASH },
     {
       lbl: "vs OFP Plan",
@@ -327,17 +366,17 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
     if (tk) {
       subHeader(c, `TAKEOFF - ${V(tk.icao || depIcao)}`, C.dep);
       cellRow(c, [
-        { lbl: "RWY", val: V(tk.rwy) },
+        A("dep_rwy", { lbl: "RWY", val: V(tk.rwy) }),
         { lbl: "V1", val: V(tk.v1) },
         { lbl: "VR", val: V(tk.vr) },
         { lbl: "V2", val: V(tk.v2) },
         { lbl: "TRIM", val: V(tk.trim) },
       ]);
       cellRow(c, [
-        { lbl: "SID", val: V(tk.sid) },
+        A("sid", { lbl: "SID", val: V(tk.sid) }),
         { lbl: "REQ RW", val: V(tk.req_rw) },
         { lbl: "RWY LEN", val: V(tk.rwy_len) },
-        { lbl: "ATIS", val: V(tk.atis) },
+        A("dep_atis", { lbl: "ATIS", val: V(tk.atis) }),
         {
           lbl: "RVSM (P1/SBY/P2)",
           val: [tk.rvsm?.pri1, tk.rvsm?.sby, tk.rvsm?.pri2].map((v) => V(v)).join("/"),
@@ -347,16 +386,16 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
     if (ld) {
       subHeader(c, `LANDING - ${V(ld.icao || destIcao)}`, C.dest, ld.is_divert ? "DIVERT" : undefined);
       cellRow(c, [
-        { lbl: "RWY", val: V(ld.rwy) },
-        { lbl: "VREF", val: V(ld.vref) },
+        A("arr_rwy", { lbl: "RWY", val: V(ld.rwy) }),
+        A("vref", { lbl: "VREF", val: V(ld.vref) }),
         { lbl: "QNH", val: V(ld.qnh) },
-        { lbl: "REQ LND", val: V(ld.req_lnd) },
-        { lbl: "ACTUAL LW", val: V(ld.actual_lw) },
+        A("req_landing_dist", { lbl: "REQ LND", val: V(ld.req_lnd) }),
+        A("actual_lw", { lbl: "ACTUAL LW", val: V(ld.actual_lw) }),
       ]);
       cellRow(c, [
         { lbl: "RWY COND", val: V(ld.rwy_cond) },
         { lbl: "RWY LEN", val: V(ld.rwy_len) },
-        { lbl: "ATIS", val: V(ld.arr_atis ?? ld.atis) },
+        A("arr_atis", { lbl: "ATIS", val: V(ld.arr_atis ?? ld.atis) }),
       ]);
     }
   }
@@ -508,6 +547,27 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   txt(c, "WOCL 02:00-05:59 . Cumulative: 60h/7d . 190h/28d . Flight Time: 100h/28d . 900h/year",
     M + 6, c.y - 8.5, 5.5, c.mono, C.label);
   c.y -= 12;
+
+  // ── 10) AMENDMENTS ANNEX ──────────────────────────────────────────────────
+  // Tum duzeltme zinciri (ayni alanda coklu duzeltme dahil) sirali listelenir.
+  if (amendments.length) {
+    cardHeader(c, "AMENDMENTS - ADMIN CORRECTIONS (original archived record unchanged)");
+    amendments.forEach((a) => {
+      ensure(c, 13);
+      box(c, M, c.y - 13, CONTENT_W, 13);
+      txt(c, V(a.field_name).toUpperCase(), M + 4, c.y - 9.5, 6.5, c.monoBold, C.red);
+      const oldS = truncS(V(a.old_value), 18);
+      const ox = M + 120;
+      txt(c, oldS, ox, c.y - 9.5, 7, c.mono, C.red);
+      const ow = c.mono.widthOfTextAtSize(oldS, 7);
+      c.page.drawLine({ start: { x: ox, y: c.y - 7 }, end: { x: ox + ow, y: c.y - 7 }, thickness: 0.8, color: C.red });
+      txt(c, ">", ox + ow + 6, c.y - 9.5, 7, c.monoBold, C.muted);
+      txt(c, truncS(V(a.new_value), 18), ox + ow + 16, c.y - 9.5, 7.5, c.monoBold, C.green);
+      txt(c, `${truncS(V(a.reason), 34)} . ${a.created_at ? String(a.created_at).slice(0, 16).replace("T", " ") : DASH}`,
+        M + 330, c.y - 9.5, 6, c.mono, C.muted);
+      c.y -= 13;
+    });
+  }
 
   // ── Alt bilgi ─────────────────────────────────────────────────────────────
   ensure(c, 20);

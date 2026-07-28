@@ -352,15 +352,28 @@ Deno.serve(async (req) => {
         }
 
         // Ek PDF belgeleri indir (orijinal sayfa olarak eklenecek)
+        // DIKKAT: regen'de onceki RAPOR da docRows'ta gorunur — kendini eklemesin.
         const atts: { name: string; bytes: Uint8Array }[] = [];
         for (const d of docRows) {
+          if ((d as any).section === "REPORT") continue;
           if (!(d.mime_type ?? "").includes("pdf")) continue;
           const { data: blob } = await admin.storage.from("efb-documents").download(d.file_path);
           if (blob) atts.push({ name: d.file_name, bytes: new Uint8Array(await blob.arrayBuffer()) });
         }
 
+        // Duzeltmeler (yalniz regen'de olusmus olabilir): admin_edits -> PDF gorsel katmani.
+        // Orijinal deger ustu cizili + yesil yeni deger + AMENDMENTS annex.
+        let amendments: any[] = [];
+        {
+          const { data: ed } = await admin.from("admin_edits")
+            .select("field_name,old_value,new_value,reason,created_at")
+            .eq("plan_id", planId).eq("edit_type", "EDIT")
+            .order("created_at", { ascending: true });
+          amendments = ed ?? [];
+        }
+
         const pdfBytes = await buildReportPdf({
-          fr: frRow, plan, signatures: sigs, attachments: atts,
+          fr: frRow, plan, signatures: sigs, attachments: atts, amendments,
         });
 
         const fname = `GO2_FltReport_${plan.reg ?? "AC"}_${plan.dep ?? ""}-${destIcao ?? ""}_${isoDate}.pdf`

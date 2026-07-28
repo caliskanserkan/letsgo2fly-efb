@@ -378,6 +378,9 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
     if (upErr) { toast(`Update failed: ${upErr.message}`, 'error'); setSaving(false); return; }
     for (const f of changes) { await supabase.from('admin_edits').insert({ archived_flight_id: flight.id, plan_id: flight.plan_id, field_name: f.key, old_value: String(flight[f.key]??''), new_value: String(form[f.key]||''), reason, edit_type: 'EDIT', edited_by: user?.id ?? null }); }
     toast(`${changes.length} field(s) updated.`, 'success'); setSaving(false); setEditing(false); onSave();
+    // TEK RAPOR: duzeltme sonrasi arsiv PDF'i duzeltme isaretleriyle yeniden uretilir
+    supabase.functions.invoke('archive-flight',{body:{plan_id:flight.plan_id,regenerate_pdf:true}})
+      .then(({error:e})=>toast(e?`Report PDF regen failed: ${e.message}`:'Report PDF regenerated with amendments.',e?'error':'success'));
   };
   const fmtTime = iso => iso ? new Date(iso).toISOString().slice(11,16) + ' Z' : null;
   return (
@@ -564,6 +567,9 @@ function ArchivedFlts({toast,user}){
     if(upErr){toast(`Update failed: ${upErr.message}`,'error');setSaving(false);return;}
     for(const[k,v]of changes){ await supabase.from('admin_edits').insert({archived_flight_id:sel.id,plan_id:sel.plan_id,field_name:k,old_value:String(sel[k]??''),new_value:String(v),reason,edit_type:'EDIT',edited_by:user?.id??null}); }
     toast(`${changes.length} field(s) updated and logged.`,'success');
+    // TEK RAPOR: duzeltme sonrasi arsiv PDF'i duzeltme isaretleriyle yeniden uretilir
+    supabase.functions.invoke('archive-flight',{body:{plan_id:sel.plan_id,regenerate_pdf:true}})
+      .then(({error:e})=>toast(e?`Report PDF regen failed: ${e.message}`:'Report PDF regenerated with amendments.',e?'error':'success'));
     setEditModal(false);setSaving(false);load();
   };
 
