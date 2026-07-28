@@ -37,7 +37,14 @@ export default function PlanDocuments({ planId, archivedFlightId, readOnly=true 
 
   const handleView=async(doc)=>{
     setOpening(doc.id);
-    try{ const{data:s}=await supabase.storage.from(BUCKET).createSignedUrl(doc.file_path,600); if(s?.signedUrl)window.open(s.signedUrl,'_blank'); }catch{}
+    // Pencere TIKLAMA JESTI icinde acilir (bos), URL await sonrasi yuklenir.
+    // window.open await'ten SONRA cagrilirsa Safari popup engeli sessizce bloklar.
+    const w=window.open('','_blank');
+    try{
+      const{data:s,error}=await supabase.storage.from(BUCKET).createSignedUrl(doc.file_path,600);
+      if(s?.signedUrl&&w){ w.location=s.signedUrl; }
+      else{ if(w)w.close(); console.error('[DOC VIEW] signed URL alinamadi:',error?.message||'bilinmiyor',doc.file_path); }
+    }catch(err){ if(w)w.close(); console.error('[DOC VIEW]',err); }
     setOpening(null);
   };
 
