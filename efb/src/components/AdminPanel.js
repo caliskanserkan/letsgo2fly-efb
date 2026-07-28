@@ -295,7 +295,13 @@ function ModuleLogView({ planId, live=false }) {
         </div>
       )}
       {ordered.map(m => {
-        const complete = groups[m].find(l => l.action === 'MODULE_COMPLETE');
+        // Denetci akisi (log politikasi): "girisler -> module complete".
+        // COMPLETE, modul yesile dondugu ANDA damgalanir; pilot son alani yazmayi
+        // bitirmeden dusebilir (orn. FOB debounce'u COMPLETE'ten sonra loglanir).
+        // Damga DEGISMEZ; yalniz gosterimde COMPLETE kendi grubunun SONUNA alinir.
+        const glogs = groups[m].slice().sort((a, b) =>
+          ((a.action === 'MODULE_COMPLETE' ? 1 : 0) - (b.action === 'MODULE_COMPLETE' ? 1 : 0)) || logOrder(a, b));
+        const complete = glogs.find(l => l.action === 'MODULE_COMPLETE');
         return (
           <div key={m} style={{marginBottom:14,border:`1px solid ${C.border}`,borderRadius:8,overflow:'hidden'}}>
             <div style={{padding:'7px 12px',background:C.bg3,display:'flex',alignItems:'center',gap:8}}>
@@ -312,7 +318,7 @@ function ModuleLogView({ planId, live=false }) {
               // tiklayinca tum zamanlar acilir. Eski test dongulerinin tekrarlari
               // (5x PLAN ACCEPTED gibi) denetciyi bogmasin diye.
               const packed = [];
-              for (const l of groups[m]) {
+              for (const l of glogs) {
                 const r = logRow(l, who);
                 const last = packed[packed.length - 1];
                 if (last && last.r.label === r.label && last.r.value === r.value) last.items.push(l);
