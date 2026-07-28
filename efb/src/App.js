@@ -13,11 +13,15 @@ import EndFlight from './components/EndFlight';
 import DocUpload from './components/DocUpload';
 import FreeNote from './components/FreeNote';
 import RassView from './components/RassView';
+import ThemeToggle, { applySavedTheme } from './components/ThemeToggle';
 import { supabase, logEvent } from './supabaseClient';
 
 import AdminPanel from './components/AdminPanel';
 import SuperAdminPanel from './components/SuperAdminPanel';
 import FlightReport from './components/FlightReport';
+
+// Tema, ilk boyamadan önce uygulanır (efb_theme: dark/light)
+applySavedTheme();
 
 
 // ─── Global Font Size ─────────────────────────────────────────────────────────
@@ -123,24 +127,24 @@ function Login({ onLogin }) {
         <div style={{ fontSize:12, color:'var(--t3)', marginTop:4 }}>Electronic Flight Bag</div>
       </div>
       <div style={{ width:300, background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-        <div style={{ background:'#1f1f1f', borderBottom:'1px solid var(--border)', padding:'10px 18px', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:1, textTransform:'uppercase' }}>Pilot Login</div>
+        <div style={{ background:'var(--bg3)', borderBottom:'1px solid var(--border)', padding:'10px 18px', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:1, textTransform:'uppercase' }}>Pilot Login</div>
         <div style={{ padding:'12px 18px', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
           <label style={{ display:'block', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Email</label>
           <input value={email} onChange={e => setEmail(e.target.value)} placeholder="pilot@company.com"
-            style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none' }} />
+            style={{ width:'100%', background:'var(--input-bg)', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none' }} />
         </div>
         <div style={{ padding:'12px 18px' }}>
           <label style={{ display:'block', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Password</label>
           <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()}
-            style={{ width:'100%', background:'#333', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none' }} />
+            style={{ width:'100%', background:'var(--input-bg)', border:'1px solid var(--border)', borderRadius:6, padding:'9px 11px', fontSize:14, color:'var(--t1)', fontFamily:'inherit', outline:'none' }} />
         </div>
-        {error && <div style={{ margin:'0 18px', padding:'8px 10px', borderRadius:5, background:'rgba(224,32,32,0.1)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>{error}</div>}
+        {error && <div style={{ margin:'0 18px', padding:'8px 10px', borderRadius:5, background:'var(--red-soft)', borderLeft:'3px solid var(--red)', fontSize:11, color:'var(--red)' }}>{error}</div>}
         <button onClick={handleLogin} disabled={loading}
-          style={{ width:'calc(100% - 36px)', margin:'14px 18px', background: loading ? '#333' : 'var(--accent)', border:'none', borderRadius:7, padding:12, fontSize:14, fontWeight:700, color:'#fff', cursor: loading ? 'default' : 'pointer', fontFamily:'inherit' }}>
+          style={{ width:'calc(100% - 36px)', margin:'14px 18px', background: loading ? 'var(--bg3)' : 'var(--accent)', border:'none', borderRadius:7, padding:12, fontSize:14, fontWeight:700, color:'#fff', cursor: loading ? 'default' : 'pointer', fontFamily:'inherit' }}>
           {loading ? 'Signing in...' : 'Sign In'}
         </button>
       </div>
-      <div style={{ marginTop:20, fontSize:10, color:'#333' }}>GO2 Aviation · For internal use only</div>
+      <div style={{ marginTop:20, fontSize:10, color:'var(--t3)' }}>GO2 Aviation · For internal use only</div>
     </div>
   );
 }
@@ -148,17 +152,17 @@ function Login({ onLogin }) {
 // ─── PlanCard ─────────────────────────────────────────────────────────────────
 function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate, onReport }) {
   return (
-    <div style={{ background: archived ? '#1e1e1e' : active ? 'rgba(26,155,196,0.05)' : 'var(--bg3)', border:`1px solid ${archived ? '#2a2a2a' : active ? 'var(--accent)' : 'var(--border)'}`, borderRadius:10, overflow:'hidden', marginBottom:8, opacity: archived ? 0.85 : 1 }}>
+    <div style={{ background: archived ? 'var(--bg2)' : active ? 'var(--accent-soft)' : 'var(--bg3)', border:`1px solid ${archived ? 'var(--border)' : active ? 'var(--accent)' : 'var(--border)'}`, borderRadius:10, overflow:'hidden', marginBottom:8, opacity: archived ? 0.85 : 1 }}>
       <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', gap:12, borderBottom:'1px solid var(--border)' }}>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:16, fontWeight:700, color:'var(--t1)', fontFamily:'monospace', letterSpacing:1 }}>
-            {plan.dep} <span style={{ color: archived ? '#555' : 'var(--accent)' }}>→</span> {plan.dest}
+            {plan.dep} <span style={{ color: archived ? 'var(--t3)' : 'var(--accent)' }}>→</span> {plan.dest}
           </div>
           <div style={{ fontSize:11, color:'var(--t3)', marginTop:2 }}>{plan.date} · STD {plan.std} Z · {plan.ac} / {plan.reg}</div>
         </div>
         <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:4, letterSpacing:0.5,
-          background: archived ? 'rgba(100,100,100,0.15)' : active ? 'rgba(26,155,196,0.15)' : 'rgba(45,158,95,0.15)',
-          color: archived ? '#666' : active ? 'var(--accent)' : 'var(--green)' }}>
+          background: archived ? 'rgba(100,100,100,0.15)' : active ? 'var(--accent-soft)' : 'var(--green-soft)',
+          color: archived ? 'var(--t3)' : active ? 'var(--accent)' : 'var(--green)' }}>
           {archived ? 'ARCHIVED' : active ? 'IN PROGRESS' : 'AVAILABLE'}
         </span>
       </div>
@@ -167,7 +171,7 @@ function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate, onRe
         <div style={{ fontSize:11, color:'var(--t3)' }}>ETA <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.eta}</b></div>
         <div style={{ fontSize:11, color:'var(--t3)' }}>FOB <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.fob}</b></div>
         {!active && !archived && onDelete && (
-          <button onClick={onDelete} style={{ background:'transparent', border:'1px solid #e02020', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#e02020', cursor:'pointer', fontFamily:'inherit' }}>
+          <button onClick={onDelete} style={{ background:'transparent', border:'1px solid var(--red)', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'var(--red)', cursor:'pointer', fontFamily:'inherit' }}>
             ✕ Delete
           </button>
         )}
@@ -177,18 +181,18 @@ function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate, onRe
           </button>
         )}
         {!archived && (
-          <button onClick={onOpen} style={{ marginLeft:'auto', background: active ? 'rgba(26,155,196,0.12)' : 'var(--accent)', border: active ? '1px solid var(--accent)' : 'none', borderRadius:6, padding:'5px 13px', fontSize:11, fontWeight:700, color: active ? 'var(--accent)' : '#fff', cursor:'pointer', fontFamily:'inherit' }}>
+          <button onClick={onOpen} style={{ marginLeft:'auto', background: active ? 'var(--accent-soft)' : 'var(--accent)', border: active ? '1px solid var(--accent)' : 'none', borderRadius:6, padding:'5px 13px', fontSize:11, fontWeight:700, color: active ? 'var(--accent)' : '#fff', cursor:'pointer', fontFamily:'inherit' }}>
             {active ? 'Open →' : '+ Activate'}
           </button>
         )}
         {archived && (
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
-            <span style={{ fontSize:10, color:'#555', fontWeight:700 }}>🔒 Read Only</span>
-            {onReport && <button onClick={onReport} style={{ background:'rgba(56,189,248,0.12)', border:'1px solid #38bdf8', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#38bdf8', cursor:'pointer', fontFamily:'inherit' }}>📄 Report</button>}
+            <span style={{ fontSize:10, color:'var(--t3)', fontWeight:700 }}>🔒 Read Only</span>
+            {onReport && <button onClick={onReport} style={{ background:'var(--accent-soft)', border:'1px solid var(--accent)', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'var(--accent)', cursor:'pointer', fontFamily:'inherit' }}>📄 Report</button>}
           </div>
         )}
         {plan.archived_at && archived && (
-          <div style={{ fontSize:10, color:'#555', width:'100%', marginTop:4 }}>
+          <div style={{ fontSize:10, color:'var(--t3)', width:'100%', marginTop:4 }}>
             Archived: {new Date(plan.archived_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
           </div>
         )}
@@ -240,25 +244,25 @@ function UploadPlanModal({ onClose, onUploaded }) {
 
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }}>
-      <div style={{ background:'#252525', border:'1px solid #383838', borderRadius:12, width:340, overflow:'hidden' }}>
-        <div style={{ background:'#1f1f1f', padding:'10px 16px', borderBottom:'1px solid #383838', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <span style={{ fontSize:12, fontWeight:700, color:'#1a9bc4' }}>Upload Flight Plan (PDF)</span>
-          <span onClick={onClose} style={{ color:'#555', cursor:'pointer', fontSize:20, lineHeight:1 }}>×</span>
+      <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, width:340, overflow:'hidden' }}>
+        <div style={{ background:'var(--bg3)', padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <span style={{ fontSize:12, fontWeight:700, color:'var(--accent)' }}>Upload Flight Plan (PDF)</span>
+          <span onClick={onClose} style={{ color:'var(--t3)', cursor:'pointer', fontSize:20, lineHeight:1 }}>×</span>
         </div>
         <div style={{ padding:'20px 16px' }}>
           {!success && (
-            <div onClick={() => inputRef.current.click()} style={{ border:'2px dashed #383838', borderRadius:10, padding:'32px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:12, cursor:'pointer' }}>
+            <div onClick={() => inputRef.current.click()} style={{ border:'2px dashed var(--border)', borderRadius:10, padding:'32px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:12, cursor:'pointer' }}>
               <div style={{ fontSize:36 }}>📄</div>
-              <div style={{ fontSize:13, color:'#555', textAlign:'center' }}>Tap to select PDF<br /><span style={{ fontSize:11, color:'#444' }}>Flight Briefing Package</span></div>
+              <div style={{ fontSize:13, color:'var(--t3)', textAlign:'center' }}>Tap to select PDF<br /><span style={{ fontSize:11, color:'var(--t3)' }}>Flight Briefing Package</span></div>
             </div>
           )}
           <input ref={inputRef} type="file" accept=".pdf,application/pdf" onChange={handleFile} style={{ display:'none' }} />
-          {loading && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(26,155,196,0.08)', borderLeft:'3px solid #1a9bc4', fontSize:11, color:'#7bbdd4' }}>⏳ Reading PDF...</div>}
-          {error   && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(224,32,32,0.08)', borderLeft:'3px solid #e02020', fontSize:11, color:'#e02020' }}>⚠ {error}</div>}
-          {success && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'rgba(45,158,95,0.08)', borderLeft:'3px solid #2d9e5f', fontSize:11, color:'#6db890' }}>✓ {success}</div>}
+          {loading && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'var(--accent-soft)', borderLeft:'3px solid var(--accent)', fontSize:11, color:'var(--accent)' }}>⏳ Reading PDF...</div>}
+          {error   && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'var(--red-soft)', borderLeft:'3px solid var(--red)', fontSize:11, color:'var(--red)' }}>⚠ {error}</div>}
+          {success && <div style={{ marginTop:12, padding:'10px 12px', borderRadius:6, background:'var(--green-soft)', borderLeft:'3px solid var(--green)', fontSize:11, color:'var(--green)' }}>✓ {success}</div>}
         </div>
         <div style={{ padding:'0 16px 16px' }}>
-          <button onClick={onClose} style={{ width:'100%', background:'#2a2a2a', border:'1px solid #383838', borderRadius:7, padding:10, fontSize:13, color:'#666', cursor:'pointer', fontFamily:'inherit' }}>
+          <button onClick={onClose} style={{ width:'100%', background:'var(--border)', border:'1px solid var(--border)', borderRadius:7, padding:10, fontSize:13, color:'var(--t3)', cursor:'pointer', fontFamily:'inherit' }}>
             {success ? 'Close' : 'Cancel'}
           </button>
         </div>
@@ -488,18 +492,19 @@ function Dashboard({ onOpen, user, myProfile, onLogout, onAdmin, onActivate, onD
     <>
     {reportPlan && <FlightReport plan={reportPlan} onClose={()=>setReportPlan(null)}/>}
     <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:'var(--bg)' }}>
-      <div style={{ background:'#1a1a1a', borderBottom:'1px solid var(--border)', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+      <div style={{ background:'var(--bg2)', borderBottom:'1px solid var(--border)', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <span style={{ fontSize:13, fontWeight:700, color:'var(--accent)', letterSpacing:1 }}>GO2 eFB</span>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           <span style={{ fontSize:11, color:'var(--t3)' }}>{user?.email || ''}</span>
           {(myProfile?.is_super_admin || ['admin','admin_pilot'].includes(myProfile?.role)) && (
-            <button onClick={onAdmin} style={{ background:'transparent', border:'1px solid #1a9bc4', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#1a9bc4', cursor:'pointer', fontFamily:'inherit' }}>{myProfile?.is_super_admin ? 'Super Admin' : 'Admin'}</button>
+            <button onClick={onAdmin} style={{ background:'transparent', border:'1px solid var(--accent)', borderRadius:5, padding:'3px 8px', fontSize:10, color:'var(--accent)', cursor:'pointer', fontFamily:'inherit' }}>{myProfile?.is_super_admin ? 'Super Admin' : 'Admin'}</button>
           )}
-          <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #383838', borderRadius:5, padding:'3px 8px', fontSize:10, color:'#ffffff', cursor:'pointer', fontFamily:'inherit' }}>Logout</button>
+          <ThemeToggle />
+          <button onClick={onLogout} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:5, padding:'3px 8px', fontSize:10, color:'var(--t1)', cursor:'pointer', fontFamily:'inherit' }}>Logout</button>
         </div>
       </div>
 
-      <div style={{ display:'flex', background:'#1e1e1e', borderBottom:'1px solid var(--border)' }}>
+      <div style={{ display:'flex', background:'var(--bg2)', borderBottom:'1px solid var(--border)' }}>
         {[
           { id:'available', label:'Available' },
           { id:'active',    label:'Active'    },
@@ -508,10 +513,10 @@ function Dashboard({ onOpen, user, myProfile, onLogout, onAdmin, onActivate, onD
           <div key={t.id} onClick={() => setTab(t.id)} style={{ flex:1, padding:11, textAlign:'center', fontSize:12, fontWeight:600, cursor:'pointer', color: tab===t.id ? 'var(--accent)' : 'var(--t3)', borderBottom: tab===t.id ? '2px solid var(--accent)' : '2px solid transparent' }}>
             {t.label}
             {t.id === 'active' && activePlans.length > 0 && (
-              <span style={{ marginLeft:6, background:'#1a9bc4', color:'#fff', borderRadius:8, padding:'1px 6px', fontSize:9, fontWeight:700 }}>{activePlans.length}</span>
+              <span style={{ marginLeft:6, background:'var(--accent)', color:'#fff', borderRadius:8, padding:'1px 6px', fontSize:9, fontWeight:700 }}>{activePlans.length}</span>
             )}
             {t.id === 'archive' && archivedPlans.length > 0 && (
-              <span style={{ marginLeft:6, background:'#555', color:'#fff', borderRadius:8, padding:'1px 6px', fontSize:9, fontWeight:700 }}>{archivedPlans.length}</span>
+              <span style={{ marginLeft:6, background:'var(--t3)', color:'#fff', borderRadius:8, padding:'1px 6px', fontSize:9, fontWeight:700 }}>{archivedPlans.length}</span>
             )}
           </div>
         ))}
@@ -520,12 +525,12 @@ function Dashboard({ onOpen, user, myProfile, onLogout, onAdmin, onActivate, onD
       <div style={{ flex:1, overflowY:'auto', padding:10 }}>
         {tab === 'available' && (
           <>
-            <button onClick={() => setShowUpload(true)} style={{ width:'100%', background:'rgba(26,155,196,0.08)', border:'1px dashed #1a9bc4', borderRadius:8, padding:'11px 14px', fontSize:12, fontWeight:700, color:'#1a9bc4', cursor:'pointer', fontFamily:'inherit', marginBottom:10, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+            <button onClick={() => setShowUpload(true)} style={{ width:'100%', background:'var(--accent-soft)', border:'1px dashed var(--accent)', borderRadius:8, padding:'11px 14px', fontSize:12, fontWeight:700, color:'var(--accent)', cursor:'pointer', fontFamily:'inherit', marginBottom:10, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
               📄 Upload Flight Plan PDF
             </button>
-            {loading && <div style={{ textAlign:'center', color:'#555', fontSize:12, padding:20 }}>Loading plans...</div>}
+            {loading && <div style={{ textAlign:'center', color:'var(--t3)', fontSize:12, padding:20 }}>Loading plans...</div>}
             {!loading && availablePlans.length === 0 && (
-              <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No available plans.<br />Upload a PDF to get started.</div>
+              <div style={{ textAlign:'center', color:'var(--t3)', fontSize:12, padding:20 }}>No available plans.<br />Upload a PDF to get started.</div>
             )}
             {availablePlans.map((p, i) => (
               <PlanCard key={i} plan={planCard(p)} active={false} archived={false}
@@ -537,9 +542,9 @@ function Dashboard({ onOpen, user, myProfile, onLogout, onAdmin, onActivate, onD
         )}
         {tab === 'active' && (
           <>
-            {loading && <div style={{ textAlign:'center', color:'#555', fontSize:12, padding:20 }}>Loading...</div>}
+            {loading && <div style={{ textAlign:'center', color:'var(--t3)', fontSize:12, padding:20 }}>Loading...</div>}
             {!loading && activePlans.length === 0 && (
-              <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No active plans.<br />Activate a plan from Available Plans.</div>
+              <div style={{ textAlign:'center', color:'var(--t3)', fontSize:12, padding:20 }}>No active plans.<br />Activate a plan from Available Plans.</div>
             )}
             {activePlans.map((p, i) => (
               <PlanCard key={i} plan={planCard(p)} active={true} archived={false}
@@ -551,10 +556,10 @@ function Dashboard({ onOpen, user, myProfile, onLogout, onAdmin, onActivate, onD
         )}
         {tab === 'archive' && (
           <>
-            <div style={{ padding:'8px 4px 10px', fontSize:10, color:'#555', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>Archived Plans · Read Only</div>
-            {loading && <div style={{ textAlign:'center', color:'#555', fontSize:12, padding:20 }}>Loading...</div>}
+            <div style={{ padding:'8px 4px 10px', fontSize:10, color:'var(--t3)', fontWeight:700, letterSpacing:0.7, textTransform:'uppercase' }}>Archived Plans · Read Only</div>
+            {loading && <div style={{ textAlign:'center', color:'var(--t3)', fontSize:12, padding:20 }}>Loading...</div>}
             {!loading && archivedPlans.length === 0 && (
-              <div style={{ textAlign:'center', color:'#444', fontSize:12, padding:20 }}>No archived flights.</div>
+              <div style={{ textAlign:'center', color:'var(--t3)', fontSize:12, padding:20 }}>No archived flights.</div>
             )}
             {archivedPlans.map((p, i) => (
               <PlanCard key={i} plan={planCard(p)} active={false} archived={true}
@@ -693,7 +698,7 @@ function App() {
 
   if (page === 'loading') return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
-      <div style={{ fontSize:13, color:'#555' }}>Loading...</div>
+      <div style={{ fontSize:13, color:'var(--t3)' }}>Loading...</div>
     </div>
   );
 
@@ -722,10 +727,10 @@ function App() {
       <OfflineBanner offlineSince={offlineSince} />
       {activePlan?.readOnly && (
         <>
-          <div style={{ background:'rgba(100,100,100,0.15)', borderBottom:'2px solid #555', padding:'7px 16px', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+          <div style={{ background:'rgba(100,100,100,0.15)', borderBottom:'2px solid var(--t3)', padding:'7px 16px', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
             <span style={{ fontSize:14 }}>🔒</span>
-            <span style={{ fontSize:12, fontWeight:700, color:'#888' }}>READ ONLY — Archived Flight</span>
-            <span style={{ fontSize:11, color:'#555', marginLeft:4 }}>
+            <span style={{ fontSize:12, fontWeight:700, color:'var(--t2)' }}>READ ONLY — Archived Flight</span>
+            <span style={{ fontSize:11, color:'var(--t3)', marginLeft:4 }}>
               {activePlan.archived_at ? `Archived: ${new Date(activePlan.archived_at).toLocaleDateString('en-GB')}` : ''}
             </span>
           </div>

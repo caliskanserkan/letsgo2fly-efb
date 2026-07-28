@@ -6,6 +6,8 @@ import { toMin as ftlToMin, fmtMin as ftlFmtMin } from './FTLEngine';
 import { supabase } from '../supabaseClient';
 import { RiskSurvey, AssessmentHistory } from './RiskSurvey';
 import PlanDocuments from './PlanDocuments';
+import Drawer from './Drawer';
+import ThemeToggle from './ThemeToggle';
 
 // ─── Font Controls ────────────────────────────────────────────
 const FONT_KEY = 'efb_font_size';
@@ -21,40 +23,41 @@ function FontControls() {
   const change = (d) => { const n = Math.min(FONT_MAX, Math.max(FONT_MIN, size + d)); setSize(n); applyFont(n); };
   return (
     <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-      <button onClick={() => change(-1)} style={{ width:28, height:28, background:"#1e293b", border:"1px solid #334155", borderRadius:5, color:"#94a3b8", fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"inherit" }}>−</button>
-      <span style={{ fontSize:11, color:"#475569", minWidth:22, textAlign:"center", fontFamily:"monospace" }}>{size}</span>
-      <button onClick={() => change(+1)} style={{ width:28, height:28, background:"#1e293b", border:"1px solid #334155", borderRadius:5, color:"#94a3b8", fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"inherit" }}>+</button>
+      <button onClick={() => change(-1)} style={{ width:28, height:28, background:"transparent", border:"1px solid var(--border)", borderRadius:6, color:"var(--t2)", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"inherit" }}>−</button>
+      <span style={{ fontSize:11, color:"var(--t3)", minWidth:22, textAlign:"center", fontFamily:"var(--mono)" }}>{size}</span>
+      <button onClick={() => change(+1)} style={{ width:28, height:28, background:"transparent", border:"1px solid var(--border)", borderRadius:6, color:"var(--t2)", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"inherit" }}>+</button>
     </div>
   );
 }
 
 
 
+// Tema token eşlemesi — gerçek renkler App.css'te (koyu/açık)
 const C = {
-  bg:'#0a0c10',bg2:'#0d1117',bg3:'#111620',border:'#1e2530',border2:'#2a3040',
-  accent:'#e8a020',accentDim:'#4a3010',t1:'#ffffff',t2:'#ffffff',t3:'#ffffff',
-  green:'#2d7a4f',greenDim:'#0a1a10',red:'#c04040',redDim:'#1a0808',
-  blue:'#1a6b9c',blueDim:'#0a1a2a',
+  bg:'var(--bg)',bg2:'var(--bg2)',bg3:'var(--bg3)',border:'var(--border)',border2:'var(--border2)',
+  accent:'var(--accent)',accentDim:'var(--accent-soft)',t1:'var(--t1)',t2:'var(--t2)',t3:'var(--t3)',
+  green:'var(--green)',greenDim:'var(--green-soft)',red:'var(--red)',redDim:'var(--red-soft)',
+  blue:'var(--accent)',blueDim:'var(--accent-soft)',
 };
 const S = {
-  navItem:(a)=>({padding:'11px 16px',cursor:'pointer',display:'flex',alignItems:'center',gap:10,borderLeft:`3px solid ${a?C.accent:'transparent'}`,background:a?`${C.accent}10`:'transparent',borderBottom:`1px solid ${C.border}`,transition:'all 0.15s'}),
-  navLabel:(a)=>({fontSize:14,fontWeight:a?700:500,color:a?C.accent:C.t1,letterSpacing:0.5,fontFamily:"'Courier New',monospace",textTransform:'uppercase'}),
+  navItem:(a)=>({padding:'11px 16px',cursor:'pointer',display:'flex',alignItems:'center',gap:10,borderLeft:`3px solid ${a?C.accent:'transparent'}`,background:a?`var(--accent-soft)`:'transparent',borderBottom:`1px solid ${C.border}`,transition:'all 0.15s'}),
+  navLabel:(a)=>({fontSize:14,fontWeight:a?700:500,color:a?C.accent:C.t1,letterSpacing:0.5,fontFamily:'var(--mono)',textTransform:'uppercase'}),
   navIcon:{fontSize:16,width:20,textAlign:'center'},
-  label:{fontSize:11,color:C.t3,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',fontFamily:"'Courier New',monospace"},
+  label:{fontSize:10,color:C.t3,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',fontFamily:'var(--mono)'},
   table:{width:'100%',borderCollapse:'collapse',fontSize:11},
-  th:{padding:'10px 14px',textAlign:'left',fontSize:14,color:'#fff',fontWeight:700,letterSpacing:1,textTransform:'uppercase',borderBottom:`1px solid ${C.border}`,fontFamily:"'Courier New',monospace",background:C.bg3},
-  td:{padding:'11px 14px',borderBottom:`1px solid ${C.border}`,color:'#fff',fontFamily:"'Courier New',monospace",fontSize:15,fontWeight:600,verticalAlign:'middle'},
-  badge:(c)=>({display:'inline-block',padding:'3px 9px',fontSize:13,letterSpacing:1,fontWeight:700,fontFamily:"'Courier New',monospace",background:c==='green'?C.greenDim:c==='red'?C.redDim:c==='blue'?C.blueDim:`${C.accent}10`,color:c==='green'?'#40d080':c==='red'?'#f06060':c==='blue'?'#4a9bc4':C.accent,border:`1px solid ${c==='green'?'#1a4030':c==='red'?'#602020':c==='blue'?'#1a3a5a':C.accentDim}`}),
-  input:{width:'100%',background:'#080c12',border:`1px solid ${C.border}`,color:'#fff',padding:'10px 12px',fontSize:16,fontFamily:"'Courier New',monospace",outline:'none',boxSizing:'border-box'},
-  select:{width:'100%',background:'#080c12',border:`1px solid ${C.border}`,color:'#fff',padding:'10px 12px',fontSize:16,fontFamily:"'Courier New',monospace",outline:'none',boxSizing:'border-box',appearance:'none'},
-  btnPrimary:{background:C.accent,color:'#0a0c10',border:'none',padding:'10px 22px',fontSize:14,fontFamily:"'Courier New',monospace",fontWeight:700,letterSpacing:1.5,cursor:'pointer',textTransform:'uppercase'},
-  btnSecondary:{background:'none',color:'#fff',border:`1px solid ${C.border2}`,padding:'8px 16px',fontSize:14,fontFamily:"'Courier New',monospace",cursor:'pointer',letterSpacing:1},
-  btnDanger:{background:'none',color:C.red,border:'1px solid #3a1010',padding:'7px 14px',fontSize:14,fontFamily:"'Courier New',monospace",cursor:'pointer',letterSpacing:1},
+  th:{padding:'10px 14px',textAlign:'left',fontSize:11,color:C.t3,fontWeight:700,letterSpacing:1.2,textTransform:'uppercase',borderBottom:`1px solid ${C.border}`,fontFamily:'var(--mono)',background:C.bg3,position:'sticky',top:0,zIndex:1},
+  td:{padding:'12px 14px',borderBottom:`1px solid var(--line-soft)`,color:C.t1,fontFamily:'var(--mono)',fontSize:13,fontWeight:500,verticalAlign:'middle'},
+  badge:(c)=>({display:'inline-block',padding:'2px 8px',fontSize:11,letterSpacing:1,fontWeight:700,fontFamily:'var(--mono)',borderRadius:5,background:c==='green'?C.greenDim:c==='red'?C.redDim:c==='blue'?C.blueDim:'var(--amber-soft)',color:c==='green'?'var(--green)':c==='red'?'var(--red)':c==='blue'?'var(--accent)':'var(--amber)',border:`1px solid var(--line-soft)`}),
+  input:{width:'100%',background:'var(--input-bg)',border:`1px solid ${C.border}`,borderRadius:6,color:'var(--t1)',padding:'9px 12px',fontSize:14,fontFamily:'var(--mono)',outline:'none',boxSizing:'border-box'},
+  select:{width:'100%',background:'var(--input-bg)',border:`1px solid ${C.border}`,borderRadius:6,color:'var(--t1)',padding:'9px 12px',fontSize:14,fontFamily:'var(--mono)',outline:'none',boxSizing:'border-box',appearance:'none'},
+  btnPrimary:{background:C.accent,color:'#fff',border:'none',borderRadius:6,padding:'10px 18px',fontSize:12,fontFamily:'var(--mono)',fontWeight:700,letterSpacing:1.2,cursor:'pointer',textTransform:'uppercase'},
+  btnSecondary:{background:'none',color:'var(--t2)',border:`1px solid ${C.border2}`,borderRadius:6,padding:'8px 14px',fontSize:12,fontFamily:'var(--mono)',cursor:'pointer',letterSpacing:1},
+  btnDanger:{background:'none',color:C.red,border:'1px solid var(--red-soft)',borderRadius:6,padding:'8px 14px',fontSize:12,fontFamily:'var(--mono)',cursor:'pointer',letterSpacing:1},
   formGroup:{marginBottom:16},
-  formLabel:{display:'block',fontSize:14,color:'#fff',letterSpacing:1,fontWeight:700,textTransform:'uppercase',fontFamily:"'Courier New',monospace",marginBottom:7},
-  modal:{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200},
-  modalBox:{background:C.bg2,border:`1px solid ${C.border2}`,padding:28,minWidth:'min(400px,90vw)',maxWidth:560,width:'90%',maxHeight:'85vh',overflowY:'auto'},
-  toast:(t)=>({position:'fixed',bottom:24,right:24,background:t==='error'?C.redDim:C.greenDim,border:`1px solid ${t==='error'?'#602020':'#206040'}`,color:t==='error'?'#f06060':'#40d080',padding:'10px 18px',fontSize:11,fontFamily:"'Courier New',monospace",zIndex:1000,letterSpacing:1}),
+  formLabel:{display:'block',fontSize:11,color:'var(--t2)',letterSpacing:1,fontWeight:700,textTransform:'uppercase',fontFamily:'var(--mono)',marginBottom:6},
+  modal:{position:'fixed',inset:0,background:'var(--backdrop)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200},
+  modalBox:{background:C.bg2,border:`1px solid ${C.border2}`,borderRadius:10,padding:28,minWidth:'min(400px,90vw)',maxWidth:560,width:'90%',maxHeight:'85vh',overflowY:'auto',boxShadow:'var(--shadow)'},
+  toast:(t)=>({position:'fixed',bottom:24,right:24,background:t==='error'?C.redDim:C.greenDim,border:`1px solid ${t==='error'?'var(--red-soft)':'var(--green-soft)'}`,borderRadius:8,color:t==='error'?'var(--red)':'var(--green)',padding:'10px 18px',fontSize:11,fontFamily:'var(--mono)',zIndex:1000,letterSpacing:1}),
 };
 
 function Toast({msg,type,onClose}){
@@ -67,7 +70,7 @@ function Modal({title,children,onClose,width}){
     <div style={S.modal} onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div style={{...S.modalBox,...(width?{minWidth:`min(${width}px,90vw)`}:{})}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,paddingBottom:10,borderBottom:`1px solid ${C.border}`}}>
-          <span style={{fontSize:11,color:C.accent,letterSpacing:3,fontWeight:700,fontFamily:"'Courier New',monospace",textTransform:'uppercase'}}>{title}</span>
+          <span style={{fontSize:11,color:C.accent,letterSpacing:3,fontWeight:700,fontFamily:'var(--mono)',textTransform:'uppercase'}}>{title}</span>
           <button onClick={onClose} style={{background:'none',border:'none',color:C.t3,cursor:'pointer',fontSize:18}}>x</button>
         </div>
         {children}
@@ -80,7 +83,7 @@ function DetailPanel({title,children,onClose,width}){
   return(
     <div style={{width:width||360,maxWidth:'92vw',background:C.bg2,borderLeft:`1px solid ${C.border}`,display:'flex',flexDirection:'column',flexShrink:0,overflow:'hidden'}}>
       <div style={{padding:'12px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <span style={{fontSize:10,color:C.accent,fontWeight:700,letterSpacing:2,fontFamily:"'Courier New',monospace",textTransform:'uppercase'}}>{title}</span>
+        <span style={{fontSize:10,color:C.accent,fontWeight:700,letterSpacing:2,fontFamily:'var(--mono)',textTransform:'uppercase'}}>{title}</span>
         <button onClick={onClose} style={{background:'none',border:'none',color:C.t3,cursor:'pointer',fontSize:16}}>x</button>
       </div>
       <div style={{flex:1,overflowY:'auto'}}>{children}</div>
@@ -90,43 +93,43 @@ function DetailPanel({title,children,onClose,width}){
 function DetailRow({label,value,accent}){
   return(
     <div style={{padding:'9px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-      <span style={{fontSize:14,color:'#fff',fontWeight:700,letterSpacing:1,fontFamily:"'Courier New',monospace",textTransform:'uppercase'}}>{label}</span>
-      <span style={{fontSize:15,color:accent?C.accent:'#fff',fontFamily:"'Courier New',monospace",fontWeight:700}}>{value||'—'}</span>
+      <span style={{fontSize:14,color:'var(--t1)',fontWeight:700,letterSpacing:1,fontFamily:'var(--mono)',textTransform:'uppercase'}}>{label}</span>
+      <span style={{fontSize:15,color:accent?C.accent:'var(--t1)',fontFamily:'var(--mono)',fontWeight:700}}>{value||'—'}</span>
     </div>
   );
 }
 
 const ACTION_META = {
-  PLAN_RELEASED:              {icon:'>>',label:'Plan Released',          color:'#e8a020'},
-  PLAN_DOWNLOADED:            {icon:'<<',label:'Plan Downloaded',        color:'#38bdf8'},
-  CREW_ASSIGNED:              {icon:'**',label:'Crew Assigned',          color:'#38bdf8'},
-  PREFLIGHT_MANDATORY_COMPLETE:{icon:'OK',label:'Mandatory Complete',    color:'#4ade80'},
-  MANDATORY_CHECK_DONE:       {icon:'[x]',label:'Check Done',            color:'#4ade80'},
-  MANDATORY_CHECK_UNDONE:     {icon:'[ ]',label:'Check Undone',          color:'#f97316'},
-  MANDATORY_SIGNED:           {icon:'///',label:'Mandatory Signed',      color:'#4ade80'},
-  FUEL_CHECKED:               {icon:'F',  label:'Fuel Checked',          color:'#4ade80'},
-  PLAN_ACCEPTED:              {icon:'SIG',label:'Plan Accepted & Signed',color:'#4ade80'},
-  PLAN_ACCEPTANCE_REVOKED:    {icon:'REV',label:'Acceptance Revoked',    color:'#ef4444'},
-  SYNC_TO_PM:                 {icon:'<>',label:'Synced to PM',           color:'#38bdf8'},
-  TKOF_RWY_SELECTED:          {icon:'RWY',label:'T/O Runway Selected',  color:'#38bdf8'},
-  TKOF_ATIS_ENTERED:          {icon:'ATI',label:'DEP ATIS Entered',      color:'#38bdf8'},
-  TKOF_SPEEDS_ENTERED:        {icon:'V',  label:'T/O Speeds (V1/VR/V2)',color:'#e8a020'},
-  TKOF_ATC_CLR:               {icon:'ATC',label:'ATC Clearance',         color:'#38bdf8'},
-  TKOF_RVSM_GROUND:           {icon:'RVG',label:'RVSM Ground Check',     color:'#4ade80'},
-  OFF_BLOCKS:                 {icon:'OFB',label:'Off Blocks',            color:'#e8a020'},
-  TAKEOFF:                    {icon:'T/O',label:'Takeoff',               color:'#e8a020'},
-  RVSM_CHECK:                 {icon:'RVC',label:'RVSM Check',            color:'#38bdf8'},
-  GPS_ACTIVATED:              {icon:'GPS',label:'GPS Activated',         color:'#4ade80'},
-  LANDING:                    {icon:'LND',label:'Landing',               color:'#e8a020'},
-  ON_BLOCKS:                  {icon:'ONB',label:'On Blocks',             color:'#e8a020'},
-  FUEL_REMAINING:             {icon:'FR', label:'Fuel Remaining',        color:'#4ade80'},
-  LND_RWY_SELECTED:           {icon:'RWY',label:'LND Runway Selected',  color:'#38bdf8'},
-  LND_ATIS_ENTERED:           {icon:'ATI',label:'ARR ATIS Entered',      color:'#38bdf8'},
-  LND_PERF_DATA:              {icon:'LW', label:'LND Perf Data',         color:'#e8a020'},
-  FLIGHT_ARCHIVED:            {icon:'ARC',label:'Flight Archived',       color:'#4ade80'},
-  ADMIN_EDIT:                 {icon:'EDT',label:'Admin Edit',            color:'#ef4444'},
-  PLAN_ACTIVATED:             {icon:'>',  label:'Plan Activated',        color:'#38bdf8'},
-  LND_QNH_ENTERED:            {icon:'QNH',label:'ARR QNH Entered',       color:'#38bdf8'},
+  PLAN_RELEASED:              {icon:'>>',label:'Plan Released',          color:'var(--amber)'},
+  PLAN_DOWNLOADED:            {icon:'<<',label:'Plan Downloaded',        color:'var(--accent)'},
+  CREW_ASSIGNED:              {icon:'**',label:'Crew Assigned',          color:'var(--accent)'},
+  PREFLIGHT_MANDATORY_COMPLETE:{icon:'OK',label:'Mandatory Complete',    color:'var(--green)'},
+  MANDATORY_CHECK_DONE:       {icon:'[x]',label:'Check Done',            color:'var(--green)'},
+  MANDATORY_CHECK_UNDONE:     {icon:'[ ]',label:'Check Undone',          color:'var(--orange)'},
+  MANDATORY_SIGNED:           {icon:'///',label:'Mandatory Signed',      color:'var(--green)'},
+  FUEL_CHECKED:               {icon:'F',  label:'Fuel Checked',          color:'var(--green)'},
+  PLAN_ACCEPTED:              {icon:'SIG',label:'Plan Accepted & Signed',color:'var(--green)'},
+  PLAN_ACCEPTANCE_REVOKED:    {icon:'REV',label:'Acceptance Revoked',    color:'var(--red)'},
+  SYNC_TO_PM:                 {icon:'<>',label:'Synced to PM',           color:'var(--accent)'},
+  TKOF_RWY_SELECTED:          {icon:'RWY',label:'T/O Runway Selected',  color:'var(--accent)'},
+  TKOF_ATIS_ENTERED:          {icon:'ATI',label:'DEP ATIS Entered',      color:'var(--accent)'},
+  TKOF_SPEEDS_ENTERED:        {icon:'V',  label:'T/O Speeds (V1/VR/V2)',color:'var(--amber)'},
+  TKOF_ATC_CLR:               {icon:'ATC',label:'ATC Clearance',         color:'var(--accent)'},
+  TKOF_RVSM_GROUND:           {icon:'RVG',label:'RVSM Ground Check',     color:'var(--green)'},
+  OFF_BLOCKS:                 {icon:'OFB',label:'Off Blocks',            color:'var(--amber)'},
+  TAKEOFF:                    {icon:'T/O',label:'Takeoff',               color:'var(--amber)'},
+  RVSM_CHECK:                 {icon:'RVC',label:'RVSM Check',            color:'var(--accent)'},
+  GPS_ACTIVATED:              {icon:'GPS',label:'GPS Activated',         color:'var(--green)'},
+  LANDING:                    {icon:'LND',label:'Landing',               color:'var(--amber)'},
+  ON_BLOCKS:                  {icon:'ONB',label:'On Blocks',             color:'var(--amber)'},
+  FUEL_REMAINING:             {icon:'FR', label:'Fuel Remaining',        color:'var(--green)'},
+  LND_RWY_SELECTED:           {icon:'RWY',label:'LND Runway Selected',  color:'var(--accent)'},
+  LND_ATIS_ENTERED:           {icon:'ATI',label:'ARR ATIS Entered',      color:'var(--accent)'},
+  LND_PERF_DATA:              {icon:'LW', label:'LND Perf Data',         color:'var(--amber)'},
+  FLIGHT_ARCHIVED:            {icon:'ARC',label:'Flight Archived',       color:'var(--green)'},
+  ADMIN_EDIT:                 {icon:'EDT',label:'Admin Edit',            color:'var(--red)'},
+  PLAN_ACTIVATED:             {icon:'>',  label:'Plan Activated',        color:'var(--accent)'},
+  LND_QNH_ENTERED:            {icon:'QNH',label:'ARR QNH Entered',       color:'var(--accent)'},
 };
 
 // ─── Module Log View — denetci-okunur pilot hareket dokumu ──────────────────
@@ -257,9 +260,9 @@ function ModuleLogView({ planId, live=false }) {
     return () => { supabase.removeChannel(ch); };
   }, [planId]);
 
-  const mono = { fontFamily:"'Courier New',monospace" };
+  const mono = { fontFamily:'var(--mono)' };
   const fmtT = iso => { const dt = new Date(iso); return `${String(dt.getUTCDate()).padStart(2,'0')}/${String(dt.getUTCMonth()+1).padStart(2,'0')} ${dt.toISOString().slice(11,19)}Z`; };
-  const toneColor = t => t === 'ok' ? '#4ade80' : t === 'warn' ? '#f97316' : t === 'accept' ? '#4ade80' : C.t1;
+  const toneColor = t => t === 'ok' ? 'var(--green)' : t === 'warn' ? 'var(--orange)' : t === 'accept' ? 'var(--green)' : C.t1;
 
   if (loading) return <div style={{padding:20,color:C.t3,fontSize:11,textAlign:'center',...mono}}>LOADING LOGS...</div>;
   if (!logs.length) return <div style={{padding:20,color:C.t3,fontSize:11,textAlign:'center',...mono}}>NO LOG ENTRIES</div>;
@@ -273,8 +276,8 @@ function ModuleLogView({ planId, live=false }) {
     <div style={{height:'100%',overflowY:'auto',padding:'12px 16px'}}>
       {live && (
         <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:12}}>
-          <div style={{width:7,height:7,borderRadius:4,background:'#40d080',boxShadow:'0 0 6px rgba(64,208,128,0.6)'}}/>
-          <span style={{fontSize:10,color:'#40d080',...mono,letterSpacing:1}}>LIVE</span>
+          <div style={{width:7,height:7,borderRadius:4,background:'var(--green)',boxShadow:'0 0 6px rgba(64,208,128,0.6)'}}/>
+          <span style={{fontSize:10,color:'var(--green)',...mono,letterSpacing:1}}>LIVE</span>
           <span style={{marginLeft:'auto',fontSize:10,color:C.t3,...mono}}>{logs.length} entries</span>
         </div>
       )}
@@ -285,7 +288,7 @@ function ModuleLogView({ planId, live=false }) {
             <div style={{padding:'7px 12px',background:C.bg3,display:'flex',alignItems:'center',gap:8}}>
               <span style={{fontSize:11,fontWeight:700,letterSpacing:2,color:C.accent,...mono}}>{m}</span>
               {complete && (
-                <span style={{fontSize:9,fontWeight:700,color:'#4ade80',background:'rgba(74,222,128,0.12)',padding:'2px 8px',borderRadius:4,...mono}}>
+                <span style={{fontSize:9,fontWeight:700,color:'var(--green)',background:'rgba(74,222,128,0.12)',padding:'2px 8px',borderRadius:4,...mono}}>
                   COMPLETE {fmtT(complete.created_at)}
                 </span>
               )}
@@ -309,7 +312,7 @@ function ModuleLogView({ planId, live=false }) {
                 const name = who(lastItem.pilot_id);
                 const toggle = () => setExpanded(prev => { const n = new Set(prev); n.has(first.id) ? n.delete(first.id) : n.add(first.id); return n; });
                 return (
-                  <div key={first.id} style={{borderTop:`1px solid ${C.border}40`,background:g.r.tone==='accept'?'rgba(74,222,128,0.06)':'transparent'}}>
+                  <div key={first.id} style={{borderTop:`1px solid var(--line-soft)`,background:g.r.tone==='accept'?'rgba(74,222,128,0.06)':'transparent'}}>
                     <div onClick={multi ? toggle : undefined} style={{display:'flex',gap:10,alignItems:'baseline',padding:'5px 12px',cursor:multi?'pointer':'default'}}>
                       <span style={{fontSize:10,color:C.t3,whiteSpace:'nowrap',...mono}}>{fmtT(lastItem.created_at)}</span>
                       <span style={{fontSize:11.5,color:toneColor(g.r.tone),fontWeight:g.r.tone?700:400,...mono,flex:1}}>
@@ -362,9 +365,9 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
     <div style={{borderBottom:`1px solid ${C.border}`}}>
       <div onClick={() => setOpen(o=>!o)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 16px',cursor:'pointer',background:open?`${color}08`:'transparent',borderLeft:`3px solid ${open?color:'transparent'}`}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <span style={{fontSize:12,color:color,fontWeight:700,fontFamily:"'Courier New',monospace",width:30}}>{icon}</span>
-          <span style={{fontSize:12,color:open?color:C.t3,fontWeight:700,fontFamily:"'Courier New',monospace",letterSpacing:1,textTransform:'uppercase'}}>{title}</span>
-          {logs && logs.length > 0 && (<span style={{fontSize:9,color:C.t3,background:C.bg3,padding:'1px 6px',borderRadius:3,fontFamily:"'Courier New',monospace"}}>{logs.length}</span>)}
+          <span style={{fontSize:12,color:color,fontWeight:700,fontFamily:'var(--mono)',width:30}}>{icon}</span>
+          <span style={{fontSize:12,color:open?color:C.t3,fontWeight:700,fontFamily:'var(--mono)',letterSpacing:1,textTransform:'uppercase'}}>{title}</span>
+          {logs && logs.length > 0 && (<span style={{fontSize:9,color:C.t3,background:C.bg3,padding:'1px 6px',borderRadius:3,fontFamily:'var(--mono)'}}>{logs.length}</span>)}
         </div>
         <span style={{fontSize:12,color:C.t3}}>{open?'v':'^'}</span>
       </div>
@@ -374,10 +377,10 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
             <div style={{borderBottom:`1px solid ${C.border}`}}>
               {logs.map(l => { const meta = ACTION_META[l.action] || { icon:'·', label: l.action, color: C.t3 }; return (
                 <div key={l.id} style={{padding:'7px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',gap:10,alignItems:'flex-start'}}>
-                  <span style={{fontSize:9,color:meta.color,fontWeight:700,fontFamily:"'Courier New',monospace",width:28,flexShrink:0,paddingTop:2}}>{meta.icon}</span>
+                  <span style={{fontSize:9,color:meta.color,fontWeight:700,fontFamily:'var(--mono)',width:28,flexShrink:0,paddingTop:2}}>{meta.icon}</span>
                   <div style={{flex:1}}>
-                    <div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:11,color:meta.color,fontFamily:"'Courier New',monospace",fontWeight:700}}>{meta.label}</span><span style={{fontSize:9,color:C.t3,fontFamily:"'Courier New',monospace"}}>{new Date(l.created_at).toLocaleTimeString('en-GB').slice(0,8)} UTC</span></div>
-                    {l.details && (<div style={{fontSize:9,color:C.t3,fontFamily:"'Courier New',monospace",marginTop:2,lineHeight:1.7}}>{Object.entries(l.details).filter(([k])=>!['platform','timestamp_utc'].includes(k)).map(([k,v])=>`${k}: ${v}`).join('  ·  ')}</div>)}
+                    <div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:11,color:meta.color,fontFamily:'var(--mono)',fontWeight:700}}>{meta.label}</span><span style={{fontSize:9,color:C.t3,fontFamily:'var(--mono)'}}>{new Date(l.created_at).toLocaleTimeString('en-GB').slice(0,8)} UTC</span></div>
+                    {l.details && (<div style={{fontSize:9,color:C.t3,fontFamily:'var(--mono)',marginTop:2,lineHeight:1.7}}>{Object.entries(l.details).filter(([k])=>!['platform','timestamp_utc'].includes(k)).map(([k,v])=>`${k}: ${v}`).join('  ·  ')}</div>)}
                   </div>
                 </div>
               ); })}
@@ -385,8 +388,8 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
           )}
           {fields && fields.length > 0 && (
             <div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`}}>
-              <div style={{fontSize:10,color:C.t3,fontWeight:700,letterSpacing:1,fontFamily:"'Courier New',monospace",marginBottom:6}}>CURRENT VALUES</div>
-              {fields.map(f => { let val = flight[f.key]; if (f.type === 'time' && val) val = fmtTime(val); if (f.type === 'pilot' && val) { const p = pilots.find(x=>x.id===val); val = p ? `${p.code} — ${p.full_name}` : val.slice(0,8)+'...'; } return (<div key={f.key} style={{display:'flex',justifyContent:'space-between',padding:'3px 0'}}><span style={{fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace"}}>{f.label}</span><span style={{fontSize:11,color:val?C.t1:'#333',fontFamily:"'Courier New',monospace",fontWeight:700}}>{val||'—'}</span></div>); })}
+              <div style={{fontSize:10,color:C.t3,fontWeight:700,letterSpacing:1,fontFamily:'var(--mono)',marginBottom:6}}>CURRENT VALUES</div>
+              {fields.map(f => { let val = flight[f.key]; if (f.type === 'time' && val) val = fmtTime(val); if (f.type === 'pilot' && val) { const p = pilots.find(x=>x.id===val); val = p ? `${p.code} — ${p.full_name}` : val.slice(0,8)+'...'; } return (<div key={f.key} style={{display:'flex',justifyContent:'space-between',padding:'3px 0'}}><span style={{fontSize:11,color:C.t3,fontFamily:'var(--mono)'}}>{f.label}</span><span style={{fontSize:11,color:val?C.t1:'var(--t3)',fontFamily:'var(--mono)',fontWeight:700}}>{val||'—'}</span></div>); })}
             </div>
           )}
           {fields && fields.length > 0 && !editing && (<div style={{padding:'8px 16px'}}><button style={{...S.btnPrimary,fontSize:11,padding:'6px 14px'}} onClick={openEdit}>EDIT THIS SECTION</button></div>)}
@@ -395,12 +398,12 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
                 {fields.map(f => (
                   <div key={f.key}>
-                    <div style={{fontSize:10,color:C.t3,fontFamily:"'Courier New',monospace",marginBottom:3}}>{f.label}</div>
+                    <div style={{fontSize:10,color:C.t3,fontFamily:'var(--mono)',marginBottom:3}}>{f.label}</div>
                     {f.type==='pilot'?(<select style={{...S.select,fontSize:13,padding:'6px 8px'}} value={form[f.key]||''} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}><option value="">— Select —</option>{pilots.map(p=><option key={p.id} value={p.id}>{p.code} — {p.full_name}</option>)}</select>):(<input style={{...S.input,fontSize:13,padding:'6px 8px'}} value={form[f.key]||''} placeholder={f.type==='time'?'HH:MM':'—'} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}/>)}
                   </div>
                 ))}
               </div>
-              <div style={{marginBottom:8}}><div style={{fontSize:10,color:C.t3,fontFamily:"'Courier New',monospace",marginBottom:3}}>REASON *</div><textarea style={{...S.input,minHeight:56,resize:'vertical',fontSize:12}} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Mandatory: explain why..."/></div>
+              <div style={{marginBottom:8}}><div style={{fontSize:10,color:C.t3,fontFamily:'var(--mono)',marginBottom:3}}>REASON *</div><textarea style={{...S.input,minHeight:56,resize:'vertical',fontSize:12}} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Mandatory: explain why..."/></div>
               <div style={{display:'flex',gap:8}}><button style={{...S.btnSecondary,fontSize:11,padding:'6px 12px'}} onClick={()=>setEditing(false)}>CANCEL</button><button style={{...S.btnPrimary,fontSize:11,padding:'6px 14px'}} onClick={handleSave} disabled={saving}>{saving?'SAVING...':'SAVE & LOG'}</button></div>
             </div>
           )}
@@ -413,16 +416,16 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
 export function AdminEditsHistory({archivedFlightId, readOnly=false}){
   const [edits,setEdits]=useState([]);const[loading,setLoading]=useState(true);
   useEffect(()=>{ if(!archivedFlightId)return; (async()=>{ setLoading(true); const{data}=await supabase.from('admin_edits').select('id,created_at,edit_type,field_name,old_value,new_value,reason').eq('archived_flight_id',archivedFlightId).order('created_at',{ascending:false}); setEdits(data||[]); setLoading(false); })(); },[archivedFlightId]);
-  if(loading)return<div style={{padding:'10px 16px',fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace"}}>LOADING EDIT HISTORY...</div>;
-  if(!edits.length)return<div style={{padding:'10px 16px',fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace"}}>NO ADMIN EDITS ON RECORD</div>;
+  if(loading)return<div style={{padding:'10px 16px',fontSize:11,color:C.t3,fontFamily:'var(--mono)'}}>LOADING EDIT HISTORY...</div>;
+  if(!edits.length)return<div style={{padding:'10px 16px',fontSize:11,color:C.t3,fontFamily:'var(--mono)'}}>NO ADMIN EDITS ON RECORD</div>;
   return(
     <div>
-      <div style={{padding:'8px 16px',background:C.bg3,borderBottom:`1px solid ${C.border}`,borderTop:`1px solid ${C.border}`}}><span style={{...S.label,color:readOnly?'#4a9bc4':C.accent}}>{readOnly?'ADMIN EDIT HISTORY — READ ONLY':'EDIT HISTORY'}</span></div>
+      <div style={{padding:'8px 16px',background:C.bg3,borderBottom:`1px solid ${C.border}`,borderTop:`1px solid ${C.border}`}}><span style={{...S.label,color:readOnly?'var(--accent)':C.accent}}>{readOnly?'ADMIN EDIT HISTORY — READ ONLY':'EDIT HISTORY'}</span></div>
       {edits.map(e=>(
         <div key={e.id} style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,borderLeft:`3px solid ${e.edit_type==='DELETE'?C.red:C.accent}`}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}><span style={S.badge(e.edit_type==='DELETE'?'red':'')}>{e.edit_type||'EDIT'}</span><span style={{fontSize:10,color:C.t3,fontFamily:"'Courier New',monospace"}}>{new Date(e.created_at).toLocaleString('en-GB')}</span></div>
-          {e.field_name!=='RECORD_DELETED'&&(<div style={{fontSize:11,color:C.t1,fontFamily:"'Courier New',monospace",marginBottom:3}}><span style={{color:C.accent}}>{e.field_name}</span>{' '}<span style={{color:C.t3}}>{String(e.old_value||'—').slice(0,25)}</span>{' > '}<span style={{color:'#40d080'}}>{String(e.new_value||'—').slice(0,25)}</span></div>)}
-          <div style={{fontSize:11,color:C.t2,fontFamily:"'Courier New',monospace",lineHeight:1.5}}><span style={{color:C.t3}}>Reason: </span>{e.reason||'—'}</div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}><span style={S.badge(e.edit_type==='DELETE'?'red':'')}>{e.edit_type||'EDIT'}</span><span style={{fontSize:10,color:C.t3,fontFamily:'var(--mono)'}}>{new Date(e.created_at).toLocaleString('en-GB')}</span></div>
+          {e.field_name!=='RECORD_DELETED'&&(<div style={{fontSize:11,color:C.t1,fontFamily:'var(--mono)',marginBottom:3}}><span style={{color:C.accent}}>{e.field_name}</span>{' '}<span style={{color:C.t3}}>{String(e.old_value||'—').slice(0,25)}</span>{' > '}<span style={{color:'var(--green)'}}>{String(e.new_value||'—').slice(0,25)}</span></div>)}
+          <div style={{fontSize:11,color:C.t2,fontFamily:'var(--mono)',lineHeight:1.5}}><span style={{color:C.t3}}>Reason: </span>{e.reason||'—'}</div>
         </div>
       ))}
     </div>
@@ -444,20 +447,20 @@ function ActiveFlts({toast}){
   return(
     <div style={{display:'flex',flex:1,overflow:'hidden'}}>
       <div style={{flex:1,overflowY:'auto'}}>
-        <div style={{padding:'12px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',gap:8}}><div style={{width:8,height:8,borderRadius:4,background:'#40d080',boxShadow:'0 0 8px rgba(64,208,128,0.6)'}}/><span style={S.label}>Live — refreshes every 30s</span></div>
+        <div style={{padding:'12px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',gap:8}}><div style={{width:8,height:8,borderRadius:4,background:'var(--green)',boxShadow:'0 0 8px rgba(64,208,128,0.6)'}}/><span style={S.label}>Live — refreshes every 30s</span></div>
         {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11,letterSpacing:2}}>LOADING...</div>}
         {!loading&&plans.length===0&&<div style={{padding:48,textAlign:'center',color:C.t3,fontSize:11,letterSpacing:2}}>NO ACTIVE FLIGHTS</div>}
         {plans.map(p=>(
-          <div key={p.id} onClick={()=>handleSelect(p.id)} style={{padding:'14px 16px',borderBottom:`1px solid ${C.border}`,cursor:'pointer',background:selected===p.id?`${C.accent}08`:'transparent',borderLeft:selected===p.id?`3px solid ${C.accent}`:'3px solid transparent'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}><span style={{fontSize:14,fontWeight:700,color:C.accent,fontFamily:"'Courier New',monospace",letterSpacing:1}}>{p.dep} → {p.dest}</span><span style={S.badge('green')}>ACTIVE</span></div>
-            <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>{[['REG',p.reg],['TYPE',p.ac_type],['STD',p.std],['ETA',p.eta],['DISP',p.dispatch_no]].map(([l,v])=>(<div key={l}><div style={S.label}>{l}</div><div style={{fontSize:11,color:C.t2,fontFamily:"'Courier New',monospace"}}>{v||'—'}</div></div>))}</div>
+          <div key={p.id} onClick={()=>handleSelect(p.id)} style={{padding:'14px 16px',borderBottom:`1px solid ${C.border}`,cursor:'pointer',background:selected===p.id?`var(--accent-soft)`:'transparent',borderLeft:selected===p.id?`3px solid ${C.accent}`:'3px solid transparent'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}><span style={{fontSize:14,fontWeight:700,color:C.accent,fontFamily:'var(--mono)',letterSpacing:1}}>{p.dep} → {p.dest}</span><span style={S.badge('green')}>ACTIVE</span></div>
+            <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>{[['REG',p.reg],['TYPE',p.ac_type],['STD',p.std],['ETA',p.eta],['DISP',p.dispatch_no]].map(([l,v])=>(<div key={l}><div style={S.label}>{l}</div><div style={{fontSize:11,color:C.t2,fontFamily:'var(--mono)'}}>{v||'—'}</div></div>))}</div>
           </div>
         ))}
       </div>
       {sel&&(
         <DetailPanel title={`${sel.dep} → ${sel.dest}`} onClose={()=>setSelected(null)} width={400}>
           <div style={{display:'flex',borderBottom:`1px solid ${C.border}`,background:C.bg3}}>
-            {['details','timeline'].map(tab=>(<div key={tab} onClick={()=>setDetailTab(tab)} style={{flex:1,padding:'10px',textAlign:'center',cursor:'pointer',fontFamily:"'Courier New',monospace",fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:detailTab===tab?C.accent:C.t3,borderBottom:detailTab===tab?`2px solid ${C.accent}`:'2px solid transparent',background:detailTab===tab?`${C.accent}08`:'transparent'}}>{tab==='timeline'?'TIMELINE':'DETAILS'}</div>))}
+            {['details','timeline'].map(tab=>(<div key={tab} onClick={()=>setDetailTab(tab)} style={{flex:1,padding:'10px',textAlign:'center',cursor:'pointer',fontFamily:'var(--mono)',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:detailTab===tab?C.accent:C.t3,borderBottom:detailTab===tab?`2px solid ${C.accent}`:'2px solid transparent',background:detailTab===tab?`var(--accent-soft)`:'transparent'}}>{tab==='timeline'?'TIMELINE':'DETAILS'}</div>))}
           </div>
           {detailTab==='details'&&(<div><DetailRow label="Route" value={`${sel.dep} → ${sel.dest}`} accent/><DetailRow label="Registration" value={sel.reg}/><DetailRow label="Type" value={sel.ac_type}/><DetailRow label="Dispatch No" value={sel.dispatch_no}/><DetailRow label="STD" value={sel.std}/><DetailRow label="ETA" value={sel.eta}/><DetailRow label="PF Pilot" value={pilotName(sel.pf_pilot)}/><DetailRow label="PM Pilot" value={pilotName(sel.pm_pilot)}/></div>)}
           {detailTab==='timeline'&&(<ModuleLogView planId={sel.id} live={true}/>)}
@@ -560,7 +563,7 @@ function ArchivedFlts({toast,user}){
       <label style={S.formLabel}>{label}</label>
       {type==='toggle'?(
         <div style={{display:'flex',gap:10}}>
-          {['YES','NO'].map(v=>(<button key={v} onClick={()=>setEditForm(p=>({...p,[k]:v==='YES'}))} style={{...S.btnSecondary,background:editForm[k]===(v==='YES')?`${C.accent}20`:'none',borderColor:editForm[k]===(v==='YES')?C.accent:C.border2,color:editForm[k]===(v==='YES')?C.accent:C.t2}}>{v}</button>))}
+          {['YES','NO'].map(v=>(<button key={v} onClick={()=>setEditForm(p=>({...p,[k]:v==='YES'}))} style={{...S.btnSecondary,background:editForm[k]===(v==='YES')?`var(--accent-soft)`:'none',borderColor:editForm[k]===(v==='YES')?C.accent:C.border2,color:editForm[k]===(v==='YES')?C.accent:C.t2}}>{v}</button>))}
         </div>
       ):(<input style={S.input} value={editForm[k]||''} type={type} onChange={e=>setEditForm(p=>({...p,[k]:e.target.value}))}/>)}
     </div>
@@ -584,15 +587,15 @@ function ArchivedFlts({toast,user}){
               const pfPilot=pilots.find(x=>x.id===f.pf_id||x.id===p.pf_pilot);
               const pmPilot=pilots.find(x=>x.id===f.sic_id||x.id===p.pm_pilot);
               return(
-                <tr key={f.id} onClick={()=>setSelected(f.id===selected?null:f.id)} style={{cursor:'pointer',background:selected===f.id?`${C.accent}08`:'transparent'}}>
+                <tr key={f.id} className="adm-row" onClick={()=>setSelected(f.id===selected?null:f.id)} style={{cursor:'pointer',background:selected===f.id?`var(--accent-soft)`:'transparent'}}>
                   <td style={S.td}>{f.archived_at?new Date(f.archived_at).toLocaleString('en-GB'):'—'}</td>
                   <td style={{...S.td,color:C.accent,fontWeight:700}}>{p.dep||'—'} → {p.dest||'—'}</td>
                   <td style={S.td}>{p.reg||'—'}</td>
                   <td style={S.td}>{fmtMins(f.block_minutes)}</td>
                   <td style={S.td}>{fmtMins(f.airborne_minutes)}</td>
                   <td style={S.td}>{f.landing_count||'—'}</td>
-                  <td style={{...S.td,color:'#38bdf8'}}>{pfPilot?pfPilot.full_name:'—'}</td>
-                  <td style={{...S.td,color:'#888'}}>{pmPilot?pmPilot.full_name:'—'}</td>
+                  <td style={{...S.td,color:'var(--accent)'}}>{pfPilot?pfPilot.full_name:'—'}</td>
+                  <td style={{...S.td,color:'var(--t2)'}}>{pmPilot?pmPilot.full_name:'—'}</td>
                 </tr>
               );
             })}
@@ -601,10 +604,20 @@ function ArchivedFlts({toast,user}){
       </div>
 
       {sel&&(
-        <DetailPanel title="Archive Detail" onClose={()=>setSelected(null)} width={420}>
-          <div style={{display:'flex',borderBottom:`1px solid ${C.border}`,background:C.bg3,flexShrink:0}}>
+        <Drawer
+          title={`${sel.plans?.dep||'—'} → ${sel.plans?.dest||'—'}`}
+          subtitle={`${sel.plans?.date||'—'} · ${sel.plans?.reg||'—'} · Archived ${sel.archived_at?new Date(sel.archived_at).toLocaleString('en-GB'):'—'}`}
+          onClose={()=>setSelected(null)}
+          width={640}
+          footer={
+            <>
+              <button style={{...S.btnPrimary,flex:1}} onClick={()=>openEdit(sel)}>EDIT ALL FIELDS</button>
+              <button style={S.btnDanger} onClick={()=>setDeleteModal(true)}>DELETE RECORD</button>
+            </>
+          }>
+          <div style={{display:'flex',borderBottom:`1px solid ${C.border}`,background:C.bg3,position:'sticky',top:0,zIndex:2}}>
             {DETAIL_TABS.map(tab=>(
-              <div key={tab.id} onClick={()=>setDetailTab(tab.id)} style={{flex:1,padding:'10px',textAlign:'center',cursor:'pointer',fontFamily:"'Courier New',monospace",fontSize:11,fontWeight:700,letterSpacing:1,color:detailTab===tab.id?C.accent:C.t3,borderBottom:detailTab===tab.id?`2px solid ${C.accent}`:'2px solid transparent',background:detailTab===tab.id?`${C.accent}08`:'transparent'}}>
+              <div key={tab.id} onClick={()=>setDetailTab(tab.id)} style={{flex:1,padding:'10px',textAlign:'center',cursor:'pointer',fontFamily:'var(--mono)',fontSize:11,fontWeight:700,letterSpacing:1,color:detailTab===tab.id?C.accent:C.t3,borderBottom:detailTab===tab.id?`2px solid ${C.accent}`:'2px solid transparent',background:detailTab===tab.id?`var(--accent-soft)`:'transparent'}}>
                 {tab.label}
               </div>
             ))}
@@ -612,35 +625,35 @@ function ArchivedFlts({toast,user}){
 
           {detailTab==='details'&&(
             <>
-              <DetailRow label="Route"        value={`${sel.plans?.dep} → ${sel.plans?.dest}`} accent/>
-              <DetailRow label="Date"         value={sel.plans?.date}/>
-              <DetailRow label="Registration" value={sel.plans?.reg}/>
-              <DetailRow label="Archived"     value={sel.archived_at?new Date(sel.archived_at).toLocaleString('en-GB'):'—'}/>
-              <div style={{padding:'9px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{fontSize:14,color:'#fff',fontWeight:700,letterSpacing:1,fontFamily:"'Courier New',monospace",textTransform:'uppercase'}}>PF</span><span style={{fontSize:13,color:C.accent,fontFamily:"'Courier New',monospace",fontWeight:700}}>{pilotName(sel.pf_id||sel.plans?.pf_pilot)||'—'}</span></div>
-              <div style={{padding:'9px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{fontSize:14,color:'#fff',fontWeight:700,letterSpacing:1,fontFamily:"'Courier New',monospace",textTransform:'uppercase'}}>PM</span><span style={{fontSize:13,color:'#aaa',fontFamily:"'Courier New',monospace",fontWeight:700}}>{pilotName(sel.sic_id||sel.plans?.pm_pilot)||'—'}</span></div>
-              <div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`,fontSize:11,color:C.t3,fontFamily:"'Courier New',monospace",lineHeight:2}}>
-                <div>OFF BLOCK: <span style={{color:C.t1}}>{sel.off_blocks?new Date(sel.off_blocks).toISOString().slice(11,16)+' Z':'—'}</span></div>
-                <div>T/O TIME:  <span style={{color:C.t1}}>{sel.takeoff_time?new Date(sel.takeoff_time).toISOString().slice(11,16)+' Z':'—'}</span></div>
-                <div>LANDING:   <span style={{color:C.t1}}>{sel.landing_time?new Date(sel.landing_time).toISOString().slice(11,16)+' Z':'—'}</span></div>
-                <div>ON BLOCK:  <span style={{color:C.t1}}>{sel.on_blocks?new Date(sel.on_blocks).toISOString().slice(11,16)+' Z':'—'}</span></div>
-                <div>BLOCK:     <span style={{color:C.accent}}>{fmtMins(sel.block_minutes)}</span></div>
-                <div>FLIGHT:    <span style={{color:C.accent}}>{fmtMins(sel.airborne_minutes)}</span></div>
+              {/* Özet: iki kolon — sıkışık dikey liste yerine ferah grid */}
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:'10px 18px',padding:'14px 20px',borderBottom:`1px solid ${C.border}`}}>
+                {[
+                  ['PF PILOT', pilotName(sel.pf_id||sel.plans?.pf_pilot)||'—', true],
+                  ['PM PILOT', pilotName(sel.sic_id||sel.plans?.pm_pilot)||'—', false],
+                  ['OFF BLOCK', sel.off_blocks?new Date(sel.off_blocks).toISOString().slice(11,16)+' Z':'—', false],
+                  ['T/O TIME', sel.takeoff_time?new Date(sel.takeoff_time).toISOString().slice(11,16)+' Z':'—', false],
+                  ['LANDING', sel.landing_time?new Date(sel.landing_time).toISOString().slice(11,16)+' Z':'—', false],
+                  ['ON BLOCK', sel.on_blocks?new Date(sel.on_blocks).toISOString().slice(11,16)+' Z':'—', false],
+                  ['BLOCK', fmtMins(sel.block_minutes), true],
+                  ['FLIGHT', fmtMins(sel.airborne_minutes), true],
+                ].map(([l,v,a])=>(
+                  <div key={l}>
+                    <div style={{...S.label,marginBottom:3}}>{l}</div>
+                    <div style={{fontSize:13,color:a?C.accent:C.t1,fontFamily:'var(--mono)',fontWeight:700}}>{v}</div>
+                  </div>
+                ))}
               </div>
-              <div style={{borderTop:`1px solid ${C.border}`}}>
-                <div style={{padding:'7px 16px',background:C.bg3,fontSize:10,color:C.t3,fontWeight:700,letterSpacing:1.5,fontFamily:"'Courier New',monospace"}}>FLIGHT DATA — CLICK TO EXPAND / EDIT</div>
-                <CollapsibleEditBox title="Flight Crew" icon="**" color="#38bdf8" logs={logsByCategory.crew} fields={[{key:'pf_id',label:'PF Pilot',type:'pilot'},{key:'sic_id',label:'PM Pilot',type:'pilot'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
-                <CollapsibleEditBox title="Mandatory" icon="OK" color="#4ade80" logs={logsByCategory.mandatory} fields={[]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
-                <CollapsibleEditBox title="Fuel" icon="F" color="#4ade80" logs={logsByCategory.fuel} fields={[{key:'takeoff_fuel',label:'T/O Fuel (lb)',type:'text'},{key:'remaining_fuel',label:'Rem Fuel (lb)',type:'text'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
-                <CollapsibleEditBox title="Accept & Sign" icon="SIG" color="#e8a020" logs={logsByCategory.accepted} fields={[]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
-                <CollapsibleEditBox title="T/O Data" icon="T/O" color="#e8a020" logs={logsByCategory.tkof} fields={[{key:'dep_rwy',label:'DEP RWY',type:'text'},{key:'dep_atis',label:'DEP ATIS',type:'text'},{key:'sid',label:'SID',type:'text'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
-                <CollapsibleEditBox title="NAV LOG" icon="NAV" color="#38bdf8" logs={logsByCategory.navlog} fields={[{key:'off_blocks',label:'Off Blocks (HH:MM)',type:'time'},{key:'takeoff_time',label:'T/O Time (HH:MM)',type:'time'},{key:'landing_time',label:'Landing (HH:MM)',type:'time'},{key:'on_blocks',label:'On Blocks (HH:MM)',type:'time'},{key:'takeoff_fuel',label:'T/O Fuel (lb)',type:'text'},{key:'remaining_fuel',label:'Rem Fuel (lb)',type:'text'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
-                <CollapsibleEditBox title="LND Data" icon="LND" color="#38bdf8" logs={logsByCategory.lnd} fields={[{key:'arr_rwy',label:'ARR RWY',type:'text'},{key:'arr_atis',label:'ARR ATIS',type:'text'},{key:'actual_lw',label:'Actual LW (lb)',type:'text'},{key:'vref',label:'Vref (kt)',type:'text'},{key:'req_landing_dist',label:'Req LND Dist',type:'text'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
+              <div>
+                <div style={{padding:'7px 16px',background:C.bg3,fontSize:10,color:C.t3,fontWeight:700,letterSpacing:1.5,fontFamily:'var(--mono)'}}>FLIGHT DATA — CLICK TO EXPAND / EDIT</div>
+                <CollapsibleEditBox title="Flight Crew" icon="**" color="var(--accent)" logs={logsByCategory.crew} fields={[{key:'pf_id',label:'PF Pilot',type:'pilot'},{key:'sic_id',label:'PM Pilot',type:'pilot'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
+                <CollapsibleEditBox title="Mandatory" icon="OK" color="var(--green)" logs={logsByCategory.mandatory} fields={[]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
+                <CollapsibleEditBox title="Fuel" icon="F" color="var(--green)" logs={logsByCategory.fuel} fields={[{key:'takeoff_fuel',label:'T/O Fuel (lb)',type:'text'},{key:'remaining_fuel',label:'Rem Fuel (lb)',type:'text'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
+                <CollapsibleEditBox title="Accept & Sign" icon="SIG" color="var(--amber)" logs={logsByCategory.accepted} fields={[]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
+                <CollapsibleEditBox title="T/O Data" icon="T/O" color="var(--amber)" logs={logsByCategory.tkof} fields={[{key:'dep_rwy',label:'DEP RWY',type:'text'},{key:'dep_atis',label:'DEP ATIS',type:'text'},{key:'sid',label:'SID',type:'text'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
+                <CollapsibleEditBox title="NAV LOG" icon="NAV" color="var(--accent)" logs={logsByCategory.navlog} fields={[{key:'off_blocks',label:'Off Blocks (HH:MM)',type:'time'},{key:'takeoff_time',label:'T/O Time (HH:MM)',type:'time'},{key:'landing_time',label:'Landing (HH:MM)',type:'time'},{key:'on_blocks',label:'On Blocks (HH:MM)',type:'time'},{key:'takeoff_fuel',label:'T/O Fuel (lb)',type:'text'},{key:'remaining_fuel',label:'Rem Fuel (lb)',type:'text'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
+                <CollapsibleEditBox title="LND Data" icon="LND" color="var(--accent)" logs={logsByCategory.lnd} fields={[{key:'arr_rwy',label:'ARR RWY',type:'text'},{key:'arr_atis',label:'ARR ATIS',type:'text'},{key:'actual_lw',label:'Actual LW (lb)',type:'text'},{key:'vref',label:'Vref (kt)',type:'text'},{key:'req_landing_dist',label:'Req LND Dist',type:'text'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
               </div>
               <AdminEditsHistory archivedFlightId={sel.id} readOnly={false}/>
-              <div style={{padding:'12px 16px',display:'flex',flexDirection:'column',gap:8}}>
-                <button style={S.btnPrimary} onClick={()=>openEdit(sel)}>EDIT ALL FIELDS</button>
-                <button style={S.btnDanger}  onClick={()=>setDeleteModal(true)}>DELETE RECORD</button>
-              </div>
             </>
           )}
 
@@ -651,12 +664,12 @@ function ArchivedFlts({toast,user}){
           {detailTab==='docs'&&(
             <PlanDocuments planId={sel.plan_id} readOnly={true}/>
           )}
-        </DetailPanel>
+        </Drawer>
       )}
 
       {editModal&&sel&&(
         <Modal title="EDIT ARCHIVED FLIGHT — REPORT REQUIRED" onClose={()=>setEditModal(false)} width={520}>
-          <div style={{fontSize:11,color:'#f97316',marginBottom:16,padding:'8px 12px',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.2)'}}>All edits are logged. Only changed fields will be updated.</div>
+          <div style={{fontSize:11,color:'var(--orange)',marginBottom:16,padding:'8px 12px',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.2)'}}>All edits are logged. Only changed fields will be updated.</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
             <EF label="OFF BLOCK (HH:MM)" k="off_blocks"/><EF label="T/O TIME (HH:MM)" k="takeoff_time"/>
             <EF label="LANDING (HH:MM)" k="landing_time"/><EF label="ON BLOCK (HH:MM)" k="on_blocks"/>
@@ -676,7 +689,7 @@ function ArchivedFlts({toast,user}){
 
       {deleteModal&&sel&&(
         <Modal title="DELETE ARCHIVED FLIGHT RECORD" onClose={()=>setDeleteModal(false)}>
-          <div style={{fontSize:12,color:'#ef4444',marginBottom:16,padding:'10px 12px',background:'rgba(224,32,32,0.08)',border:'1px solid rgba(224,32,32,0.2)'}}>Irreversible. Record will be permanently deleted and logged.</div>
+          <div style={{fontSize:12,color:'var(--red)',marginBottom:16,padding:'10px 12px',background:'rgba(224,32,32,0.08)',border:'1px solid rgba(224,32,32,0.2)'}}>Irreversible. Record will be permanently deleted and logged.</div>
           <DetailRow label="Flight" value={`${sel.plans?.dep} → ${sel.plans?.dest}`} accent/>
           <DetailRow label="Archived" value={sel.archived_at?new Date(sel.archived_at).toLocaleString('en-GB'):'—'}/>
           <div style={{marginTop:16}}><label style={S.formLabel}>REASON FOR DELETION *</label><textarea style={{...S.input,minHeight:80,resize:'vertical'}} value={deleteReason} onChange={e=>setDeleteReason(e.target.value)} placeholder="Mandatory: explain why this record is being deleted..."/></div>
@@ -714,7 +727,7 @@ function AircraftForm({form, setForm, onSave, onCancel, saveLabel='SAVE'}){
         {models?(<select style={S.select} value={form.model||''} onChange={e=>handleModel(e.target.value)}><option value="">— Select model —</option>{models.map(m=><option key={m.model} value={m.model}>{m.model}</option>)}<option value="__other__">Other</option></select>):(<input style={S.input} placeholder="Model name" value={form.model||''} onChange={e=>setForm(p=>({...p,model:e.target.value}))}/>)}
         {form.model==='__other__'&&(<input style={{...S.input,marginTop:8}} placeholder="Model name" value={form._modelCustom||''} onChange={e=>setForm(p=>({...p,_modelCustom:e.target.value,model:e.target.value}))}/>)}
       </div>
-      <div style={S.formGroup}><label style={S.formLabel}>ICAO TYPE CODE *</label><input style={S.input} placeholder="e.g. GLF4" value={form.ac_type||''} onChange={e=>setForm(p=>({...p,ac_type:e.target.value.toUpperCase()}))}/>{form.ac_type&&<div style={{fontSize:10,color:C.t3,marginTop:4,fontFamily:"'Courier New',monospace"}}>Auto-filled from model selection. Edit if needed.</div>}</div>
+      <div style={S.formGroup}><label style={S.formLabel}>ICAO TYPE CODE *</label><input style={S.input} placeholder="e.g. GLF4" value={form.ac_type||''} onChange={e=>setForm(p=>({...p,ac_type:e.target.value.toUpperCase()}))}/>{form.ac_type&&<div style={{fontSize:10,color:C.t3,marginTop:4,fontFamily:'var(--mono)'}}>Auto-filled from model selection. Edit if needed.</div>}</div>
       <div style={S.formGroup}><label style={S.formLabel}>LANDING CATEGORY</label><select style={S.select} value={form.landing_cat||'CAT1'} onChange={e=>setForm(p=>({...p,landing_cat:e.target.value}))}><option value="CAT1">CAT I</option><option value="CAT2">CAT II</option><option value="CAT3">CAT III</option></select></div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
         <div style={S.formGroup}><label style={S.formLabel}>BASELINE HOURS</label><input style={S.input} placeholder="0" type="number" value={form.total_hours||''} onChange={e=>setForm(p=>({...p,total_hours:e.target.value}))}/><div style={{fontSize:10,color:C.t3,marginTop:4}}>Hours before app tracking started</div></div>
@@ -745,9 +758,9 @@ function Aircrafts({toast,myProfile,customerId}){
       <div style={{flex:1,overflowY:'auto'}}>
         <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={S.label}>{list.length} AIRCRAFT REGISTERED</span><button style={S.btnPrimary} onClick={()=>setShowAdd(true)}>+ ADD AIRCRAFT</button></div>
         {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}
-        <table style={S.table}><thead><tr>{['REGISTRATION','MANUFACTURER','MODEL','TYPE','CAT','TOTAL HOURS','TOTAL CYCLES','STATUS'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead><tbody>{list.map(a=>{const t=getTotals(a);return(<tr key={a.id} onClick={()=>{setSelected(a.id===selected?null:a.id);setEditing(false);}} style={{cursor:'pointer',background:selected===a.id?`${C.accent}08`:'transparent'}}><td style={{...S.td,color:C.accent,fontWeight:700}}>{a.registration}</td><td style={S.td}>{a.manufacturer||'—'}</td><td style={S.td}>{a.model||'—'}</td><td style={S.td}>{a.ac_type||'—'}</td><td style={S.td}><span style={S.badge('blue')}>{a.landing_cat}</span></td><td style={{...S.td,color:C.accent,fontWeight:700}}>{t.hours}</td><td style={{...S.td,color:C.accent,fontWeight:700}}>{t.cycles}</td><td style={S.td}><span style={S.badge(a.active?'green':'red')}>{a.active?'ACTIVE':'INACTIVE'}</span></td></tr>);})}</tbody></table>
+        <table style={S.table}><thead><tr>{['REGISTRATION','MANUFACTURER','MODEL','TYPE','CAT','TOTAL HOURS','TOTAL CYCLES','STATUS'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead><tbody>{list.map(a=>{const t=getTotals(a);return(<tr key={a.id} onClick={()=>{setSelected(a.id===selected?null:a.id);setEditing(false);}} style={{cursor:'pointer',background:selected===a.id?`var(--accent-soft)`:'transparent'}}><td style={{...S.td,color:C.accent,fontWeight:700}}>{a.registration}</td><td style={S.td}>{a.manufacturer||'—'}</td><td style={S.td}>{a.model||'—'}</td><td style={S.td}>{a.ac_type||'—'}</td><td style={S.td}><span style={S.badge('blue')}>{a.landing_cat}</span></td><td style={{...S.td,color:C.accent,fontWeight:700}}>{t.hours}</td><td style={{...S.td,color:C.accent,fontWeight:700}}>{t.cycles}</td><td style={S.td}><span style={S.badge(a.active?'green':'red')}>{a.active?'ACTIVE':'INACTIVE'}</span></td></tr>);})}</tbody></table>
       </div>
-      {sel&&!editing&&(()=>{ const t=getTotals(sel); const appHours=t.appMins>0?`${Math.floor(t.appMins/60)}:${String(t.appMins%60).padStart(2,'0')}`:'0:00'; return(<DetailPanel title="Aircraft Detail" onClose={()=>setSelected(null)}><DetailRow label="Registration" value={sel.registration} accent/><DetailRow label="Manufacturer" value={sel.manufacturer}/><DetailRow label="Model" value={sel.model}/><DetailRow label="ICAO Type" value={sel.ac_type}/><DetailRow label="Landing Cat" value={sel.landing_cat}/><div style={{padding:'9px 16px',borderBottom:`1px solid ${C.border}`,background:C.bg3}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontSize:12,color:C.t3,fontFamily:"'Courier New',monospace"}}>TOTAL HOURS</span><span style={{fontSize:15,color:C.accent,fontFamily:"'Courier New',monospace",fontWeight:700}}>{t.hours}</span></div><div style={{fontSize:10,color:'#475569',fontFamily:"'Courier New',monospace"}}>Baseline: {sel.total_hours||0}h + App logged: {appHours}</div></div><div style={{padding:'9px 16px',borderBottom:`1px solid ${C.border}`,background:C.bg3}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontSize:12,color:C.t3,fontFamily:"'Courier New',monospace"}}>TOTAL CYCLES</span><span style={{fontSize:15,color:C.accent,fontFamily:"'Courier New',monospace",fontWeight:700}}>{t.cycles}</span></div><div style={{fontSize:10,color:'#475569',fontFamily:"'Courier New',monospace"}}>Baseline: {sel.total_cycles||0} + App logged: {t.appCycles}</div></div><DetailRow label="Status" value={sel.active?'Active':'Inactive'}/><div style={{padding:'12px 16px',display:'flex',flexDirection:'column',gap:8}}><button style={{...S.btnPrimary,width:'100%'}} onClick={openEdit}>EDIT AIRCRAFT</button><button style={{...(sel.active?S.btnDanger:S.btnPrimary),width:'100%'}} onClick={handleToggleActive} disabled={saving}>{sel.active?'RETIRE FROM FLEET':'REACTIVATE'}</button></div></DetailPanel>); })()}
+      {sel&&!editing&&(()=>{ const t=getTotals(sel); const appHours=t.appMins>0?`${Math.floor(t.appMins/60)}:${String(t.appMins%60).padStart(2,'0')}`:'0:00'; return(<DetailPanel title="Aircraft Detail" onClose={()=>setSelected(null)}><DetailRow label="Registration" value={sel.registration} accent/><DetailRow label="Manufacturer" value={sel.manufacturer}/><DetailRow label="Model" value={sel.model}/><DetailRow label="ICAO Type" value={sel.ac_type}/><DetailRow label="Landing Cat" value={sel.landing_cat}/><div style={{padding:'9px 16px',borderBottom:`1px solid ${C.border}`,background:C.bg3}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontSize:12,color:C.t3,fontFamily:'var(--mono)'}}>TOTAL HOURS</span><span style={{fontSize:15,color:C.accent,fontFamily:'var(--mono)',fontWeight:700}}>{t.hours}</span></div><div style={{fontSize:10,color:'var(--t3)',fontFamily:'var(--mono)'}}>Baseline: {sel.total_hours||0}h + App logged: {appHours}</div></div><div style={{padding:'9px 16px',borderBottom:`1px solid ${C.border}`,background:C.bg3}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontSize:12,color:C.t3,fontFamily:'var(--mono)'}}>TOTAL CYCLES</span><span style={{fontSize:15,color:C.accent,fontFamily:'var(--mono)',fontWeight:700}}>{t.cycles}</span></div><div style={{fontSize:10,color:'var(--t3)',fontFamily:'var(--mono)'}}>Baseline: {sel.total_cycles||0} + App logged: {t.appCycles}</div></div><DetailRow label="Status" value={sel.active?'Active':'Inactive'}/><div style={{padding:'12px 16px',display:'flex',flexDirection:'column',gap:8}}><button style={{...S.btnPrimary,width:'100%'}} onClick={openEdit}>EDIT AIRCRAFT</button><button style={{...(sel.active?S.btnDanger:S.btnPrimary),width:'100%'}} onClick={handleToggleActive} disabled={saving}>{sel.active?'RETIRE FROM FLEET':'REACTIVATE'}</button></div></DetailPanel>); })()}
       {sel&&editing&&(<DetailPanel title={`EDIT — ${sel.registration}`} onClose={()=>setEditing(false)} width={380}><div style={{padding:'12px 16px',overflowY:'auto'}}><AircraftForm form={editForm} setForm={setEditForm} onSave={handleSaveEdit} onCancel={()=>setEditing(false)} saveLabel={saving?'SAVING...':'SAVE CHANGES'}/></div></DetailPanel>)}
       {showAdd&&(<Modal title="ADD AIRCRAFT" onClose={()=>setShowAdd(false)} width={480}><AircraftForm form={form} setForm={setForm} onSave={handleAdd} onCancel={()=>setShowAdd(false)} saveLabel="ADD AIRCRAFT"/></Modal>)}
     </div>
@@ -761,7 +774,7 @@ function HomeBaseCell({ pilotId }) {
     supabase.from('home_bases').select('icao').eq('pilot_id', pilotId).limit(1)
       .then(({ data }) => setIcao(data?.[0]?.icao || null));
   }, [pilotId]);
-  if (!icao) return <span style={{color:'#475569',fontSize:11}}>—</span>;
+  if (!icao) return <span style={{color:'var(--t3)',fontSize:11}}>—</span>;
   return <span style={{...S.badge('blue'),fontSize:11}}>{icao}</span>;
 }
 
@@ -790,34 +803,34 @@ export function Crews({toast,myProfile,customerId}){
   const handleAddQual=async()=>{ if(!qualForm.ac_type){toast('Aircraft type required.','error');return;} const{error}=await supabase.from('crew_qualifications').upsert({pilot_id:selected,...qualForm}); if(error){toast(error.message,'error');return;} toast('Qualification saved.','success');setShowQual(false);load(); };
   const handleSaveCrew=async()=>{ if(!crewEditForm.full_name||!crewEditForm.code){toast('Name and code required.','error');return;} const{error}=await supabase.from('profiles').update({full_name:crewEditForm.full_name,code:crewEditForm.code.toUpperCase(),role:crewEditForm.role}).eq('id',sel.id); if(error){toast(error.message,'error');return;} if(crewEditForm.home_base){await supabase.from('home_bases').upsert({pilot_id:sel.id,icao:crewEditForm.home_base.toUpperCase(),reg:'TC-REC'},{onConflict:'pilot_id'});}else{await supabase.from('home_bases').delete().eq('pilot_id',sel.id);} toast('Crew updated.','success');setEditingCrew(false);load(); };
   const handleSaveEfb=async()=>{ if(!efbForm.efb_training_date){toast('Training date required.','error');return;} const existing=selQuals[0]; if(existing){await supabase.from('crew_qualifications').update(efbForm).eq('id',existing.id);}else{await supabase.from('crew_qualifications').insert({pilot_id:selected,ac_type:'EFB',seat:'BOTH',hand:'BOTH',landing_cat:'CAT1',...efbForm});} toast('EFB training record saved.','success');setShowEfb(false);load(); };
-  const efbStatus=rec=>{ if(!rec?.efb_training_date)return{color:'#ef4444',label:'NO RECORD'}; if(!rec.efb_training_valid_until)return{color:'#4ade80',label:'CURRENT'}; const d=Math.floor((new Date(rec.efb_training_valid_until)-new Date())/86400000); if(d<0)return{color:'#ef4444',label:'EXPIRED'}; if(d<30)return{color:'#f97316',label:`${d}d LEFT`}; return{color:'#4ade80',label:'CURRENT'}; };
+  const efbStatus=rec=>{ if(!rec?.efb_training_date)return{color:'var(--red)',label:'NO RECORD'}; if(!rec.efb_training_valid_until)return{color:'var(--green)',label:'CURRENT'}; const d=Math.floor((new Date(rec.efb_training_valid_until)-new Date())/86400000); if(d<0)return{color:'var(--red)',label:'EXPIRED'}; if(d<30)return{color:'var(--orange)',label:`${d}d LEFT`}; return{color:'var(--green)',label:'CURRENT'}; };
   return(
     <div style={{display:'flex',flex:1,overflow:'hidden'}}>
       <div style={{flex:1,overflowY:'auto'}}>
         <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={S.label}>{pilots.length} CREW MEMBERS</span><div style={{display:'flex',gap:8}}><button style={S.btnPrimary} onClick={()=>setShowAdd(true)}>+ ADD CREW</button>{selected&&<button style={S.btnDanger} onClick={()=>handleDeleteStep1(sel)}>DELETE CREW</button>}</div></div>
         {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}
-        <table style={S.table}><thead><tr>{['CODE','FULL NAME','ROLE','EMAIL','QUALIFICATIONS','EFB TRAINING','FTL BASELINE','HOME BASE','PWD'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead><tbody>{pilots.map(p=>{ const pQ=quals.filter(q=>q.pilot_id===p.id);const pE=pQ.find(q=>q.efb_training_date);const pS=efbStatus(pE);const pB=bases[p.id]; return(<tr key={p.id} onClick={()=>setSelected(p.id===selected?null:p.id)} style={{cursor:'pointer',background:selected===p.id?`${C.accent}08`:'transparent'}}><td style={{...S.td,color:C.accent,fontWeight:700,fontSize:13}}>{p.code||'—'}</td><td style={{...S.td,color:C.t1}}>{p.full_name||'—'}</td><td style={S.td}><span style={S.badge(p.role==='admin'?'':'blue')}>{(p.role||'—').toUpperCase()}</span></td><td style={S.td}>{p.email||'—'}</td><td style={S.td}>{pQ.filter(q=>q.ac_type!=='EFB').length===0?<span style={{color:C.t3}}>—</span>:pQ.filter(q=>q.ac_type!=='EFB').map(q=><span key={q.id} style={{...S.badge('blue'),marginRight:4}}>{q.ac_type} {q.seat} {q.landing_cat}</span>)}</td><td style={S.td}><span style={{...S.badge(''),color:pS.color,background:`${pS.color}15`,border:`1px solid ${pS.color}40`}}>{pS.label}</span></td><td style={S.td}>{['pilot','admin_pilot'].includes(p.role)?(pB?<span style={S.badge('green')}>SET · {new Date(pB.effective_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}).toUpperCase()}</span>:<span style={S.badge('red')}>NOT SET</span>):<span style={{color:C.t3}}>—</span>}</td><td style={S.td}><HomeBaseCell pilotId={p.id}/></td><td style={S.td}><button style={S.btnSecondary} onClick={async e=>{e.stopPropagation();if(!p.email)return;const{error}=await supabase.auth.resetPasswordForEmail(p.email);if(error)toast(error.message,'error');else toast(`Reset sent to ${p.email}`,'success');}}>RESET PWD</button></td></tr>); })}</tbody></table>
+        <table style={S.table}><thead><tr>{['CODE','FULL NAME','ROLE','EMAIL','QUALIFICATIONS','EFB TRAINING','FTL BASELINE','HOME BASE','PWD'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead><tbody>{pilots.map(p=>{ const pQ=quals.filter(q=>q.pilot_id===p.id);const pE=pQ.find(q=>q.efb_training_date);const pS=efbStatus(pE);const pB=bases[p.id]; return(<tr key={p.id} onClick={()=>setSelected(p.id===selected?null:p.id)} style={{cursor:'pointer',background:selected===p.id?`var(--accent-soft)`:'transparent'}}><td style={{...S.td,color:C.accent,fontWeight:700,fontSize:13}}>{p.code||'—'}</td><td style={{...S.td,color:C.t1}}>{p.full_name||'—'}</td><td style={S.td}><span style={S.badge(p.role==='admin'?'':'blue')}>{(p.role||'—').toUpperCase()}</span></td><td style={S.td}>{p.email||'—'}</td><td style={S.td}>{pQ.filter(q=>q.ac_type!=='EFB').length===0?<span style={{color:C.t3}}>—</span>:pQ.filter(q=>q.ac_type!=='EFB').map(q=><span key={q.id} style={{...S.badge('blue'),marginRight:4}}>{q.ac_type} {q.seat} {q.landing_cat}</span>)}</td><td style={S.td}><span style={{...S.badge(''),color:pS.color,background:`${pS.color}15`,border:`1px solid ${pS.color}40`}}>{pS.label}</span></td><td style={S.td}>{['pilot','admin_pilot'].includes(p.role)?(pB?<span style={S.badge('green')}>SET · {new Date(pB.effective_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}).toUpperCase()}</span>:<span style={S.badge('red')}>NOT SET</span>):<span style={{color:C.t3}}>—</span>}</td><td style={S.td}><HomeBaseCell pilotId={p.id}/></td><td style={S.td}><button style={S.btnSecondary} onClick={async e=>{e.stopPropagation();if(!p.email)return;const{error}=await supabase.auth.resetPasswordForEmail(p.email);if(error)toast(error.message,'error');else toast(`Reset sent to ${p.email}`,'success');}}>RESET PWD</button></td></tr>); })}</tbody></table>
       </div>
       {sel&&(<DetailPanel title={`${sel.code} — ${sel.full_name}`} onClose={()=>{setSelected(null);setEditingCrew(false);}}>
         {!editingCrew?(<><DetailRow label="Code" value={sel.code} accent/><DetailRow label="Full Name" value={sel.full_name}/><DetailRow label="Email" value={sel.email}/><DetailRow label="Role" value={sel.role}/><div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`}}><button style={{...S.btnSecondary,width:'100%'}} onClick={()=>{supabase.from('home_bases').select('icao').eq('pilot_id',sel.id).limit(1).then(({data})=>{ setCrewEditForm({full_name:sel.full_name||'',code:sel.code||'',role:sel.role||'pilot',home_base:data?.[0]?.icao||''}); setEditingCrew(true); });}}>EDIT PROFILE</button></div></>):(<><div style={{padding:'12px 16px',borderBottom:`1px solid ${C.border}`}}><div style={{...S.label,marginBottom:12}}>EDIT CREW PROFILE</div><div style={S.formGroup}><label style={S.formLabel}>FULL NAME *</label><input style={S.input} value={crewEditForm.full_name} onChange={e=>setCrewEditForm(p=>({...p,full_name:e.target.value}))}/></div><div style={S.formGroup}><label style={S.formLabel}>CODE *</label><input style={S.input} maxLength={5} value={crewEditForm.code} onChange={e=>setCrewEditForm(p=>({...p,code:e.target.value.toUpperCase()}))}/></div><div style={S.formGroup}><label style={S.formLabel}>ROLE</label><select style={S.select} value={crewEditForm.role} onChange={e=>setCrewEditForm(p=>({...p,role:e.target.value}))}><option value="pilot">Pilot</option><option value="admin">Admin</option><option value="dispatcher">Dispatcher</option><option value="admin_pilot">Admin + Pilot</option></select></div><div style={S.formGroup}><label style={S.formLabel}>HOME BASE</label><input style={S.input} maxLength={4} placeholder="LTAC" value={crewEditForm.home_base||''} onChange={e=>setCrewEditForm(p=>({...p,home_base:e.target.value.toUpperCase()}))}/><div style={{fontSize:10,color:C.t3,marginTop:4}}>ICAO code — used for FTL duty/rest calculation</div></div><div style={{display:'flex',gap:8}}><button style={{...S.btnSecondary,flex:1}} onClick={()=>setEditingCrew(false)}>CANCEL</button><button style={{...S.btnPrimary,flex:2}} onClick={handleSaveCrew}>SAVE</button></div></div></>)}
-        <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`}}><div style={{...S.label,marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}><span>EFB Training</span>{(()=>{const st=efbStatus(efbRecord);return<span style={{...S.badge(''),color:st.color,background:`${st.color}15`,border:`1px solid ${st.color}40`}}>{st.label}</span>;})()}</div>{efbRecord?(<div style={{fontSize:12,color:C.t1,fontFamily:"'Courier New',monospace",lineHeight:2}}><div>Type: <span style={{color:C.accent}}>{efbRecord.efb_training_type||'—'}</span></div><div>Date: {efbRecord.efb_training_date}</div><div>Valid Until: {efbRecord.efb_training_valid_until||'—'}</div><div>Trained By: {efbRecord.efb_trained_by||'—'}</div></div>):<div style={{fontSize:12,color:'#ef4444',marginBottom:8}}>No EFB training record on file</div>}<button style={{...S.btnPrimary,marginTop:10,width:'100%'}} onClick={()=>{setEfbForm({efb_training_date:efbRecord?.efb_training_date||'',efb_training_valid_until:efbRecord?.efb_training_valid_until||'',efb_training_type:efbRecord?.efb_training_type||'Initial',efb_trained_by:efbRecord?.efb_trained_by||''});setShowEfb(true);}}>{efbRecord?'UPDATE EFB TRAINING':'ADD EFB TRAINING'}</button></div>
-        <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`}}><div style={{...S.label,marginBottom:8}}>Type Qualifications</div>{selQuals.filter(q=>q.ac_type!=='EFB').length===0&&<div style={{fontSize:12,color:C.t3}}>No qualifications</div>}{selQuals.filter(q=>q.ac_type!=='EFB').map(q=>(<div key={q.id} style={{marginBottom:8,padding:'8px 10px',background:C.bg3,border:`1px solid ${C.border}`}}><div style={{fontSize:12,color:C.accent,fontWeight:700,fontFamily:"'Courier New',monospace"}}>{q.ac_type}</div><div style={{fontSize:11,color:C.t2,marginTop:3,fontFamily:"'Courier New',monospace"}}>{q.seat} · {q.hand} · {q.landing_cat}</div></div>))}<button style={{...S.btnPrimary,marginTop:8,width:'100%'}} onClick={()=>setShowQual(true)}>+ ADD QUALIFICATION</button></div>
+        <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`}}><div style={{...S.label,marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}><span>EFB Training</span>{(()=>{const st=efbStatus(efbRecord);return<span style={{...S.badge(''),color:st.color,background:`${st.color}15`,border:`1px solid ${st.color}40`}}>{st.label}</span>;})()}</div>{efbRecord?(<div style={{fontSize:12,color:C.t1,fontFamily:'var(--mono)',lineHeight:2}}><div>Type: <span style={{color:C.accent}}>{efbRecord.efb_training_type||'—'}</span></div><div>Date: {efbRecord.efb_training_date}</div><div>Valid Until: {efbRecord.efb_training_valid_until||'—'}</div><div>Trained By: {efbRecord.efb_trained_by||'—'}</div></div>):<div style={{fontSize:12,color:'var(--red)',marginBottom:8}}>No EFB training record on file</div>}<button style={{...S.btnPrimary,marginTop:10,width:'100%'}} onClick={()=>{setEfbForm({efb_training_date:efbRecord?.efb_training_date||'',efb_training_valid_until:efbRecord?.efb_training_valid_until||'',efb_training_type:efbRecord?.efb_training_type||'Initial',efb_trained_by:efbRecord?.efb_trained_by||''});setShowEfb(true);}}>{efbRecord?'UPDATE EFB TRAINING':'ADD EFB TRAINING'}</button></div>
+        <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`}}><div style={{...S.label,marginBottom:8}}>Type Qualifications</div>{selQuals.filter(q=>q.ac_type!=='EFB').length===0&&<div style={{fontSize:12,color:C.t3}}>No qualifications</div>}{selQuals.filter(q=>q.ac_type!=='EFB').map(q=>(<div key={q.id} style={{marginBottom:8,padding:'8px 10px',background:C.bg3,border:`1px solid ${C.border}`}}><div style={{fontSize:12,color:C.accent,fontWeight:700,fontFamily:'var(--mono)'}}>{q.ac_type}</div><div style={{fontSize:11,color:C.t2,marginTop:3,fontFamily:'var(--mono)'}}>{q.seat} · {q.hand} · {q.landing_cat}</div></div>))}<button style={{...S.btnPrimary,marginTop:8,width:'100%'}} onClick={()=>setShowQual(true)}>+ ADD QUALIFICATION</button></div>
         {['pilot','admin_pilot'].includes(sel.role)&&(()=>{const b=bases[sel.id];return(
         <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,borderLeft:`2px solid ${C.accent}`}}>
           <div style={{...S.label,marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}><span>FTL Baseline</span>{b?<span style={S.badge('green')}>SET · {b.effective_date}</span>:<span style={S.badge('red')}>NOT SET</span>}</div>
-          {b?(<div style={{fontSize:12,color:C.t1,fontFamily:"'Courier New',monospace",lineHeight:2}}>
+          {b?(<div style={{fontSize:12,color:C.t1,fontFamily:'var(--mono)',lineHeight:2}}>
             <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:C.t3}}>FLT 28 days</span><span>{ftlFmtMin(b.flt_28d_min)}</span></div>
             <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:C.t3}}>FLT cal year</span><span>{ftlFmtMin(b.flt_cal_year_min)}</span></div>
             <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:C.t3}}>FLT 12 months</span><span>{ftlFmtMin(b.flt_12mo_min)}</span></div>
             <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:C.t3}}>DUTY 28 days</span><span>{ftlFmtMin(b.duty_28d_min)}</span></div>
             <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:C.t3}}>Last recurrent rest</span><span>{b.last_recurrent_rest_end||'—'}</span></div>
-          </div>):(<div style={{fontSize:11,color:'#ef4444',marginBottom:4}}>No baseline — pilot cannot be assigned FLT duty in the FTL wizard.</div>)}
+          </div>):(<div style={{fontSize:11,color:'var(--red)',marginBottom:4}}>No baseline — pilot cannot be assigned FLT duty in the FTL wizard.</div>)}
           <button style={{...S.btnPrimary,marginTop:10,width:'100%'}} onClick={()=>{setBaseForm({effective_date:b?.effective_date||'',last_recurrent_rest_end:b?.last_recurrent_rest_end||'',flt_7d:ftlFmtMin(b?.flt_7d_min??0),flt_28d:ftlFmtMin(b?.flt_28d_min??0),flt_cal_year:ftlFmtMin(b?.flt_cal_year_min??0),flt_12mo:ftlFmtMin(b?.flt_12mo_min??0),duty_7d:ftlFmtMin(b?.duty_7d_min??0),duty_14d:ftlFmtMin(b?.duty_14d_min??0),duty_28d:ftlFmtMin(b?.duty_28d_min??0),duty_cal_year:ftlFmtMin(b?.duty_cal_year_min??0),off_days_month:b?.off_days_month??0,off_days_cal_year:b?.off_days_cal_year??0});setShowBase(true);}}>{b?'UPDATE BASELINE':'SET BASELINE'}</button>
           <div style={{fontSize:9.5,color:C.t3,marginTop:6,lineHeight:1.6}}>Correction creates a new row — history kept, no delete.</div>
         </div>);})()}
       </DetailPanel>)}
       {showBase&&sel&&(<Modal title={`FTL BASELINE — ${sel.code} ${sel.full_name}`} onClose={()=>setShowBase(false)} width={560}>
-        <div style={{fontSize:10,color:C.t2,letterSpacing:.5,lineHeight:1.7,padding:'9px 12px',background:C.bg3,borderLeft:`2px solid ${C.accent}`,marginBottom:16,fontFamily:"'Courier New',monospace"}}>Carried-over totals <b>as of the baseline date</b> — starts cumulative FTL limits correctly. Time fields HH:MM.</div>
+        <div style={{fontSize:10,color:C.t2,letterSpacing:.5,lineHeight:1.7,padding:'9px 12px',background:C.bg3,borderLeft:`2px solid ${C.accent}`,marginBottom:16,fontFamily:'var(--mono)'}}>Carried-over totals <b>as of the baseline date</b> — starts cumulative FTL limits correctly. Time fields HH:MM.</div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
           <div style={S.formGroup}><label style={S.formLabel}>BASELINE DATE *</label><input type="date" style={S.input} value={baseForm.effective_date||''} onChange={e=>setBaseForm(f=>({...f,effective_date:e.target.value}))}/></div>
           <div style={S.formGroup}><label style={S.formLabel}>LAST RECURRENT REST END</label><input type="date" style={S.input} value={baseForm.last_recurrent_rest_end||''} onChange={e=>setBaseForm(f=>({...f,last_recurrent_rest_end:e.target.value}))}/></div>
@@ -853,8 +866,8 @@ export function Crews({toast,myProfile,customerId}){
         </div>
       </Modal>)}
       {showAdd&&(<Modal title="ADD CREW MEMBER" onClose={()=>setShowAdd(false)} width={480}><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}><div style={S.formGroup}><label style={S.formLabel}>FULL NAME *</label><input style={S.input} placeholder="Capt. Ali Veli" value={addForm.full_name} onChange={e=>setAddForm(p=>({...p,full_name:e.target.value}))}/></div><div style={S.formGroup}><label style={S.formLabel}>CODE *</label><input style={S.input} placeholder="AAK" maxLength={5} value={addForm.code} onChange={e=>setAddForm(p=>({...p,code:e.target.value.toUpperCase()}))}/></div><div style={S.formGroup}><label style={S.formLabel}>EMAIL *</label><input style={S.input} placeholder="pilot@airline.com" type="email" value={addForm.email} onChange={e=>setAddForm(p=>({...p,email:e.target.value}))}/></div><div style={S.formGroup}><label style={S.formLabel}>TEMP PASSWORD *</label><input style={S.input} placeholder="Min 8 chars" type="password" value={addForm.password} onChange={e=>setAddForm(p=>({...p,password:e.target.value}))}/></div></div><div style={S.formGroup}><label style={S.formLabel}>ROLE</label><select style={S.select} value={addForm.role} onChange={e=>setAddForm(p=>({...p,role:e.target.value}))}><option value="pilot">Pilot</option><option value="admin">Admin</option><option value="dispatcher">Dispatcher</option><option value="admin_pilot">Admin + Pilot</option></select></div><div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:16}}><button style={S.btnSecondary} onClick={()=>setShowAdd(false)}>CANCEL</button><button style={S.btnPrimary} onClick={handleAddCrew} disabled={saving}>{saving?'CREATING...':'CREATE CREW MEMBER'}</button></div></Modal>)}
-      {deleteModal&&deleteTarget&&!deleteConfirm&&(<Modal title="DELETE CREW MEMBER" onClose={()=>{setDeleteModal(false);setDeleteTarget(null);}}><div style={{fontSize:12,color:'#ef4444',marginBottom:16,padding:'10px 12px',background:'rgba(224,32,32,0.08)',border:'1px solid rgba(224,32,32,0.2)'}}>This will permanently delete the crew member and all their qualifications.</div><DetailRow label="Name" value={deleteTarget.full_name} accent/><DetailRow label="Code" value={deleteTarget.code}/><DetailRow label="Email" value={deleteTarget.email}/><div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:20}}><button style={S.btnSecondary} onClick={()=>{setDeleteModal(false);setDeleteTarget(null);}}>CANCEL</button><button style={S.btnDanger} onClick={()=>setDeleteConfirm(true)}>CONTINUE</button></div></Modal>)}
-      {deleteModal&&deleteTarget&&deleteConfirm&&(<Modal title="CONFIRM DELETION" onClose={()=>{setDeleteModal(false);setDeleteTarget(null);setDeleteConfirm(false);}}><div style={{fontSize:14,color:'#fff',textAlign:'center',padding:'20px 0'}}>Are you sure you want to delete<br/><span style={{color:'#ef4444',fontWeight:700}}>{deleteTarget.full_name}</span>?<br/><span style={{fontSize:11,color:C.t3}}>This action cannot be undone.</span></div><div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:16}}><button style={S.btnSecondary} onClick={()=>{setDeleteModal(false);setDeleteTarget(null);setDeleteConfirm(false);}}>NO — CANCEL</button><button style={S.btnDanger} onClick={handleDeleteConfirm} disabled={saving}>{saving?'DELETING...':'YES — DELETE'}</button></div></Modal>)}
+      {deleteModal&&deleteTarget&&!deleteConfirm&&(<Modal title="DELETE CREW MEMBER" onClose={()=>{setDeleteModal(false);setDeleteTarget(null);}}><div style={{fontSize:12,color:'var(--red)',marginBottom:16,padding:'10px 12px',background:'rgba(224,32,32,0.08)',border:'1px solid rgba(224,32,32,0.2)'}}>This will permanently delete the crew member and all their qualifications.</div><DetailRow label="Name" value={deleteTarget.full_name} accent/><DetailRow label="Code" value={deleteTarget.code}/><DetailRow label="Email" value={deleteTarget.email}/><div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:20}}><button style={S.btnSecondary} onClick={()=>{setDeleteModal(false);setDeleteTarget(null);}}>CANCEL</button><button style={S.btnDanger} onClick={()=>setDeleteConfirm(true)}>CONTINUE</button></div></Modal>)}
+      {deleteModal&&deleteTarget&&deleteConfirm&&(<Modal title="CONFIRM DELETION" onClose={()=>{setDeleteModal(false);setDeleteTarget(null);setDeleteConfirm(false);}}><div style={{fontSize:14,color:'var(--t1)',textAlign:'center',padding:'20px 0'}}>Are you sure you want to delete<br/><span style={{color:'var(--red)',fontWeight:700}}>{deleteTarget.full_name}</span>?<br/><span style={{fontSize:11,color:C.t3}}>This action cannot be undone.</span></div><div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:16}}><button style={S.btnSecondary} onClick={()=>{setDeleteModal(false);setDeleteTarget(null);setDeleteConfirm(false);}}>NO — CANCEL</button><button style={S.btnDanger} onClick={handleDeleteConfirm} disabled={saving}>{saving?'DELETING...':'YES — DELETE'}</button></div></Modal>)}
       {showEfb&&selected&&(<Modal title="EFB TRAINING RECORD — AMC 20-25" onClose={()=>setShowEfb(false)}><div style={S.formGroup}><label style={S.formLabel}>TRAINING TYPE</label><select style={S.select} value={efbForm.efb_training_type} onChange={e=>setEfbForm(p=>({...p,efb_training_type:e.target.value}))}><option value="Initial">Initial</option><option value="Recurrent">Recurrent</option><option value="Differences">Differences</option><option value="OJT">OJT</option></select></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}><div style={S.formGroup}><label style={S.formLabel}>TRAINING DATE *</label><input type="date" style={S.input} value={efbForm.efb_training_date} onChange={e=>setEfbForm(p=>({...p,efb_training_date:e.target.value}))}/></div><div style={S.formGroup}><label style={S.formLabel}>VALID UNTIL</label><input type="date" style={S.input} value={efbForm.efb_training_valid_until} onChange={e=>setEfbForm(p=>({...p,efb_training_valid_until:e.target.value}))}/></div></div><div style={S.formGroup}><label style={S.formLabel}>TRAINED BY</label><input style={S.input} placeholder="Name or organization" value={efbForm.efb_trained_by} onChange={e=>setEfbForm(p=>({...p,efb_trained_by:e.target.value}))}/></div><div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:20}}><button style={S.btnSecondary} onClick={()=>setShowEfb(false)}>CANCEL</button><button style={S.btnPrimary} onClick={handleSaveEfb}>SAVE RECORD</button></div></Modal>)}
       {showQual&&selected&&(<Modal title="ADD QUALIFICATION" onClose={()=>setShowQual(false)}><div style={S.formGroup}><label style={S.formLabel}>AIRCRAFT TYPE *</label><input style={S.input} placeholder="GLF4" value={qualForm.ac_type} onChange={e=>setQualForm(p=>({...p,ac_type:e.target.value.toUpperCase()}))}/></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}><div style={S.formGroup}><label style={S.formLabel}>SEAT</label><select style={S.select} value={qualForm.seat} onChange={e=>setQualForm(p=>({...p,seat:e.target.value}))}><option value="CPT">CPT</option><option value="FO">FO</option><option value="BOTH">BOTH</option></select></div><div style={S.formGroup}><label style={S.formLabel}>HAND</label><select style={S.select} value={qualForm.hand} onChange={e=>setQualForm(p=>({...p,hand:e.target.value}))}><option value="LH">LH</option><option value="RH">RH</option><option value="BOTH">BOTH</option></select></div></div><div style={S.formGroup}><label style={S.formLabel}>LANDING CATEGORY</label><select style={S.select} value={qualForm.landing_cat} onChange={e=>setQualForm(p=>({...p,landing_cat:e.target.value}))}><option value="CAT1">CAT I</option><option value="CAT2">CAT II</option><option value="CAT3">CAT III</option></select></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}><div style={S.formGroup}><label style={S.formLabel}>VALID FROM</label><input type="date" style={S.input} value={qualForm.valid_from} onChange={e=>setQualForm(p=>({...p,valid_from:e.target.value}))}/></div><div style={S.formGroup}><label style={S.formLabel}>VALID UNTIL</label><input type="date" style={S.input} value={qualForm.valid_until} onChange={e=>setQualForm(p=>({...p,valid_until:e.target.value}))}/></div></div><div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:20}}><button style={S.btnSecondary} onClick={()=>setShowQual(false)}>CANCEL</button><button style={S.btnPrimary} onClick={handleAddQual}>SAVE</button></div></Modal>)}
     </div>
@@ -882,7 +895,7 @@ function Statistics(){
         <span style={{...S.label,marginLeft:'auto',color:C.accent}}>{title}</span>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:1,background:C.border,borderBottom:`1px solid ${C.border}`}}>
-        {loading?<div style={{padding:24,color:C.t3,fontSize:11,gridColumn:'1/-1',textAlign:'center'}}>LOADING...</div>:[{label:'Total Flights',value:stats.total},{label:'Flight Hours',value:fmt(stats.totalFlightMins)},{label:'Block Hours',value:fmt(stats.totalBlockMins)},{label:'Total Landings',value:stats.totalLandings},{label:'Night Landings',value:stats.nightLandings}].map(({label,value})=>(<div key={label} style={{background:C.bg2,padding:'16px 20px'}}><div style={S.label}>{label}</div><div style={{fontSize:22,fontWeight:700,color:C.accent,fontFamily:"'Courier New',monospace",marginTop:6}}>{value}</div></div>))}
+        {loading?<div style={{padding:24,color:C.t3,fontSize:11,gridColumn:'1/-1',textAlign:'center'}}>LOADING...</div>:[{label:'Total Flights',value:stats.total},{label:'Flight Hours',value:fmt(stats.totalFlightMins)},{label:'Block Hours',value:fmt(stats.totalBlockMins)},{label:'Total Landings',value:stats.totalLandings},{label:'Night Landings',value:stats.nightLandings}].map(({label,value})=>(<div key={label} style={{background:C.bg2,padding:'16px 20px'}}><div style={S.label}>{label}</div><div style={{fontSize:22,fontWeight:700,color:C.accent,fontFamily:'var(--mono)',marginTop:6}}>{value}</div></div>))}
       </div>
       <div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`}}><span style={{...S.label,fontSize:10}}>{filtered.length} FLIGHTS</span></div>
       <SortableTable flights={filtered} fmt={fmt}/>
@@ -896,9 +909,9 @@ function SortableTable({flights, fmt}){
   const toggle=(key)=>{ if(sortKey===key)setSortDir(d=>d==='asc'?'desc':'asc'); else{setSortKey(key);setSortDir('asc');} };
   const getValue=(f,key)=>{ if(key==='dep')return f.departure_icao||f.plans?.dep||''; if(key==='dest')return f.destination_icao||f.plans?.dest||''; if(key==='reg')return f.plans?.reg||''; return f[key]??''; };
   const sorted=[...flights].sort((a,b)=>{ const av=getValue(a,sortKey),bv=getValue(b,sortKey); const dir=sortDir==='asc'?1:-1; if(typeof av==='number'&&typeof bv==='number')return(av-bv)*dir; return String(av).localeCompare(String(bv))*dir; });
-  const icon=(key)=>{ if(sortKey!==key)return<span style={{color:'#334155',marginLeft:4}}>⇅</span>; return<span style={{color:C.accent,marginLeft:4}}>{sortDir==='asc'?'↑':'↓'}</span>; };
+  const icon=(key)=>{ if(sortKey!==key)return<span style={{color:'var(--t3)',marginLeft:4}}>⇅</span>; return<span style={{color:C.accent,marginLeft:4}}>{sortDir==='asc'?'↑':'↓'}</span>; };
   const [adminReportPlan, setAdminReportPlan] = React.useState(null);
-  return(<>{adminReportPlan && <FlightReport plan={adminReportPlan} onClose={()=>setAdminReportPlan(null)}/>}<table style={S.table}><thead><tr>{COLS.map(c=>(<th key={c.key} style={{...S.th,cursor:'pointer',userSelect:'none'}} onClick={()=>toggle(c.key)}>{c.label}{icon(c.key)}</th>))}</tr></thead><tbody>{sorted.map(f=>(<tr key={f.id}><td style={S.td}>{f.archived_at?new Date(f.archived_at).toLocaleDateString('en-GB'):'—'}</td><td style={{...S.td,color:C.accent}}>{f.departure_icao||f.plans?.dep||'—'}</td><td style={{...S.td,color:C.accent}}>{f.destination_icao||f.plans?.dest||'—'}</td><td style={S.td}>{f.plans?.reg||'—'}</td><td style={S.td}>{fmt(f.block_minutes)}</td><td style={S.td}>{fmt(f.airborne_minutes)}</td><td style={S.td}>{f.landing_count||'—'}</td><td style={S.td}>{f.is_night_landing?<span style={S.badge('blue')}>NIGHT</span>:'—'}</td><td style={S.td}><button onClick={()=>setAdminReportPlan({id:f.plan_id,reg:f.plans?.reg,dep:f.departure_icao||f.plans?.dep,dest:f.destination_icao||f.plans?.dest,date:f.archived_at?new Date(f.archived_at).toLocaleDateString('en-GB'):'—',ac_type:f.plans?.ac_type,pf_pilot:f.plans?.pf_pilot,pm_pilot:f.plans?.pm_pilot})} style={{background:'rgba(56,189,248,0.12)',border:'1px solid #38bdf8',borderRadius:4,padding:'2px 7px',fontSize:10,fontWeight:700,color:'#38bdf8',cursor:'pointer',fontFamily:'inherit'}}>📄 RPT</button></td></tr>))}</tbody></table></>);
+  return(<>{adminReportPlan && <FlightReport plan={adminReportPlan} onClose={()=>setAdminReportPlan(null)}/>}<table style={S.table}><thead><tr>{COLS.map(c=>(<th key={c.key} style={{...S.th,cursor:'pointer',userSelect:'none'}} onClick={()=>toggle(c.key)}>{c.label}{icon(c.key)}</th>))}</tr></thead><tbody>{sorted.map(f=>(<tr key={f.id}><td style={S.td}>{f.archived_at?new Date(f.archived_at).toLocaleDateString('en-GB'):'—'}</td><td style={{...S.td,color:C.accent}}>{f.departure_icao||f.plans?.dep||'—'}</td><td style={{...S.td,color:C.accent}}>{f.destination_icao||f.plans?.dest||'—'}</td><td style={S.td}>{f.plans?.reg||'—'}</td><td style={S.td}>{fmt(f.block_minutes)}</td><td style={S.td}>{fmt(f.airborne_minutes)}</td><td style={S.td}>{f.landing_count||'—'}</td><td style={S.td}>{f.is_night_landing?<span style={S.badge('blue')}>NIGHT</span>:'—'}</td><td style={S.td}><button onClick={()=>setAdminReportPlan({id:f.plan_id,reg:f.plans?.reg,dep:f.departure_icao||f.plans?.dep,dest:f.destination_icao||f.plans?.dest,date:f.archived_at?new Date(f.archived_at).toLocaleDateString('en-GB'):'—',ac_type:f.plans?.ac_type,pf_pilot:f.plans?.pf_pilot,pm_pilot:f.plans?.pm_pilot})} style={{background:'rgba(56,189,248,0.12)',border:'1px solid var(--accent)',borderRadius:4,padding:'2px 7px',fontSize:10,fontWeight:700,color:'var(--accent)',cursor:'pointer',fontFamily:'inherit'}}>📄 RPT</button></td></tr>))}</tbody></table></>);
 }
 
 // ─── 6. RASS ──────────────────────────────────────────────────────────────────
@@ -910,18 +923,18 @@ function StationInfo({toast}){
   useEffect(()=>{ setLoading(true); supabase.from('airport_risks').select('icao,name,country,category,base_score,risk_level,ops_approval,ad_elev_ft,max_s,max_l,mitigation').order('icao').then(({data})=>{setAirports(data||[]);setLoading(false);}); },[]);
   const filtered=airports.filter(a=>!search||a.icao.toLowerCase().includes(search.toLowerCase())||(a.name||'').toLowerCase().includes(search.toLowerCase()));
   const sel=airports.find(a=>a.icao===selected);
-  const riskBadge=(level)=>{ const textColors={LOW:'#4a9bc4',MEDIUM:'#e8a320',HIGH:'#f97316',EXTREME:'#ef4444'}; return(<span style={{fontSize:11,fontWeight:700,padding:'2px 8px',background:level==='LOW'?C.blueDim:level==='MEDIUM'?'#2a1a00':level==='HIGH'?'#1a0a00':'#1a0000',color:textColors[level]||'#888',border:`1px solid ${textColors[level]||'#444'}`}}>{level||'—'}</span>); };
+  const riskBadge=(level)=>{ const textColors={LOW:'var(--accent)',MEDIUM:'var(--amber)',HIGH:'var(--orange)',EXTREME:'var(--red)'}; return(<span style={{fontSize:11,fontWeight:700,padding:'2px 8px',background:level==='LOW'?C.blueDim:level==='MEDIUM'?'var(--amber-soft)':level==='HIGH'?'var(--amber-soft)':'var(--red-soft)',color:textColors[level]||'var(--t2)',border:`1px solid ${textColors[level]||'var(--t3)'}`}}>{level||'—'}</span>); };
   const addAirport=async()=>{ if(!newAirport.icao)return; const{error}=await supabase.from('airport_risks').upsert({icao:newAirport.icao,name:newAirport.name,category:newAirport.category,base_score:0,max_s:1,max_l:1,s_scores:'[]',l_scores:'[]'},{onConflict:'icao'}); if(error){alert(error.message);return;} setShowAddAirport(false);setNewAirport({icao:'',name:'',category:'B'}); supabase.from('airport_risks').select('icao,name,country,category,base_score,risk_level,ops_approval,ad_elev_ft,max_s,max_l,mitigation').order('icao').then(({data})=>setAirports(data||[])); };
   return(
     <div style={{display:'flex',flex:1,overflow:'hidden'}}>
       <div style={{flex:1,overflowY:'auto'}}>
         <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',gap:10,alignItems:'center'}}><input placeholder="ICAO veya havalimanı adı..." value={search} onChange={e=>setSearch(e.target.value.toUpperCase())} style={{...S.input,width:260}}/><button style={S.btnPrimary} onClick={()=>setShowAddAirport(true)}>+ ADD AIRPORT</button><span style={{...S.label,marginLeft:'auto'}}>{filtered.length} AIRPORTS</span></div>
         {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}
-        <table style={S.table}><thead><tr>{['ICAO','AIRPORT NAME','CAT','ELEV FT','BASE SCORE','RISK LEVEL','OPS APPROVAL'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead><tbody>{filtered.map(a=>(<tr key={a.icao} onClick={()=>setSelected(a.icao===selected?null:a.icao)} style={{cursor:'pointer',background:selected===a.icao?`${C.accent}08`:'transparent'}}><td style={{...S.td,color:C.accent,fontWeight:700}}>{a.icao}</td><td style={S.td}>{a.name||'—'}</td><td style={S.td}><span style={S.badge('blue')}>{a.category||'B'}</span></td><td style={S.td}>{a.ad_elev_ft||'—'}</td><td style={{...S.td,color:C.accent,fontWeight:700}}>{a.base_score||0}</td><td style={S.td}>{riskBadge(a.risk_level)}</td><td style={{...S.td,fontSize:11,color:C.t3}}>{a.ops_approval||'—'}</td></tr>))}</tbody></table>
+        <table style={S.table}><thead><tr>{['ICAO','AIRPORT NAME','CAT','ELEV FT','BASE SCORE','RISK LEVEL','OPS APPROVAL'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead><tbody>{filtered.map(a=>(<tr key={a.icao} onClick={()=>setSelected(a.icao===selected?null:a.icao)} style={{cursor:'pointer',background:selected===a.icao?`var(--accent-soft)`:'transparent'}}><td style={{...S.td,color:C.accent,fontWeight:700}}>{a.icao}</td><td style={S.td}>{a.name||'—'}</td><td style={S.td}><span style={S.badge('blue')}>{a.category||'B'}</span></td><td style={S.td}>{a.ad_elev_ft||'—'}</td><td style={{...S.td,color:C.accent,fontWeight:700}}>{a.base_score||0}</td><td style={S.td}>{riskBadge(a.risk_level)}</td><td style={{...S.td,fontSize:11,color:C.t3}}>{a.ops_approval||'—'}</td></tr>))}</tbody></table>
       </div>
       {sel&&(<DetailPanel title={sel.icao} onClose={()=>setSelected(null)} width={360}><DetailRow label="ICAO" value={sel.icao} accent/><DetailRow label="Name" value={sel.name}/><DetailRow label="Category" value={sel.category||'B'}/><DetailRow label="Elevation" value={sel.ad_elev_ft?`${sel.ad_elev_ft} ft`:'—'}/><DetailRow label="Base Score" value={sel.base_score||0}/><DetailRow label="Risk Level" value={sel.risk_level||'—'}/><DetailRow label="Max S" value={sel.max_s||1}/><DetailRow label="Max L" value={sel.max_l||1}/>{sel.mitigation&&(<div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`,fontSize:10,color:C.t3,lineHeight:1.7}}>{sel.mitigation}</div>)}<div style={{padding:'12px 16px'}}><button style={{...S.btnPrimary,width:'100%'}} onClick={()=>setRiskModal(sel.icao)}>RISK ASSESSMENT MATRIX</button></div></DetailPanel>)}
       {showAddAirport&&(<Modal title="ADD AIRPORT" onClose={()=>setShowAddAirport(false)} width={420}><div style={S.formGroup}><label style={S.formLabel}>ICAO CODE *</label><input style={S.input} placeholder="LTFM" maxLength={4} value={newAirport.icao} onChange={e=>setNewAirport(p=>({...p,icao:e.target.value.toUpperCase()}))}/></div><div style={S.formGroup}><label style={S.formLabel}>AIRPORT NAME</label><input style={S.input} placeholder="Istanbul Airport" value={newAirport.name} onChange={e=>setNewAirport(p=>({...p,name:e.target.value}))}/></div><div style={S.formGroup}><label style={S.formLabel}>CATEGORY</label><select style={S.select} value={newAirport.category} onChange={e=>setNewAirport(p=>({...p,category:e.target.value}))}><option value="A">A</option><option value="B">B</option><option value="C">C</option></select></div><div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:16}}><button style={S.btnSecondary} onClick={()=>setShowAddAirport(false)}>CANCEL</button><button style={S.btnPrimary} onClick={addAirport}>ADD</button></div></Modal>)}
-      {riskModal&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.9)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300,padding:20}}><div style={{background:'#111',border:'1px solid #1e293b',width:'100%',maxWidth:640,maxHeight:'90vh',overflowY:'auto',borderRadius:8}}><RiskAssessmentInline icao={riskModal} onClose={()=>setRiskModal(null)}/></div></div>)}
+      {riskModal&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.9)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300,padding:20}}><div style={{background:'var(--bg3)',border:'1px solid var(--bg3)',width:'100%',maxWidth:640,maxHeight:'90vh',overflowY:'auto',borderRadius:8}}><RiskAssessmentInline icao={riskModal} onClose={()=>setRiskModal(null)}/></div></div>)}
     </div>
   );
 }
@@ -929,17 +942,17 @@ function StationInfo({toast}){
 function RiskAssessmentInline({icao, onClose}){
   const TOPICS_LIST=['Approach & Traffic Density','Obstacles / Terrain','Seasonal / Meteorology','ATC Phraseology / Language','Complex Taxi Routings','RWY Ops / Late Clearance','Security / Terror Threat','Handling / Fuel / Pax Support','Radio Nav / GNSS Reliability','Other Local Constraints'];
   const ADDONS_LIST=[{key:'night',label:'Night Ops',pts:1},{key:'xw',label:'Strong XW/Gust',pts:2},{key:'wet',label:'RWY Wet/Contam',pts:2},{key:'lv',label:'Low Vis/TS',pts:2},{key:'fam',label:'Crew Low FAM',pts:2}];
-  const RISK_C={LOW:{bg:'rgba(56,189,248,0.12)',border:'#38bdf8',text:'#38bdf8'},MEDIUM:{bg:'rgba(232,163,32,0.12)',border:'#e8a320',text:'#e8a320'},HIGH:{bg:'rgba(232,115,26,0.12)',border:'#f97316',text:'#f97316'},EXTREME:{bg:'rgba(224,32,32,0.12)',border:'#ef4444',text:'#ef4444'}};
-  const cellC=(score)=>score>=20?{bg:'#3a0808',text:'#f06060'}:score>=12?{bg:'#2a1200',text:'#f97316'}:score>=6?{bg:'#0a1a00',text:'#6db890'}:{bg:'#0a1a2a',text:'#4a9bc4'};
-  const sColor=(v)=>v>=5?'#ef4444':v>=4?'#f97316':v>=3?'#e8a320':v>=2?'#38bdf8':'#4ade80';
+  const RISK_C={LOW:{bg:'rgba(56,189,248,0.12)',border:'var(--accent)',text:'var(--accent)'},MEDIUM:{bg:'rgba(232,163,32,0.12)',border:'var(--amber)',text:'var(--amber)'},HIGH:{bg:'rgba(232,115,26,0.12)',border:'var(--orange)',text:'var(--orange)'},EXTREME:{bg:'rgba(224,32,32,0.12)',border:'var(--red)',text:'var(--red)'}};
+  const cellC=(score)=>score>=20?{bg:'var(--red-soft)',text:'var(--red)'}:score>=12?{bg:'var(--amber-soft)',text:'var(--orange)'}:score>=6?{bg:'var(--green-soft)',text:'var(--green)'}:{bg:'var(--accent-soft)',text:'var(--accent)'};
+  const sColor=(v)=>v>=5?'var(--red)':v>=4?'var(--orange)':v>=3?'var(--amber)':v>=2?'var(--accent)':'var(--green)';
   const getRisk=(t)=>t<=6?'LOW':t<=9?'MEDIUM':t<=12?'HIGH':'EXTREME';
   const getOps=(rl,cat)=>rl==='EXTREME'?'OPS MANAGER APPROVAL REQUIRED':rl==='HIGH'&&cat==='C'?'OPS MANAGER APPROVAL REQUIRED':rl==='HIGH'?'CAPTAIN REVIEW / DISPATCH COORDINATION':'DISPATCH OK';
   const [ap,setAp]=useState(null);const [loading,setLoad]=useState(true);const [addons,setAd]=useState({});const [tab,setTab]=useState('matrix');
   const [editing,setEditing]=useState(false);const [surveyMode,setSurveyMode]=useState(false);const [saving,setSaving]=useState(false);
   const [sEdit,setSEdit]=useState(Array(10).fill(1));const [lEdit,setLEdit]=useState(Array(10).fill(1));const [catEdit,setCatEdit]=useState('B');const [mitEdit,setMitEdit]=useState('');
   useEffect(()=>{ supabase.from('airport_risks').select('*').eq('icao',icao).single().then(({data})=>{ setAp(data); if(data){ const ss=typeof data.s_scores==='string'?JSON.parse(data.s_scores):(data.s_scores||[]); const ls=typeof data.l_scores==='string'?JSON.parse(data.l_scores):(data.l_scores||[]); setSEdit(ss.map(v=>parseFloat(v)||1)); setLEdit(ls.map(v=>parseFloat(v)||1)); setCatEdit(data.category||'B'); setMitEdit(data.mitigation||''); } setLoad(false); }); },[icao]);
-  if(loading)return<div style={{padding:32,textAlign:'center',color:'#475569',fontFamily:"'Courier New',monospace"}}>LOADING {icao}...</div>;
-  if(!ap)return<div style={{padding:16,color:'#ef4444',fontFamily:"'Courier New',monospace"}}>Not found: {icao}</div>;
+  if(loading)return<div style={{padding:32,textAlign:'center',color:'var(--t3)',fontFamily:'var(--mono)'}}>LOADING {icao}...</div>;
+  if(!ap)return<div style={{padding:16,color:'var(--red)',fontFamily:'var(--mono)'}}>Not found: {icao}</div>;
   if(surveyMode)return<RiskSurvey icao={icao} airportName={ap.name} airportCat={ap.category} onClose={()=>setSurveyMode(false)} onSaved={()=>{setSurveyMode(false);supabase.from('airport_risks').select('*').eq('icao',icao).single().then(({data})=>setAp(data));}}/>;
   const _ss=typeof ap.s_scores==='string'?JSON.parse(ap.s_scores):(ap.s_scores||[]);const _ls=typeof ap.l_scores==='string'?JSON.parse(ap.l_scores):(ap.l_scores||[]);
   const sArr=editing?sEdit:_ss.map(v=>parseFloat(v)||0);const lArr=editing?lEdit:_ls.map(v=>parseFloat(v)||0);
@@ -947,29 +960,29 @@ function RiskAssessmentInline({icao, onClose}){
   const maxSVal=editing?(sArr.reduce((a,b)=>Math.max(a,b),1)):(ap.max_s||1);const maxLVal=editing?(lArr.reduce((a,b)=>Math.max(a,b),1)):(ap.max_l||1);
   const adPts=ADDONS_LIST.reduce((s,a)=>s+(addons[a.key]?a.pts:0),0);const total=baseScore+adPts;const rl=getRisk(total);const rc=RISK_C[rl]||RISK_C.LOW;
   const handleSave=async()=>{ setSaving(true); const newBase=Math.max(...topicScores,0);const newMaxS=sEdit.reduce((a,b)=>Math.max(a,b),1);const newMaxL=lEdit.reduce((a,b)=>Math.max(a,b),1);const newRL=getRisk(newBase);const newOps=getOps(newRL,catEdit); const{error}=await supabase.from('airport_risks').update({s_scores:JSON.stringify(sEdit),l_scores:JSON.stringify(lEdit),base_score:newBase,max_s:newMaxS,max_l:newMaxL,risk_level:newRL,ops_approval:newOps,category:catEdit,mitigation:mitEdit,updated_at:new Date().toISOString()}).eq('icao',icao); if(error){alert(error.message);}else{const{data}=await supabase.from('airport_risks').select('*').eq('icao',icao).single();setAp(data);setEditing(false);} setSaving(false); };
-  const tabS=(t)=>({flex:1,padding:'8px 4px',textAlign:'center',cursor:'pointer',fontFamily:"'Courier New',monospace",fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:tab===t?'#38bdf8':'#555',borderBottom:tab===t?'2px solid #38bdf8':'2px solid transparent',background:'transparent',border:'none'});
-  const ScoreInput=({val,onChange})=>(<select value={val} onChange={e=>onChange(parseInt(e.target.value))} style={{background:'#1e293b',border:'1px solid #334155',color:'#e8e8e8',fontSize:11,padding:'3px 6px',borderRadius:3,fontFamily:"'Courier New',monospace",width:44}}>{[1,2,3,4,5].map(n=><option key={n} value={n}>{n}</option>)}</select>);
+  const tabS=(t)=>({flex:1,padding:'8px 4px',textAlign:'center',cursor:'pointer',fontFamily:'var(--mono)',fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:tab===t?'var(--accent)':'var(--t3)',borderBottom:tab===t?'2px solid var(--accent)':'2px solid transparent',background:'transparent',border:'none'});
+  const ScoreInput=({val,onChange})=>(<select value={val} onChange={e=>onChange(parseInt(e.target.value))} style={{background:'var(--bg3)',border:'1px solid var(--t3)',color:'var(--t1)',fontSize:11,padding:'3px 6px',borderRadius:3,fontFamily:'var(--mono)',width:44}}>{[1,2,3,4,5].map(n=><option key={n} value={n}>{n}</option>)}</select>);
   return(
-    <div style={{fontFamily:"'Courier New',monospace",color:'#e8e8e8'}}>
-      <div style={{padding:'14px 18px',background:'#1e293b',borderBottom:'1px solid #1e293b',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-        <div><div style={{fontSize:20,fontWeight:700,color:'#e8a020',letterSpacing:2}}>{ap.icao}</div><div style={{fontSize:13,color:'#e8e8e8',marginTop:2}}>{ap.name}</div><div style={{fontSize:10,color:'#475569',marginTop:3}}>CAT {editing?catEdit:ap.category||'B'}{ap.ad_elev_ft?` · ${ap.ad_elev_ft} ft`:''}</div></div>
+    <div style={{fontFamily:'var(--mono)',color:'var(--t1)'}}>
+      <div style={{padding:'14px 18px',background:'var(--bg3)',borderBottom:'1px solid var(--bg3)',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+        <div><div style={{fontSize:20,fontWeight:700,color:'var(--amber)',letterSpacing:2}}>{ap.icao}</div><div style={{fontSize:13,color:'var(--t1)',marginTop:2}}>{ap.name}</div><div style={{fontSize:10,color:'var(--t3)',marginTop:3}}>CAT {editing?catEdit:ap.category||'B'}{ap.ad_elev_ft?` · ${ap.ad_elev_ft} ft`:''}</div></div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           {!editing?(<button style={{...S.btnSecondary,fontSize:10,padding:'5px 12px'}} onClick={()=>setSurveyMode(true)}>EDIT SCORES</button>):(<><button onClick={()=>setEditing(false)} style={{...S.btnSecondary,fontSize:10,padding:'5px 12px'}}>CANCEL</button><button onClick={handleSave} disabled={saving} style={{...S.btnPrimary,fontSize:10,padding:'5px 12px'}}>{saving?'SAVING...':'SAVE'}</button></>)}
-          <button onClick={onClose} style={{background:'none',border:'none',color:'#475569',cursor:'pointer',fontSize:20}}>x</button>
+          <button onClick={onClose} style={{background:'none',border:'none',color:'var(--t3)',cursor:'pointer',fontSize:20}}>x</button>
         </div>
       </div>
-      {editing&&(<div style={{padding:'8px 12px',background:'#161616',borderBottom:'1px solid #1e293b',display:'flex',gap:16,alignItems:'center'}}><div style={{fontSize:10,color:'#475569',fontWeight:700,textTransform:'uppercase',letterSpacing:1}}>Category</div><select value={catEdit} onChange={e=>setCatEdit(e.target.value)} style={{background:'#1e293b',border:'1px solid #334155',color:'#e8e8e8',fontSize:11,padding:'4px 8px',borderRadius:3}}><option value="A">A</option><option value="B">B</option><option value="C">C</option></select><div style={{fontSize:10,color:'#475569',fontWeight:700,textTransform:'uppercase',letterSpacing:1}}>Mitigation</div><input value={mitEdit} onChange={e=>setMitEdit(e.target.value)} style={{...S.input,flex:1,fontSize:11}} placeholder="Brief mitigation note..."/></div>)}
-      <div style={{display:'flex',gap:2,margin:'12px 12px 0',background:'#1e293b',padding:2}}>
+      {editing&&(<div style={{padding:'8px 12px',background:'var(--bg3)',borderBottom:'1px solid var(--bg3)',display:'flex',gap:16,alignItems:'center'}}><div style={{fontSize:10,color:'var(--t3)',fontWeight:700,textTransform:'uppercase',letterSpacing:1}}>Category</div><select value={catEdit} onChange={e=>setCatEdit(e.target.value)} style={{background:'var(--bg3)',border:'1px solid var(--t3)',color:'var(--t1)',fontSize:11,padding:'4px 8px',borderRadius:3}}><option value="A">A</option><option value="B">B</option><option value="C">C</option></select><div style={{fontSize:10,color:'var(--t3)',fontWeight:700,textTransform:'uppercase',letterSpacing:1}}>Mitigation</div><input value={mitEdit} onChange={e=>setMitEdit(e.target.value)} style={{...S.input,flex:1,fontSize:11}} placeholder="Brief mitigation note..."/></div>)}
+      <div style={{display:'flex',gap:2,margin:'12px 12px 0',background:'var(--bg3)',padding:2}}>
         <div style={{flex:1,background:rc.bg,border:`2px solid ${rc.border}`,padding:'12px 10px',textAlign:'center'}}><div style={{fontSize:36,fontWeight:800,color:rc.text,lineHeight:1}}>{total}</div><div style={{fontSize:9,color:rc.text,opacity:.7,marginTop:2}}>BASE {baseScore}{adPts>0?` + ${adPts}`:''}</div></div>
-        <div style={{flex:2,background:'#1e293b',border:`2px solid ${rc.border}`,padding:'12px 14px'}}><div style={{fontSize:18,fontWeight:800,color:rc.text}}>{rl}</div><div style={{fontSize:10,color:rc.text,opacity:.8,marginTop:4}}>{getOps(rl,editing?catEdit:ap.category)}</div></div>
-        <div style={{flex:2,background:'#1e293b',border:'2px solid #1e293b',padding:'12px 14px',fontSize:10,color:'#777',lineHeight:1.8}}><div>MAX S: <span style={{color:'#e8e8e8',fontWeight:700}}>{maxSVal}</span></div><div>MAX L: <span style={{color:'#e8e8e8',fontWeight:700}}>{maxLVal}</span></div><div style={{marginTop:4,color:'#475569',fontSize:9}}>{(editing?mitEdit:ap.mitigation||'').slice(0,60)}</div></div>
+        <div style={{flex:2,background:'var(--bg3)',border:`2px solid ${rc.border}`,padding:'12px 14px'}}><div style={{fontSize:18,fontWeight:800,color:rc.text}}>{rl}</div><div style={{fontSize:10,color:rc.text,opacity:.8,marginTop:4}}>{getOps(rl,editing?catEdit:ap.category)}</div></div>
+        <div style={{flex:2,background:'var(--bg3)',border:'2px solid var(--bg3)',padding:'12px 14px',fontSize:10,color:'var(--t2)',lineHeight:1.8}}><div>MAX S: <span style={{color:'var(--t1)',fontWeight:700}}>{maxSVal}</span></div><div>MAX L: <span style={{color:'var(--t1)',fontWeight:700}}>{maxLVal}</span></div><div style={{marginTop:4,color:'var(--t3)',fontSize:9}}>{(editing?mitEdit:ap.mitigation||'').slice(0,60)}</div></div>
       </div>
-      <div style={{margin:'10px 12px 0',background:'#1e293b',border:'1px solid #1e293b',padding:'10px 12px'}}><div style={{fontSize:9,color:'#475569',fontWeight:700,letterSpacing:1,marginBottom:8,textTransform:'uppercase'}}>Operasyonel Faktörler</div><div style={{display:'flex',flexWrap:'wrap',gap:6}}>{ADDONS_LIST.map(a=>(<div key={a.key} onClick={()=>setAd(p=>({...p,[a.key]:!p[a.key]}))} style={{cursor:'pointer',padding:'5px 10px',borderRadius:4,fontSize:10,fontWeight:700,background:addons[a.key]?'rgba(232,115,26,0.2)':'#1e293b',border:`1px solid ${addons[a.key]?'#f97316':'#334155'}`,color:addons[a.key]?'#f97316':'#555'}}>{addons[a.key]?'✓':'+'} {a.label} (+{a.pts})</div>))}</div></div>
-      <div style={{display:'flex',margin:'10px 12px 0',borderBottom:'1px solid #1e293b'}}><button style={tabS('matrix')} onClick={()=>setTab('matrix')}>5×5 Matrix</button><button style={tabS('topics')} onClick={()=>setTab('topics')}>{editing?'✏ Edit Scores':'Topic Scores'}</button><button style={tabS('briefing')} onClick={()=>setTab('briefing')}>PPS Briefing</button></div>
-      <div style={{margin:'0 12px 12px',background:'#1e293b',border:'1px solid #1e293b',overflowX:'auto'}}>
-        {tab==='matrix'&&(<div style={{padding:12}}><div style={{fontSize:9,color:'#475569',marginBottom:8}}>Mevcut: S={maxSVal} × L={maxLVal} → Base {baseScore} · Total {total}</div><div style={{display:'grid',gridTemplateColumns:'24px repeat(5,1fr)',gap:2,marginBottom:2}}><div style={{fontSize:9,color:'#334155',textAlign:'center'}}>L\S</div>{[1,2,3,4,5].map(sv=><div key={sv} style={{fontSize:9,color:'#475569',textAlign:'center',fontWeight:700}}>S{sv}</div>)}</div>{[5,4,3,2,1].map(lv=>(<div key={lv} style={{display:'grid',gridTemplateColumns:'24px repeat(5,1fr)',gap:2,marginBottom:2}}><div style={{fontSize:9,color:'#475569',textAlign:'center',fontWeight:700,alignSelf:'center'}}>L{lv}</div>{[1,2,3,4,5].map(sv=>{const cs=lv*sv;const cc=cellC(cs);const isCur=lv===maxLVal&&sv===maxSVal;return<div key={sv} style={{background:cc.bg,border:isCur?`2px solid ${rc.border}`:'1px solid #1e293b',borderRadius:3,padding:'6px 0',textAlign:'center',fontSize:isCur?13:11,fontWeight:isCur?800:600,color:cc.text}}>{isCur?'▶':''}{cs}</div>;})})</div>))}</div>)}
-        {tab==='topics'&&(<div style={{padding:8}}>{editing&&(<div style={{padding:'6px 8px',marginBottom:4,background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.2)',fontSize:10,color:'#f97316'}}>S = Severity (1-5) · L = Likelihood (1-5) · Max score auto-calculated</div>)}{TOPICS_LIST.map((topic,i)=>{ const sv=editing?sEdit[i]||1:parseFloat(sArr[i])||0; const lv=editing?lEdit[i]||1:parseFloat(lArr[i])||0; const score=Math.round(sv*lv); return(<div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 8px',borderBottom:'1px solid #222'}}><div style={{flex:1,fontSize:10,color:'#999'}}>{i+1}. {topic}</div>{editing?(<><ScoreInput val={sv} onChange={v=>setSEdit(p=>{const n=[...p];n[i]=v;return n;})}/><div style={{fontSize:9,color:'#334155'}}>×</div><ScoreInput val={lv} onChange={v=>setLEdit(p=>{const n=[...p];n[i]=v;return n;})}/></>):(<><div style={{background:sColor(sv),color:'#fff',borderRadius:3,padding:'2px 6px',fontSize:10,fontWeight:700,width:28,textAlign:'center'}}>S{sv}</div><div style={{fontSize:9,color:'#334155'}}>×</div><div style={{background:sColor(lv),color:'#fff',borderRadius:3,padding:'2px 6px',fontSize:10,fontWeight:700,width:28,textAlign:'center'}}>L{lv}</div></>)}<div style={{fontSize:11,fontWeight:700,color:sColor(Math.max(sv,lv)),width:28,textAlign:'right'}}>{score}</div></div>); })}</div>)}
-        {tab==='briefing'&&(<div style={{padding:12}}>{[{title:'SECTION 1 — Traffic / ATC / Taxi / RWY Ops',key:'section1'},{title:'SECTION 2 — Meteorology / Wind',key:'section2'},{title:'SECTION 3 — Security / Handling / Nav',key:'section3'}].map(sec=>ap[sec.key]?(<div key={sec.key} style={{marginBottom:12}}><div style={{fontSize:9,color:'#38bdf8',fontWeight:700,letterSpacing:1,marginBottom:6,textTransform:'uppercase'}}>{sec.title}</div><div style={{fontSize:11,color:'#aaa',lineHeight:1.8,whiteSpace:'pre-line',padding:'8px 10px',background:'#151515',borderLeft:'2px solid rgba(56,189,248,0.2)'}}>{ap[sec.key]}</div></div>):null)}<div style={{marginTop:16,borderTop:'1px solid #1e293b',paddingTop:12}}><div style={{fontSize:9,color:'#38bdf8',fontWeight:700,letterSpacing:1,marginBottom:8,textTransform:'uppercase'}}>Assessment History</div><AssessmentHistory icao={icao}/></div></div>)}
+      <div style={{margin:'10px 12px 0',background:'var(--bg3)',border:'1px solid var(--bg3)',padding:'10px 12px'}}><div style={{fontSize:9,color:'var(--t3)',fontWeight:700,letterSpacing:1,marginBottom:8,textTransform:'uppercase'}}>Operasyonel Faktörler</div><div style={{display:'flex',flexWrap:'wrap',gap:6}}>{ADDONS_LIST.map(a=>(<div key={a.key} onClick={()=>setAd(p=>({...p,[a.key]:!p[a.key]}))} style={{cursor:'pointer',padding:'5px 10px',borderRadius:4,fontSize:10,fontWeight:700,background:addons[a.key]?'rgba(232,115,26,0.2)':'var(--bg3)',border:`1px solid ${addons[a.key]?'var(--orange)':'var(--t3)'}`,color:addons[a.key]?'var(--orange)':'var(--t3)'}}>{addons[a.key]?'✓':'+'} {a.label} (+{a.pts})</div>))}</div></div>
+      <div style={{display:'flex',margin:'10px 12px 0',borderBottom:'1px solid var(--bg3)'}}><button style={tabS('matrix')} onClick={()=>setTab('matrix')}>5×5 Matrix</button><button style={tabS('topics')} onClick={()=>setTab('topics')}>{editing?'✏ Edit Scores':'Topic Scores'}</button><button style={tabS('briefing')} onClick={()=>setTab('briefing')}>PPS Briefing</button></div>
+      <div style={{margin:'0 12px 12px',background:'var(--bg3)',border:'1px solid var(--bg3)',overflowX:'auto'}}>
+        {tab==='matrix'&&(<div style={{padding:12}}><div style={{fontSize:9,color:'var(--t3)',marginBottom:8}}>Mevcut: S={maxSVal} × L={maxLVal} → Base {baseScore} · Total {total}</div><div style={{display:'grid',gridTemplateColumns:'24px repeat(5,1fr)',gap:2,marginBottom:2}}><div style={{fontSize:9,color:'var(--t3)',textAlign:'center'}}>L\S</div>{[1,2,3,4,5].map(sv=><div key={sv} style={{fontSize:9,color:'var(--t3)',textAlign:'center',fontWeight:700}}>S{sv}</div>)}</div>{[5,4,3,2,1].map(lv=>(<div key={lv} style={{display:'grid',gridTemplateColumns:'24px repeat(5,1fr)',gap:2,marginBottom:2}}><div style={{fontSize:9,color:'var(--t3)',textAlign:'center',fontWeight:700,alignSelf:'center'}}>L{lv}</div>{[1,2,3,4,5].map(sv=>{const cs=lv*sv;const cc=cellC(cs);const isCur=lv===maxLVal&&sv===maxSVal;return<div key={sv} style={{background:cc.bg,border:isCur?`2px solid ${rc.border}`:'1px solid var(--bg3)',borderRadius:3,padding:'6px 0',textAlign:'center',fontSize:isCur?13:11,fontWeight:isCur?800:600,color:cc.text}}>{isCur?'▶':''}{cs}</div>;})})</div>))}</div>)}
+        {tab==='topics'&&(<div style={{padding:8}}>{editing&&(<div style={{padding:'6px 8px',marginBottom:4,background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.2)',fontSize:10,color:'var(--orange)'}}>S = Severity (1-5) · L = Likelihood (1-5) · Max score auto-calculated</div>)}{TOPICS_LIST.map((topic,i)=>{ const sv=editing?sEdit[i]||1:parseFloat(sArr[i])||0; const lv=editing?lEdit[i]||1:parseFloat(lArr[i])||0; const score=Math.round(sv*lv); return(<div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 8px',borderBottom:'1px solid var(--line-soft)'}}><div style={{flex:1,fontSize:10,color:'var(--t2)'}}>{i+1}. {topic}</div>{editing?(<><ScoreInput val={sv} onChange={v=>setSEdit(p=>{const n=[...p];n[i]=v;return n;})}/><div style={{fontSize:9,color:'var(--t3)'}}>×</div><ScoreInput val={lv} onChange={v=>setLEdit(p=>{const n=[...p];n[i]=v;return n;})}/></>):(<><div style={{background:sColor(sv),color:'var(--t1)',borderRadius:3,padding:'2px 6px',fontSize:10,fontWeight:700,width:28,textAlign:'center'}}>S{sv}</div><div style={{fontSize:9,color:'var(--t3)'}}>×</div><div style={{background:sColor(lv),color:'var(--t1)',borderRadius:3,padding:'2px 6px',fontSize:10,fontWeight:700,width:28,textAlign:'center'}}>L{lv}</div></>)}<div style={{fontSize:11,fontWeight:700,color:sColor(Math.max(sv,lv)),width:28,textAlign:'right'}}>{score}</div></div>); })}</div>)}
+        {tab==='briefing'&&(<div style={{padding:12}}>{[{title:'SECTION 1 — Traffic / ATC / Taxi / RWY Ops',key:'section1'},{title:'SECTION 2 — Meteorology / Wind',key:'section2'},{title:'SECTION 3 — Security / Handling / Nav',key:'section3'}].map(sec=>ap[sec.key]?(<div key={sec.key} style={{marginBottom:12}}><div style={{fontSize:9,color:'var(--accent)',fontWeight:700,letterSpacing:1,marginBottom:6,textTransform:'uppercase'}}>{sec.title}</div><div style={{fontSize:11,color:'var(--t2)',lineHeight:1.8,whiteSpace:'pre-line',padding:'8px 10px',background:'var(--bg3)',borderLeft:'2px solid rgba(56,189,248,0.2)'}}>{ap[sec.key]}</div></div>):null)}<div style={{marginTop:16,borderTop:'1px solid var(--bg3)',paddingTop:12}}><div style={{fontSize:9,color:'var(--accent)',fontWeight:700,letterSpacing:1,marginBottom:8,textTransform:'uppercase'}}>Assessment History</div><AssessmentHistory icao={icao}/></div></div>)}
       </div>
     </div>
   );
@@ -985,11 +998,11 @@ function FltLogsAndTimes(){
     <div style={{display:'flex',flex:1,overflow:'hidden'}}>
       <div style={{width:280,borderRight:`1px solid ${C.border}`,display:'flex',flexDirection:'column',flexShrink:0}}>
         <div style={{padding:'10px 12px',borderBottom:`1px solid ${C.border}`,display:'flex',gap:6,flexDirection:'column'}}><div style={{display:'flex',gap:6}}><input placeholder="DEP" value={filter.dep} onChange={e=>setFilter(p=>({...p,dep:e.target.value}))} style={{...S.input,width:'50%',fontSize:12}}/><input placeholder="DEST" value={filter.dest} onChange={e=>setFilter(p=>({...p,dest:e.target.value}))} style={{...S.input,width:'50%',fontSize:12}}/></div><span style={{...S.label,fontSize:10}}>{filteredPlans.length} FLIGHTS</span></div>
-        <div style={{flex:1,overflowY:'auto'}}>{loadingP&&<div style={{padding:20,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}{filteredPlans.map(p=>(<div key={p.id} onClick={()=>setSelected(p.id===selected?null:p.id)} style={{padding:'10px 12px',borderBottom:`1px solid ${C.border}`,cursor:'pointer',background:selected===p.id?`${C.accent}12`:'transparent',borderLeft:`3px solid ${selected===p.id?C.accent:'transparent'}`}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{fontSize:13,fontWeight:700,color:C.accent,fontFamily:"'Courier New',monospace"}}>{p.dep} → {p.dest}</span><span style={S.badge(p.status==='active'?'green':'')}>{p.status==='active'?'ACTIVE':'ARCH'}</span></div><div style={{fontSize:11,color:C.t3,marginTop:3,fontFamily:"'Courier New',monospace"}}>{p.date||'—'}  ·  {p.reg||'—'}</div><div style={{fontSize:10,color:C.t3,marginTop:2,fontFamily:"'Courier New',monospace"}}>{p.dispatch_no||p.id.slice(0,8)}</div></div>))}</div>
+        <div style={{flex:1,overflowY:'auto'}}>{loadingP&&<div style={{padding:20,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}{filteredPlans.map(p=>(<div key={p.id} onClick={()=>setSelected(p.id===selected?null:p.id)} style={{padding:'10px 12px',borderBottom:`1px solid ${C.border}`,cursor:'pointer',background:selected===p.id?`var(--accent-soft)`:'transparent',borderLeft:`3px solid ${selected===p.id?C.accent:'transparent'}`}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{fontSize:13,fontWeight:700,color:C.accent,fontFamily:'var(--mono)'}}>{p.dep} → {p.dest}</span><span style={S.badge(p.status==='active'?'green':'')}>{p.status==='active'?'ACTIVE':'ARCH'}</span></div><div style={{fontSize:11,color:C.t3,marginTop:3,fontFamily:'var(--mono)'}}>{p.date||'—'}  ·  {p.reg||'—'}</div><div style={{fontSize:10,color:C.t3,marginTop:2,fontFamily:'var(--mono)'}}>{p.dispatch_no||p.id.slice(0,8)}</div></div>))}</div>
       </div>
       <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
         {!selected&&<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:C.t3,fontSize:13,letterSpacing:2}}>SELECT A FLIGHT</div>}
-        {selected&&(<><div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,background:C.bg3,display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><span style={{fontSize:14,fontWeight:700,color:C.accent,fontFamily:"'Courier New',monospace"}}>{selectedPlan?.dep} → {selectedPlan?.dest}</span><span style={{fontSize:11,color:C.t3,marginLeft:12,fontFamily:"'Courier New',monospace"}}>{selectedPlan?.date}  ·  {selectedPlan?.reg}</span></div></div><div style={{flex:1,overflow:'hidden'}}><ModuleLogView planId={selected} live={selectedPlan?.status==='active'}/></div></>)}
+        {selected&&(<><div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,background:C.bg3,display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><span style={{fontSize:14,fontWeight:700,color:C.accent,fontFamily:'var(--mono)'}}>{selectedPlan?.dep} → {selectedPlan?.dest}</span><span style={{fontSize:11,color:C.t3,marginLeft:12,fontFamily:'var(--mono)'}}>{selectedPlan?.date}  ·  {selectedPlan?.reg}</span></div></div><div style={{flex:1,overflow:'hidden'}}><ModuleLogView planId={selected} live={selectedPlan?.status==='active'}/></div></>)}
       </div>
     </div>
   );
@@ -1005,7 +1018,7 @@ function EditReports(){
       <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',gap:10,alignItems:'center'}}><input placeholder="Search by route, field, reason..." value={filter} onChange={e=>setFilter(e.target.value)} style={{...S.input,width:300}}/><span style={{...S.label,marginLeft:'auto'}}>{filtered.length} REPORTS</span></div>
       {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}
       {!loading&&filtered.length===0&&<div style={{padding:48,textAlign:'center',color:C.t3,fontSize:11,letterSpacing:2}}>NO REPORTS</div>}
-      <table style={S.table}><thead><tr>{['DATE','TYPE','FLIGHT','FIELD','OLD VALUE','NEW VALUE','REASON'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead><tbody>{filtered.map(r=>(<tr key={r.id}><td style={{...S.td,fontSize:11,whiteSpace:'nowrap'}}>{new Date(r.created_at).toLocaleString('en-GB')}</td><td style={S.td}><span style={S.badge(r.edit_type==='DELETE'?'red':'')}>{r.edit_type||'EDIT'}</span></td><td style={{...S.td,color:C.accent,fontWeight:700}}>{r.plans?`${r.plans.dep} → ${r.plans.dest}`:r.plan_id?.slice(0,8)||'—'}</td><td style={{...S.td,color:C.accent}}>{r.field_name||'—'}</td><td style={{...S.td,color:C.t3,fontSize:12}}>{String(r.old_value||'—').slice(0,30)}</td><td style={{...S.td,color:'#40d080',fontSize:12}}>{String(r.new_value||'—').slice(0,30)}</td><td style={{...S.td,color:C.t2,maxWidth:320,fontSize:12}}>{r.reason||'—'}</td></tr>))}</tbody></table>
+      <table style={S.table}><thead><tr>{['DATE','TYPE','FLIGHT','FIELD','OLD VALUE','NEW VALUE','REASON'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead><tbody>{filtered.map(r=>(<tr key={r.id}><td style={{...S.td,fontSize:11,whiteSpace:'nowrap'}}>{new Date(r.created_at).toLocaleString('en-GB')}</td><td style={S.td}><span style={S.badge(r.edit_type==='DELETE'?'red':'')}>{r.edit_type||'EDIT'}</span></td><td style={{...S.td,color:C.accent,fontWeight:700}}>{r.plans?`${r.plans.dep} → ${r.plans.dest}`:r.plan_id?.slice(0,8)||'—'}</td><td style={{...S.td,color:C.accent}}>{r.field_name||'—'}</td><td style={{...S.td,color:C.t3,fontSize:12}}>{String(r.old_value||'—').slice(0,30)}</td><td style={{...S.td,color:'var(--green)',fontSize:12}}>{String(r.new_value||'—').slice(0,30)}</td><td style={{...S.td,color:C.t2,maxWidth:320,fontSize:12}}>{r.reason||'—'}</td></tr>))}</tbody></table>
     </div>
   );
 }
@@ -1064,34 +1077,35 @@ export default function AdminPanel({onBack}){
 
   if (!ready) return (
     <div style={{ display:'flex', width:'100vw', minHeight:'100vh', background:C.bg, alignItems:'center', justifyContent:'center' }}>
-      <div style={{ color:C.accent, letterSpacing:3, fontSize:11, fontFamily:"'Courier New',monospace" }}>CHECKING AUTHORIZATION...</div>
+      <div style={{ color:C.accent, letterSpacing:3, fontSize:11, fontFamily:'var(--mono)' }}>CHECKING AUTHORIZATION...</div>
     </div>
   );
 
   const tabTitle = NAV.find(n => n.id === tab)?.label || '';
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:C.bg, fontFamily:"'Courier New',monospace" }}>
+    <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:C.bg, fontFamily:'var(--mono)' }}>
 
       {/* Top bar */}
-      <div style={{ background:C.bg2, borderBottom:`1px solid ${C.border}`, padding:'0 16px', height:44, display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0, zIndex:100 }}>
+      <div style={{ background:C.bg2, borderBottom:`1px solid ${C.border}`, padding:'0 16px', height:50, display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0, zIndex:100 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           {/* Hamburger */}
           {isMobile && (
             <button
               onClick={() => setSidebarOpen(o => !o)}
-              style={{ width:34, height:34, background:'transparent', border:`1px solid ${C.border}`, borderRadius:5, color:C.t3, fontSize:18, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              style={{ width:34, height:34, background:'transparent', border:`1px solid ${C.border}`, borderRadius:6, color:C.t2, fontSize:18, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
               {sidebarOpen ? '✕' : '☰'}
             </button>
           )}
-          <span style={{ fontSize:11, color:C.accent, fontWeight:700, letterSpacing:3 }}>GO2</span>
+          <span style={{ fontSize:12, color:C.accent, fontWeight:700, letterSpacing:3 }}>GO2</span>
           <span style={{ width:1, height:18, background:C.border }} />
           <span style={{ fontSize:10, color:C.t3, letterSpacing:2 }}>ADMIN PANEL</span>
-          <span style={{ display:'inline-block', padding:'3px 9px', fontSize:9, letterSpacing:1, fontWeight:700, fontFamily:"'Courier New',monospace", background:`${C.accent}10`, color:C.accent, border:`1px solid ${C.accentDim}` }}>ADMIN MODE</span>
+          <span style={{ display:'inline-block', padding:'3px 9px', fontSize:9, letterSpacing:1, fontWeight:700, fontFamily:'var(--mono)', borderRadius:5, background:'var(--amber-soft)', color:'var(--amber)', border:'1px solid var(--line-soft)' }}>ADMIN MODE</span>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <span style={{ fontSize:10, color:C.t3 }}>{user?.email}</span>
-          <FontControls /><button style={{ background:'none', color:'#fff', border:`1px solid ${C.border2}`, padding:'6px 14px', fontSize:12, fontFamily:"'Courier New',monospace", cursor:'pointer', letterSpacing:1 }} onClick={onBack}>DASHBOARD</button>
+          <ThemeToggle />
+          <FontControls /><button style={{ background:'none', color:'var(--t2)', border:`1px solid ${C.border2}`, borderRadius:6, padding:'7px 14px', fontSize:11, fontFamily:'var(--mono)', cursor:'pointer', letterSpacing:1 }} onClick={onBack}>DASHBOARD</button>
         </div>
       </div>
 
@@ -1121,20 +1135,20 @@ export default function AdminPanel({onBack}){
             transition: 'transform 0.25s ease',
           } : {})
         }}>
-          <div style={{ flex:1, overflowY:'auto' }}>
+          <div style={{ flex:1, overflowY:'auto', padding:'8px 8px' }}>
             {NAV.map(n => (
-              <div key={n.id}
-                style={{ padding:'11px 16px', cursor:'pointer', display:'flex', alignItems:'center', gap:10, borderLeft:`3px solid ${tab===n.id?C.accent:'transparent'}`, background:tab===n.id?`${C.accent}10`:'transparent', borderBottom:`1px solid ${C.border}`, transition:'all 0.15s' }}
+              <div key={n.id} className="adm-nav-item"
+                style={{ padding:'10px 12px', margin:'2px 0', cursor:'pointer', display:'flex', alignItems:'center', gap:10, borderRadius:8, background:tab===n.id?'var(--accent-soft)':'transparent' }}
                 onClick={() => { setTab(n.id); setSidebarOpen(false); }}>
-                <span style={{ fontSize:16, width:20, textAlign:'center', color:tab===n.id?C.accent:C.t3 }}>{n.icon}</span>
-                <span style={{ fontSize:13, fontWeight:tab===n.id?700:500, color:tab===n.id?C.accent:C.t1, letterSpacing:0.5, fontFamily:"'Courier New',monospace", textTransform:'uppercase' }}>{n.label}</span>
+                <span style={{ fontSize:15, width:20, textAlign:'center', color:tab===n.id?C.accent:C.t3 }}>{n.icon}</span>
+                <span style={{ fontSize:12, fontWeight:tab===n.id?700:500, color:tab===n.id?C.accent:C.t2, letterSpacing:0.5, fontFamily:'var(--mono)', textTransform:'uppercase' }}>{n.label}</span>
               </div>
             ))}
           </div>
           <div style={{ padding:'14px 16px', borderTop:`1px solid ${C.border}` }}>
-            <div style={{ fontSize:10, color:C.t1, fontWeight:700, letterSpacing:1, marginBottom:4 }}>{user?.email?.split('@')[0]?.toUpperCase()}</div>
+            <div style={{ fontSize:10, color:C.t2, fontWeight:700, letterSpacing:1, marginBottom:4 }}>{user?.email?.split('@')[0]?.toUpperCase()}</div>
             <button onClick={async () => { await supabase.auth.signOut(); onBack(); }}
-              style={{ background:'none', color:C.red, border:'1px solid #3a1010', padding:'7px 14px', fontSize:12, fontFamily:"'Courier New',monospace", cursor:'pointer', letterSpacing:1, width:'100%', marginTop:6, textAlign:'center' }}>
+              style={{ background:'none', color:C.red, border:'1px solid var(--red-soft)', borderRadius:6, padding:'7px 14px', fontSize:11, fontFamily:'var(--mono)', cursor:'pointer', letterSpacing:1, width:'100%', marginTop:6, textAlign:'center' }}>
               LOGOUT
             </button>
           </div>

@@ -3,8 +3,8 @@ import { supabase } from '../supabaseClient';
 import { Crews } from './AdminPanel';
 
 const C = {
-  bg:'#0f1115', bg2:'#161923', bg3:'#1c202b', border:'#2a2e3a',
-  t1:'#e8eaf0', t2:'#9aa3b5', t3:'#6b7180', accent:'#1a9bc4',
+  bg:'var(--bg)', bg2:'var(--bg2)', bg3:'var(--bg3)', border:'var(--border)',
+  t1:'var(--t1)', t2:'var(--t2)', t3:'var(--t3)', accent:'var(--accent)',
 };
 
 const S = {
@@ -28,7 +28,7 @@ const NAV = [
 function Toast({ msg, type }) {
   if (!msg) return null;
   return (
-    <div style={{ position:'fixed', bottom:20, right:20, background: type==='error' ? '#e02020' : '#2d9e5f', color:'#fff', padding:'10px 16px', borderRadius:8, fontSize:12, fontWeight:700, zIndex:200 }}>
+    <div style={{ position:'fixed', bottom:20, right:20, background: type==='error' ? 'var(--red)' : 'var(--green)', color:'#fff', padding:'10px 16px', borderRadius:8, fontSize:12, fontWeight:700, zIndex:200 }}>
       {msg}
     </div>
   );
@@ -107,7 +107,7 @@ function Companies({ toast, myProfile }) {
               <td style={S.td}>{c.plan_type || '—'}</td>
               <td style={S.td}>{c.max_users ?? '—'}</td>
               <td style={S.td}>
-                <span onClick={(e) => toggleActive(c, e)} style={{ cursor:'pointer', fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:4, background: c.active ? 'rgba(45,158,95,0.15)' : 'rgba(224,32,32,0.15)', color: c.active ? '#2d9e5f' : '#e02020' }}>
+                <span onClick={(e) => toggleActive(c, e)} style={{ cursor:'pointer', fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:4, background: c.active ? 'rgba(45,158,95,0.15)' : 'rgba(224,32,32,0.15)', color: c.active ? 'var(--green)' : 'var(--red)' }}>
                   {c.active ? 'ACTIVE' : 'INACTIVE'}
                 </span>
               </td>
@@ -186,16 +186,16 @@ export default function SuperAdminPanel({ onBack }) {
 
   if (!ready) return (
     <div style={{ display:'flex', width:'100vw', minHeight:'100vh', background:C.bg, alignItems:'center', justifyContent:'center' }}>
-      <div style={{ color:C.accent, letterSpacing:3, fontSize:11, fontFamily:"'Courier New',monospace" }}>CHECKING AUTHORIZATION...</div>
+      <div style={{ color:C.accent, letterSpacing:3, fontSize:11, fontFamily:'var(--mono)' }}>CHECKING AUTHORIZATION...</div>
     </div>
   );
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:C.bg, fontFamily:"'Courier New',monospace" }}>
+    <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:C.bg, fontFamily:'var(--mono)' }}>
       <Toast msg={toast.msg} type={toast.type} />
       <div style={{ background:C.bg2, borderBottom:`1px solid ${C.border}`, padding:'0 16px', height:44, display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-          <span style={{ fontSize:12, fontWeight:700, color:'#e8a020', letterSpacing:2 }}>SUPER ADMIN</span>
+          <span style={{ fontSize:12, fontWeight:700, color:'var(--amber)', letterSpacing:2 }}>SUPER ADMIN</span>
           <div style={{ display:'flex', gap:4 }}>
             {NAV.map(n => (
               <div key={n.id} onClick={() => setTab(n.id)} style={{ padding:'6px 12px', fontSize:11, fontWeight:700, cursor:'pointer', color: tab===n.id ? C.accent : C.t3, borderBottom: tab===n.id ? `2px solid ${C.accent}` : '2px solid transparent' }}>

@@ -9,31 +9,31 @@ import {
 } from './FTLEngine';
 
 const C = {
-  bg:'#0a0c10', bg2:'#0d1117', bg3:'#111620', border:'#1e2530', border2:'#2a3040',
-  accent:'#e8a020', accentDim:'#4a3010',
-  green:'#40d080', red:'#f06060', blue:'#4a9bc4',
-  t1:'#ffffff', t2:'#b8c0cc', t3:'#6b7585',
+  bg:'var(--bg)', bg2:'var(--bg2)', bg3:'var(--bg3)', border:'var(--border)', border2:'var(--border2)',
+  accent:'var(--accent)', accentDim:'var(--accent-soft)',
+  green:'var(--green)', red:'var(--red)', blue:'var(--accent)',
+  t1:'var(--t1)', t2:'var(--t2)', t3:'var(--t3)',
 };
 const S = {
-  label:{ fontSize:10, color:C.t2, fontWeight:700, letterSpacing:1.5, textTransform:'uppercase', fontFamily:"'Courier New',monospace", display:'block', marginBottom:6 },
-  input:{ background:'#080c12', border:`1px solid ${C.border}`, color:'#fff', padding:'9px 11px', fontSize:13, fontFamily:"'Courier New',monospace", width:'100%', boxSizing:'border-box', outline:'none' },
+  label:{ fontSize:10, color:C.t2, fontWeight:700, letterSpacing:1.5, textTransform:'uppercase', fontFamily:'var(--mono)', display:'block', marginBottom:6 },
+  input:{ background:'var(--input-bg)', border:`1px solid ${C.border}`, borderRadius:6, color:'var(--t1)', padding:'9px 11px', fontSize:13, fontFamily:'var(--mono)', width:'100%', boxSizing:'border-box', outline:'none' },
   table:{ width:'100%', borderCollapse:'collapse' },
-  th:{ padding:'9px 12px', textAlign:'left', fontSize:10, color:'#fff', fontWeight:700, letterSpacing:1, textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, background:C.bg3, whiteSpace:'nowrap', fontFamily:"'Courier New',monospace" },
-  td:{ padding:'9px 12px', borderBottom:`1px solid ${C.border}`, color:'#fff', fontSize:12.5, fontWeight:600, verticalAlign:'middle', whiteSpace:'nowrap', fontFamily:"'Courier New',monospace", fontVariantNumeric:'tabular-nums' },
-  btnP:{ background:C.accent, color:'#0a0c10', border:'none', padding:'10px 22px', fontSize:12, fontFamily:"'Courier New',monospace", fontWeight:700, letterSpacing:1.5, cursor:'pointer', textTransform:'uppercase' },
-  btnS:{ background:'none', color:'#fff', border:`1px solid ${C.border2}`, padding:'8px 16px', fontSize:11, fontFamily:"'Courier New',monospace", cursor:'pointer', letterSpacing:1 },
-  panel:{ background:C.bg2, border:`1px solid ${C.border}`, marginBottom:22 },
+  th:{ padding:'9px 12px', textAlign:'left', fontSize:10, color:'var(--t1)', fontWeight:700, letterSpacing:1, textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, background:C.bg3, whiteSpace:'nowrap', fontFamily:'var(--mono)' },
+  td:{ padding:'9px 12px', borderBottom:`1px solid ${C.border}`, color:'var(--t1)', fontSize:12.5, fontWeight:600, verticalAlign:'middle', whiteSpace:'nowrap', fontFamily:'var(--mono)', fontVariantNumeric:'tabular-nums' },
+  btnP:{ background:C.accent, color:'#fff', border:'none', borderRadius:6, padding:'10px 22px', fontSize:12, fontFamily:'var(--mono)', fontWeight:700, letterSpacing:1.5, cursor:'pointer', textTransform:'uppercase' },
+  btnS:{ background:'none', color:'var(--t2)', border:`1px solid ${C.border2}`, borderRadius:6, padding:'8px 16px', fontSize:11, fontFamily:'var(--mono)', cursor:'pointer', letterSpacing:1 },
+  panel:{ background:C.bg2, border:`1px solid ${C.border}`, borderRadius:10, overflow:'hidden', marginBottom:22 },
   panelH:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'11px 16px', borderBottom:`1px solid ${C.border}`, background:C.bg3 },
-  panelT:{ fontSize:11, fontWeight:700, letterSpacing:2, color:C.accent, textTransform:'uppercase', fontFamily:"'Courier New',monospace" },
-  note:{ fontSize:10, color:C.t3, letterSpacing:.5, lineHeight:1.7, padding:'9px 12px', background:C.bg3, borderLeft:`2px solid ${C.border2}`, fontFamily:"'Courier New',monospace" },
+  panelT:{ fontSize:11, fontWeight:700, letterSpacing:2, color:C.accent, textTransform:'uppercase', fontFamily:'var(--mono)' },
+  note:{ fontSize:10, color:C.t3, letterSpacing:.5, lineHeight:1.7, padding:'9px 12px', background:C.bg3, borderLeft:`2px solid ${C.border2}`, fontFamily:'var(--mono)' },
 };
 const badge = (kind) => {
   const map = {
-    green:{ c:C.green, bg:'#0a1a10', bd:'#1a4030' }, red:{ c:C.red, bg:'#1a0808', bd:'#602020' },
-    blue:{ c:C.blue, bg:'#0a1a2a', bd:'#1a3a5a' }, amber:{ c:C.accent, bg:'rgba(232,160,32,.08)', bd:C.accentDim },
-    dim:{ c:C.t3, bg:'#12151c', bd:C.border2 },
+    green:{ c:C.green, bg:'var(--green-soft)', bd:'var(--green-soft)' }, red:{ c:C.red, bg:'var(--red-soft)', bd:'var(--red-soft)' },
+    blue:{ c:C.blue, bg:'var(--accent-soft)', bd:'var(--accent-soft)' }, amber:{ c:C.accent, bg:'var(--amber-soft)', bd:C.accentDim },
+    dim:{ c:C.t3, bg:'var(--bg3)', bd:C.border2 },
   }[kind] || {};
-  return { display:'inline-block', padding:'2px 8px', fontSize:9, letterSpacing:1, fontWeight:700, border:`1px solid ${map.bd}`, color:map.c, background:map.bg, fontFamily:"'Courier New',monospace" };
+  return { display:'inline-block', padding:'2px 8px', fontSize:9, letterSpacing:1, fontWeight:700, border:`1px solid ${map.bd}`, color:map.c, background:map.bg, fontFamily:'var(--mono)' };
 };
 
 // saat girişi otomatik format: "0645" → "06:45" (yazarken). Yalnız SAAT hücreleri —
@@ -93,11 +93,11 @@ export default function FTLPanel({ toast, myProfile }) {
   }, [customerId]);
   useEffect(() => { if (customerId) load(); }, [load, customerId]);
 
-  const tabS = (t) => ({ flex:'none', padding:'10px 24px', textAlign:'center', cursor:'pointer', fontFamily:"'Courier New',monospace", fontSize:11, fontWeight:700, letterSpacing:2, textTransform:'uppercase', color:view===t?C.accent:C.t3, borderBottom:view===t?`2px solid ${C.accent}`:'2px solid transparent', background:view===t?`${C.accent}08`:'transparent' });
+  const tabS = (t) => ({ flex:'none', padding:'10px 24px', textAlign:'center', cursor:'pointer', fontFamily:'var(--mono)', fontSize:11, fontWeight:700, letterSpacing:2, textTransform:'uppercase', color:view===t?C.accent:C.t3, borderBottom:view===t?`2px solid ${C.accent}`:'2px solid transparent', background:view===t?`var(--accent-soft)`:'transparent' });
 
-  if (!customerId) return <div style={{ padding:32, color:C.t3, fontSize:11, fontFamily:"'Courier New',monospace" }}>NO CUSTOMER CONTEXT — select a company first.</div>;
-  if (loading) return <div style={{ padding:32, textAlign:'center', color:C.t3, fontSize:11, fontFamily:"'Courier New',monospace" }}>LOADING FTL DATA...</div>;
-  if (!ruleset) return <div style={{ padding:32, color:C.red, fontSize:11, fontFamily:"'Courier New',monospace" }}>NO FTL RULESET LINKED TO THIS CUSTOMER — run Faz 0 SQL / link customers.ftl_ruleset_id.</div>;
+  if (!customerId) return <div style={{ padding:32, color:C.t3, fontSize:11, fontFamily:'var(--mono)' }}>NO CUSTOMER CONTEXT — select a company first.</div>;
+  if (loading) return <div style={{ padding:32, textAlign:'center', color:C.t3, fontSize:11, fontFamily:'var(--mono)' }}>LOADING FTL DATA...</div>;
+  if (!ruleset) return <div style={{ padding:32, color:C.red, fontSize:11, fontFamily:'var(--mono)' }}>NO FTL RULESET LINKED TO THIS CUSTOMER — run Faz 0 SQL / link customers.ftl_ruleset_id.</div>;
 
   return (
     <div style={{ flex:1, overflowY:'auto', minWidth:0 }}>
@@ -106,7 +106,7 @@ export default function FTLPanel({ toast, myProfile }) {
         <div style={tabS('history')} onClick={() => setView('history')}>Duty History</div>
         <div style={tabS('ruleset')} onClick={() => setView('ruleset')}>Ruleset</div>
         <div style={{ flex:1 }} />
-        <div style={{ alignSelf:'center', paddingRight:16, fontSize:9, color:C.t3, letterSpacing:1, fontFamily:"'Courier New',monospace" }}>
+        <div style={{ alignSelf:'center', paddingRight:16, fontSize:9, color:C.t3, letterSpacing:1, fontFamily:'var(--mono)' }}>
           {ruleset.name} · ALL TIMES LOCAL
         </div>
       </div>
@@ -228,7 +228,7 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
   };
 
   const seg = (t, label) => (
-    <div onClick={() => setDutyType(t)} style={{ padding:'9px 22px', fontSize:11, fontWeight:700, letterSpacing:1.5, cursor:'pointer', fontFamily:"'Courier New',monospace", background: dutyType === t ? C.accent : 'transparent', color: dutyType === t ? '#0a0c10' : C.t3 }}>{label}</div>
+    <div onClick={() => setDutyType(t)} style={{ padding:'9px 22px', fontSize:11, fontWeight:700, letterSpacing:1.5, cursor:'pointer', fontFamily:'var(--mono)', background: dutyType === t ? C.accent : 'transparent', color: dutyType === t ? 'var(--bg)' : C.t3 }}>{label}</div>
   );
 
   return (
@@ -266,7 +266,7 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
         <span style={S.label}>Sectors</span>
         {legs.map((l, i) => (
           <div key={i} style={{ display:'grid', gridTemplateColumns:'30px 1fr 1fr 1fr 1fr 40px', gap:10, marginBottom:8, alignItems:'center' }}>
-            <div style={{ fontSize:11, color:C.t3, textAlign:'center', fontFamily:"'Courier New',monospace" }}>{i + 1}</div>
+            <div style={{ fontSize:11, color:C.t3, textAlign:'center', fontFamily:'var(--mono)' }}>{i + 1}</div>
             <input style={S.input} placeholder="DEP" maxLength={4} value={l.dep} onChange={e => setLeg(i, 'dep', e.target.value.toUpperCase())} />
             <input style={S.input} placeholder="DEST" maxLength={4} value={l.dest} onChange={e => setLeg(i, 'dest', e.target.value.toUpperCase())} />
             <input style={S.input} placeholder="ETD LT (06:30)" value={l.etd} onChange={e => setLeg(i, 'etd', normTime(e.target.value))} />
@@ -296,8 +296,8 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
                 ['DUTY END (PLN)', win.dutyEnd],
               ].map(([k, v]) => (
                 <div key={k} style={{ background:C.bg3, padding:'10px 13px' }}>
-                  <div style={{ fontSize:9, letterSpacing:1.5, color:C.t3, textTransform:'uppercase', marginBottom:5, fontFamily:"'Courier New',monospace" }}>{k}</div>
-                  <div style={{ fontSize:16, fontWeight:700, color: k === 'PLANNED FDP' && win.fdpExceeded ? C.red : C.accent, fontFamily:"'Courier New',monospace" }}>{v ?? '—'}</div>
+                  <div style={{ fontSize:9, letterSpacing:1.5, color:C.t3, textTransform:'uppercase', marginBottom:5, fontFamily:'var(--mono)' }}>{k}</div>
+                  <div style={{ fontSize:16, fontWeight:700, color: k === 'PLANNED FDP' && win.fdpExceeded ? C.red : C.accent, fontFamily:'var(--mono)' }}>{v ?? '—'}</div>
                 </div>
               ))}
             </div>
@@ -314,7 +314,7 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
                 {fitList.map(({ pilot, legal, reasons, cum }) => {
                   const sel = selected[pilot.id];
                   return (
-                    <tr key={pilot.id} onClick={() => legal && toggle(pilot.id)} style={{ cursor: legal ? 'pointer' : 'default', opacity: legal ? 1 : .65, background: sel ? `${C.accent}08` : 'transparent' }}>
+                    <tr key={pilot.id} onClick={() => legal && toggle(pilot.id)} style={{ cursor: legal ? 'pointer' : 'default', opacity: legal ? 1 : .65, background: sel ? `var(--accent-soft)` : 'transparent' }}>
                       <td style={S.td}>{sel ? '☑' : '☐'}</td>
                       <td style={{ ...S.td, color: legal ? C.accent : C.t3, fontWeight:700 }}>{pilot.code} — {pilot.full_name}</td>
                       <td style={S.td}><span style={badge(legal ? 'green' : 'red')}>{legal ? 'LEGAL' : 'NOT LEGAL'}</span></td>
@@ -340,7 +340,7 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
               const sel = !!selected[p.id];
               return (
                 <div key={p.id} onClick={() => setSelected(s => { const n = { ...s }; if (n[p.id]) delete n[p.id]; else n[p.id] = 'CREW'; return n; })}
-                  style={{ padding:'8px 14px', border:`1px solid ${sel ? C.accent : C.border2}`, color: sel ? C.accent : C.t2, cursor:'pointer', fontSize:12, fontFamily:"'Courier New',monospace", background: sel ? `${C.accent}08` : 'transparent' }}>
+                  style={{ padding:'8px 14px', border:`1px solid ${sel ? C.accent : C.border2}`, color: sel ? C.accent : C.t2, cursor:'pointer', fontSize:12, fontFamily:'var(--mono)', background: sel ? `var(--accent-soft)` : 'transparent' }}>
                   {sel ? '☑' : '☐'} {p.code} — {p.full_name}
                 </div>
               );
@@ -393,7 +393,7 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
       <div style={{ ...S.panel }}>
         <div style={S.panelH}>
           <span style={S.panelT}>Duty History — {pilot ? `${pilot.full_name} (${pilot.code})` : ''}</span>
-          <span style={{ fontSize:9, color:C.t3, letterSpacing:1, fontFamily:"'Courier New',monospace" }}>crew_duties · per pilot · no delete</span>
+          <span style={{ fontSize:9, color:C.t3, letterSpacing:1, fontFamily:'var(--mono)' }}>crew_duties · per pilot · no delete</span>
         </div>
         <div style={{ overflowX:'auto' }}>
           <table style={{ ...S.table, minWidth:980 }}>
@@ -412,7 +412,7 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
               {rows.map(d => {
                 const legs = d.sectors || [];
                 const isPln = d.status === 'planned';
-                const dimC = { color: isPln ? C.t3 : '#fff' };
+                const dimC = { color: isPln ? C.t3 : 'var(--t1)' };
                 if (d.duty_type === 'flight' && legs.length) {
                   return legs.map((l, i) => {
                     const last = i === legs.length - 1;
@@ -453,7 +453,7 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
             </tbody>
           </table>
         </div>
-        <div style={{ display:'flex', gap:20, flexWrap:'wrap', padding:'9px 14px', borderTop:`1px solid ${C.border}`, fontSize:9.5, color:C.t3, alignItems:'center', fontFamily:"'Courier New',monospace" }}>
+        <div style={{ display:'flex', gap:20, flexWrap:'wrap', padding:'9px 14px', borderTop:`1px solid ${C.border}`, fontSize:9.5, color:C.t3, alignItems:'center', fontFamily:'var(--mono)' }}>
           <span><span style={badge('green')}>ACT</span> actual — auto-filled at archive</span>
           <span><span style={badge('dim')}>PLN</span> planned — not yet flown</span>
           <span><span style={badge('amber')}>OPEN</span> duty not finished at archive</span>
@@ -567,7 +567,7 @@ function RulesetSettings({ toast, myProfile, ruleset, offTypes, reload }) {
                   <td style={S.td}>{label}</td>
                   <td style={{ ...S.td, color:C.t3 }}>{fmt(regVal, f)}</td>
                   <td style={S.td}>
-                    <input style={{ ...S.input, width:100, color: stricter ? C.green : '#fff' }}
+                    <input style={{ ...S.input, width:100, color: stricter ? C.green : 'var(--t1)' }}
                       placeholder={fmt(effVal, f)}
                       value={edits[path] ?? ''}
                       onChange={e => setEdits(s => ({ ...s, [path]: e.target.value }))} />
@@ -602,7 +602,7 @@ function RulesetSettings({ toast, myProfile, ruleset, offTypes, reload }) {
       <div style={{ ...S.panel, marginTop:26 }}>
         <div style={S.panelH}>
           <span style={S.panelT}>OFF / Absence Types</span>
-          <span style={{ fontSize:9, color:C.t3, letterSpacing:1, fontFamily:"'Courier New',monospace" }}>no delete — deactivate only · toggle = audit logged</span>
+          <span style={{ fontSize:9, color:C.t3, letterSpacing:1, fontFamily:'var(--mono)' }}>no delete — deactivate only · toggle = audit logged</span>
         </div>
         <table style={S.table}>
           <thead><tr>{['CODE', 'LABEL', 'ASSIGNABLE', 'COUNTS AS RECURRENT REST'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>

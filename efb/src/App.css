@@ -1,16 +1,64 @@
+/* ─── Theme Tokens ───────────────────────────────────────────
+   Koyu tema varsayılan (:root). Açık tema data-theme="light" ile
+   devreye girer; ThemeToggle localStorage'daki efb_theme'i uygular. */
 :root {
   --bg:     #0f172a;
   --bg2:    #1e293b;
-  --bg3:    #1e293b;
+  --bg3:    #16213a;
   --border: #334155;
+  --border2:#475569;
   --t1:     #f1f5f9;
   --t2:     #94a3b8;
-  --t3:     #475569;
+  --t3:     #64748b;
   --accent: #38bdf8;
   --green:  #4ade80;
   --orange: #f97316;
   --red:    #ef4444;
   --amber:  #fbbf24;
+
+  --accent-soft: rgba(56, 189, 248, 0.12);
+  --green-soft:  rgba(74, 222, 128, 0.12);
+  --red-soft:    rgba(239, 68, 68, 0.12);
+  --amber-soft:  rgba(251, 191, 36, 0.12);
+  --orange-soft: rgba(249, 115, 22, 0.12);
+  --line-soft:   rgba(148, 163, 184, 0.14);
+  --hover:       rgba(148, 163, 184, 0.07);
+  --input-bg:    #0b1222;
+  --backdrop:    rgba(2, 6, 16, 0.6);
+  --shadow:      0 16px 48px rgba(0, 0, 0, 0.5);
+
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg:     #eef2f7;
+  --bg2:    #ffffff;
+  --bg3:    #e2e8f0;
+  --border: #cbd5e1;
+  --border2:#94a3b8;
+  --t1:     #0f172a;
+  --t2:     #334155;
+  --t3:     #64748b;
+  --accent: #0369a1;
+  --green:  #15803d;
+  --orange: #c2410c;
+  --red:    #dc2626;
+  --amber:  #b45309;
+
+  --accent-soft: rgba(3, 105, 161, 0.10);
+  --green-soft:  rgba(21, 128, 61, 0.10);
+  --red-soft:    rgba(220, 38, 38, 0.10);
+  --amber-soft:  rgba(180, 83, 9, 0.12);
+  --orange-soft: rgba(194, 65, 12, 0.10);
+  --line-soft:   rgba(51, 65, 85, 0.12);
+  --hover:       rgba(51, 65, 85, 0.05);
+  --input-bg:    #f8fafc;
+  --backdrop:    rgba(15, 23, 42, 0.35);
+  --shadow:      0 16px 48px rgba(15, 23, 42, 0.18);
+
+  color-scheme: light;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -20,12 +68,47 @@ body {
   color: var(--t1);
   font-family: -apple-system, 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 .app {
   min-height: 100vh;
   background: var(--bg);
 }
+
+/* ─── Drawer (üste binen detay paneli) ───────────────────────
+   Sağdan İÇERİĞİN ÜSTÜNE kayar; arkadaki liste ezilmez. */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--backdrop);
+  z-index: 180;
+  animation: drawer-fade 0.18s ease;
+}
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(640px, 100vw);
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  z-index: 181;
+  display: flex;
+  flex-direction: column;
+  animation: drawer-slide 0.22s ease;
+}
+@keyframes drawer-fade  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes drawer-slide { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@media (max-width: 700px) {
+  .drawer { width: 100vw; border-left: none; }
+}
+
+/* ─── Admin ortak sınıflar ─────────────────────────────────── */
+.adm-row:hover { background: var(--hover); }
+.adm-nav-item { transition: background 0.15s ease, color 0.15s ease; }
+.adm-nav-item:hover { background: var(--hover); }
 
 /* ─── Read-Only Mode ─────────────────────────────────── */
 .efb-readonly input,
@@ -47,12 +130,6 @@ body {
 .efb-readonly [style*="overflow"] {
   pointer-events: auto !important;
 }
-
-.efb-readonly input,
-.efb-readonly textarea,
-.efb-readonly select { pointer-events:none !important; opacity:0.5 !important; }
-.efb-readonly button { pointer-events:none !important; opacity:0.4 !important; }
-.efb-readonly input[type="checkbox"] { pointer-events:none !important; opacity:0.5 !important; }
 
 /* Leaflet tooltip override */
 .leaflet-tooltip {

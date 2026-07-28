@@ -96,10 +96,10 @@ function RwyScope({ scopeVal, onScope, rwysVal, onRwys, precisionCount, show, av
   if (!show) return null;
   const singleMult = precisionCount ? Math.max(1 / precisionCount, 0.25) : 1;
   const scopeOptions = [
-    { id:'all',      label:'All RWY',    mult:1.0,        color:'#ef4444' },
-    { id:'majority', label:'>50% RWY',   mult:0.75,       color:'#f97316' },
-    { id:'minority', label:'<50% RWY',   mult:0.50,       color:'#f0c040' },
-    { id:'single',   label:'Single RWY', mult:singleMult, color:'#4ade80' },
+    { id:'all',      label:'All RWY',    mult:1.0,        color:'var(--red)' },
+    { id:'majority', label:'>50% RWY',   mult:0.75,       color:'var(--orange)' },
+    { id:'minority', label:'<50% RWY',   mult:0.50,       color:'var(--amber)' },
+    { id:'single',   label:'Single RWY', mult:singleMult, color:'var(--green)' },
   ];
   const filteredScope = precisionCount ? scopeOptions : [scopeOptions[0]];
   const toggleRwy = (rwyId) => {
@@ -107,17 +107,17 @@ function RwyScope({ scopeVal, onScope, rwysVal, onRwys, precisionCount, show, av
     onRwys(current.includes(rwyId) ? current.filter(r => r !== rwyId) : [...current, rwyId]);
   };
   return (
-    <div style={{ marginTop:6, padding:'8px 10px', background:'#111', borderRadius:4, borderLeft:'2px solid #1e293b' }}>
+    <div style={{ marginTop:6, padding:'8px 10px', background:'var(--bg3)', borderRadius:4, borderLeft:'2px solid var(--bg3)' }}>
       {precisionCount > 0 && (
         <div style={{ marginBottom:6 }}>
-          <span style={{ fontSize:9, color:'#475569', marginRight:6 }}>SCOPE:</span>
+          <span style={{ fontSize:9, color:'var(--t3)', marginRight:6 }}>SCOPE:</span>
           <div style={{ display:'inline-flex', gap:4, flexWrap:'wrap' }}>
             {filteredScope.map(o => (
               <button key={o.id} onClick={() => onScope(o.id)}
-                style={{ fontSize:9, padding:'2px 7px', borderRadius:3, cursor:'pointer', fontFamily:"'Courier New',monospace", fontWeight:700,
-                  background: scopeVal===o.id ? `${o.color}20` : '#1e293b',
-                  border: `1px solid ${scopeVal===o.id ? o.color : '#334155'}`,
-                  color: scopeVal===o.id ? o.color : '#555' }}>
+                style={{ fontSize:9, padding:'2px 7px', borderRadius:3, cursor:'pointer', fontFamily:'var(--mono)', fontWeight:700,
+                  background: scopeVal===o.id ? `color-mix(in srgb, ${o.color} 12%, transparent)` : 'var(--bg3)',
+                  border: `1px solid ${scopeVal===o.id ? o.color : 'var(--border)'}`,
+                  color: scopeVal===o.id ? o.color : 'var(--t3)' }}>
                 {o.label} ×{o.mult.toFixed(2)}
               </button>
             ))}
@@ -126,16 +126,16 @@ function RwyScope({ scopeVal, onScope, rwysVal, onRwys, precisionCount, show, av
       )}
       {availableRwys && availableRwys.length > 0 && (
         <div>
-          <span style={{ fontSize:9, color:'#475569', marginRight:6 }}>RUNWAY(S):</span>
+          <span style={{ fontSize:9, color:'var(--t3)', marginRight:6 }}>RUNWAY(S):</span>
           <div style={{ display:'inline-flex', gap:4, flexWrap:'wrap', marginTop:2 }}>
             {availableRwys.map(rwy => {
               const selected = (rwysVal || []).includes(rwy.des);
               return (
                 <button key={rwy.des} onClick={() => toggleRwy(rwy.des)}
-                  style={{ fontSize:9, padding:'2px 8px', borderRadius:3, cursor:'pointer', fontFamily:"'Courier New',monospace", fontWeight:700,
-                    background: selected ? 'rgba(56,189,248,0.2)' : '#1e293b',
-                    border: `1px solid ${selected ? '#38bdf8' : '#334155'}`,
-                    color: selected ? '#38bdf8' : '#555' }}>
+                  style={{ fontSize:9, padding:'2px 8px', borderRadius:3, cursor:'pointer', fontFamily:'var(--mono)', fontWeight:700,
+                    background: selected ? 'rgba(56,189,248,0.2)' : 'var(--bg3)',
+                    border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+                    color: selected ? 'var(--accent)' : 'var(--t3)' }}>
                   {rwy.des} <span style={{ opacity:0.6, fontSize:8 }}>({rwy.apr})</span>
                 </button>
               );
@@ -333,17 +333,17 @@ function generatePpsBriefing(f, result, prec, bestRwy, rwyData) {
 }
 
 const IS={
-  sel:{width:'100%',background:'#1e293b',border:'1px solid #334155',color:'#e8e8e8',fontSize:12,padding:'8px 10px',borderRadius:4,fontFamily:"'Courier New',monospace"},
-  inp:{width:'100%',background:'#1e293b',border:'1px solid #334155',color:'#e8e8e8',fontSize:12,padding:'8px 10px',borderRadius:4,fontFamily:"'Courier New',monospace",boxSizing:'border-box'},
-  lbl:{fontSize:10,color:'#777',marginBottom:5,textTransform:'uppercase',letterSpacing:.8,display:'block'},
+  sel:{width:'100%',background:'var(--bg3)',border:'1px solid var(--border)',color:'var(--t1)',fontSize:12,padding:'8px 10px',borderRadius:4,fontFamily:'var(--mono)'},
+  inp:{width:'100%',background:'var(--bg3)',border:'1px solid var(--border)',color:'var(--t1)',fontSize:12,padding:'8px 10px',borderRadius:4,fontFamily:'var(--mono)',boxSizing:'border-box'},
+  lbl:{fontSize:10,color:'var(--t2)',marginBottom:5,textTransform:'uppercase',letterSpacing:.8,display:'block'},
   r2:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12},
 };
 
 function CB({label,checked,onChange,children}){
   return(
     <div style={{padding:'5px 0'}}>
-      <div onClick={()=>onChange(!checked)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12,color:'#aaa'}}>
-        <div style={{width:16,height:16,border:'2px solid '+(checked?'#38bdf8':'#444'),background:checked?'#38bdf8':'transparent',borderRadius:3,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+      <div onClick={()=>onChange(!checked)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12,color:'var(--t2)'}}>
+        <div style={{width:16,height:16,border:'2px solid '+(checked?'var(--accent)':'var(--t3)'),background:checked?'var(--accent)':'transparent',borderRadius:3,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
           {checked&&<span style={{color:'#fff',fontSize:10}}>✓</span>}
         </div>
         {label}
@@ -355,8 +355,8 @@ function CB({label,checked,onChange,children}){
 
 function Blk({title,open,onToggle,children}){
   return(
-    <div style={{marginBottom:12,background:'#161616',border:'1px solid #1e293b',borderRadius:6,overflow:'hidden'}}>
-      <div style={{padding:'10px 14px',background:'#0f172a',borderBottom:'1px solid #1e293b',fontSize:11,fontWeight:700,color:'#38bdf8',letterSpacing:1,textTransform:'uppercase',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}} onClick={onToggle}>
+    <div style={{marginBottom:12,background:'var(--bg3)',border:'1px solid var(--bg3)',borderRadius:6,overflow:'hidden'}}>
+      <div style={{padding:'10px 14px',background:'var(--bg)',borderBottom:'1px solid var(--bg3)',fontSize:11,fontWeight:700,color:'var(--accent)',letterSpacing:1,textTransform:'uppercase',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}} onClick={onToggle}>
         <span>{title}</span><span>{open?'▲':'▼'}</span>
       </div>
       {open&&<div style={{padding:'12px 14px'}}>{children}</div>}
@@ -364,7 +364,7 @@ function Blk({title,open,onToggle,children}){
   );
 }
 
-const RC={'LOW':{bg:'rgba(74,222,128,0.12)',border:'#4ade80',text:'#4ade80'},'MEDIUM':{bg:'rgba(232,163,32,0.12)',border:'#e8a320',text:'#e8a320'},'HIGH':{bg:'rgba(224,32,32,0.12)',border:'#ef4444',text:'#ef4444'}};
+const RC={'LOW':{bg:'rgba(74,222,128,0.12)',border:'var(--green)',text:'var(--green)'},'MEDIUM':{bg:'rgba(232,163,32,0.12)',border:'var(--amber)',text:'var(--amber)'},'HIGH':{bg:'rgba(224,32,32,0.12)',border:'var(--red)',text:'var(--red)'}};
 
 const DEFAULT_STATE = {
   assessed_by:'', cat:'B', sp_desig:false, sp_crew:false, sp_approval:false,
@@ -409,42 +409,42 @@ export function AssessmentHistory({ icao, compact=false }) {
     return `${d.toLocaleDateString('en-GB')} ${d.toISOString().slice(11,16)} UTC`;
   };
 
-  const riskColor = r => r==='HIGH'?'#ef4444':r==='MEDIUM'?'#e8a320':'#4ade80';
+  const riskColor = r => r==='HIGH'?'var(--red)':r==='MEDIUM'?'var(--amber)':'var(--green)';
 
-  if(loading) return <div style={{fontSize:10,color:'#475569',padding:'8px 16px',fontFamily:"'Courier New',monospace"}}>Loading history...</div>;
-  if(!history.length) return <div style={{fontSize:10,color:'#334155',padding:'8px 16px',fontFamily:"'Courier New',monospace"}}>No assessment history</div>;
+  if(loading) return <div style={{fontSize:10,color:'var(--t3)',padding:'8px 16px',fontFamily:'var(--mono)'}}>Loading history...</div>;
+  if(!history.length) return <div style={{fontSize:10,color:'var(--border)',padding:'8px 16px',fontFamily:'var(--mono)'}}>No assessment history</div>;
 
   return(
     <div>
       {!compact && (
-        <div style={{padding:'6px 16px',background:'#0d1117',borderBottom:'1px solid #1e2530',fontSize:9,color:'#546e7a',fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>
+        <div style={{padding:'6px 16px',background:'var(--bg2)',borderBottom:'1px solid var(--border)',fontSize:9,color:'var(--t3)',fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>
           Assessment History
         </div>
       )}
       {history.map((h,i)=>(
         <div key={h.id} style={{
           padding: compact ? '6px 16px' : '9px 16px',
-          borderBottom:'1px solid #1e2530',
+          borderBottom:'1px solid var(--border)',
           background: i===0 ? 'rgba(56,189,248,0.04)' : 'transparent',
           display:'flex', alignItems:'center', gap:10,
         }}>
           {/* Risk badge */}
           <span style={{
             fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:3,
-            background:`${riskColor(h.risk_level)}15`,
-            border:`1px solid ${riskColor(h.risk_level)}40`,
+            background:`color-mix(in srgb, ${riskColor(h.risk_level)} 8%, transparent)`,
+            border:`1px solid color-mix(in srgb, ${riskColor(h.risk_level)} 25%, transparent)`,
             color:riskColor(h.risk_level),
-            fontFamily:"'Courier New',monospace",
+            fontFamily:'var(--mono)',
             minWidth:44, textAlign:'center', flexShrink:0,
           }}>{h.risk_level||'—'}</span>
 
           {/* Info */}
           <div style={{flex:1, minWidth:0}}>
-            <div style={{fontSize:11, color: i===0?'#e8e8e8':'#777', fontFamily:"'Courier New',monospace", fontWeight: i===0?700:400}}>
+            <div style={{fontSize:11, color: i===0?'var(--t1)':'var(--t2)', fontFamily:'var(--mono)', fontWeight: i===0?700:400}}>
               {h.assessed_by||'—'}
-              {i===0 && <span style={{fontSize:9,color:'#38bdf8',marginLeft:6}}>← current</span>}
+              {i===0 && <span style={{fontSize:9,color:'var(--accent)',marginLeft:6}}>← current</span>}
             </div>
-            <div style={{fontSize:9, color:'#334155', fontFamily:"'Courier New',monospace", marginTop:1}}>
+            <div style={{fontSize:9, color:'var(--border)', fontFamily:'var(--mono)', marginTop:1}}>
               {fmtDate(h.assessed_at)}
               {h.risk_score!=null && <span style={{marginLeft:8}}>score: {h.risk_score}</span>}
             </div>
@@ -452,7 +452,7 @@ export function AssessmentHistory({ icao, compact=false }) {
 
           {/* Ops approval */}
           {!compact && (
-            <div style={{fontSize:9,color:'#475569',fontFamily:"'Courier New',monospace",textAlign:'right',maxWidth:120}}>
+            <div style={{fontSize:9,color:'var(--t3)',fontFamily:'var(--mono)',textAlign:'right',maxWidth:120}}>
               {h.ops_approval?.replace(' APPROVAL REQUIRED','')?.replace(' COORDINATION','') || '—'}
             </div>
           )}
@@ -580,31 +580,31 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
     :'No precision runways — full score applies';
 
   if(loading) return(
-    <div style={{background:'#111',color:'#475569',fontFamily:"'Courier New',monospace",padding:40,textAlign:'center',fontSize:11,letterSpacing:2}}>
+    <div style={{background:'var(--bg3)',color:'var(--t3)',fontFamily:'var(--mono)',padding:40,textAlign:'center',fontSize:11,letterSpacing:2}}>
       LOADING SURVEY DATA...
     </div>
   );
 
   return(
-    <div style={{background:'#111',color:'#e8e8e8',fontFamily:"'Courier New',monospace",maxHeight:'90vh',display:'flex',flexDirection:'column'}}>
-      <div style={{padding:'14px 18px',background:'#1e293b',borderBottom:'1px solid #1e293b',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+    <div style={{background:'var(--bg3)',color:'var(--t1)',fontFamily:'var(--mono)',maxHeight:'90vh',display:'flex',flexDirection:'column'}}>
+      <div style={{padding:'14px 18px',background:'var(--bg3)',borderBottom:'1px solid var(--bg3)',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <div>
-          <div style={{fontSize:18,fontWeight:700,color:'#e8a020',letterSpacing:2}}>{icao}</div>
-          <div style={{fontSize:12,color:'#e8e8e8'}}>{airportName} — Risk Assessment Survey</div>
+          <div style={{fontSize:18,fontWeight:700,color:'var(--amber)',letterSpacing:2}}>{icao}</div>
+          <div style={{fontSize:12,color:'var(--t1)'}}>{airportName} — Risk Assessment Survey</div>
           {lastAssessment?.date && (
-            <div style={{fontSize:9,color:'#475569',marginTop:3}}>
+            <div style={{fontSize:9,color:'var(--t3)',marginTop:3}}>
               Last assessed: {lastAssessment.date} — {lastAssessment.by||'—'}
             </div>
           )}
         </div>
-        <button onClick={onClose} style={{background:'none',border:'none',color:'#475569',cursor:'pointer',fontSize:20}}>✕</button>
+        <button onClick={onClose} style={{background:'none',border:'none',color:'var(--t3)',cursor:'pointer',fontSize:20}}>✕</button>
       </div>
 
       <div style={{flex:1,overflowY:'auto',padding:'12px 16px'}}>
 
         {/* Assessment history — compact */}
-        <div style={{marginBottom:12,background:'#161616',border:'1px solid #1e293b',borderRadius:6,overflow:'hidden'}}>
-          <div style={{padding:'7px 12px',background:'#1e293b',fontSize:9,color:'#38bdf8',fontWeight:700,letterSpacing:1,textTransform:'uppercase',borderBottom:'1px solid #1e293b'}}>
+        <div style={{marginBottom:12,background:'var(--bg3)',border:'1px solid var(--bg3)',borderRadius:6,overflow:'hidden'}}>
+          <div style={{padding:'7px 12px',background:'var(--bg3)',fontSize:9,color:'var(--accent)',fontWeight:700,letterSpacing:1,textTransform:'uppercase',borderBottom:'1px solid var(--bg3)'}}>
             Assessment History
           </div>
           <AssessmentHistory icao={icao} compact={true}/>
@@ -613,11 +613,11 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
         {/* Assessed by */}
         <div style={{marginBottom:12}}>
           <label style={IS.lbl}>Assessed by (required each time)</label>
-          <input style={{...IS.inp, borderColor: !f.assessed_by ? '#f97316' : '#334155'}}
+          <input style={{...IS.inp, borderColor: !f.assessed_by ? 'var(--orange)' : 'var(--border)'}}
             placeholder="Capt. Name..."
             value={f.assessed_by}
             onChange={e=>s('assessed_by',e.target.value)}/>
-          {!f.assessed_by&&<div style={{fontSize:9,color:'#f97316',marginTop:3}}>Required before saving</div>}
+          {!f.assessed_by&&<div style={{fontSize:9,color:'var(--orange)',marginTop:3}}>Required before saving</div>}
         </div>
 
         {/* Block 1 */}
@@ -654,19 +654,19 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
           </div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
             <button onClick={()=>s("rwy_data",[...f.rwy_data,...Array(8).fill(null).map(()=>({des:"",apr:"--"}))])}
-              style={{fontSize:10,padding:"4px 12px",background:"#1e293b",border:"1px solid #38bdf8",color:"#38bdf8",borderRadius:4,cursor:"pointer",fontFamily:"'Courier New',monospace"}}>
+              style={{fontSize:10,padding:"4px 12px",background:"var(--bg3)",border:"1px solid var(--accent)",color:"var(--accent)",borderRadius:4,cursor:"pointer",fontFamily:'var(--mono)'}}>
               + ADD 8 MORE RUNWAYS ({f.rwy_data.length} slots)
             </button>
             {f.rwy_data.length > 8 && (
               <button onClick={()=>s("rwy_data",f.rwy_data.slice(0,8))}
-                style={{fontSize:10,padding:"4px 10px",background:"#1e293b",border:"1px solid #334155",color:"#555",borderRadius:4,cursor:"pointer",fontFamily:"'Courier New',monospace"}}>
+                style={{fontSize:10,padding:"4px 10px",background:"var(--bg3)",border:"1px solid var(--border)",color:"var(--t3)",borderRadius:4,cursor:"pointer",fontFamily:'var(--mono)'}}>
                 RESET TO 8
               </button>
             )}
           </div>
-          {bestRwy&&<div style={{fontSize:10,color:'#4ade80',marginBottom:4}}>Best approach: {bestRwy.apr} — RWY {bestRwy.des} {prec?'(PRECISION)':'(non-precision)'}</div>}
+          {bestRwy&&<div style={{fontSize:10,color:'var(--green)',marginBottom:4}}>Best approach: {bestRwy.apr} — RWY {bestRwy.des} {prec?'(PRECISION)':'(non-precision)'}</div>}
           {rwyData.length>0&&(
-            <div style={{fontSize:9,color:precisionCount>0?'#38bdf8':'#555',marginBottom:10,padding:'4px 8px',background:precisionCount>0?'rgba(56,189,248,0.08)':'rgba(80,80,80,0.08)',borderRadius:4}}>
+            <div style={{fontSize:9,color:precisionCount>0?'var(--accent)':'var(--t3)',marginBottom:10,padding:'4px 8px',background:precisionCount>0?'rgba(56,189,248,0.08)':'rgba(80,80,80,0.08)',borderRadius:4}}>
               ℹ {scopeInfo}
             </div>
           )}
@@ -832,8 +832,8 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
             <label style={IS.lbl}>Has crew operated at this aerodrome in last 12 months?</label>
             <div style={{display:'flex',gap:16,marginTop:4}}>
               {['Yes','No'].map(v=>(
-                <div key={v} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:12,color:'#aaa'}} onClick={()=>s('crew_rec',v==='Yes')}>
-                  <div style={{width:14,height:14,borderRadius:7,border:'2px solid '+(f.crew_rec===(v==='Yes')?'#38bdf8':'#444'),background:f.crew_rec===(v==='Yes')?'#38bdf8':'transparent'}}/>
+                <div key={v} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:12,color:'var(--t2)'}} onClick={()=>s('crew_rec',v==='Yes')}>
+                  <div style={{width:14,height:14,borderRadius:7,border:'2px solid '+(f.crew_rec===(v==='Yes')?'var(--accent)':'var(--t3)'),background:f.crew_rec===(v==='Yes')?'var(--accent)':'transparent'}}/>
                   {v}
                 </div>
               ))}
@@ -847,8 +847,8 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
             <label style={IS.lbl}>Is there a curfew at this aerodrome?</label>
             <div style={{display:'flex',gap:16,marginTop:4}}>
               {['No','Yes'].map(v=>(
-                <div key={v} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:12,color:'#aaa'}} onClick={()=>s('curfew',v==='Yes')}>
-                  <div style={{width:14,height:14,borderRadius:7,border:'2px solid '+(f.curfew===(v==='Yes')?'#38bdf8':'#444'),background:f.curfew===(v==='Yes')?'#38bdf8':'transparent'}}/>
+                <div key={v} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:12,color:'var(--t2)'}} onClick={()=>s('curfew',v==='Yes')}>
+                  <div style={{width:14,height:14,borderRadius:7,border:'2px solid '+(f.curfew===(v==='Yes')?'var(--accent)':'var(--t3)'),background:f.curfew===(v==='Yes')?'var(--accent)':'transparent'}}/>
                   {v}
                 </div>
               ))}
@@ -868,8 +868,8 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
             <label style={IS.lbl}>Is NADP required at this aerodrome?</label>
             <div style={{display:'flex',gap:16,marginTop:4}}>
               {['No','Yes'].map(v=>(
-                <div key={v} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:12,color:'#aaa'}} onClick={()=>s('nadp',v==='Yes')}>
-                  <div style={{width:14,height:14,borderRadius:7,border:'2px solid '+(f.nadp===(v==='Yes')?'#38bdf8':'#444'),background:f.nadp===(v==='Yes')?'#38bdf8':'transparent'}}/>
+                <div key={v} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:12,color:'var(--t2)'}} onClick={()=>s('nadp',v==='Yes')}>
+                  <div style={{width:14,height:14,borderRadius:7,border:'2px solid '+(f.nadp===(v==='Yes')?'var(--accent)':'var(--t3)'),background:f.nadp===(v==='Yes')?'var(--accent)':'transparent'}}/>
                   {v}
                 </div>
               ))}
@@ -890,7 +890,7 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
           <textarea style={{...IS.inp,minHeight:70,resize:'vertical'}} value={f.free_text} onChange={e=>s('free_text',e.target.value)} placeholder="Specific local knowledge, operator notes, special procedures..."/>
         </div>
 
-        <button onClick={handleCalc} style={{width:'100%',background:'#e8a020',border:'none',color:'#000',fontWeight:700,fontSize:13,padding:'12px',borderRadius:5,cursor:'pointer',fontFamily:"'Courier New',monospace",marginBottom:16}}>
+        <button onClick={handleCalc} style={{width:'100%',background:'var(--amber)',border:'none',color:'var(--bg)',fontWeight:700,fontSize:13,padding:'12px',borderRadius:5,cursor:'pointer',fontFamily:'var(--mono)',marginBottom:16}}>
           CALCULATE RISK
         </button>
 
@@ -906,7 +906,7 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
             </div>
             
             {/* Approval Workflow */}
-            <div style={{background:'rgba(0,0,0,0.3)',border:`1px solid ${rc.border}30`,borderRadius:6,padding:'10px 12px',marginBottom:10}}>
+            <div style={{background:'rgba(0,0,0,0.3)',border:`1px solid color-mix(in srgb, ${rc.border} 19%, transparent)`,borderRadius:6,padding:'10px 12px',marginBottom:10}}>
               <div style={{fontSize:9,color:rc.text,fontWeight:700,letterSpacing:1,marginBottom:4,textTransform:'uppercase'}}>APPROVAL REQUIRED</div>
               <div style={{fontSize:12,fontWeight:700,color:rc.text}}>
                 {result.approval === 'DISPATCH_OK' && '✓ DISPATCH OK — No approval required'}
@@ -914,31 +914,31 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
                 {result.approval === 'OPS_MANAGER_APPROVAL_REQUIRED' && '🚫 OPS MANAGER APPROVAL — Operations Manager approval required'}
               </div>
             </div>
-            <div style={{fontSize:10,color:'#777',lineHeight:1.8,marginBottom:10}}>
+            <div style={{fontSize:10,color:'var(--t2)',lineHeight:1.8,marginBottom:10}}>
               {result.basis.map((b,i)=><div key={i}>▸ {b}</div>)}
             </div>
             {result.actions.length>0&&(
               <div style={{padding:'8px 10px',background:'rgba(0,0,0,0.3)',borderRadius:4,marginBottom:10}}>
-                <div style={{fontSize:10,color:'#4ade80',fontWeight:700,marginBottom:6,letterSpacing:1}}>RECOMMENDED ACTIONS</div>
-                {result.actions.map((a,i)=><div key={i} style={{fontSize:11,color:'#aaa',marginBottom:4}}>{i+1}. {a}</div>)}
+                <div style={{fontSize:10,color:'var(--green)',fontWeight:700,marginBottom:6,letterSpacing:1}}>RECOMMENDED ACTIONS</div>
+                {result.actions.map((a,i)=><div key={i} style={{fontSize:11,color:'var(--t2)',marginBottom:4}}>{i+1}. {a}</div>)}
               </div>
             )}
             {(()=>{
               const pps=generatePpsBriefing(f,result,prec,bestRwy,rwyData);
               return(
-                <div style={{padding:'10px 12px',background:'rgba(0,0,0,0.3)',borderRadius:4,borderLeft:'3px solid #38bdf8',marginBottom:10}}>
-                  <div style={{fontSize:10,color:'#38bdf8',fontWeight:700,marginBottom:10,letterSpacing:1}}>PPS BRIEFING PREVIEW</div>
+                <div style={{padding:'10px 12px',background:'rgba(0,0,0,0.3)',borderRadius:4,borderLeft:'3px solid var(--accent)',marginBottom:10}}>
+                  <div style={{fontSize:10,color:'var(--accent)',fontWeight:700,marginBottom:10,letterSpacing:1}}>PPS BRIEFING PREVIEW</div>
                   {[['SECTION 1 — Traffic / ATC / RWY Ops',pps.section1],['SECTION 2 — Meteorology / Wind',pps.section2],['SECTION 3 — Security / Handling / Nav',pps.section3]].map(([title,text])=>(
                     <div key={title} style={{marginBottom:10}}>
-                      <div style={{fontSize:9,color:'#38bdf8',fontWeight:700,marginBottom:5,letterSpacing:1}}>{title}</div>
-                      {text.split('\n').map((line,i)=><div key={i} style={{fontSize:10,color:'#aaa',lineHeight:1.8,paddingLeft:8}}>▸ {line}</div>)}
+                      <div style={{fontSize:9,color:'var(--accent)',fontWeight:700,marginBottom:5,letterSpacing:1}}>{title}</div>
+                      {text.split('\n').map((line,i)=><div key={i} style={{fontSize:10,color:'var(--t2)',lineHeight:1.8,paddingLeft:8}}>▸ {line}</div>)}
                     </div>
                   ))}
                 </div>
               );
             })()}
             <button onClick={handleSave} disabled={saving||!f.assessed_by}
-              style={{width:'100%',background:f.assessed_by?'#4ade80':'#1e293b',border:'none',color:f.assessed_by?'#fff':'#555',fontWeight:700,fontSize:13,padding:'12px',borderRadius:5,cursor:f.assessed_by?'pointer':'not-allowed',fontFamily:"'Courier New',monospace"}}>
+              style={{width:'100%',background:f.assessed_by?'var(--green)':'var(--bg3)',border:'none',color:f.assessed_by?'#fff':'var(--t3)',fontWeight:700,fontSize:13,padding:'12px',borderRadius:5,cursor:f.assessed_by?'pointer':'not-allowed',fontFamily:'var(--mono)'}}>
               {saving?'SAVING...':(f.assessed_by?'SAVE TO DATABASE (incl. PPS Briefing)':'Enter "Assessed by" to save')}
             </button>
           </div>
