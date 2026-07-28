@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import SyncButton from './SyncButton';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { logEvent } from '../supabaseClient';
+import { up } from './inputFormat';
 
 function getStopMarginColor(margin) {
   if (margin === null) return '#94a3b8';
@@ -48,7 +49,7 @@ function AtisRow({ label, value, onChange, photo, onPhoto }) {
           {photo ? '✓ Photo' : '📷 ATIS Photo'}
         </button>
       </div>
-      <input style={{ ...iStyle, width:'100%', fontSize:13 }} value={value} onChange={e => onChange(e.target.value)} placeholder="Enter ATIS information..." />
+      <input style={{ ...iStyle, width:'100%', fontSize:13 }} value={value} onChange={e => onChange(up(e.target.value))} placeholder="Enter ATIS information..." />
     </div>
   );
 }
@@ -249,7 +250,7 @@ function TakeoffData({ setStatus, activePlan, rawText = '' }) {
           {[{label:'SID',value:sid,onChange:setSid},{label:'FL',value:fl,onChange:setFl},{label:'SQ',value:sq,onChange:setSq},{label:'OTH',value:oth,onChange:setOth}].map(f => (
             <div key={f.label}>
               <div style={{ fontSize:10, color:'#475569', fontWeight:600, letterSpacing:'1px', textTransform:'uppercase', marginBottom:6 }}>{f.label}</div>
-              <input style={{ ...iStyle, width:'100%', fontSize:13 }} value={f.value} onChange={e => f.onChange(e.target.value)} placeholder="——" />
+              <input style={{ ...iStyle, width:'100%', fontSize:13 }} value={f.value} onChange={e => f.onChange(up(e.target.value))} placeholder="——" />
             </div>
           ))}
         </div>

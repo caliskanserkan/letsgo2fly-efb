@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import SyncButton from './SyncButton';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { logEvent } from '../supabaseClient';
+import { up } from './inputFormat';
 
 const RWY_CONDITIONS = [
   { id:'DRY',           label:'DRY',           factor:1.00, color:'#4ade80' },
@@ -167,7 +168,7 @@ function LandingData({ flightData, divertData, updateDivert, setStatus, activePl
               {arrPhoto ? '✓ Photo' : '📷 ATIS Photo'}
             </button>
           </div>
-          <input style={{ ...iStyle, width:'100%', fontSize:13 }} value={arrAtis} onChange={e => setArrAtis(e.target.value)} placeholder="Enter ATIS information..." />
+          <input style={{ ...iStyle, width:'100%', fontSize:13 }} value={arrAtis} onChange={e => setArrAtis(up(e.target.value))} placeholder="Enter ATIS information..." />
         </div>
         {/* QNH */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', minHeight:56 }}>

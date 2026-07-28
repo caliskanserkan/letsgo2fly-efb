@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import FlightReport from './FlightReport';
 import FTLPanel from './FTLPanel';
 import { toMin as ftlToMin, fmtMin as ftlFmtMin } from './FTLEngine';
+import { normTime } from './inputFormat';
 import { supabase } from '../supabaseClient';
 import { RiskSurvey, AssessmentHistory } from './RiskSurvey';
 import PlanDocuments from './PlanDocuments';
@@ -421,7 +422,7 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
                 {fields.map(f => (
                   <div key={f.key}>
                     <div style={{fontSize:10,color:C.t3,fontFamily:'var(--mono)',marginBottom:3}}>{f.label}</div>
-                    {f.type==='pilot'?(<select style={{...S.select,fontSize:13,padding:'6px 8px'}} value={form[f.key]||''} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}><option value="">— Select —</option>{pilots.map(p=><option key={p.id} value={p.id}>{p.code} — {p.full_name}</option>)}</select>):(<input style={{...S.input,fontSize:13,padding:'6px 8px'}} value={form[f.key]||''} placeholder={f.type==='time'?'HH:MM':'—'} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}/>)}
+                    {f.type==='pilot'?(<select style={{...S.select,fontSize:13,padding:'6px 8px'}} value={form[f.key]||''} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}><option value="">— Select —</option>{pilots.map(p=><option key={p.id} value={p.id}>{p.code} — {p.full_name}</option>)}</select>):(<input style={{...S.input,fontSize:13,padding:'6px 8px'}} value={form[f.key]||''} placeholder={f.type==='time'?'HH:MM':'—'} maxLength={f.type==='time'?5:undefined} onChange={e=>setForm(p=>({...p,[f.key]:f.type==='time'?normTime(e.target.value):e.target.value}))}/>)}
                   </div>
                 ))}
               </div>
@@ -590,7 +591,7 @@ function ArchivedFlts({toast,user}){
         <div style={{display:'flex',gap:10}}>
           {['YES','NO'].map(v=>(<button key={v} onClick={()=>setEditForm(p=>({...p,[k]:v==='YES'}))} style={{...S.btnSecondary,background:editForm[k]===(v==='YES')?`var(--accent-soft)`:'none',borderColor:editForm[k]===(v==='YES')?C.accent:C.border2,color:editForm[k]===(v==='YES')?C.accent:C.t2}}>{v}</button>))}
         </div>
-      ):(<input style={S.input} value={editForm[k]||''} type={type} onChange={e=>setEditForm(p=>({...p,[k]:e.target.value}))}/>)}
+      ):(<input style={S.input} value={editForm[k]||''} type={type==='time'?'text':type} placeholder={type==='time'?'HH:MM':undefined} maxLength={type==='time'?5:undefined} onChange={e=>setEditForm(p=>({...p,[k]:type==='time'?normTime(e.target.value):e.target.value}))}/>)}
     </div>
   );
 
@@ -696,8 +697,8 @@ function ArchivedFlts({toast,user}){
         <Modal title="EDIT ARCHIVED FLIGHT — REPORT REQUIRED" onClose={()=>setEditModal(false)} width={520}>
           <div style={{fontSize:11,color:'var(--orange)',marginBottom:16,padding:'8px 12px',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.2)'}}>All edits are logged. Only changed fields will be updated.</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-            <EF label="OFF BLOCK (HH:MM)" k="off_blocks"/><EF label="T/O TIME (HH:MM)" k="takeoff_time"/>
-            <EF label="LANDING (HH:MM)" k="landing_time"/><EF label="ON BLOCK (HH:MM)" k="on_blocks"/>
+            <EF label="OFF BLOCK (HH:MM)" k="off_blocks" type="time"/><EF label="T/O TIME (HH:MM)" k="takeoff_time" type="time"/>
+            <EF label="LANDING (HH:MM)" k="landing_time" type="time"/><EF label="ON BLOCK (HH:MM)" k="on_blocks" type="time"/>
             <EF label="BLOCK MINS" k="block_minutes"/><EF label="FLIGHT MINS" k="airborne_minutes"/>
             <EF label="T/O FUEL (lb)" k="takeoff_fuel"/><EF label="REM FUEL (lb)" k="remaining_fuel"/>
             <EF label="ACTUAL LW (lb)" k="actual_lw"/><EF label="VREF (kt)" k="vref"/>

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
+import { up } from './inputFormat';
 
 function FreeNote() {
   const [mode, setMode] = usePersistedState('efb_freenote_mode', 'text');
@@ -85,7 +86,7 @@ function FreeNote() {
 
       {/* Text mode */}
       {mode === 'text' && (
-        <textarea value={note} onChange={e => handleTextChange(e.target.value)}
+        <textarea value={note} onChange={e => handleTextChange(up(e.target.value))}
           placeholder="Type your notes here..."
           style={{ flex:1, background:'#1e293b', border:'1px solid #334155', borderRadius:14, padding:'16px', fontSize:14, color:'#f1f5f9', fontFamily:'inherit', outline:'none', resize:'none', lineHeight:1.8 }}
         />

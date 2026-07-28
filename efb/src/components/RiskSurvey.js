@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { up } from './inputFormat';
 
 const APPR_RANK = {
   'CAT III':7,'CAT II':6,'ILS':5,'RNP AR':4,'GNSS':3,'RNP':2,
@@ -616,7 +617,7 @@ export function RiskSurvey({icao, airportName, airportCat, onClose, onSaved}){
           <input style={{...IS.inp, borderColor: !f.assessed_by ? 'var(--orange)' : 'var(--border)'}}
             placeholder="Capt. Name..."
             value={f.assessed_by}
-            onChange={e=>s('assessed_by',e.target.value)}/>
+            onChange={e=>s('assessed_by',up(e.target.value))}/>
           {!f.assessed_by&&<div style={{fontSize:9,color:'var(--orange)',marginTop:3}}>Required before saving</div>}
         </div>
 

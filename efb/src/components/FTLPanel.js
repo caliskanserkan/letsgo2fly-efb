@@ -7,6 +7,7 @@ import {
   toMin, fmtMin, spanMin, effectiveRules, overrideDirection,
   fitness, dutyWindow,
 } from './FTLEngine';
+import { normTime } from './inputFormat';
 
 const C = {
   bg:'var(--bg)', bg2:'var(--bg2)', bg3:'var(--bg3)', border:'var(--border)', border2:'var(--border2)',
@@ -34,17 +35,6 @@ const badge = (kind) => {
     dim:{ c:C.t3, bg:'var(--bg3)', bd:C.border2 },
   }[kind] || {};
   return { display:'inline-block', padding:'2px 8px', fontSize:9, letterSpacing:1, fontWeight:700, border:`1px solid ${map.bd}`, color:map.c, background:map.bg, fontFamily:'var(--mono)' };
-};
-
-// saat girişi otomatik format: "0645" → "06:45" (yazarken). Yalnız SAAT hücreleri —
-// süre alanları (388:10 gibi 24h üstü) bu formatı KULLANMAZ.
-const normTime = (v) => {
-  const d = String(v).replace(/[^\d]/g, '').slice(0, 4);
-  if (d.length <= 2) return d;
-  let hh = d.slice(0, 2), mm = d.slice(2);
-  if (Number(hh) > 23) hh = '23';
-  if (mm.length === 2 && Number(mm) > 59) mm = '59';
-  return `${hh}:${mm}`;
 };
 
 // tarih + yerel "HH:MM" → ISO (dispatcher'ın tarayıcı saat dilimi — Faz 1: TR operasyonu)
