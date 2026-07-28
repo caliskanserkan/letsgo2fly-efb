@@ -37,14 +37,23 @@ export default function PlanDocuments({ planId, archivedFlightId, readOnly=true 
 
   const handleView=async(doc)=>{
     setOpening(doc.id);
-    // Pencere TIKLAMA JESTI icinde acilir (bos), URL await sonrasi yuklenir.
-    // window.open await'ten SONRA cagrilirsa Safari popup engeli sessizce bloklar.
-    const w=window.open('','_blank');
+    // Popup DEGIL, dogrudan DOSYA INDIRME (Serkan istegi): Safari popup
+    // engelinden hic gecmez — PDF Downloads'a iner, tek tikla acilir.
     try{
       const{data:s,error}=await supabase.storage.from(BUCKET).createSignedUrl(doc.file_path,600);
-      if(s?.signedUrl&&w){ w.location=s.signedUrl; }
-      else{ if(w)w.close(); console.error('[DOC VIEW] signed URL alinamadi:',error?.message||'bilinmiyor',doc.file_path); }
-    }catch(err){ if(w)w.close(); console.error('[DOC VIEW]',err); }
+      if(error||!s?.signedUrl) throw new Error(error?.message||'signed URL alinamadi');
+      const resp=await fetch(s.signedUrl);
+      if(!resp.ok) throw new Error('indirme hatasi: HTTP '+resp.status);
+      const blob=await resp.blob();
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url; a.download=doc.file_name||doc.file_path.split('/').pop()||'document.pdf';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),10000);
+    }catch(err){
+      console.error('[DOC VIEW]',err,doc.file_path);
+      alert('Document could not be opened: '+(err?.message||err));
+    }
     setOpening(null);
   };
 
