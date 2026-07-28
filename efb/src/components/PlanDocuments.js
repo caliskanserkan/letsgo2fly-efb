@@ -19,6 +19,8 @@ export default function PlanDocuments({ planId, archivedFlightId, readOnly=true 
   const [profiles,setProfiles]=useState([]);
   const [loading,setLoading]=useState(true);
   const [opening,setOpening]=useState(null);
+  // Uygulama ici onizleyici: VIEW once ACAR; indirme/print karari kullanicinin.
+  const [viewer,setViewer]=useState(null); // {url, name}
 
   const load=useCallback(async()=>{
     if(!planId&&!archivedFlightId){setLoading(false);return;}
@@ -35,26 +37,30 @@ export default function PlanDocuments({ planId, archivedFlightId, readOnly=true 
 
   const pilotName=id=>{ const p=profiles.find(x=>x.id===id); return p?`${p.code} — ${p.full_name}`:null; };
 
+  // VIEW: belgeyi uygulama ici onizleyicide ACAR (indirme degil).
+  // Blob URL kullanilir -> Safari popup engeliyle hic temas yok.
   const handleView=async(doc)=>{
     setOpening(doc.id);
-    // Popup DEGIL, dogrudan DOSYA INDIRME (Serkan istegi): Safari popup
-    // engelinden hic gecmez — PDF Downloads'a iner, tek tikla acilir.
     try{
       const{data:s,error}=await supabase.storage.from(BUCKET).createSignedUrl(doc.file_path,600);
       if(error||!s?.signedUrl) throw new Error(error?.message||'signed URL alinamadi');
       const resp=await fetch(s.signedUrl);
       if(!resp.ok) throw new Error('indirme hatasi: HTTP '+resp.status);
       const blob=await resp.blob();
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement('a');
-      a.href=url; a.download=doc.file_name||doc.file_path.split('/').pop()||'document.pdf';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),10000);
+      setViewer({ url:URL.createObjectURL(blob), name:doc.file_name||doc.file_path.split('/').pop()||'document.pdf' });
     }catch(err){
       console.error('[DOC VIEW]',err,doc.file_path);
       alert('Document could not be opened: '+(err?.message||err));
     }
     setOpening(null);
+  };
+
+  const closeViewer=()=>{ if(viewer?.url)URL.revokeObjectURL(viewer.url); setViewer(null); };
+  const downloadViewer=()=>{
+    if(!viewer)return;
+    const a=document.createElement('a');
+    a.href=viewer.url; a.download=viewer.name;
+    document.body.appendChild(a); a.click(); a.remove();
   };
 
   const grouped={};
@@ -66,6 +72,20 @@ export default function PlanDocuments({ planId, archivedFlightId, readOnly=true 
 
   return(
     <div style={{fontFamily:'var(--mono)'}}>
+      {viewer&&(
+        <div style={{position:'fixed',inset:0,background:'var(--backdrop)',zIndex:300,display:'flex',flexDirection:'column'}}>
+          <div style={{background:'var(--bg2)',borderBottom:'1px solid var(--border)',padding:'10px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+            <span style={{fontSize:12,fontWeight:700,color:'var(--t1)',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{viewer.name}</span>
+            <button onClick={()=>{const f=document.getElementById('doc-viewer-frame');try{f?.contentWindow?.print();}catch{window.print();}}}
+              style={{background:'var(--accent)',border:'none',borderRadius:6,padding:'7px 14px',fontSize:11,fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'var(--mono)',letterSpacing:1}}>🖨 PRINT</button>
+            <button onClick={downloadViewer}
+              style={{background:'none',border:'1px solid var(--accent)',borderRadius:6,padding:'7px 14px',fontSize:11,fontWeight:700,color:'var(--accent)',cursor:'pointer',fontFamily:'var(--mono)',letterSpacing:1}}>⬇ DOWNLOAD</button>
+            <button onClick={closeViewer}
+              style={{background:'none',border:'1px solid var(--border2)',borderRadius:6,padding:'7px 14px',fontSize:11,fontWeight:700,color:'var(--t2)',cursor:'pointer',fontFamily:'var(--mono)',letterSpacing:1}}>✕ CLOSE</button>
+          </div>
+          <iframe id="doc-viewer-frame" title={viewer.name} src={viewer.url} style={{flex:1,border:'none',background:'#525659'}}/>
+        </div>
+      )}
       <div style={{padding:'8px 16px',background:'var(--bg3)',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <span style={{fontSize:10,color:'var(--t3)',letterSpacing:1}}>FLIGHT DOCUMENTS</span>
         <span style={{fontSize:10,color:'var(--green)',fontWeight:700}}>{totalCurrent} CURRENT · {docs.length} TOTAL</span>
