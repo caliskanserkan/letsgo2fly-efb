@@ -199,6 +199,20 @@ export default function FlightReport({ plan, onClose }) {
     document.body.appendChild(a); a.click(); a.remove();
   };
 
+  // DUZELTME KATMANI (28 Tem): kayit admin tarafindan edit edildiyse rapor
+  // goruntusunde eski deger KIRMIZI USTU CIZILI + yaninda NEW rozetiyle yeni
+  // deger gosterilir (kagit logbook duzeltme gelenegi). Orijinal PDF DEGISMEZ —
+  // admin_edits'ten goruntuleme katmaninda bindirilir.
+  const [amendments, setAmendments] = useState([]);
+  useEffect(() => {
+    supabase.from('admin_edits')
+      .select('field_name,old_value,new_value,reason,created_at')
+      .eq('plan_id', plan.id)
+      .eq('edit_type', 'EDIT')
+      .order('created_at', { ascending: true })
+      .then(({ data }) => setAmendments(data || []));
+  }, [plan.id]); // eslint-disable-line
+
   const openReportPdf = async (mode = 'download') => {
     setPdfBusy(true);
     const w = window.open('', '_blank');
@@ -260,6 +274,23 @@ export default function FlightReport({ plan, onClose }) {
         <button onClick={onClose}
           style={{background:'transparent',border:'1px solid #475569',borderRadius:6,padding:'8px 16px',fontSize:12,color:'#94a3b8',cursor:'pointer'}}>✕ Close</button>
       </div>
+      {amendments.length > 0 && (
+        <div style={{background:'#2a0e0e',borderBottom:'2px solid #ef4444',padding:'8px 16px',flexShrink:0,maxHeight:160,overflowY:'auto'}}>
+          <div style={{fontSize:11,fontWeight:700,color:'#ef4444',letterSpacing:1.5,marginBottom:6}}>
+            ⚠ AMENDED RECORD — {amendments.length} CORRECTION(S) AFTER ARCHIVING · original values struck through
+          </div>
+          {amendments.map((a2, i) => (
+            <div key={i} style={{display:'flex',alignItems:'baseline',gap:10,flexWrap:'wrap',padding:'3px 0',fontFamily:'monospace',fontSize:12}}>
+              <span style={{color:'#fca5a5',fontWeight:700,textTransform:'uppercase'}}>{a2.field_name}</span>
+              <span style={{color:'#ef4444',textDecoration:'line-through',textDecorationColor:'#ef4444',textDecorationThickness:2}}>{a2.old_value || '—'}</span>
+              <span style={{color:'#94a3b8'}}>→</span>
+              <span style={{background:'#14532d',color:'#4ade80',fontWeight:700,padding:'1px 8px',borderRadius:4,fontSize:11}}>NEW</span>
+              <span style={{color:'#4ade80',fontWeight:700}}>{a2.new_value || '—'}</span>
+              <span style={{color:'#64748b',fontSize:10}}>· {a2.reason || '—'} · {new Date(a2.created_at).toLocaleString('en-GB')}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <iframe id="flt-report-pdf-frame" title="GO2 Flight Report" src={pdfView.url} style={{flex:1,border:'none',background:'#525659'}}/>
     </div>
   );
