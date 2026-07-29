@@ -180,10 +180,16 @@ function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate, onRe
             ↩ Deactivate
           </button>
         )}
-        {!archived && (
-          <button onClick={onOpen} style={{ marginLeft:'auto', background: active ? 'var(--accent-soft)' : 'var(--accent)', border: active ? '1px solid var(--accent)' : 'none', borderRadius:6, padding:'5px 13px', fontSize:11, fontWeight:700, color: active ? 'var(--accent)' : '#fff', cursor:'pointer', fontFamily:'inherit' }}>
-            {active ? 'Open →' : '+ Activate'}
+        {!active && !archived && (
+          <button onClick={onOpen} style={{ marginLeft:'auto', background:'var(--accent)', border:'none', borderRadius:6, padding:'5px 13px', fontSize:11, fontWeight:700, color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>
+            + Activate
           </button>
+        )}
+        {/* Aktif ucus WEB'de ACILMAZ — ucan cihaz iPad (29 Tem karari). Web = avail + arsiv. */}
+        {active && (
+          <span style={{ marginLeft:'auto', border:'1px solid var(--accent)', borderRadius:6, padding:'5px 13px', fontSize:11, fontWeight:700, color:'var(--accent)', background:'var(--accent-soft)' }}>
+            ✈ FLIES ON iPAD EFB
+          </span>
         )}
         {archived && (
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
@@ -362,7 +368,7 @@ function parseWxrChartsFromRawText(rawText) {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-function Dashboard({ onOpen, user, myProfile, onLogout, onAdmin, onActivate, onDeactivate }) {
+function Dashboard({ user, myProfile, onLogout, onAdmin, onActivate, onDeactivate }) {
   const [tab, setTab]                       = useState('active');
   const [availablePlans, setAvailablePlans] = useState([]);
   const [activePlans, setActivePlans]       = useState([]);
@@ -548,7 +554,6 @@ function Dashboard({ onOpen, user, myProfile, onLogout, onAdmin, onActivate, onD
             )}
             {activePlans.map((p, i) => (
               <PlanCard key={i} plan={planCard(p)} active={true} archived={false}
-                onOpen={onOpen}
                 onDeactivate={() => deactivatePlan(p.id)}
               />
             ))}
@@ -709,13 +714,13 @@ function App() {
   if (page === 'dashboard') return (
     <Dashboard
       myProfile={myProfile}
-      onOpen={() => navigate('flt-crew')}
       user={user}
       onLogout={handleLogout}
       onAdmin={() => { if (myProfile?.is_super_admin) setPage('superadmin'); else if (['admin','admin_pilot'].includes(myProfile?.role)) setPage('admin'); }}
       onActivate={(plan) => {
+        // Aktivasyon yalniz status degistirir; moduller WEB'de ACILMAZ (ucan cihaz iPad).
         setActivePlan(plan);
-        if (plan) { localStorage.setItem('activePlan', JSON.stringify(plan)); navigate('flt-crew'); }
+        if (plan) { localStorage.setItem('activePlan', JSON.stringify(plan)); }
         else { localStorage.removeItem('activePlan'); }
       }}
       onDeactivate={clearFlightSession}
