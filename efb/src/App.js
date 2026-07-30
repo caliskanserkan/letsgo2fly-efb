@@ -122,7 +122,8 @@ function Login({ onLogin }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg)' }}>
       <div style={{ textAlign:'center', marginBottom:36 }}>
-        <div style={{ fontSize:11, fontWeight:700, color:'var(--accent)', letterSpacing:3, textTransform:'uppercase', marginBottom:6 }}>GO2 Aviation</div>
+        {/* MARKALASMA (30 Tem, iOS ile ayni): urun adi GO2 eFB — sirket/musteri adi login'de gecmez */}
+        <div style={{ fontSize:11, fontWeight:700, color:'var(--accent)', letterSpacing:3, textTransform:'uppercase', marginBottom:6 }}>GO2</div>
         <div style={{ fontSize:32, fontWeight:700, color:'var(--t1)' }}>eFB</div>
         <div style={{ fontSize:12, color:'var(--t3)', marginTop:4 }}>Electronic Flight Bag</div>
       </div>
@@ -144,7 +145,7 @@ function Login({ onLogin }) {
           {loading ? 'Signing in...' : 'Sign In'}
         </button>
       </div>
-      <div style={{ marginTop:20, fontSize:10, color:'var(--t3)' }}>GO2 Aviation · For internal use only</div>
+      <div style={{ marginTop:20, fontSize:10, color:'var(--t3)' }}>GO2 eFB · For internal use only</div>
     </div>
   );
 }
