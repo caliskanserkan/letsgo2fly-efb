@@ -168,8 +168,12 @@ function PlanCard({ plan, active, archived, onOpen, onDelete, onDeactivate, onRe
         </span>
       </div>
       <div style={{ padding:'9px 14px', display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+        {/* DATE + FLT TIME (31 Tem): ayni rotada iki farkli ucus olabilir —
+            planli tarih ve ucus suresi karti tek basina ayirt eder (iOS ile ayni). */}
+        <div style={{ fontSize:11, color:'var(--t3)' }}>DATE <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.date}</b></div>
         <div style={{ fontSize:11, color:'var(--t3)' }}>ETD <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.std}</b></div>
         <div style={{ fontSize:11, color:'var(--t3)' }}>ETA <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.eta}</b></div>
+        <div style={{ fontSize:11, color:'var(--t3)' }}>FLT TIME <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.ete}</b></div>
         <div style={{ fontSize:11, color:'var(--t3)' }}>FOB <b style={{ color:'var(--t2)', marginLeft:3 }}>{plan.fob}</b></div>
         {!active && !archived && onDelete && (
           <button onClick={onDelete} style={{ background:'transparent', border:'1px solid var(--red)', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, color:'var(--red)', cursor:'pointer', fontFamily:'inherit' }}>
