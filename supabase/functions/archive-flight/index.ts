@@ -381,11 +381,31 @@ Deno.serve(async (req) => {
         // Ek PDF belgeleri indir (orijinal sayfa olarak eklenecek)
         // DIKKAT: regen'de onceki RAPOR da docRows'ta gorunur — kendini eklemesin.
         const atts: { name: string; bytes: Uint8Array }[] = [];
+        const photos: { name: string; category: string; bytes: Uint8Array }[] = [];
         for (const d of docRows) {
           if ((d as any).section === "REPORT") continue;
-          if (!(d.mime_type ?? "").includes("pdf")) continue;
+          const mt = d.mime_type ?? "";
           const { data: blob } = await admin.storage.from("efb-documents").download(d.file_path);
-          if (blob) atts.push({ name: d.file_name, bytes: new Uint8Array(await blob.arrayBuffer()) });
+          if (!blob) continue;
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          if (mt.includes("pdf")) atts.push({ name: d.file_name, bytes });
+          // 31 Tem saha bulgusu (tek booklet): resim formatli belgeler de rapora girer
+          else if (mt.startsWith("image/")) {
+            photos.push({ name: d.file_name, category: (d as any).section ?? "DOCUMENT", bytes });
+          }
+        }
+        // FOTO KATEGORILERI (efb_documents satiri olmayan Storage fotolari):
+        // ATIS/DCL/fuel receipt fotolari rapora SAYFA olarak gomulur (tek booklet).
+        // Imzalar haric — onlar rapor icinde zaten cizili.
+        for (const cat of ["fuel_receipt", "tkof_atis", "tkof_dcl", "lnd_atis"]) {
+          const { data: files } = await admin.storage.from("efb-documents")
+            .list(`${planId}/${cat}`);
+          for (const f of files ?? []) {
+            const { data: blob } = await admin.storage.from("efb-documents")
+              .download(`${planId}/${cat}/${f.name}`);
+            if (blob) photos.push({ name: f.name, category: cat,
+                                    bytes: new Uint8Array(await blob.arrayBuffer()) });
+          }
         }
 
         // Duzeltmeler (yalniz regen'de olusmus olabilir): admin_edits -> PDF gorsel katmani.
@@ -400,7 +420,7 @@ Deno.serve(async (req) => {
         }
 
         const pdfBytes = await buildReportPdf({
-          fr: frRow, plan, signatures: sigs, attachments: atts, amendments,
+          fr: frRow, plan, signatures: sigs, attachments: atts, amendments, photos,
         });
 
         const fname = `GO2_FltReport_${plan.reg ?? "AC"}_${plan.dep ?? ""}-${destIcao ?? ""}_${isoDate}.pdf`
