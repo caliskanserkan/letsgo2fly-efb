@@ -110,7 +110,34 @@ Deno.serve(async (req) => {
     const { data: plan } = await admin.from("plans").select("*").eq("id", planId).single();
     if (!plan) return json({ error: "Plan not found" }, 404);
     if (plan.customer_id !== callerCustomerId) return json({ error: "Forbidden" }, 403);
-    if (!regenOnly && plan.status === "archived") return json({ error: "Already archived" }, 409);
+    if (!regenOnly && plan.status === "archived") {
+      // IDEMPOTENT (31 Tem 2026, PLAN DOWNLOAD Faz 3 — Serkan karari):
+      // TEK PLAN TEK ARSIV. Ikinci tabletin (offline kuyruktan geç gelen)
+      // cagrisi hata degil — MEVCUT arsiv bilgisiyle 200 doner; istemci normal
+      // basari yolunda raporu indirir, plani lokalde ARSIVLENDI isaretler.
+      // Cift archived_flights kaydi imkansizdir.
+      const { data: exAf } = await admin.from("archived_flights")
+        .select("id, block_minutes, airborne_minutes, destination_icao")
+        .eq("plan_id", planId).maybeSingle();
+      const { data: exRep } = await admin.from("efb_documents")
+        .select("file_path").eq("plan_id", planId)
+        .eq("section", "REPORT").eq("status", "CURRENT").maybeSingle();
+      return json({
+        ok: true,
+        already_archived: true,
+        archived_flight_id: exAf?.id ?? null,
+        block_minutes: exAf?.block_minutes ?? null,
+        airborne_minutes: exAf?.airborne_minutes ?? null,
+        block_time: exAf?.block_minutes != null ? hhmm(exAf.block_minutes) : null,
+        flight_time: exAf?.airborne_minutes != null ? hhmm(exAf.airborne_minutes) : null,
+        is_divert: exAf?.destination_icao != null && exAf.destination_icao !== plan.dest,
+        destination: exAf?.destination_icao ?? plan.dest ?? null,
+        departure: plan.dep ?? null,
+        reg: plan.reg ?? null,
+        flight_date: plan.date ?? null,
+        report_pdf_path: exRep?.file_path ?? null,
+      });
+    }
     if (regenOnly && plan.status !== "archived") return json({ error: "Not archived yet" }, 409);
 
     // ── 4) Modul tablolarini oku (paralel) ───────────────────────────────────
