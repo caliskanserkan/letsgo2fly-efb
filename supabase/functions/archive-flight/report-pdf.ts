@@ -282,14 +282,24 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   if (nav.length) {
     cardHeader(c, "NAV LOG - Actual Times & Fuel");
 
+    // 31 Tem saha (Serkan ekibi): "NavLog neyse rapor o olmali" — her wpt icin
+    // plan/gercek zaman + plan/gercek yakit + SAPMALAR (T-DEV dk, F-DEV lb).
     const cols = [
-      { t: "WPT",  w: 90 },
-      { t: "TYPE", w: 80 },
-      { t: "ETA",  w: 60 },
-      { t: "ATA",  w: 60 },
-      { t: "FUEL", w: 75 },
-      { t: "RVSM", w: CONTENT_W - 365 },
+      { t: "WPT",   w: 78 },
+      { t: "TYPE",  w: 52 },
+      { t: "ETA",   w: 44 },
+      { t: "ATA",   w: 44 },
+      { t: "T-DEV", w: 44 },
+      { t: "PLN FUEL", w: 58 },
+      { t: "ACT FUEL", w: 58 },
+      { t: "F-DEV", w: 52 },
+      { t: "RVSM",  w: CONTENT_W - 430 },
     ];
+    const toMins = (s: unknown): number | null => {
+      if (typeof s !== "string" || !/^\d{1,2}:\d{2}/.test(s)) return null;
+      const [h, m] = s.split(":").map((x) => parseInt(x, 10));
+      return h * 60 + m;
+    };
 
     const drawNavHead = () => {
       ensure(c, 14);
@@ -354,8 +364,37 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
       x += cols[2].w;
       txt(c, V(row.ata), x + 4, ty, 7, c.monoBold, notFlown ? C.label : C.text);
       x += cols[3].w;
-      txt(c, row.fuel_actual ? fmtLb(row.fuel_actual) : DASH, x + 4, ty, 7, c.mono, notFlown ? C.label : C.text);
+      // T-DEV: ATA - ETA (dk; gece yarisi gecisi duzeltilir). |>=15dk| vurgulu.
+      {
+        const pe = toMins(row.eta), pa = toMins(row.ata);
+        let td: number | null = null;
+        if (pe !== null && pa !== null && !notFlown) {
+          td = pa - pe;
+          if (td > 720) td -= 1440;
+          if (td < -720) td += 1440;
+        }
+        const tStr = td === null ? DASH : (td > 0 ? "+" : "") + td + "m";
+        txt(c, tStr, x + 4, ty, 7, Math.abs(td ?? 0) >= 15 ? c.monoBold : c.mono,
+            td === null ? C.label : (Math.abs(td) >= 15 ? C.divert : C.muted));
+      }
       x += cols[4].w;
+      txt(c, row.fuel_plan != null ? fmtLb(row.fuel_plan) : DASH, x + 4, ty, 7, c.mono,
+          notFlown ? C.label : C.muted);
+      x += cols[5].w;
+      txt(c, row.fuel_actual != null ? fmtLb(row.fuel_actual) : DASH, x + 4, ty, 7, c.monoBold,
+          notFlown ? C.label : C.text);
+      x += cols[6].w;
+      // F-DEV: actual - plan (lb). NavLog kuralindaki gibi |>=1000 lb| vurgulu.
+      {
+        let fd: number | null = null;
+        if (row.fuel_plan != null && row.fuel_actual != null && !notFlown) {
+          fd = Number(row.fuel_actual) - Number(row.fuel_plan);
+        }
+        const fStr = fd === null ? DASH : (fd > 0 ? "+" : "") + fd.toLocaleString("en-US");
+        txt(c, fStr, x + 4, ty, 7, Math.abs(fd ?? 0) >= 1000 ? c.monoBold : c.mono,
+            fd === null ? C.label : (Math.abs(fd) >= 1000 ? C.divert : C.muted));
+      }
+      x += cols[7].w;
       txt(c, V(row.rvsm), x + 4, ty, 6.5, c.mono, C.muted);
 
       c.y -= 13;
