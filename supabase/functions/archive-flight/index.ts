@@ -397,12 +397,16 @@ Deno.serve(async (req) => {
         // FOTO KATEGORILERI (efb_documents satiri olmayan Storage fotolari):
         // ATIS/DCL/fuel receipt fotolari rapora SAYFA olarak gomulur (tek booklet).
         // Imzalar haric — onlar rapor icinde zaten cizili.
+        // DIKKAT (31 Tem saha): iOS plan_id'yi BUYUK harf gonderir, Storage
+        // klasorleri kucuk harflidir — listeleme MUTLAKA lowercase ile yapilir
+        // (buyukle bos donuyordu, fotolar rapora hic girmiyordu).
+        const pidLower = String(planId).toLowerCase();
         for (const cat of ["fuel_receipt", "tkof_atis", "tkof_dcl", "lnd_atis"]) {
           const { data: files } = await admin.storage.from("efb-documents")
-            .list(`${planId}/${cat}`);
+            .list(`${pidLower}/${cat}`);
           for (const f of files ?? []) {
             const { data: blob } = await admin.storage.from("efb-documents")
-              .download(`${planId}/${cat}/${f.name}`);
+              .download(`${pidLower}/${cat}/${f.name}`);
             if (blob) photos.push({ name: f.name, category: cat,
                                     bytes: new Uint8Array(await blob.arrayBuffer()) });
           }
