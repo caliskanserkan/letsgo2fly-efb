@@ -200,7 +200,16 @@ function parseAllSectors(text: string): any[] {
       sector.eta = `${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
     }
   }
-  return sectors;
+  // HAYALET SEKTOR FIX (1 Agu 2026): FPL- blogu PDF'te iki kez gecince fallback
+  // regex AYNI bacagi iki sektor uretiyordu -> tek bacakli ucusta sahte "-S1"
+  // dispatch eki + mukerrer plan_versions satiri. (dep+dest+std) ile tekillestir.
+  const seenSector = new Set<string>();
+  return sectors.filter((s) => {
+    const k = `${s.dep}|${s.dest}|${s.std}`;
+    if (seenSector.has(k)) return false;
+    seenSector.add(k);
+    return true;
+  });
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
@@ -245,9 +254,24 @@ Deno.serve(async (req) => {
       const dispatchNo = sectors.length > 1 ? `${baseDispatch}-S${i + 1}` : baseDispatch;
 
       // Ayni sektor (dep+dest+std+date) + ayni sirket var mi?
-      const { data: existing } = await admin.from("plans").select("id")
+      //
+      // ZOMBI PLAN FIX (1 Agu 2026, saha: "ayni OFP'yi tekrar tekrar yukluyoruz"):
+      // Eslesme YALNIZ CANLI planlarda aranir (available/active).
+      //  - status='deleted' (admin silmis) eslesirse eskiden else daline dusuluyor,
+      //    yalniz plan_versions ekleniyor, status 'deleted' KALIYORDU -> plan hicbir
+      //    listede gorunmuyor ama UI "updated vN" diye BASARILI diyordu; pilot tekrar
+      //    tekrar yukluyordu. Artik eslesmez -> TEMIZ yeni 'available' plan acilir.
+      //  - status='archived' KUTSALDIR (denetim izi): ayni rota tekrar ucularsa
+      //    arsivlenmis kaydin surum gecmisi DEGISMEZ, yeni plan acilir.
+      // maybeSingle() yerine order+limit(1): birden fazla eslesmede eskiden PGRST116
+      // hatasi SESSIZCE yutulup mukerrer INSERT'e donusuyordu (kontrolsuz cogalma).
+      const { data: existingRows, error: exErr } = await admin.from("plans").select("id")
         .eq("dep", s.dep).eq("dest", s.dest).eq("std", s.std).eq("date", s.date)
-        .eq("customer_id", callerCustomerId).maybeSingle();
+        .eq("customer_id", callerCustomerId)
+        .in("status", ["available", "active"])
+        .order("created_at", { ascending: false }).limit(1);
+      if (exErr) return json({ error: `Plan lookup failed: ${exErr.message}` }, 500);
+      const existing = existingRows?.[0] ?? null;
 
       if (!existing) {
         const { data: plan, error: insErr } = await admin.from("plans").insert({

@@ -579,6 +579,10 @@ function ArchivedFlts({toast,user}){
     setSaving(true);
     await supabase.from('admin_edits').insert({archived_flight_id:sel.id,plan_id:sel.plan_id,field_name:'RECORD_DELETED',old_value:String(sel.id),new_value:'DELETED',reason:deleteReason,edit_type:'DELETE',edited_by:user?.id??null});
     await supabase.from('archived_flights').delete().eq('id',sel.id);
+    // SOFT DELETE KALIR (Serkan kurali, 1 Agu 2026): admin bir plani ASLA kalici
+    // silmez — mezar tasi denetim izinin parcasidir. Tekrar-yukleme sorunu burada
+    // DEGIL, parse-plan'da cozuldu: dedup artik yalniz CANLI (available/active)
+    // planlarla eslesir, 'deleted' bir kayit yeni yuklemeyi engellemez.
     if(sel.plan_id) await supabase.from('plans').update({status:'deleted'}).eq('id',sel.plan_id);
     toast('Record deleted and logged.','success');
     setDeleteModal(false);setSelected(null);setDeleteReason('');setSaving(false);load();
