@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { parseWeatherText } from '../config/weatherRules';
 import { usePersistedState } from '../hooks/usePersistedState';
-// import { supabase } from '../supabaseClient';
+import { supabase } from '../supabaseClient';
 
 const ALL_TABS = ['ofp', 'wxr', 'notam'];
 
@@ -15,9 +15,14 @@ function OFPView({ rawText, activePlan }) {
     setLoading(true);
     const fetchPdf = async () => {
       try {
+        // 1 Agu 2026: pdf-proxy artik KULLANICI JWT'si ister (cok kiracili sinir).
+        // Anon anahtar yeterli DEGIL — oturum token'i gonderilir.
+        const { data: sess } = await supabase.auth.getSession();
+        const token = sess?.session?.access_token;
+        if (!token) { setLoading(false); return; }
         const resp = await fetch(
           'https://ojvqdsqodpxkvpxvwgrm.supabase.co/functions/v1/pdf-proxy?plan_id=' + activePlan.id,
-          { headers: { 'Authorization': 'Bearer sb_publishable_n8r8MghL2wRlNWKiuzhd-Q_riIrHf1f' } }
+          { headers: { 'Authorization': 'Bearer ' + token } }
         );
         if (resp.ok) { const d = await resp.json(); if (d.url) setPdfUrl(d.url); }
       } catch (e) { console.warn('PDF fetch:', e); }

@@ -18,6 +18,27 @@ serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
+  // ÇOK KİRACILI SINIR (1 Agu 2026 uyum denetimi — KRITIK BULGU):
+  // Bu fonksiyon service_role ile calisir (RLS bypass) ve eskiden HICBIR kimlik
+  // dogrulamasi yoktu: plan UUID'sini bilen herkes BASKA SIRKETIN OFP'sini
+  // indirebiliyordu (Ilke 5 ihlali). Artik czib-check/archive-flight ile AYNI
+  // desen: kullanici JWT'si dogrulanir + planin kullanicinin sirketine ait
+  // oldugu kontrol edilir. Eslesmezse 403 — dosya yolu bile uretilmez.
+  const jwt = req.headers.get("Authorization")?.replace("Bearer ", "").trim();
+  if (!jwt) return new Response("Missing Authorization token", { status: 401, headers: CORS });
+
+  const { data: userData, error: userErr } = await supabase.auth.getUser(jwt);
+  if (userErr || !userData?.user) {
+    return new Response("Invalid token", { status: 401, headers: CORS });
+  }
+  const { data: prof } = await supabase.from("profiles")
+    .select("customer_id").eq("id", userData.user.id).single();
+  const { data: plan } = await supabase.from("plans")
+    .select("customer_id").eq("id", planId).single();
+  if (!prof?.customer_id || !plan || plan.customer_id !== prof.customer_id) {
+    return new Response("Forbidden", { status: 403, headers: CORS });
+  }
+
   // Try active first, then archived
   for (const folder of ["active", "archived"]) {
     const path = `${folder}/${planId}.pdf`;
