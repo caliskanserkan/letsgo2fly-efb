@@ -622,7 +622,14 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
     fuel_receipt: "FUEL RECEIPT", tkof_atis: "DEP ATIS", tkof_dcl: "DCL / CLEARANCE",
     lnd_atis: "ARR ATIS", ANY_UPLOAD: "DOCUMENT", PERF_LOADING: "W&B / PERF",
   };
+  // TEKILLESTIRME (1 Agu saha: "her ek 2'ser defa eklenmis"). Kok neden iki
+  // tabletin ayni fotoyu ayri adlarla yuklemesiydi (iOS'ta belirlenimci yol ile
+  // cozuldu); burada ikinci savunma: ayni ad/boyut ikilisi bir kez basilir.
+  const seenPhoto = new Set<string>();
   for (const ph of (input.photos ?? [])) {
+    const pk = `${ph.category}|${ph.name}|${ph.bytes.length}`;
+    if (seenPhoto.has(pk)) continue;
+    seenPhoto.add(pk);
     try {
       const isPng = ph.bytes.length > 1 && ph.bytes[0] === 0x89 && ph.bytes[1] === 0x50;
       const img = isPng ? await pdf.embedPng(ph.bytes) : await pdf.embedJpg(ph.bytes);

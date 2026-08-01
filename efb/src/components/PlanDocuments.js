@@ -29,7 +29,15 @@ export default function PlanDocuments({ planId, archivedFlightId, readOnly=true 
     if(archivedFlightId) q=q.eq('archived_flight_id',archivedFlightId);
     else if(planId) q=q.eq('plan_id',planId);
     const{data}=await q;
-    setDocs(data||[]);setLoading(false);
+    // ARSIVLENMIS UCUS: "bize rapor yeter" (1 Agu, Serkan) — ekler zaten raporun
+    // ICINDE (tek booklet). Ham resim/belge satirlari listede gosterilmez; veri
+    // silinmez, Storage'da denetim icin durur. Aktif plan gorunumu degismez.
+    let rows=data||[];
+    if(archivedFlightId){
+      const rep=rows.filter(d=>d.section==='REPORT');
+      if(rep.length) rows=rep;
+    }
+    setDocs(rows);setLoading(false);
   },[planId,archivedFlightId]);
 
   useEffect(()=>{ supabase.from('profiles').select('id,full_name,code').then(({data})=>setProfiles(data||[])); },[]);
