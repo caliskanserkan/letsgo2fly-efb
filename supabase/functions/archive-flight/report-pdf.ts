@@ -112,32 +112,119 @@ function truncS(s: string, n = 14): string {
   return s.length > n ? s.slice(0, n - 1) + ".." : s;
 }
 
+/** Metni hucre genisligine gore satirlara boler.
+ *  SAHA BULGUSU (2 Agu 2026, Serkan — End Flt raporu): uzun elle yazilmis ATIS
+ *  hucrenin disina, sayfa kenarindan disari tasiyordu. Sebep: `txt()` pdf-lib'in
+ *  `drawText`ini maxWidth VERMEDEN cagiriyor; pdf-lib maxWidth yoksa SARMAZ,
+ *  metni tek satir cizer. Bu ATIS'e ozel degildi — rapordaki HER serbest metin
+ *  alani ayni yoldaydi (DIVERT REASON, NOTE, ATC clearance OTH...).
+ *  Font monospace oldugu icin genislik olcumu kesin; kelime kelime paketliyoruz,
+ *  tek kelime hucreye sigmiyorsa karakterden kiriliyor (tasma ihtimali kalmasin). */
+function wrapToWidth(s: string, font: PDFFont, size: number, maxW: number): string[] {
+  const src = (s ?? "").trim();
+  if (!src) return [""];
+  const out: string[] = [];
+  let line = "";
+  for (const word of src.split(/\s+/)) {
+    const cand = line ? `${line} ${word}` : word;
+    if (font.widthOfTextAtSize(cand, size) <= maxW) { line = cand; continue; }
+    if (line) { out.push(line); line = ""; }
+    if (font.widthOfTextAtSize(word, size) > maxW) {
+      let chunk = "";
+      for (const ch of word) {
+        if (chunk && font.widthOfTextAtSize(chunk + ch, size) > maxW) { out.push(chunk); chunk = ch; }
+        else chunk += ch;
+      }
+      line = chunk;
+    } else line = word;
+  }
+  if (line) out.push(line);
+  return out.length ? out : [""];
+}
+
+/** TEK SATIR kalmasi gereken yerler icin: kolona sigmiyorsa PUNTOYU KUCULTUR.
+ *  Sigacak punto doner, metne DOKUNMAZ.
+ *
+ *  IKI KURAL, IKISI DE SERKAN (2 Agu 2026):
+ *  (1) NavLog tablosu satir satir okunur — bir satir iki satira cikarsa goz kayar
+ *      ve SATIR ATLANIR. Bu yuzden o tabloda sarma YOK.
+ *  (2) VERI ASLA EKSILTILMEZ. Rapor bir denetim kaydidir; kirpilan karakter
+ *      kaybolan kanittir. O yuzden "…" ile kisaltma da YOK — punto kuculur.
+ *  Pratikte zaten devreye girmez: NavLog degerleri maskeli ve sabit formatlidir
+ *  (WPT <=6 karakter, HH:MM, sayi). Bu, tasmaya karsi son emniyet. */
+function fitSize(s: string, font: PDFFont, size: number, maxW: number, min = 4.5): number {
+  const src = s ?? "";
+  let sz = size;
+  while (sz > min && font.widthOfTextAtSize(src, sz) > maxW) sz -= 0.25;
+  return sz;
+}
+
+/** Sarmali metin ciz. CIZILEN SATIR SAYISINI doner — cagiran satir yuksekligini
+ *  ona gore buyutur. Rapordaki HER VERI alani bundan gecmeli; sabit etiketler
+ *  (baslik, kolon adi, altbilgi) yazarken bilindigi icin `txt()` kullanabilir. */
+function txtWrap(
+  c: Ctx, s: string, x: number, y: number, maxW: number,
+  size = 8, font: PDFFont = c.mono, color = C.text, lineH = 9,
+): number {
+  const lines = wrapToWidth(s, font, size, maxW);
+  lines.forEach((ln, i) => txt(c, ln, x, y - i * lineH, size, font, color));
+  return lines.length;
+}
+
 /** Etiket/deger hucrelerinden olusan satir ciz.
- *  amend: eski deger KIRMIZI ustu cizili + yaninda YESIL yeni deger. */
+ *  amend: eski deger KIRMIZI ustu cizili + ALTINDA YESIL yeni deger.
+ *  Deger hucreye sigmiyorsa ALT SATIRA gecer ve satir yuksekligi buyur. */
 function cellRow(
   c: Ctx,
   cells: { lbl: string; val: string; note?: string; color?: any; amend?: { o: string; n: string } }[],
 ): void {
-  const h = 28;
-  ensure(c, h);
+  const PAD = 6, VAL_SIZE = 9, LINE_H = 10;
   const w = CONTENT_W / cells.length;
+  const maxW = w - PAD * 2;
+
+  // Once TUM hucrelerin satirlarini hesapla — satir yuksekligi en uzun hucreye gore.
+  // amend hucresinde eski deger USTTE (ustu cizili), yeni deger ALTINDA; ikisi de
+  // sarilir. Eskiden truncS ile KESILIYORDU — duzeltme gerekcesi denetim kaydidir,
+  // kirpilmaz.
+  const wrapped = cells.map((cell) => {
+    if (cell.amend) {
+      const o = wrapToWidth(cell.amend.o, c.mono, 7.5, maxW);
+      const n = wrapToWidth(cell.amend.n, c.monoBold, 8.5, maxW);
+      return { o, n, lines: o.length + n.length };
+    }
+    const v = wrapToWidth(cell.val, c.monoBold, VAL_SIZE, maxW);
+    return { v, lines: v.length };
+  });
+  const maxLines = Math.max(1, ...wrapped.map((x) => x.lines));
+  const extra = (maxLines - 1) * LINE_H;
+  const h = 28 + extra;              // tek satirda eski geometri birebir korunur
+
+  ensure(c, h);
   cells.forEach((cell, i) => {
     const x = M + i * w;
+    const wr = wrapped[i];
     box(c, x, c.y - h, w, h);
-    txt(c, cell.lbl, x + 6, c.y - 10, 6.5, c.mono, C.label);
+    txt(c, cell.lbl, x + PAD, c.y - 10, 6.5, c.mono, C.label);
     if (cell.amend) {
-      const oldS = truncS(cell.amend.o);
-      txt(c, oldS, x + 6, c.y - 21, 7.5, c.mono, C.red);
-      const ow = c.mono.widthOfTextAtSize(oldS, 7.5);
-      c.page.drawLine({
-        start: { x: x + 6, y: c.y - 18.5 }, end: { x: x + 6 + ow, y: c.y - 18.5 },
-        thickness: 1, color: C.red,
+      (wr.o ?? []).forEach((ln, k) => {
+        const yy = c.y - 21 - k * LINE_H;
+        txt(c, ln, x + PAD, yy, 7.5, c.mono, C.red);
+        const ow = c.mono.widthOfTextAtSize(ln, 7.5);
+        c.page.drawLine({
+          start: { x: x + PAD, y: yy + 2.5 }, end: { x: x + PAD + ow, y: yy + 2.5 },
+          thickness: 1, color: C.red,
+        });
       });
-      txt(c, truncS(cell.amend.n), x + 6 + ow + 6, c.y - 21, 8.5, c.monoBold, C.green);
-      txt(c, "AMENDED", x + 6, c.y - 26.5, 5, c.monoBold, C.red);
+      (wr.n ?? []).forEach((ln, k) => {
+        txt(c, ln, x + PAD, c.y - 21 - ((wr.o?.length ?? 0) + k) * LINE_H,
+            8.5, c.monoBold, C.green);
+      });
+      txt(c, "AMENDED", x + PAD, c.y - 26.5 - extra, 5, c.monoBold, C.red);
     } else {
-      txt(c, cell.val, x + 6, c.y - 21, 9, c.monoBold, cell.color ?? C.text);
-      if (cell.note) txt(c, cell.note, x + 6, c.y - 26, 5.5, c.mono, C.label);
+      (wr.v ?? [""]).forEach((ln, k) => {
+        txt(c, ln, x + PAD, c.y - 21 - k * LINE_H, VAL_SIZE, c.monoBold, cell.color ?? C.text);
+      });
+      if (cell.note) txt(c, cell.note, x + PAD, c.y - 26 - extra, 5.5, c.mono, C.label);
     }
   });
   c.y -= h;
@@ -206,8 +293,10 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
     M, c.y - 24, 8, c.mono, C.muted,
   );
   if (isDivert) {
-    txt(c, `DIVERT: ${V(fr.divert_reason)}`, M, c.y - 34, 7.5, c.monoBold, C.divert);
-    c.y -= 10;
+    // DIVERT REASON serbest metin — uzunlugu sinirsiz, sarmali cizilir.
+    const n = txtWrap(c, `DIVERT: ${V(fr.divert_reason)}`, M, c.y - 34,
+                      CONTENT_W, 7.5, c.monoBold, C.divert, 9);
+    c.y -= 10 + (n - 1) * 9;
   }
   c.y -= 34;
 
@@ -343,9 +432,22 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
       const ty = c.y - 9.5;
       let x = M;
 
-      // WPT + rozet
-      txt(c, V(row.wpt), x + 4, ty, 7.5, c.monoBold, fg);
-      const wptW = c.monoBold.widthOfTextAtSize(V(row.wpt), 7.5);
+      // NAVLOG CIZIM KURALI (Serkan, 2 Agu 2026):
+      //   (1) HER SATIR TEK SATIR. Bu tablo satir satir okunur; bir satir ikiye
+      //       cikarsa goz kayar ve SATIR ATLANIR. Burada sarma YOK.
+      //   (2) VERI EKSILTILMEZ. Sigmiyorsa punto kuculur, karakter atilmaz.
+      //   Pratikte devreye girmez (degerler maskeli ve sabit formatli); bu,
+      //   yan kolona tasmaya karsi son emniyet.
+      const navCell = (s: string, cx: number, colW: number, size: number,
+                       font: PDFFont, color: any) =>
+        txt(c, s, cx + 4, ty, fitSize(s, font, size, colW - 8), font, color);
+
+      // WPT + rozet (rozet ayni kolonu paylasir -> WPT'ye kalan genislik dusulur)
+      const badge = isDiv ? "[DIVERT]" : isPlt ? "[+PLT]" : "";
+      const badgeW = badge ? c.monoBold.widthOfTextAtSize(badge, 5.5) + 2 : 0;
+      const wptSize = fitSize(V(row.wpt), c.monoBold, 7.5, cols[0].w - 8 - badgeW);
+      txt(c, V(row.wpt), x + 4, ty, wptSize, c.monoBold, fg);
+      const wptW = c.monoBold.widthOfTextAtSize(V(row.wpt), wptSize);
       if (isDiv)  txt(c, "[DIVERT]", x + 6 + wptW, ty, 5.5, c.monoBold, C.divert);
       if (isPlt)  txt(c, "[+PLT]",   x + 6 + wptW, ty, 5.5, c.monoBold, C.plt);
       // uculmayan satirlarin uzeri cizili
@@ -358,11 +460,11 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
       }
       x += cols[0].w;
 
-      txt(c, notFlown ? "NOT FLOWN" : V(row.type).toUpperCase(), x + 4, ty, 6, c.mono, C.label);
+      navCell(notFlown ? "NOT FLOWN" : V(row.type).toUpperCase(), x, cols[1].w, 6, c.mono, C.label);
       x += cols[1].w;
-      txt(c, V(row.eta), x + 4, ty, 7, c.mono, notFlown ? C.label : C.muted);
+      navCell(V(row.eta), x, cols[2].w, 7, c.mono, notFlown ? C.label : C.muted);
       x += cols[2].w;
-      txt(c, V(row.ata), x + 4, ty, 7, c.monoBold, notFlown ? C.label : C.text);
+      navCell(V(row.ata), x, cols[3].w, 7, c.monoBold, notFlown ? C.label : C.text);
       x += cols[3].w;
       // T-DEV: ATA - ETA (dk; gece yarisi gecisi duzeltilir). |>=15dk| vurgulu.
       {
@@ -374,15 +476,15 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
           if (td < -720) td += 1440;
         }
         const tStr = td === null ? DASH : (td > 0 ? "+" : "") + td + "m";
-        txt(c, tStr, x + 4, ty, 7, Math.abs(td ?? 0) >= 15 ? c.monoBold : c.mono,
-            td === null ? C.label : (Math.abs(td) >= 15 ? C.divert : C.muted));
+        navCell(tStr, x, cols[4].w, 7, Math.abs(td ?? 0) >= 15 ? c.monoBold : c.mono,
+                td === null ? C.label : (Math.abs(td) >= 15 ? C.divert : C.muted));
       }
       x += cols[4].w;
-      txt(c, row.fuel_plan != null ? fmtLb(row.fuel_plan) : DASH, x + 4, ty, 7, c.mono,
-          notFlown ? C.label : C.muted);
+      navCell(row.fuel_plan != null ? fmtLb(row.fuel_plan) : DASH, x, cols[5].w, 7, c.mono,
+              notFlown ? C.label : C.muted);
       x += cols[5].w;
-      txt(c, row.fuel_actual != null ? fmtLb(row.fuel_actual) : DASH, x + 4, ty, 7, c.monoBold,
-          notFlown ? C.label : C.text);
+      navCell(row.fuel_actual != null ? fmtLb(row.fuel_actual) : DASH, x, cols[6].w, 7, c.monoBold,
+              notFlown ? C.label : C.text);
       x += cols[6].w;
       // F-DEV: actual - plan (lb). NavLog kuralindaki gibi |>=1000 lb| vurgulu.
       {
@@ -391,11 +493,11 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
           fd = Number(row.fuel_actual) - Number(row.fuel_plan);
         }
         const fStr = fd === null ? DASH : (fd > 0 ? "+" : "") + fd.toLocaleString("en-US");
-        txt(c, fStr, x + 4, ty, 7, Math.abs(fd ?? 0) >= 1000 ? c.monoBold : c.mono,
-            fd === null ? C.label : (Math.abs(fd) >= 1000 ? C.divert : C.muted));
+        navCell(fStr, x, cols[7].w, 7, Math.abs(fd ?? 0) >= 1000 ? c.monoBold : c.mono,
+                fd === null ? C.label : (Math.abs(fd) >= 1000 ? C.divert : C.muted));
       }
       x += cols[7].w;
-      txt(c, V(row.rvsm), x + 4, ty, 6.5, c.mono, C.muted);
+      navCell(V(row.rvsm), x, cols[8].w, 6.5, c.mono, C.muted);
 
       c.y -= 13;
     });
@@ -492,16 +594,25 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   const docs: any[] = Array.isArray(fr.documents) ? fr.documents : [];
   if (docs.length) {
     cardHeader(c, `DOCUMENTS (${docs.length})`);
+    // Dosya adi sinirsiz uzunlukta olabilir (pilotun cektigi foto, yuklenen PDF)
+    // -> sarilir, satir yuksekligi buyur. Boyut/tarih sabit formatli, tek satir.
+    const SEC_W = 126 - 8, NAME_W = 230 - 8, DOC_LINE_H = 9;
     docs.forEach((d) => {
-      ensure(c, 13);
-      box(c, M, c.y - 13, CONTENT_W, 13);
-      txt(c, V(d.section).toUpperCase(), M + 4, c.y - 9.5, 6.5, c.monoBold, C.wpt);
-      txt(c, V(d.file_name), M + 130, c.y - 9.5, 7, c.mono, C.text);
+      const secL = wrapToWidth(V(d.section).toUpperCase(), c.monoBold, 6.5, SEC_W);
+      const namL = wrapToWidth(V(d.file_name), c.mono, 7, NAME_W);
+      const n = Math.max(secL.length, namL.length);
+      const h = 13 + (n - 1) * DOC_LINE_H;
+      ensure(c, h);
+      box(c, M, c.y - h, CONTENT_W, h);
+      secL.forEach((ln, i) =>
+        txt(c, ln, M + 4, c.y - 9.5 - i * DOC_LINE_H, 6.5, c.monoBold, C.wpt));
+      namL.forEach((ln, i) =>
+        txt(c, ln, M + 130, c.y - 9.5 - i * DOC_LINE_H, 7, c.mono, C.text));
       txt(c, d.file_size ? Math.round(d.file_size / 1024) + " KB" : DASH,
         M + 360, c.y - 9.5, 6.5, c.mono, C.muted);
       txt(c, d.uploaded_at ? String(d.uploaded_at).slice(0, 16).replace("T", " ") : DASH,
         M + 430, c.y - 9.5, 6.5, c.mono, C.label);
-      c.y -= 13;
+      c.y -= h;
     });
     ensure(c, 12);
     txt(c, "Documents attached at the end of this report.", M + 4, c.y - 9, 6, c.mono, C.label);
@@ -594,20 +705,38 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   // Tum duzeltme zinciri (ayni alanda coklu duzeltme dahil) sirali listelenir.
   if (amendments.length) {
     cardHeader(c, "AMENDMENTS - ADMIN CORRECTIONS (original archived record unchanged)");
+    // Bu ek bir DENETIM kaydidir: hangi alan, hangi degerden hangi degere,
+    // hangi gerekce ile degistirildi. Eskiden truncS ile kirpiliyordu
+    // (deger 18, gerekce 34 karakter) — yani kanit sessizce kayboluyordu.
+    // Artik uc bolge de kendi genisliginde SARILIR, hicbiri kesilmez.
+    const FLD_W = 112, CHG_X = M + 120, CHG_W = 200;
+    const RSN_X = M + 330, RSN_W = CONTENT_W - 330 - 4, AM_LINE_H = 9;
     amendments.forEach((a) => {
-      ensure(c, 13);
-      box(c, M, c.y - 13, CONTENT_W, 13);
-      txt(c, V(a.field_name).toUpperCase(), M + 4, c.y - 9.5, 6.5, c.monoBold, C.red);
-      const oldS = truncS(V(a.old_value), 18);
-      const ox = M + 120;
-      txt(c, oldS, ox, c.y - 9.5, 7, c.mono, C.red);
-      const ow = c.mono.widthOfTextAtSize(oldS, 7);
-      c.page.drawLine({ start: { x: ox, y: c.y - 7 }, end: { x: ox + ow, y: c.y - 7 }, thickness: 0.8, color: C.red });
-      txt(c, ">", ox + ow + 6, c.y - 9.5, 7, c.monoBold, C.muted);
-      txt(c, truncS(V(a.new_value), 18), ox + ow + 16, c.y - 9.5, 7.5, c.monoBold, C.green);
-      txt(c, `${truncS(V(a.reason), 34)} . ${a.created_at ? String(a.created_at).slice(0, 16).replace("T", " ") : DASH}`,
-        M + 330, c.y - 9.5, 6, c.mono, C.muted);
-      c.y -= 13;
+      const fldL = wrapToWidth(V(a.field_name).toUpperCase(), c.monoBold, 6.5, FLD_W);
+      const oldL = wrapToWidth(V(a.old_value), c.mono, 7, CHG_W);
+      const newL = wrapToWidth(`> ${V(a.new_value)}`, c.monoBold, 7.5, CHG_W);
+      const when = a.created_at ? String(a.created_at).slice(0, 16).replace("T", " ") : DASH;
+      const rsnL = wrapToWidth(`${V(a.reason)} . ${when}`, c.mono, 6, RSN_W);
+
+      const n = Math.max(fldL.length, oldL.length + newL.length, rsnL.length);
+      const h = 13 + (n - 1) * AM_LINE_H;
+      ensure(c, h);
+      box(c, M, c.y - h, CONTENT_W, h);
+
+      fldL.forEach((ln, i) =>
+        txt(c, ln, M + 4, c.y - 9.5 - i * AM_LINE_H, 6.5, c.monoBold, C.red));
+      oldL.forEach((ln, i) => {
+        const yy = c.y - 9.5 - i * AM_LINE_H;
+        txt(c, ln, CHG_X, yy, 7, c.mono, C.red);
+        const ow = c.mono.widthOfTextAtSize(ln, 7);
+        c.page.drawLine({ start: { x: CHG_X, y: yy + 2.5 }, end: { x: CHG_X + ow, y: yy + 2.5 },
+                          thickness: 0.8, color: C.red });
+      });
+      newL.forEach((ln, i) =>
+        txt(c, ln, CHG_X, c.y - 9.5 - (oldL.length + i) * AM_LINE_H, 7.5, c.monoBold, C.green));
+      rsnL.forEach((ln, i) =>
+        txt(c, ln, RSN_X, c.y - 9.5 - i * AM_LINE_H, 6, c.mono, C.muted));
+      c.y -= h;
     });
   }
 

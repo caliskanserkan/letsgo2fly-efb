@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import FlightReport from './FlightReport';
 import FTLPanel from './FTLPanel';
 import { toMin as ftlToMin, fmtMin as ftlFmtMin } from './FTLEngine';
-import { normTime } from './inputFormat';
+import { normTime, up } from './inputFormat';
 import { supabase } from '../supabaseClient';
 import { RiskSurvey, AssessmentHistory } from './RiskSurvey';
 import PlanDocuments from './PlanDocuments';
@@ -422,7 +422,7 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
                 {fields.map(f => (
                   <div key={f.key}>
                     <div style={{fontSize:10,color:C.t3,fontFamily:'var(--mono)',marginBottom:3}}>{f.label}</div>
-                    {f.type==='pilot'?(<select style={{...S.select,fontSize:13,padding:'6px 8px'}} value={form[f.key]||''} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}><option value="">— Select —</option>{pilots.map(p=><option key={p.id} value={p.id}>{p.code} — {p.full_name}</option>)}</select>):(<input style={{...S.input,fontSize:13,padding:'6px 8px'}} value={form[f.key]||''} placeholder={f.type==='time'?'HH:MM':'—'} maxLength={f.type==='time'?5:undefined} onChange={e=>setForm(p=>({...p,[f.key]:f.type==='time'?normTime(e.target.value):e.target.value}))}/>)}
+                    {f.type==='pilot'?(<select style={{...S.select,fontSize:13,padding:'6px 8px'}} value={form[f.key]||''} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}><option value="">— Select —</option>{pilots.map(p=><option key={p.id} value={p.id}>{p.code} — {p.full_name}</option>)}</select>):(<input style={{...S.input,fontSize:13,padding:'6px 8px'}} value={form[f.key]||''} placeholder={f.type==='time'?'HH:MM':'—'} maxLength={f.type==='time'?5:undefined} onChange={e=>setForm(p=>({...p,[f.key]:f.type==='time'?normTime(e.target.value):up(e.target.value)}))}/>)}
                   </div>
                 ))}
               </div>
@@ -494,6 +494,34 @@ function ActiveFlts({toast}){
 }
 
 // ─── 2. Archived FLTs ─────────────────────────────────────────────────────────
+// Arsiv EDIT formu alani.
+//
+// 🔴 REACT TUZAGI (2 Agu 2026, Serkan bulgusu — "her harften sonra hucreye
+// tekrar tiklamak gerekiyor"): bu bilesen ArchivedFlts'in RENDER GOVDESI
+// ICINDE tanimliydi. Her tus vurusunda setEditForm ebeveyni yeniden render
+// ediyor, `EF` YENI BIR FONKSIYON KIMLIGI aliyor ve React onu farkli bir
+// bilesen turu sanip <input>'u SOKUP YENIDEN TAKIYOR -> odak kayboluyor,
+// harf basina bir tiklama. Bilesen tanimlari baska bir bilesenin icinde
+// DURMAZ; disari alindi, state prop olarak geciyor.
+//
+// BUYUK HARF: operasyonel metin alanlari (RWY, SID, ATIS) `up` ile buyuk
+// harfe cevrilir — iOS ile tek kaynak (inputFormat.js). Sayilar etkilenmez
+// (rakamin buyugu kucugu yok). GEREKCE metni HARIC: o bir cumle, denetim
+// kaydina oyle girer.
+function EF({label,k,type='text',form,setForm}){
+  const set = (val) => setForm(p=>({...p,[k]:val}));
+  return (
+    <div style={{marginBottom:10}}>
+      <label style={S.formLabel}>{label}</label>
+      {type==='toggle'?(
+        <div style={{display:'flex',gap:10}}>
+          {['YES','NO'].map(v=>(<button key={v} onClick={()=>set(v==='YES')} style={{...S.btnSecondary,background:form[k]===(v==='YES')?`var(--accent-soft)`:'none',borderColor:form[k]===(v==='YES')?C.accent:C.border2,color:form[k]===(v==='YES')?C.accent:C.t2}}>{v}</button>))}
+        </div>
+      ):(<input style={S.input} value={form[k]||''} type={type==='time'?'text':type} placeholder={type==='time'?'HH:MM':undefined} maxLength={type==='time'?5:undefined} onChange={e=>set(type==='time'?normTime(e.target.value):up(e.target.value))}/>)}
+    </div>
+  );
+}
+
 function ArchivedFlts({toast,user}){
   const[flights,setFlights]=useState([]);
   const[loading,setLoading]=useState(true);
@@ -587,17 +615,6 @@ function ArchivedFlts({toast,user}){
     toast('Record deleted and logged.','success');
     setDeleteModal(false);setSelected(null);setDeleteReason('');setSaving(false);load();
   };
-
-  const EF=({label,k,type='text'})=>(
-    <div style={{marginBottom:10}}>
-      <label style={S.formLabel}>{label}</label>
-      {type==='toggle'?(
-        <div style={{display:'flex',gap:10}}>
-          {['YES','NO'].map(v=>(<button key={v} onClick={()=>setEditForm(p=>({...p,[k]:v==='YES'}))} style={{...S.btnSecondary,background:editForm[k]===(v==='YES')?`var(--accent-soft)`:'none',borderColor:editForm[k]===(v==='YES')?C.accent:C.border2,color:editForm[k]===(v==='YES')?C.accent:C.t2}}>{v}</button>))}
-        </div>
-      ):(<input style={S.input} value={editForm[k]||''} type={type==='time'?'text':type} placeholder={type==='time'?'HH:MM':undefined} maxLength={type==='time'?5:undefined} onChange={e=>setEditForm(p=>({...p,[k]:type==='time'?normTime(e.target.value):e.target.value}))}/>)}
-    </div>
-  );
 
   const DETAIL_TABS = [{ id:'details', label:'DETAILS' }, { id:'logs', label:'LOGS' }, { id:'docs', label:'DOCUMENTS' }];
 
@@ -701,17 +718,17 @@ function ArchivedFlts({toast,user}){
         <Modal title="EDIT ARCHIVED FLIGHT — REPORT REQUIRED" onClose={()=>setEditModal(false)} width={520}>
           <div style={{fontSize:11,color:'var(--orange)',marginBottom:16,padding:'8px 12px',background:'rgba(232,115,26,0.08)',border:'1px solid rgba(232,115,26,0.2)'}}>All edits are logged. Only changed fields will be updated.</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-            <EF label="OFF BLOCK (HH:MM)" k="off_blocks" type="time"/><EF label="T/O TIME (HH:MM)" k="takeoff_time" type="time"/>
-            <EF label="LANDING (HH:MM)" k="landing_time" type="time"/><EF label="ON BLOCK (HH:MM)" k="on_blocks" type="time"/>
-            <EF label="BLOCK MINS" k="block_minutes"/><EF label="FLIGHT MINS" k="airborne_minutes"/>
-            <EF label="T/O FUEL (lb)" k="takeoff_fuel"/><EF label="REM FUEL (lb)" k="remaining_fuel"/>
-            <EF label="ACTUAL LW (lb)" k="actual_lw"/><EF label="VREF (kt)" k="vref"/>
-            <EF label="REQ LND DIST (ft)" k="req_landing_dist"/><EF label="LANDINGS" k="landing_count"/>
-            <EF label="DEP RWY" k="dep_rwy"/><EF label="ARR RWY" k="arr_rwy"/>
-            <EF label="SID" k="sid"/><EF label="PAX" k="pax"/>
+            <EF form={editForm} setForm={setEditForm} label="OFF BLOCK (HH:MM)" k="off_blocks" type="time"/><EF form={editForm} setForm={setEditForm} label="T/O TIME (HH:MM)" k="takeoff_time" type="time"/>
+            <EF form={editForm} setForm={setEditForm} label="LANDING (HH:MM)" k="landing_time" type="time"/><EF form={editForm} setForm={setEditForm} label="ON BLOCK (HH:MM)" k="on_blocks" type="time"/>
+            <EF form={editForm} setForm={setEditForm} label="BLOCK MINS" k="block_minutes"/><EF form={editForm} setForm={setEditForm} label="FLIGHT MINS" k="airborne_minutes"/>
+            <EF form={editForm} setForm={setEditForm} label="T/O FUEL (lb)" k="takeoff_fuel"/><EF form={editForm} setForm={setEditForm} label="REM FUEL (lb)" k="remaining_fuel"/>
+            <EF form={editForm} setForm={setEditForm} label="ACTUAL LW (lb)" k="actual_lw"/><EF form={editForm} setForm={setEditForm} label="VREF (kt)" k="vref"/>
+            <EF form={editForm} setForm={setEditForm} label="REQ LND DIST (ft)" k="req_landing_dist"/><EF form={editForm} setForm={setEditForm} label="LANDINGS" k="landing_count"/>
+            <EF form={editForm} setForm={setEditForm} label="DEP RWY" k="dep_rwy"/><EF form={editForm} setForm={setEditForm} label="ARR RWY" k="arr_rwy"/>
+            <EF form={editForm} setForm={setEditForm} label="SID" k="sid"/><EF form={editForm} setForm={setEditForm} label="PAX" k="pax"/>
           </div>
-          <EF label="DEP ATIS" k="dep_atis"/><EF label="ARR ATIS" k="arr_atis"/>
-          <EF label="NIGHT LANDING" k="is_night_landing" type="toggle"/>
+          <EF form={editForm} setForm={setEditForm} label="DEP ATIS" k="dep_atis"/><EF form={editForm} setForm={setEditForm} label="ARR ATIS" k="arr_atis"/>
+          <EF form={editForm} setForm={setEditForm} label="NIGHT LANDING" k="is_night_landing" type="toggle"/>
           <div style={{marginTop:16}}><label style={S.formLabel}>REASON / REPORT *</label><textarea style={{...S.input,minHeight:80,resize:'vertical'}} value={editForm.reason} onChange={e=>setEditForm(p=>({...p,reason:e.target.value}))} placeholder="Mandatory: explain why this edit is required..."/></div>
           <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:16}}><button style={S.btnSecondary} onClick={()=>setEditModal(false)}>CANCEL</button><button style={S.btnPrimary} onClick={handleSaveEdit} disabled={saving}>{saving?'SAVING...':'SAVE & LOG EDITS'}</button></div>
         </Modal>
@@ -969,6 +986,18 @@ function StationInfo({toast}){
   );
 }
 
+// Ayni React tuzagi (bkz. EF): bilesen tanimi ebeveynin render govdesinde
+// durursa her render'da yeniden yaratilir ve DOM dugumu sokulup takilir.
+// Select'te odak kaybi yazmayi engellemez ama acik liste kapanir — desen
+// yine yanlis, disari alindi.
+function ScoreInput({val,onChange}){
+  return (
+    <select value={val} onChange={e=>onChange(parseInt(e.target.value))} style={{background:'var(--bg3)',border:'1px solid var(--t3)',color:'var(--t1)',fontSize:11,padding:'3px 6px',borderRadius:3,fontFamily:'var(--mono)',width:44}}>
+      {[1,2,3,4,5].map(n=><option key={n} value={n}>{n}</option>)}
+    </select>
+  );
+}
+
 function RiskAssessmentInline({icao, onClose}){
   const TOPICS_LIST=['Approach & Traffic Density','Obstacles / Terrain','Seasonal / Meteorology','ATC Phraseology / Language','Complex Taxi Routings','RWY Ops / Late Clearance','Security / Terror Threat','Handling / Fuel / Pax Support','Radio Nav / GNSS Reliability','Other Local Constraints'];
   const ADDONS_LIST=[{key:'night',label:'Night Ops',pts:1},{key:'xw',label:'Strong XW/Gust',pts:2},{key:'wet',label:'RWY Wet/Contam',pts:2},{key:'lv',label:'Low Vis/TS',pts:2},{key:'fam',label:'Crew Low FAM',pts:2}];
@@ -991,7 +1020,6 @@ function RiskAssessmentInline({icao, onClose}){
   const adPts=ADDONS_LIST.reduce((s,a)=>s+(addons[a.key]?a.pts:0),0);const total=baseScore+adPts;const rl=getRisk(total);const rc=RISK_C[rl]||RISK_C.LOW;
   const handleSave=async()=>{ setSaving(true); const newBase=Math.max(...topicScores,0);const newMaxS=sEdit.reduce((a,b)=>Math.max(a,b),1);const newMaxL=lEdit.reduce((a,b)=>Math.max(a,b),1);const newRL=getRisk(newBase);const newOps=getOps(newRL,catEdit); const{error}=await supabase.from('airport_risks').update({s_scores:JSON.stringify(sEdit),l_scores:JSON.stringify(lEdit),base_score:newBase,max_s:newMaxS,max_l:newMaxL,risk_level:newRL,ops_approval:newOps,category:catEdit,mitigation:mitEdit,updated_at:new Date().toISOString()}).eq('icao',icao); if(error){alert(error.message);}else{const{data}=await supabase.from('airport_risks').select('*').eq('icao',icao).single();setAp(data);setEditing(false);} setSaving(false); };
   const tabS=(t)=>({flex:1,padding:'8px 4px',textAlign:'center',cursor:'pointer',fontFamily:'var(--mono)',fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:tab===t?'var(--accent)':'var(--t3)',borderBottom:tab===t?'2px solid var(--accent)':'2px solid transparent',background:'transparent',border:'none'});
-  const ScoreInput=({val,onChange})=>(<select value={val} onChange={e=>onChange(parseInt(e.target.value))} style={{background:'var(--bg3)',border:'1px solid var(--t3)',color:'var(--t1)',fontSize:11,padding:'3px 6px',borderRadius:3,fontFamily:'var(--mono)',width:44}}>{[1,2,3,4,5].map(n=><option key={n} value={n}>{n}</option>)}</select>);
   return(
     <div style={{fontFamily:'var(--mono)',color:'var(--t1)'}}>
       <div style={{padding:'14px 18px',background:'var(--bg3)',borderBottom:'1px solid var(--bg3)',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
