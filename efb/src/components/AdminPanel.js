@@ -372,12 +372,23 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
     if (!reason.trim()) { toast('Reason is mandatory.', 'error'); return; }
     if (!fields || !fields.length) return;
     setSaving(true);
-    const changes = fields.filter(f => String(form[f.key]||'') !== String(flight[f.key]??''));
+    // Saatler HH:MM olarak karsilastirilir ve timestamptz'ye cevrilerek yazilir
+    // (ayni kusur burada da vardi — bkz. TIME_KEYS notu).
+    const cur = f => f.type === 'time' ? tsToHHMM(flight[f.key]) : String(flight[f.key] ?? '');
+    const changes = fields.filter(f => String(form[f.key] || '') !== cur(f));
     if (!changes.length) { toast('No changes detected.', 'error'); setSaving(false); return; }
-    const updateObj = {}; changes.forEach(f => { updateObj[f.key] = form[f.key] || null; });
+    const updateObj = {};
+    for (const f of changes) {
+      if (f.type === 'time') {
+        if (!form[f.key]) { updateObj[f.key] = null; continue; }
+        const iso = hhmmToTs(form[f.key], flight[f.key], flight.plans?.date);
+        if (!iso) { toast(`${f.label}: cannot resolve a date for "${form[f.key]}" — edit not saved.`, 'error'); setSaving(false); return; }
+        updateObj[f.key] = iso;
+      } else updateObj[f.key] = form[f.key] || null;
+    }
     const { error: upErr } = await supabase.from('archived_flights').update(updateObj).eq('id', flight.id);
     if (upErr) { toast(`Update failed: ${upErr.message}`, 'error'); setSaving(false); return; }
-    for (const f of changes) { await supabase.from('admin_edits').insert({ archived_flight_id: flight.id, plan_id: flight.plan_id, field_name: f.key, old_value: String(flight[f.key]??''), new_value: String(form[f.key]||''), reason, edit_type: 'EDIT', edited_by: user?.id ?? null }); }
+    for (const f of changes) { await supabase.from('admin_edits').insert({ archived_flight_id: flight.id, plan_id: flight.plan_id, field_name: f.key, old_value: String(cur(f)), new_value: String(form[f.key]||''), reason, edit_type: 'EDIT', edited_by: user?.id ?? null }); }
     toast(`${changes.length} field(s) updated.`, 'success'); setSaving(false); setEditing(false); onSave();
     // TEK RAPOR: duzeltme sonrasi arsiv PDF'i duzeltme isaretleriyle yeniden uretilir
     supabase.functions.invoke('archive-flight',{body:{plan_id:flight.plan_id,regenerate_pdf:true}})
@@ -494,6 +505,36 @@ function ActiveFlts({toast}){
 }
 
 // ─── 2. Archived FLTs ─────────────────────────────────────────────────────────
+// ── ARSIV EDIT: SAAT ALANLARI ────────────────────────────────────────────────
+// archived_flights'ta bu dort kolon `timestamptz`; formda ise HH:MM gosterilir.
+//
+// 🔴 IKI KUSUR (2 Agu 2026, Serkan: "Update failed: invalid input syntax for
+//    type timestamp with time zone: 07:11"):
+//    (1) Kayitta HH:MM ham gonderiliyordu -> Postgres reddediyor.
+//    (2) Degisiklik tespiti HH:MM'i tam ISO damgayla karsilastiriyordu ->
+//        saat alanlari DOKUNULMASA BILE "degisti" sayiliyor, her kayit
+//        denemesi bu dordunu yazmaya kalkiyor ve (1) yuzunden patliyordu.
+//        Yani ATIS'i duzeltmek bile imkansizdi; admin duzeltme yolu (ve onunla
+//        denetim izi kaydi) tamamen kilitliydi.
+const TIME_KEYS = ['off_blocks','takeoff_time','landing_time','on_blocks'];
+
+/** timestamptz -> "HH:MM" (karsilastirma ve gosterim icin tek kaynak) */
+export const tsToHHMM = (v) => v ? new Date(v).toISOString().slice(11,16) : '';
+
+/** "HH:MM" -> timestamptz. Tarih MEVCUT damgadan alinir (gece yarisini asan
+ *  inisler dogru gunde kalir); damga yoksa ucus tarihinden. Ikisi de yoksa
+ *  tarih UYDURULMAZ -> null doner, cagiran acik hata verir (Ilke 1). */
+export const hhmmToTs = (hhmm, prevIso, flightDate) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm||'').trim());
+  if (!m) return null;
+  const base = prevIso ? new Date(prevIso)
+             : flightDate ? new Date(`${flightDate}T00:00:00Z`) : null;
+  if (!base || isNaN(base.getTime())) return null;
+  const d = new Date(base);
+  d.setUTCHours(Number(m[1]), Number(m[2]), 0, 0);
+  return d.toISOString();
+};
+
 // Arsiv EDIT formu alani.
 //
 // 🔴 REACT TUZAGI (2 Agu 2026, Serkan bulgusu — "her harften sonra hucreye
@@ -589,12 +630,26 @@ function ArchivedFlts({toast,user}){
     if(!editForm.reason){toast('Reason is mandatory.','error');return;}
     setSaving(true);
     const{reason,...fields}=editForm;
-    const changes=Object.entries(fields).filter(([k,v])=>String(v)!==String(sel[k]==null?'':sel[k]));
+    // Saat alanlari HH:MM olarak KARSILASTIRILIR (ikisi de ayni bicime indirilir),
+    // yoksa dokunulmamis saatler her seferinde "degisti" gorunur.
+    const cur=k=>TIME_KEYS.includes(k)?tsToHHMM(sel[k]):String(sel[k]==null?'':sel[k]);
+    const changes=Object.entries(fields).filter(([k,v])=>String(v==null?'':v)!==cur(k));
     if(!changes.length){toast('No changes detected.','error');setSaving(false);return;}
-    const updateObj={};changes.forEach(([k,v])=>{updateObj[k]=v;});
+
+    // HH:MM -> timestamptz. Tarih cikarilamiyorsa YAZMA, alani isimlendirerek soyle.
+    const updateObj={};
+    for(const[k,v]of changes){
+      if(TIME_KEYS.includes(k)){
+        if(!v){updateObj[k]=null;continue;}
+        const iso=hhmmToTs(v,sel[k],sel.plans?.date);
+        if(!iso){toast(`${k}: cannot resolve a date for "${v}" — edit not saved.`,'error');setSaving(false);return;}
+        updateObj[k]=iso;
+      } else updateObj[k]=v;
+    }
     const{error:upErr}=await supabase.from('archived_flights').update(updateObj).eq('id',sel.id);
     if(upErr){toast(`Update failed: ${upErr.message}`,'error');setSaving(false);return;}
-    for(const[k,v]of changes){ await supabase.from('admin_edits').insert({archived_flight_id:sel.id,plan_id:sel.plan_id,field_name:k,old_value:String(sel[k]??''),new_value:String(v),reason,edit_type:'EDIT',edited_by:user?.id??null}); }
+    // Denetim izine OKUNABILIR deger yazilir: saatler HH:MM, tam ISO damga degil.
+    for(const[k,v]of changes){ await supabase.from('admin_edits').insert({archived_flight_id:sel.id,plan_id:sel.plan_id,field_name:k,old_value:String(cur(k)),new_value:String(v==null?'':v),reason,edit_type:'EDIT',edited_by:user?.id??null}); }
     toast(`${changes.length} field(s) updated and logged.`,'success');
     // TEK RAPOR: duzeltme sonrasi arsiv PDF'i duzeltme isaretleriyle yeniden uretilir
     supabase.functions.invoke('archive-flight',{body:{plan_id:sel.plan_id,regenerate_pdf:true}})
