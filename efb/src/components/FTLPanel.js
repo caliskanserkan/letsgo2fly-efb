@@ -545,14 +545,20 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
           <input type="date" style={{ ...S.input, width:170, marginBottom:10 }} value={date} onChange={e => setDate(e.target.value)} />
           <span style={S.label}>Sectors</span>
           {legs.map((l, i) => (
-            <div key={i} style={{ display:'grid', gridTemplateColumns:'26px 1fr 1fr 1fr 1fr', gap:8, marginBottom:6, alignItems:'center' }}>
+            <div key={i} style={{ display:'grid', gridTemplateColumns:'26px 1fr 1fr 1fr 1fr 38px', gap:8, marginBottom:6, alignItems:'center' }}>
               <div style={{ fontSize:11, color:C.t3, textAlign:'center', fontFamily:'var(--mono)' }}>{i + 1}</div>
               <input style={S.input} maxLength={4} value={l.dep} onChange={e => setLeg(i, 'dep', e.target.value.toUpperCase())} />
               <input style={S.input} maxLength={4} value={l.dest} onChange={e => setLeg(i, 'dest', e.target.value.toUpperCase())} />
               <input style={S.input} value={l.etd} onChange={e => setLeg(i, 'etd', normTime(e.target.value))} />
               <input style={S.input} value={l.eta} onChange={e => setLeg(i, 'eta', normTime(e.target.value))} />
+              {/* SEKTOR SIL (4 Agu, Serkan: "ucusun birini alabilmem lazim") —
+                  en az 1 bacak kalir; pencere yeni listeden yeniden hesaplanir. */}
+              <button style={{ ...S.btnS, padding:'8px 10px', color:C.red }}
+                      onClick={() => setLegs(ls => ls.length > 1 ? ls.filter((_, j) => j !== i) : ls)}>✕</button>
             </div>
           ))}
+          <button style={{ ...S.btnS, borderStyle:'dashed', color:C.t3, marginBottom:6 }}
+                  onClick={() => setLegs(ls => [...ls, { dep: ls[ls.length-1]?.dest || '', dest:'', etd:'', eta:'' }])}>+ ADD SECTOR</button>
           {win && (
             <div style={{ ...S.note, borderLeftColor: win.fdpExceeded ? C.red : C.accent, margin:'8px 0' }}>
               REPORT {win.report} · FDP {fmtMin(win.fdpMin)} / MAX {fmtMin(win.maxFdpMin)}
