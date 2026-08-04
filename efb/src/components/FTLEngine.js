@@ -224,7 +224,7 @@ export function fitness({ pilot, baseline, duties, ruleset, newDuty, asOf }) {
 
 // ── Görev penceresi (sihirbaz sonucu) ───────────────────────────────
 // legs: [{dep,dest,etd,eta}] yerel saat. Dönen tüm değerler dk / "HH:MM".
-export function dutyWindow(legs, accommodation, ruleset) {
+export function dutyWindow(legs, accommodation, ruleset, opts = {}) {
   const { rules, company } = effectiveRules(ruleset);
   if (!legs?.length) return null;
   const reportMin = toMin(legs[0].etd) - company.preFlightReportMin;
@@ -241,7 +241,19 @@ export function dutyWindow(legs, accommodation, ruleset) {
     ? splitDuty(maxBreak.start, maxBreak.end, accommodation, rules)
     : { isSplit: false, extensionMin: 0 };
   const baseFdp = maxFdpMinutes(report, legs.length, rules);
-  const maxFdp = baseFdp != null ? baseFdp + split.extensionMin : null;
+  let maxFdp = baseFdp != null ? baseFdp + split.extensionMin : null;
+  // 3-PILOTLU OPERASYON (4 Agu, Serkan): CRZ CPT eklendiginde artirilmis ekip
+  // FDP tavani devreye girer. Varsayilan: EASA CS FTL.1.205 / SHT-FTL karsiligi
+  // CLASS 3 dinlenme imkani (koltuk) = 15:00 — EN KONSERVATIF sinif. Sirketin
+  // ucagi Class 1/2 imkanina sahipse ruleset company katmaninda
+  // augmented_crew.three_pilot_max_fdp_min ile yukseltilir (kod sabiti degil).
+  // Split-duty uzatmasi augmented tavanla BIRLIKTE uygulanmaz (ORO.FTL.205).
+  let augmented = false;
+  if (opts.threePilot) {
+    const aug = rules.augmented_crew?.three_pilot_max_fdp_min ?? 900;
+    maxFdp = aug;
+    augmented = true;
+  }
   const lastEta = legs[legs.length - 1].eta;
   const fdpMin = spanMin(report, lastEta);                       // FDP = report → son on block
   const dutyEndMin = toMin(lastEta) + company.postFlightDutyMin; // duty = ... + post flight
@@ -253,5 +265,6 @@ export function dutyWindow(legs, accommodation, ruleset) {
     maxFdpMin: maxFdp, latestFdpEnd,
     split, breakMin: maxBreak?.min ?? null,
     fdpExceeded: fdpMin != null && maxFdp != null && fdpMin > maxFdp,
+    augmented,
   };
 }

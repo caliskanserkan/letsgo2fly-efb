@@ -7,7 +7,7 @@ import {
   toMin, fmtMin, spanMin, effectiveRules, overrideDirection,
   fitness, dutyWindow,
 } from './FTLEngine';
-import { normTime } from './inputFormat';
+import { normTime, up } from './inputFormat';
 
 const C = {
   bg:'var(--bg)', bg2:'var(--bg2)', bg3:'var(--bg3)', border:'var(--border)', border2:'var(--border2)',
@@ -44,6 +44,38 @@ const localISO = (dateStr, hhmm) => {
   return isNaN(d) ? null : d.toISOString();
 };
 const addMin = (iso, min) => iso ? new Date(new Date(iso).getTime() + min * 60000).toISOString() : null;
+
+// ── SAAT DILIMI DOGRU MUTLAKLASTIRMA (4 Agu, Serkan: "TZ gecisleri kaynakli
+// dinlenme sureleri atlanmasin"). Eski localISO saatleri ADMIN MAKINESININ
+// diliminde ISO'ya ceviriyordu; donus meydani farkli dilimdeyse duty_end ve
+// earliest_next_report mutlak zamanda kayiyor, dinlenme penceresi yanlis
+// hesaplaniyordu. Artik: report/ETD kalkis meydaninin, ETA/duty_end varis
+// meydaninin IANA tz'siyle (airports.tz) mutlaklastirilir. tz bulunamazsa
+// admin dilimine duser ve KAYITLI UYARI verilir (sessiz gecilmez).
+const tzOffsetMin = (tz, ts) => {
+  const dtf = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const p = Object.fromEntries(dtf.formatToParts(new Date(ts)).map(x => [x.type, x.value]));
+  return (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - ts) / 60000;
+};
+const zonedISO = (dateStr, hhmm, tz) => {
+  if (!dateStr || !hhmm) return null;
+  if (!tz) return localISO(dateStr, hhmm);
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const [hh, mm] = hhmm.split(':').map(Number);
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  let ts = guess - tzOffsetMin(tz, guess) * 60000;
+  ts = guess - tzOffsetMin(tz, ts) * 60000;   // DST siniri icin ikinci gecis
+  return new Date(ts).toISOString();
+};
+const fetchTzMap = async (icaos) => {
+  const clean = [...new Set(icaos.filter(Boolean).map(x => x.toUpperCase()))];
+  if (!clean.length) return {};
+  const { data } = await supabase.from('airports').select('icao,tz').in('icao', clean);
+  const m = {};
+  (data || []).forEach(r => { if (r.tz) m[r.icao] = r.tz; });
+  return m;
+};
 // crypto.randomUUID Safari 15.4 oncesinde yok — yedegi RFC4122 v4 uretir.
 const newUuid = () => {
   if (window.crypto?.randomUUID) return window.crypto.randomUUID();
@@ -114,7 +146,7 @@ export default function FTLPanel({ toast, myProfile }) {
       </div>
       <div style={{ padding:18 }}>
         {view === 'assign' && <>
-          <DutyRoster {...{ toast, myProfile, pilots, duties, reload: load }} />
+          <DutyRoster {...{ toast, myProfile, pilots, duties, baselines, homeBases, offTypes, reload: load }} />
           <AssignDuty {...{ toast, myProfile, pilots, duties, baselines, ruleset, offTypes, homeBases, reload: load }} />
         </>}
         {view === 'history' && <DutyHistory {...{ pilots, duties, baselines, offTypes }} />}
@@ -180,12 +212,13 @@ function ReasonModal({ title, warn, confirmLabel, onCancel, onConfirm }) {
   );
 }
 
-function DutyRoster({ toast, myProfile, pilots, duties, reload }) {
+function DutyRoster({ toast, myProfile, pilots, duties, baselines, homeBases, offTypes, reload }) {
   const today = new Date().toISOString().slice(0, 10);
   const plus = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(() => plus(today, 14));
   const [pending, setPending] = useState(null);   // {mode:'cancel'|'delete', rows:[...]}
+  const [editing, setEditing] = useState(null);   // roster grubu — EditDutyModal
 
   const nameOf = (pid) => {
     const p = pilots.find(x => x.id === pid);
@@ -291,23 +324,40 @@ function DutyRoster({ toast, myProfile, pilots, duties, reload }) {
                 const d = g.head;
                 const allDeletable = g.rows.every(canHardDelete);
                 const allCancelled = g.rows.every(r => r.status === 'cancelled');
+                // COK GUNLU GOREV TEK SATIR (4 Agu, Serkan): OFF 10-15 gune,
+                // ucus 2 gune yayilabilir — her gun icin ayni kodu tekrarlamak
+                // yerine baslangic–bitis araligi + TEKIL ekip listesi basilir.
+                // Veri modeli degismedi (FTL hesaplari gunluk satirlarla dogru).
+                const dates = g.rows.map(r => r.duty_date).filter(Boolean).sort();
+                const d0 = dates[0], d1 = dates[dates.length - 1];
+                const crewUniq = []; const seenPid = new Set();
+                g.rows.forEach(r => { if (!seenPid.has(r.pilot_id)) { seenPid.add(r.pilot_id); crewUniq.push(r); } });
                 return (
                   <tr key={g.key} style={{ opacity: allCancelled ? .45 : 1 }}>
-                    <td style={S.td}>{fmtD(d.duty_date)}</td>
+                    <td style={S.td}>{d0 === d1 ? fmtD(d0) : `${fmtD(d0)} — ${fmtD(d1)}`}</td>
                     <td style={S.td}>{(d.duty_type || '').toUpperCase()}</td>
                     <td style={{ ...S.td, whiteSpace:'normal' }}>{routeOf(d)}</td>
                     <td style={S.td}>{fmtDT(d.report_time)}</td>
                     <td style={S.td}>{fmtDT(d.duty_end)}</td>
                     <td style={S.td}>
-                      {g.rows.map(r => {
+                      {crewUniq.map(r => {
                         const role = (r.sectors || [])[0]?.role;
                         return <span key={r.id} style={{ marginRight:8 }}>
                           {nameOf(r.pilot_id)}{role ? <span style={{ color:C.t3 }}> ({role})</span> : null}
                         </span>;
                       })}
+                      {d.check_ride && (
+                        <span style={{ ...badge('amber'), marginLeft:4 }}>
+                          CHECK RIDE{d.external_examiner ? ` · TRE/TRI: ${d.external_examiner}` : ''}
+                        </span>
+                      )}
                     </td>
                     <td style={S.td}>{statusBadge(d.status)}{d.match_review && <span style={{ ...badge('amber'), marginLeft:6 }}>REVIEW</span>}</td>
                     <td style={{ ...S.td, textAlign:'right' }}>
+                      {!allCancelled && d.duty_type === 'flight' && (
+                        <button style={{ ...S.btnS, padding:'5px 10px', marginRight:6 }}
+                                onClick={() => setEditing(g)}>EDIT</button>
+                      )}
                       {!allCancelled && (
                         <button style={{ ...S.btnS, padding:'5px 10px', marginRight:6 }}
                                 onClick={() => setPending({ mode:'cancel', rows:g.rows })}>CANCEL</button>
@@ -342,6 +392,196 @@ function DutyRoster({ toast, myProfile, pilots, duties, reload }) {
           onConfirm={apply}
         />
       )}
+      {editing && (
+        <EditDutyModal
+          group={editing} pilots={pilots} duties={duties} myProfile={myProfile}
+          toast={toast}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); reload(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ═══ 0a) EDIT DUTY (4 Agu, Serkan: "bazen sadece plan saatleri veya dest
+// degisiyor veya crew") — YALNIZ ucus gorevleri.
+// Kurallar (3 Agu):
+//  - Saat/pilot her zaman duzeltilebilir, GEREKCE ZORUNLU (DB'de CHECK var).
+//  - ACTUAL ucusta blok/plan saatleri KILITLI — tek kaynak arsiv. Yalniz crew
+//    duzeltilebilir (yanlis kayit duzeltmesi).
+//  - Pencere kaydin KENDI ruleset_snapshot'i ile yeniden hesaplanir — bugunku
+//    ruleset'le DEGIL (gorev yazildigi gunun kuralina tabidir).
+//  - Zincir etkisi: yeni earliest_next_report'tan ONCE rapor saatli sonraki
+//    gorev varsa OTOMATIK DUZELTILMEZ, amber uyari verilir.
+//  - TZ: saatler meydan dilimleriyle mutlaklastirilir (dinlenme atlanmaz).
+function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSaved }) {
+  const head = group.head;
+  const isActual = head.status === 'actual' || head.duty_finished;
+  const [legs, setLegs] = useState(() => (head.sectors || []).map(x => ({
+    dep: x.dep || '', dest: x.dest || '', etd: x.etd || '', eta: x.eta || '' })));
+  const [date, setDate] = useState(head.duty_date);
+  const [crew, setCrew] = useState(() => group.rows.map(r => ({
+    rowId: r.id, oldPilot: r.pilot_id, pilot: r.pilot_id,
+    role: (r.sectors || [])[0]?.role || 'PF' })));
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const snapshotRuleset = head.ruleset_snapshot || null;
+  const timeOk = (t) => /^\d{2}:\d{2}$/.test(t || '');
+  const win = useMemo(() => {
+    if (isActual || !snapshotRuleset) return null;
+    const complete = legs.filter(l => timeOk(l.etd) && timeOk(l.eta));
+    if (complete.length !== legs.length || !legs.length) return null;
+    const threePilot = crew.some(c => c.role === 'CRZ CPT');
+    return dutyWindow(legs, head.accommodation || 'hotel', snapshotRuleset, { threePilot });
+  }, [legs, snapshotRuleset, isActual, head.accommodation, crew]);
+
+  const nameOf = (pid) => { const x = pilots.find(p => p.id === pid); return x ? (x.code || x.full_name) : '—'; };
+  const setLeg = (i, k, v) => setLegs(ls => ls.map((l, j) => j === i ? { ...l, [k]: v } : l));
+  const usedIds = crew.map(c => c.pilot);
+  const options = (cur) => pilots.filter(p => ['pilot','admin_pilot'].includes(p.role))
+    .filter(p => p.id === cur || !usedIds.includes(p.id));
+
+  const save = async () => {
+    if (!reason.trim()) { toast('Reason is mandatory.', 'error'); return; }
+    setSaving(true);
+    try {
+      const edits = [];
+      const updates = [];
+      let tzWarn = null, chainWarn = [];
+
+      // — SAATLER / SEKTORLER (yalniz planned) —
+      let reportISO = head.report_time, endISO = head.duty_end;
+      const sectorsChanged = !isActual &&
+        JSON.stringify(legs) !== JSON.stringify((head.sectors || []).map(x => ({ dep:x.dep||'', dest:x.dest||'', etd:x.etd||'', eta:x.eta||'' })));
+      const dateChanged = !isActual && date !== head.duty_date;
+      if ((sectorsChanged || dateChanged)) {
+        if (!win) { toast('Complete all sector fields.', 'error'); setSaving(false); return; }
+        if (legs.some(l => !l.dep || !l.dest)) { toast('DEP/DEST required.', 'error'); setSaving(false); return; }
+        const tzMap = await fetchTzMap([legs[0].dep, legs[legs.length-1].dest]);
+        const depTz = tzMap[legs[0].dep.toUpperCase()] || null;
+        const destTz = tzMap[legs[legs.length-1].dest.toUpperCase()] || null;
+        if (!depTz || !destTz) tzWarn = 'AIRPORT TZ NOT IN DATABASE — admin timezone used (EASA ORO.FTL.235 kontrolu elde yapilmali).';
+        reportISO = zonedISO(date, win.report, depTz);
+        const lastEta = legs[legs.length - 1].eta;
+        const crossesMidnight = toMin(lastEta) < toMin(win.report);
+        const endDate = crossesMidnight ? nextDay(date) : date;
+        const post = (snapshotRuleset?.company?.postFlightDutyMin ?? 30);
+        endISO = addMin(zonedISO(endDate, lastEta, destTz), post);
+        if (depTz && destTz) {
+          const diff = Math.abs(tzOffsetMin(destTz, new Date(endISO).getTime()) - tzOffsetMin(depTz, new Date(reportISO).getTime()));
+          if (diff >= 240) tzWarn = `TZ CROSSING ${Math.round(diff/60)}H — verify additional rest per EASA ORO.FTL.235.`;
+        }
+      }
+
+      for (const c of crew) {
+        const row = group.rows.find(r => r.id === c.rowId);
+        const upd = {};
+        if (c.pilot !== c.oldPilot) {
+          upd.pilot_id = c.pilot;
+          edits.push({ duty_id: row.id, customer_id: row.customer_id, pilot_id: c.oldPilot,
+            assignment_id: row.assignment_id || null, edit_type: 'EDIT', field_name: 'crew',
+            old_value: nameOf(c.oldPilot), new_value: nameOf(c.pilot),
+            reason: reason.trim(), edited_by: myProfile?.id ?? null });
+        }
+        if (sectorsChanged || dateChanged) {
+          upd.duty_date = date;
+          upd.sectors = legs.map((l, i) => ({ ...(row.sectors?.[i] || {}), seq: i + 1,
+            dep: l.dep.toUpperCase(), dest: l.dest.toUpperCase(), etd: l.etd, eta: l.eta,
+            role: c.role }));
+          upd.report_time = reportISO; upd.duty_end = endISO;
+          upd.max_fdp_minutes = win.maxFdpMin; upd.fdp_minutes = win.fdpMin;
+          upd.fdp_exceeded = !!win.fdpExceeded;
+          const newDutyMin = win.dutyMin || 0;
+          upd.min_rest_minutes = Math.max(newDutyMin, row.min_rest_minutes || 0);
+          upd.earliest_next_report = addMin(endISO, upd.min_rest_minutes);
+          edits.push({ duty_id: row.id, customer_id: row.customer_id, pilot_id: c.pilot,
+            assignment_id: row.assignment_id || null, edit_type: 'EDIT', field_name: 'sectors/times',
+            old_value: `${String(head.report_time).slice(0,16)} → ${String(head.duty_end).slice(0,16)} · ${(head.sectors||[]).map(x=>`${x.dep}-${x.dest}`).join(' ')}`,
+            new_value: `${String(reportISO).slice(0,16)} → ${String(endISO).slice(0,16)} · ${legs.map(x=>`${x.dep}-${x.dest}`).join(' ')}`,
+            reason: reason.trim(), edited_by: myProfile?.id ?? null });
+          // ZINCIR UYARISI: bu pilotun sonraki gorevi yeni dinlenme penceresini deliyor mu?
+          const nxt = (duties || []).filter(x => x.pilot_id === c.pilot && x.id !== row.id &&
+            x.status !== 'cancelled' && x.report_time && x.report_time > endISO)
+            .sort((a, b) => String(a.report_time).localeCompare(String(b.report_time)))[0];
+          if (nxt && upd.earliest_next_report && nxt.report_time < upd.earliest_next_report) {
+            chainWarn.push(`${nameOf(c.pilot)}: next duty ${fmtDT(nxt.report_time)} < earliest ${fmtDT(upd.earliest_next_report)}`);
+          }
+        }
+        if (Object.keys(upd).length) updates.push({ id: row.id, upd });
+      }
+
+      if (!edits.length) { toast('No changes.', 'error'); setSaving(false); return; }
+      // IZ ONCE yazilir (silme/iptalle ayni ilke).
+      const { error: eErr } = await supabase.from('ftl_duty_edits').insert(edits);
+      if (eErr) { toast(`Audit write failed: ${eErr.message}`, 'error'); setSaving(false); return; }
+      for (const u of updates) {
+        const { error } = await supabase.from('crew_duties').update(u.upd).eq('id', u.id);
+        if (error) { toast(`Update failed: ${error.message}`, 'error'); setSaving(false); return; }
+      }
+      toast(`Duty updated (${edits.length} change(s) logged).`, 'success');
+      if (tzWarn) toast(tzWarn, 'error');
+      chainWarn.forEach(w => toast(`CHAIN: ${w} — NOT auto-fixed, review.`, 'error'));
+      onSaved();
+    } catch (e) { toast(String(e.message || e), 'error'); }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:200,
+                  display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+      <div style={{ background:'var(--bg2)', border:`1px solid ${C.border2}`, width:'100%', maxWidth:680,
+                    maxHeight:'90vh', overflowY:'auto', padding:20 }}>
+        <div style={{ ...S.panelT, marginBottom:4 }}>EDIT DUTY — {fmtD(head.duty_date)}</div>
+        <div style={{ ...S.note, marginBottom:14 }}>
+          {isActual
+            ? 'ACTUAL duty: times are LOCKED (single source = archived flight). Crew can be corrected with a reason.'
+            : 'Window is recomputed with the duty\'s OWN ruleset snapshot. Times use airport timezones.'}
+        </div>
+
+        {!isActual && (<>
+          <span style={S.label}>Date</span>
+          <input type="date" style={{ ...S.input, width:170, marginBottom:10 }} value={date} onChange={e => setDate(e.target.value)} />
+          <span style={S.label}>Sectors</span>
+          {legs.map((l, i) => (
+            <div key={i} style={{ display:'grid', gridTemplateColumns:'26px 1fr 1fr 1fr 1fr', gap:8, marginBottom:6, alignItems:'center' }}>
+              <div style={{ fontSize:11, color:C.t3, textAlign:'center', fontFamily:'var(--mono)' }}>{i + 1}</div>
+              <input style={S.input} maxLength={4} value={l.dep} onChange={e => setLeg(i, 'dep', e.target.value.toUpperCase())} />
+              <input style={S.input} maxLength={4} value={l.dest} onChange={e => setLeg(i, 'dest', e.target.value.toUpperCase())} />
+              <input style={S.input} value={l.etd} onChange={e => setLeg(i, 'etd', normTime(e.target.value))} />
+              <input style={S.input} value={l.eta} onChange={e => setLeg(i, 'eta', normTime(e.target.value))} />
+            </div>
+          ))}
+          {win && (
+            <div style={{ ...S.note, borderLeftColor: win.fdpExceeded ? C.red : C.accent, margin:'8px 0' }}>
+              REPORT {win.report} · FDP {fmtMin(win.fdpMin)} / MAX {fmtMin(win.maxFdpMin)}
+              {win.augmented ? ' · 3-PILOT (EASA CS FTL.1.205(c))' : ''}
+              {win.fdpExceeded ? ' · EXCEEDED' : ''}
+            </div>
+          )}
+        </>)}
+
+        <span style={S.label}>Crew</span>
+        {crew.map((c, i) => (
+          <div key={c.rowId} style={{ display:'grid', gridTemplateColumns:'90px 1fr', gap:8, marginBottom:6, alignItems:'center' }}>
+            <div style={{ fontSize:11, color:C.t3, fontFamily:'var(--mono)' }}>{c.role}</div>
+            <select style={S.input} value={c.pilot}
+                    onChange={e => setCrew(cs => cs.map((x, j) => j === i ? { ...x, pilot: e.target.value } : x))}>
+              {options(c.pilot).map(pp => <option key={pp.id} value={pp.id}>{pp.code} — {pp.full_name}</option>)}
+            </select>
+          </div>
+        ))}
+
+        <span style={S.label}>Reason (mandatory — audit trail)</span>
+        <textarea style={{ ...S.input, minHeight:70, resize:'vertical' }} value={reason} onChange={e => setReason(e.target.value)} />
+
+        <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:14 }}>
+          <button style={S.btnS} onClick={onClose}>CANCEL</button>
+          <button style={{ ...S.btnP, opacity: reason.trim() && !saving ? 1 : .45 }} disabled={!reason.trim() || saving}
+                  onClick={save}>SAVE & LOG</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -511,13 +751,23 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
   const [gnd, setGnd] = useState({ kind:'office', start:'09:00', end:'17:00' });
   const [off, setOff] = useState({ subtype:'OFF', endDate:'' });
   const [saving, setSaving] = useState(false);
+  // 3 PILOTLU OPS / CHECK RIDE (4 Agu, Serkan). extraMode:
+  //   null → kapali · 'pick' → secim acik · 'crz' → CRZ CPT modu (listeden
+  //   3. pilot secilir, EASA CS FTL.1.205(c) augmented FDP devreye girer) ·
+  //   'checkride' → dis TRE/TRI adi elle girilir + CHECK RIDE isareti.
+  // Pairing (PF/PM) mantigina DOKUNMAZ. Check ride augmented FDP GETIRMEZ
+  // (jump seat denetcisi dinlenme rotasyonu saglamaz).
+  const [extraMode, setExtraMode] = useState(null);
+  const [examiner, setExaminer] = useState('');
 
   const timeOk = (t) => /^\d{2}:\d{2}$/.test(t || '');
   const win = useMemo(() => {
     if (dutyType !== 'flight') return null;
     const complete = legs.filter(l => timeOk(l.etd) && timeOk(l.eta));
-    return complete.length === legs.length ? dutyWindow(complete, accommodation, ruleset) : null;
-  }, [legs, accommodation, ruleset, dutyType]);
+    return complete.length === legs.length
+      ? dutyWindow(complete, accommodation, ruleset, { threePilot: extraMode === 'crz' })
+      : null;
+  }, [legs, accommodation, ruleset, dutyType, extraMode]);
 
   const { rules } = useMemo(() => effectiveRules(ruleset), [ruleset]);
   const lim = rules.cumulative_limits || {};
@@ -542,7 +792,14 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
   const toggle = (pid) => setSelected(s => {
     const cur = s[pid];
     const next = { ...s };
-    if (!cur) next[pid] = Object.values(s).includes('PF') ? 'PM' : 'PF';
+    const vals = Object.values(s);
+    if (!cur) {
+      if (!vals.includes('PF')) next[pid] = 'PF';
+      else if (!vals.includes('PM')) next[pid] = 'PM';
+      // CRZ CPT yalniz ADD COCKPIT CREW -> CRZ CPT modunda ve tek kisi.
+      else if (extraMode === 'crz' && !vals.includes('CRZ CPT')) next[pid] = 'CRZ CPT';
+      else return s;
+    }
     else if (cur === 'PF') next[pid] = 'PM';
     else delete next[pid];
     return next;
@@ -551,6 +808,12 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
   const save = async () => {
     const ids = Object.keys(selected);
     if (dutyType !== 'off' && !ids.length) { toast('Select at least one pilot.', 'error'); return; }
+    if (dutyType === 'flight' && extraMode === 'crz' && !Object.values(selected).includes('CRZ CPT')) {
+      toast('CRZ CPT mode is on — pick the 3rd pilot from the list (3rd click).', 'error'); return;
+    }
+    if (dutyType === 'flight' && extraMode === 'checkride' && !examiner.trim()) {
+      toast('Enter TRE/TRI name for the check ride.', 'error'); return;
+    }
     setSaving(true);
     try {
       const rows = [];
@@ -569,26 +832,44 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
       // duserse PF'in gorevi iptal, PM'inki ayakta kalir ve kimse fark etmez.
       // (Goc eski satirlari doldurdu; yeni satirlari YAZAN BURASI.)
       const assignmentId = newUuid();
+      // CHECK RIDE: dis TRE/TRI profiles'ta yoktur — FTL kumulatifi TUTULMAZ
+      // (bizim AOC pilotu degil); adi+bayragi atamaya yazilir, roster/rapor
+      // gosterir. (4 Agu, Serkan)
       const base = {
         assignment_id: assignmentId,
+        ...(dutyType === 'flight' && extraMode === 'checkride'
+          ? { check_ride: true, external_examiner: examiner.trim().toUpperCase() } : {}),
         customer_id: myProfile.customer_id, created_by: myProfile.id,
         ruleset_id: ruleset.id, ruleset_snapshot: { regulation: ruleset.regulation, company: ruleset.company },
-        duty_date: date, report_tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        duty_date: date, report_tz: Intl.DateTimeFormat().resolvedOptions().timeZone, // flight'ta asagida depTz ile ezilir
         status: isPast ? 'actual' : 'planned',
         ...(isPast ? { duty_finished: true } : {}),
       };
       if (dutyType === 'flight') {
         if (!win || legs.some(l => !l.dep || !l.dest || !l.etd || !l.eta)) { toast('Complete all sector fields.', 'error'); setSaving(false); return; }
-        const reportISO = localISO(date, win.report);
+        // TZ DOGRU MUTLAKLASTIRMA (4 Agu): report kalkis meydaninin, duty end
+        // varis meydaninin dilimiyle. tz yoksa admin dilimi + ACIK uyari.
+        const tzMap = await fetchTzMap([legs[0].dep, legs[legs.length - 1].dest]);
+        const depTz = tzMap[legs[0].dep.toUpperCase()] || null;
+        const destTz = tzMap[legs[legs.length - 1].dest.toUpperCase()] || null;
+        if (!depTz || !destTz) {
+          toast(`AIRPORT TZ MISSING (${[!depTz && legs[0].dep, !destTz && legs[legs.length-1].dest].filter(Boolean).join(', ')}) — admin timezone used. Rest window may shift; add tz to airports table.`, 'error');
+        }
+        const reportISO = zonedISO(date, win.report, depTz);
         const lastEta = legs[legs.length - 1].eta;
         const crossesMidnight = toMin(lastEta) < toMin(win.report);
-        const endISO = addMin(localISO(crossesMidnight ? nextDay(date) : date, lastEta), (effectiveRules(ruleset).company.postFlightDutyMin));
+        const endISO = addMin(zonedISO(crossesMidnight ? nextDay(date) : date, lastEta, destTz), (effectiveRules(ruleset).company.postFlightDutyMin));
+        if (depTz && destTz && reportISO && endISO) {
+          const tzDiff = Math.abs(tzOffsetMin(destTz, new Date(endISO).getTime()) - tzOffsetMin(depTz, new Date(reportISO).getTime()));
+          if (tzDiff >= 240) toast(`TZ CROSSING ${Math.round(tzDiff / 60)}H — verify additional rest per EASA ORO.FTL.235 (not auto-applied).`, 'error');
+        }
         ids.forEach(pid => {
           const home = homeBases[pid];
           const atBase = !home || legs[legs.length - 1].dest.toUpperCase() === home.toUpperCase();
           const minRest = Math.max(win.dutyMin || 0, atBase ? (rules.min_rest?.home_base_min ?? 720) : (rules.min_rest?.out_of_base_min ?? 600));
           rows.push({
             ...base, pilot_id: pid, duty_type: 'flight',
+            report_tz: depTz || base.report_tz,
             report_time: reportISO, duty_end: endISO,
             // GECMIS TARIHTE ELLE GIRILEN SAAT = GERCEK SAAT (Serkan, 3 Agu):
             // "elle giris varsa sistemde bir hata/kirilma veya son dakika
@@ -634,7 +915,7 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
       const { error } = await supabase.from('crew_duties').insert(rows);
       if (error) throw error;
       toast(`${rows.length} duty row(s) created.`, 'success');
-      setSelected({}); reload();
+      setSelected({}); setExtraMode(null); setExaminer(''); reload();
     } catch (e) { toast(e.message, 'error'); }
     setSaving(false);
   };
@@ -741,6 +1022,54 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
             </table>
           </div>
           <div style={{ ...S.note, marginTop:8 }}>Click row: 1st = PF, click again = PM, again = deselect. NOT LEGAL rows cannot be selected.</div>
+
+          {/* ── ADD COCKPIT CREW (4 Agu, Serkan): 3 pilotlu ops / check ride.
+                Pairing (PF/PM) mantigi DEGISMEZ. ── */}
+          {Object.values(selected).includes('PF') && Object.values(selected).includes('PM') && (
+            <div style={{ marginTop:12, padding:'12px 14px', border:`1px dashed ${C.border2}` }}>
+              {!extraMode && (
+                <button style={S.btnS} onClick={() => setExtraMode('pick')}>+ ADD COCKPIT CREW</button>
+              )}
+              {extraMode === 'pick' && (
+                <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+                  <button style={S.btnS} onClick={() => setExtraMode('crz')}>CRZ CPT</button>
+                  <button style={S.btnS} onClick={() => setExtraMode('checkride')}>CHECK RIDE</button>
+                  <button style={{ ...S.btnS, color:C.t3 }} onClick={() => setExtraMode(null)}>✕</button>
+                </div>
+              )}
+              {extraMode === 'crz' && (() => {
+                const crzId = Object.keys(selected).find(k => selected[k] === 'CRZ CPT');
+                const crzP = pilots.find(pp => pp.id === crzId);
+                return (
+                  <div>
+                    <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:6 }}>
+                      <span style={{ ...badge('blue') }}>3-PILOT OPS — CRZ CPT</span>
+                      {crzP
+                        ? <b style={{ fontSize:12, fontFamily:'var(--mono)' }}>{crzP.code} — {crzP.full_name}</b>
+                        : <span style={{ fontSize:11, color:C.t3 }}>Pick the 3rd pilot from the list above (3rd click = CRZ CPT).</span>}
+                      <button style={{ ...S.btnS, color:C.t3, marginLeft:'auto' }}
+                              onClick={() => { setSelected(sl => { const n = { ...sl }; Object.keys(n).forEach(k => { if (n[k] === 'CRZ CPT') delete n[k]; }); return n; }); setExtraMode(null); }}>REMOVE</button>
+                    </div>
+                    <div style={{ ...S.note, borderLeftColor:C.accent }}>
+                      AUGMENTED CREW ACTIVE — MAX FDP {win ? fmtMin(win.maxFdpMin) : '15:00'} (EASA CS FTL.1.205(c),
+                      CLASS 3 REST FACILITY ASSUMED — raise via ruleset augmented_crew.three_pilot_max_fdp_min for Class 1/2).
+                      Split-duty extension is NOT combined. Duty &amp; rest limits apply to all three crew.
+                    </div>
+                  </div>
+                );
+              })()}
+              {extraMode === 'checkride' && (
+                <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+                  <span style={{ ...badge('amber') }}>CHECK RIDE ✓</span>
+                  <span style={{ fontSize:11, color:C.t3, fontFamily:'var(--mono)' }}>TRE/TRI</span>
+                  <input style={{ ...S.input, width:260 }} placeholder="NAME SURNAME"
+                         value={examiner} onChange={e => setExaminer(up(e.target.value))} />
+                  <span style={{ fontSize:10, color:C.t3 }}>External examiner — recorded on the assignment; no FTL tracking (not company crew). Standard 2-pilot FDP applies.</span>
+                  <button style={{ ...S.btnS, color:C.t3 }} onClick={() => { setExtraMode(null); setExaminer(''); }}>✕</button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </>)}
 
@@ -805,6 +1134,7 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
       if (d.duty_type === 'flight') (d.sectors || []).forEach(l => {
         const m = spanMin(l.off_block || l.etd, l.on_block || l.eta) || 0;
         if ((l.role || 'PF') === 'PM') { s.pmCount++; s.pmMin += m; }
+        else if (l.role === 'CRZ CPT') { s.crzCount = (s.crzCount || 0) + 1; s.crzMin = (s.crzMin || 0) + m; }
         else { s.pfCount++; s.pfMin += m; }
       });
     });
@@ -874,6 +1204,7 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
         <div class="sumgrid">
           <div><b>SECTORS AS PF</b>${summary.pfCount} · ${fmtMin(summary.pfMin)}</div>
           <div><b>SECTORS AS PM</b>${summary.pmCount} · ${fmtMin(summary.pmMin)}</div>
+          ${summary.crzCount ? `<div><b>SECTORS AS CRZ CPT</b>${summary.crzCount} · ${fmtMin(summary.crzMin)}</div>` : ''}
           <div><b>TOTAL FLIGHT TIME</b><span class="big">${fmtMin(summary.pfMin + summary.pmMin)}</span></div>
           <div><b>TOTAL DUTY TIME</b>${fmtMin(summary.dutyMin)}</div>
           <div><b>FLT / GND / OFF DAYS</b>${summary.fltDays} / ${summary.gndDays} / ${summary.offDays}</div>
@@ -972,6 +1303,7 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
         <div style={{ display:'flex', gap:28, flexWrap:'wrap', padding:'11px 14px', borderTop:`2px solid ${C.border2}`, background:C.bg3, fontFamily:'var(--mono)' }}>
           {[
             ['SECTORS AS PF', `${summary.pfCount} · ${fmtMin(summary.pfMin)}`, false],
+            ...(summary.crzCount ? [['SECTORS AS CRZ CPT', `${summary.crzCount} · ${fmtMin(summary.crzMin)}`, false]] : []),
             ['SECTORS AS PM', `${summary.pmCount} · ${fmtMin(summary.pmMin)}`, false],
             ['TOTAL FLT TIME', fmtMin(summary.pfMin + summary.pmMin), true],
             ['TOTAL DUTY TIME', fmtMin(summary.dutyMin), false],
