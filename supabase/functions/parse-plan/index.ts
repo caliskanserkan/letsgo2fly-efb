@@ -121,37 +121,40 @@ function parseAllSectors(text: string): any[] {
     sector.fob            = sector.total_fob ? `${parseInt(sector.total_fob).toLocaleString()} lb` : '';
     sector.tow            = block.match(/\bTOW\s+([\d]+)\s*Lbs/i)?.[1] || '';
     sector.zfw            = block.match(/\bZFW\s+([\d]+)\s*Lbs/i)?.[1] || '';
-    // FPL (ICAO Field 15) — bu sector'in dep'ine uyan FPL blogundan rota + seviye/hiz cek.
-    // FPL yapisi: (FPL-...  -<dep><4d>  -<spd><lvl> ROUTE  -<dest><4d> <ALT>
-    // Guvenlik: dep ESLESMESI zorunlu (paket ucusta yanlis bacak alinmasin).
+    // FPL (ICAO Field 15) — bu sector'e AIT FPL blogundan rota + seviye/hiz cek.
+    // 🔴 3 Agu saha bulgusu (FF'e onceki bacagin noktasi push edildi — LEIB
+    // kalkisinda IMR/Izmir): eski dep/dest kontrolleri YON KORUYDU. ICAO FPL'de
+    // kalkis satiri (Field 13, "-LTFE1200") ile varis satiri (Field 16,
+    // "-LEIB0315") ayni bicimdedir (4 harf + rakam). A→B ve B→A ayni pakette
+    // olunca HER blok iki sektorun de dep/dest testinden geciyordu; ilk blok
+    // kazaniyor, donus bacagina GIDISIN rotasi (+atc_fpl) yaziliyordu.
+    // Duzeltme: alan SIRASI zorunlu — kalkis satiri → hiz/seviye+rota → varis
+    // satiri TEK desende aranir; yon kendiliginden dogrulanir, ters bacak blogu
+    // desene giremez.
     let fplRoute = '';
     let fplLevelSpeed = '';
     const fplBlocks = [...text.matchAll(/\(FPL-[\s\S]*?(?=\(FPL-|$)/g)];
     for (const fb of fplBlocks) {
       const fbText = fb[0];
-      // dep satiri: -LTFE1300 gibi (sector.dep ile basla)
-      const depRe = new RegExp(`^-${sector.dep}\\d{3,4}`, 'm');
-      if (!depRe.test(fbText)) continue;
-      // dest satiri kontrolu (dogru bacak): -LTAC0053 ...
-      const destRe = new RegExp(`^-${sector.dest}\\d{3,4}`, 'm');
-      if (!destRe.test(fbText)) continue;
-      // rota satiri: -N0485F330 KAVAK ... veya -M080F330 ...
-      const rmatch = fbText.match(/^-([NKM]\d{3,4})(F\d{3}|S\d{4}|A\d{3}|M\d{4})\s+([\s\S]*?)(?=\n-[A-Z]{4}\d)/m);
-      if (rmatch) {
-        const spd = rmatch[1];   // N0485
-        const lvl = rmatch[2];   // F330
-        fplRoute = rmatch[3].replace(/\s+/g, ' ').trim();
-        // Seviye: F330 -> FL330
-        let lvlStr = '';
-        if (lvl.startsWith('F')) lvlStr = 'FL' + lvl.slice(1);
-        else lvlStr = lvl;
-        // Hiz: N0485 -> 485 TAS
-        let spdStr = '';
-        if (spd.startsWith('N')) spdStr = parseInt(spd.slice(1)) + ' TAS';
-        else if (spd.startsWith('M')) spdStr = 'M.' + spd.slice(2);
-        else if (spd.startsWith('K')) spdStr = parseInt(spd.slice(1)) + ' KMH';
-        fplLevelSpeed = `${lvlStr} / ${spdStr}`;
-      }
+      const legRe = new RegExp(
+        `^-${sector.dep}\\d{3,4}\\s+-([NKM]\\d{3,4})(F\\d{3}|S\\d{4}|A\\d{3}|M\\d{4})\\s+([\\s\\S]*?)\\n\\s*-${sector.dest}\\d{3,4}`, 'm');
+      // Desen bu blokta yoksa blok BASKA bacagindir — atc_fpl de yazilmaz
+      // (eski kod yanlis bloktan atc_fpl yaziyordu, ayni kusurun parcasi).
+      const rmatch = fbText.match(legRe);
+      if (!rmatch) continue;
+      const spd = rmatch[1];   // N0485
+      const lvl = rmatch[2];   // F330
+      fplRoute = rmatch[3].replace(/\s+/g, ' ').trim();
+      // Seviye: F330 -> FL330
+      let lvlStr = '';
+      if (lvl.startsWith('F')) lvlStr = 'FL' + lvl.slice(1);
+      else lvlStr = lvl;
+      // Hiz: N0485 -> 485 TAS
+      let spdStr = '';
+      if (spd.startsWith('N')) spdStr = parseInt(spd.slice(1)) + ' TAS';
+      else if (spd.startsWith('M')) spdStr = 'M.' + spd.slice(2);
+      else if (spd.startsWith('K')) spdStr = parseInt(spd.slice(1)) + ' KMH';
+      fplLevelSpeed = `${lvlStr} / ${spdStr}`;
       // Tam ATC FPL blogu (oldugu gibi, parantezden parantize)
       const fplFull = fbText.match(/\(FPL-[\s\S]*?\)/);
       sector.atc_fpl = fplFull ? fplFull[0].trim() : fbText.trim();
