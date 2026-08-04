@@ -484,8 +484,16 @@ Deno.serve(async (req) => {
     // actual almamis sektore yazilir. Belirsizse SESSIZCE YAZMA → match_review.
     // duty_finished: iOS End Flt "DUTY FINISHED?" cevabi (body.duty_finished);
     // gelmezse gorev ACIK kalir (status='open') — kapatma karari pilotundur.
+    // REGEN'DE DE KOSAR (2 Agu 2026, Serkan kurali): blok saatlerinin TEK KAYNAGI
+    // arsivlenmis ucustur; FTL paneli off/on block'a dokunmaz. Dolayisiyla admin
+    // arsivde saati duzeltince duzeltmenin crew_duties'e YANSIMASI sart — aksi
+    // halde FDP/duty_end/min_rest/earliest_next_report eski saatte kalir ve
+    // duzeltmenin baska yolu da olmaz (panel o alanlari duzenlemiyor).
+    // Eskiden bu adim `!regenOnly` ile korunuyordu: duzeltme PDF'e giriyor, FTL'e
+    // GIRMIYORDU. Adim artik "ilk kez actual gordum" degil "guncel actual'i
+    // senkronla" mantiginda — ayni saatlerle tekrar kosarsa ayni sonucu yazar.
     let ftlUpdate: Record<string, string> = {};
-    if (!regenOnly && offBlock && onBlock) {
+    if (offBlock && onBlock) {
       const dutyFinishedIn: boolean | null =
         typeof body.duty_finished === "boolean" ? body.duty_finished : null;
       const hm = (s: string | null) => {
@@ -496,24 +504,39 @@ Deno.serve(async (req) => {
       const offMin = hm(offBlock);
       for (const pid of [pfPilot, pmPilot].filter(Boolean)) {
         try {
+          // 'actual' gorevler de aday: DUZELTME onlarin uzerinde calisir.
+          // (Ilk eslestirme yolu zaten `!s.off_block` sartiyla korunuyor, yani
+          //  kapanmis bir gorev yanlislikla ilk-eslesme olarak secilemez.)
           const { data: cands } = await admin.from("crew_duties")
             .select("*").eq("pilot_id", pid).eq("duty_type", "flight")
-            .eq("duty_date", isoDate).neq("status", "actual");
+            .eq("duty_date", isoDate);
           if (!cands?.length) { ftlUpdate[pid] = "no_duty_found"; continue; }
 
-          // aday sektorler: dep + planlanan dest eslesir, henuz actual yok
           type Cand = { duty: any; idx: number; dist: number };
           const matches: Cand[] = [];
+
+          // ÖNCE DUZELTME YOLU: bu plana ZATEN bagli sektor var mi? Varsa saatler
+          // guncellenmis demektir, eslestirme tahminine hic girmeyiz — hangi
+          // sektor oldugu kesin (sektore `plan_id` yaziliyor, asagida).
           for (const duty of cands) {
             (duty.sectors ?? []).forEach((s: any, idx: number) => {
-              if (s.off_block) return;                     // zaten actual almis
-              if ((s.dep ?? "").toUpperCase() !== (plan.dep ?? "").toUpperCase()) return;
-              if ((s.dest ?? "").toUpperCase() !== (plan.dest ?? "").toUpperCase()) return;
-              const etd = hm(s.etd);
-              const dist = etd != null && offMin != null
-                ? Math.min(Math.abs(etd - offMin), 1440 - Math.abs(etd - offMin)) : 9999;
-              matches.push({ duty, idx, dist });
+              if (s.plan_id === planId) matches.push({ duty, idx, dist: -1 });
             });
+          }
+
+          // Bulunamadiysa ILK ESLESTIRME: dep + planlanan dest, henuz actual yok
+          if (!matches.length) {
+            for (const duty of cands) {
+              (duty.sectors ?? []).forEach((s: any, idx: number) => {
+                if (s.off_block) return;                     // zaten actual almis
+                if ((s.dep ?? "").toUpperCase() !== (plan.dep ?? "").toUpperCase()) return;
+                if ((s.dest ?? "").toUpperCase() !== (plan.dest ?? "").toUpperCase()) return;
+                const etd = hm(s.etd);
+                const dist = etd != null && offMin != null
+                  ? Math.min(Math.abs(etd - offMin), 1440 - Math.abs(etd - offMin)) : 9999;
+                matches.push({ duty, idx, dist });
+              });
+            }
           }
           if (!matches.length) {
             // tarih tutuyor ama sektor eslesmiyor (divert/degisiklik) → bayrakla, yazma
@@ -567,7 +590,11 @@ Deno.serve(async (req) => {
                 new Date(endMs + repHours * 3600000).toISOString();
             }
             if (dutyFinishedIn === true) { upd.status = "actual"; upd.duty_finished = true; }
-            else upd.status = "open";
+            else if (dutyFinishedIn === false) { upd.status = "open"; }
+            // DUZELTME (regen): body.duty_finished GELMEZ. Eskiden burada kosulsuz
+            // "open" yaziliyordu — yani arsivde saat duzeltmek KAPANMIS bir gorevi
+            // GERI ACARDI. Cevap yoksa mevcut durum korunur.
+            else if (duty.status !== "actual") { upd.status = "open"; }
           }
           const { error: updErr } = await admin.from("crew_duties")
             .update(upd).eq("id", duty.id);
