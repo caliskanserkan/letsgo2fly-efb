@@ -378,6 +378,59 @@ function EditReport({ pilots, edits, duties }) {
     return <span style={badge(k)}>{t}</span>;
   };
 
+  // AYRI PENCEREYE BAS — window.print() dogrudan cagrilirsa admin panelinin
+  // TAMAMI (sol menu, sekmeler, filtreler) kagida gider. DutyHistory zaten
+  // boyle yapiyor; ayni desen.
+  const printReport = () => {
+    const esc = (x) => String(x ?? '—').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const body = rows.map(e => {
+      const d = dutyOf(e.duty_id);
+      const duty = d ? `${fmtD(d.duty_date)} ${routeOf(d)}` : 'DELETED';
+      return `<tr class="${e.edit_type === 'DELETE' ? 'del' : ''}">
+        <td>${esc(fmtDT(e.created_at))}</td>
+        <td>${esc(pilotName(e.pilot_id))}</td>
+        <td>${esc(duty)}</td>
+        <td class="k">${esc(e.edit_type)}</td>
+        <td>${esc(e.field_name)}</td>
+        <td><s class="old">${esc(e.old_value)}</s> &rarr; <b class="new">${esc(e.new_value)}</b></td>
+        <td class="rsn">${esc(e.reason)}</td></tr>`;
+    }).join('');
+    const who = pilotId ? pilotName(pilotId) : 'ALL PILOTS';
+    const w = window.open('', '_blank', 'width=1000,height=700');
+    if (!w) return;
+    w.document.write(`<!doctype html><html><head><title>FTL Edit Report</title><style>
+      body{font-family:-apple-system,'Helvetica Neue',sans-serif;color:#0f172a;background:#fff;margin:28px;font-size:12px}
+      h1{font-size:15px;letter-spacing:2px;margin:0 0 2px}
+      .sub{font-size:10px;color:#64748b;margin-bottom:14px}
+      .meta{display:flex;gap:28px;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:14px;background:#f8fafc}
+      .meta div{font-size:11px}.meta b{display:block;font-size:9px;color:#64748b;letter-spacing:1px;margin-bottom:2px}
+      table{width:100%;border-collapse:collapse;font-family:ui-monospace,Menlo,monospace;font-size:10.5px}
+      th{background:#f1f5f9;border-bottom:1px solid #cbd5e1;padding:6px 8px;text-align:left;font-size:9px;letter-spacing:1px;color:#475569}
+      td{padding:5px 8px;border-bottom:1px solid #eef2f7;vertical-align:top}
+      td.k{font-weight:800;letter-spacing:1px}
+      tr.del td.k{color:#b91c1c}
+      .old{color:#b91c1c}.new{color:#15803d}
+      .rsn{white-space:normal;font-family:-apple-system,sans-serif}
+      .note{font-size:9px;color:#64748b;margin-top:10px;border-top:1px solid #e2e8f0;padding-top:8px}
+      @media print{body{margin:10mm}}
+    </style></head><body>
+      <h1>FTL EDIT REPORT — DUTY AUDIT TRAIL</h1>
+      <div class="sub">GO2 Aviation &middot; Generated ${new Date().toLocaleString('en-GB')} &middot; ftl_duty_edits</div>
+      <div class="meta">
+        <div><b>PILOT</b>${esc(who)}</div>
+        <div><b>PERIOD</b>${esc(from)} &rarr; ${esc(to)}</div>
+        <div><b>ENTRIES</b>${rows.length}</div>
+      </div>
+      <table><thead><tr><th>WHEN</th><th>PILOT</th><th>DUTY</th><th>ACTION</th>
+        <th>FIELD</th><th>OLD &rarr; NEW</th><th>REASON</th></tr></thead>
+      <tbody>${body || '<tr><td colspan="7">No edits recorded in selected period.</td></tr>'}</tbody></table>
+      <div class="note">These records cannot be modified or deleted (no UPDATE/DELETE policy).
+        A reason is mandatory and enforced at database level. Where DUTY reads DELETED the duty row
+        no longer exists — this entry is the only remaining record of it. All times local.</div>
+    <script>window.onload=function(){window.print();}</${'script'}></body></html>`);
+    w.document.close();
+  };
+
   return (
     <div style={S.panel}>
       <div style={S.panelH}>
@@ -399,7 +452,7 @@ function EditReport({ pilots, edits, duties }) {
         <div style={{ width:170 }}><span style={S.label}>To</span>
           <input type="date" style={S.input} value={to} onChange={e => setTo(e.target.value)} /></div>
         <div style={{ flex:1 }} />
-        <button style={S.btnS} onClick={() => window.print()}>PRINT / PDF</button>
+        <button style={S.btnS} onClick={printReport}>PRINT / PDF</button>
       </div>
 
       {!rows.length ? (
