@@ -101,10 +101,234 @@ export default function FTLPanel({ toast, myProfile }) {
         </div>
       </div>
       <div style={{ padding:18 }}>
-        {view === 'assign' && <AssignDuty {...{ toast, myProfile, pilots, duties, baselines, ruleset, offTypes, homeBases, reload: load }} />}
+        {view === 'assign' && <>
+          <DutyRoster {...{ toast, myProfile, pilots, duties, reload: load }} />
+          <AssignDuty {...{ toast, myProfile, pilots, duties, baselines, ruleset, offTypes, homeBases, reload: load }} />
+        </>}
         {view === 'history' && <DutyHistory {...{ pilots, duties, baselines, offTypes }} />}
         {view === 'ruleset' && <RulesetSettings {...{ toast, myProfile, ruleset, offTypes, reload: load }} />}
       </div>
+    </div>
+  );
+}
+
+// ═══ 0) DUTY ROSTER — TARIH ARALIGI + IPTAL / SILME ═══════════════
+// Saha talebi (3 Agu, Serkan): "Assign duty tarafinda ekleme var cikarma yok,
+// tarih araligi secilmiyor. Iki tarih penceresi olmali, araligi gormeliyiz, ayni
+// anda hem gorev ekleyip hem silebilmeliyiz."
+//
+// IKI SILME YOLU, IKISI DE GEREKCE ZORUNLU:
+//   CANCEL  → status='cancelled'. Gorev listeden duser, KAYITTAN DUSMEZ.
+//             Gerceklesmis gorevlerde tek yol budur.
+//   DELETE  → satir gercekten silinir. YALNIZ gerceklesmemis gorevde mumkun
+//             (planned + duty_finished degil + hic plan bagi yok). Bu sart
+//             veritabaninda da dayatiliyor (crew_duties_del politikasi) —
+//             arayuz sadece imkansiz olani teklif etmesin diye ayni kontrolu
+//             yapiyor. Silmeden ONCE ftl_duty_edits'e mezar tasi yazilir.
+const canHardDelete = (d) =>
+  d.status === 'planned' && !d.duty_finished &&
+  (!d.plan_ids || d.plan_ids.length === 0);
+
+const routeOf = (d) => {
+  if (d.duty_type !== 'flight') return (d.ground_kind || d.off_subtype || d.duty_type || '').toUpperCase();
+  const s = d.sectors || [];
+  if (!s.length) return '—';
+  return s.map(x => `${x.dep || '?'}-${x.dest || '?'}`).join(' · ');
+};
+
+function ReasonModal({ title, warn, confirmLabel, onCancel, onConfirm }) {
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.55)', display:'flex',
+                  alignItems:'center', justifyContent:'center', zIndex:60 }}>
+      <div style={{ background:C.bg2, border:`1px solid ${C.border}`, borderRadius:10, width:520, maxWidth:'92vw' }}>
+        <div style={S.panelH}><span style={S.panelT}>{title}</span></div>
+        <div style={{ padding:16 }}>
+          {warn && <div style={{ ...S.note, borderLeftColor:C.red, color:C.red, marginBottom:12 }}>{warn}</div>}
+          <span style={S.label}>Reason / report *</span>
+          <textarea style={{ ...S.input, minHeight:80, resize:'vertical' }} value={reason}
+                    onChange={e => setReason(e.target.value)}
+                    placeholder="Mandatory: why is this being changed?" />
+          <div style={{ ...S.note, marginTop:8 }}>
+            Gerekce denetim izine yazilir ve silinemez. Bos birakilamaz.
+          </div>
+          <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:14 }}>
+            <button style={S.btnS} onClick={onCancel} disabled={busy}>CANCEL</button>
+            <button style={{ ...S.btnP, opacity: reason.trim() && !busy ? 1 : .45 }}
+                    disabled={!reason.trim() || busy}
+                    onClick={async () => { setBusy(true); await onConfirm(reason.trim()); setBusy(false); }}>
+              {busy ? 'SAVING...' : confirmLabel}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DutyRoster({ toast, myProfile, pilots, duties, reload }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const plus = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+  const [from, setFrom] = useState(today);
+  const [to, setTo] = useState(() => plus(today, 14));
+  const [pending, setPending] = useState(null);   // {mode:'cancel'|'delete', rows:[...]}
+
+  const nameOf = (pid) => {
+    const p = pilots.find(x => x.id === pid);
+    return p ? (p.code || p.full_name || '—') : '—';
+  };
+
+  // Aralik + assignment_id'ye gore gruplama. assignment_id yoksa (eski satir)
+  // satirin kendi id'si grup sayilir — gruplamasiz da calisir.
+  const groups = useMemo(() => {
+    const rows = (duties || []).filter(d => d.duty_date >= from && d.duty_date <= to);
+    const map = new Map();
+    rows.forEach(d => {
+      const k = d.assignment_id || `solo-${d.id}`;
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(d);
+    });
+    return [...map.entries()]
+      .map(([k, rs]) => ({ key:k, rows:rs, head:rs[0] }))
+      .sort((a, b) => (a.head.duty_date || '').localeCompare(b.head.duty_date || '')
+                   || String(a.head.report_time).localeCompare(String(b.head.report_time)));
+  }, [duties, from, to]);
+
+  const statusBadge = (s) => {
+    const kind = s === 'actual' ? 'green' : s === 'cancelled' ? 'dim' : s === 'open' ? 'amber' : 'blue';
+    return <span style={badge(kind)}>{(s || '').toUpperCase()}</span>;
+  };
+
+  const apply = async (reason) => {
+    const { mode, rows } = pending;
+    try {
+      // 1) DENETIM IZI ONCE yazilir — silme basarili olursa satir gider ama iz kalir.
+      const edits = rows.map(d => ({
+        duty_id: d.id, customer_id: d.customer_id, pilot_id: d.pilot_id,
+        assignment_id: d.assignment_id || null,
+        edit_type: mode === 'delete' ? 'DELETE' : 'CANCEL',
+        field_name: 'status', old_value: d.status,
+        new_value: mode === 'delete' ? '(deleted)' : 'cancelled',
+        reason, edited_by: myProfile?.id ?? null,
+      }));
+      const { error: eErr } = await supabase.from('ftl_duty_edits').insert(edits);
+      if (eErr) { toast(`Audit write failed: ${eErr.message}`, 'error'); return; }
+
+      const ids = rows.map(d => d.id);
+      if (mode === 'delete') {
+        const { error } = await supabase.from('crew_duties').delete().in('id', ids);
+        if (error) {
+          // Iz ONCE yazildi (silinip iz kalmamasindansa iz kalip silinmemesi
+          // yegdir). Silme reddedildiyse o iz artik YANLIS bir sey soyluyor;
+          // ftl_duty_edits bilerek degistirilemez oldugu icin duzeltme satiri
+          // yazilir — denetim izi kendini duzeltir, ustunu cizmez.
+          await supabase.from('ftl_duty_edits').insert(rows.map(d => ({
+            duty_id: d.id, customer_id: d.customer_id, pilot_id: d.pilot_id,
+            assignment_id: d.assignment_id || null, edit_type: 'EDIT',
+            field_name: 'status', old_value: '(delete logged)',
+            new_value: '(DELETE REFUSED — row still exists)',
+            reason: `Delete refused by policy: ${error.message}`,
+            edited_by: myProfile?.id ?? null,
+          })));
+          toast(`Delete refused: ${error.message}`, 'error');
+          return;
+        }
+        toast(`${ids.length} duty row(s) deleted.`, 'success');
+      } else {
+        const { error } = await supabase.from('crew_duties').update({ status:'cancelled' }).in('id', ids);
+        if (error) { toast(`Cancel failed: ${error.message}`, 'error'); return; }
+        toast(`${ids.length} duty row(s) cancelled.`, 'success');
+      }
+      setPending(null);
+      reload();
+    } catch (e) { toast(String(e), 'error'); }
+  };
+
+  return (
+    <div style={S.panel}>
+      <div style={S.panelH}>
+        <span style={S.panelT}>Roster — date range</span>
+        <span style={{ fontSize:9, color:C.t3, letterSpacing:1, fontFamily:'var(--mono)' }}>
+          {groups.length} ASSIGNMENT(S)
+        </span>
+      </div>
+
+      <div style={{ display:'flex', gap:14, alignItems:'flex-end', padding:'14px 16px', flexWrap:'wrap' }}>
+        <div style={{ width:170 }}><span style={S.label}>From</span>
+          <input type="date" style={S.input} value={from} onChange={e => setFrom(e.target.value)} /></div>
+        <div style={{ width:170 }}><span style={S.label}>To</span>
+          <input type="date" style={S.input} value={to} onChange={e => setTo(e.target.value)} /></div>
+        <button style={S.btnS} onClick={() => { setFrom(today); setTo(plus(today, 14)); }}>2 WEEKS</button>
+        <button style={S.btnS} onClick={() => { setFrom(today); setTo(plus(today, 30)); }}>1 MONTH</button>
+      </div>
+
+      {!groups.length ? (
+        <div style={{ ...S.note, margin:'0 16px 16px' }}>NO DUTIES IN THIS RANGE.</div>
+      ) : (
+        <div style={{ overflowX:'auto' }}>
+          <table style={S.table}>
+            <thead><tr>
+              <th style={S.th}>Date</th><th style={S.th}>Type</th><th style={S.th}>Route / Kind</th>
+              <th style={S.th}>Report</th><th style={S.th}>Duty end</th><th style={S.th}>Crew</th>
+              <th style={S.th}>Status</th><th style={S.th}></th>
+            </tr></thead>
+            <tbody>
+              {groups.map(g => {
+                const d = g.head;
+                const allDeletable = g.rows.every(canHardDelete);
+                const allCancelled = g.rows.every(r => r.status === 'cancelled');
+                return (
+                  <tr key={g.key} style={{ opacity: allCancelled ? .45 : 1 }}>
+                    <td style={S.td}>{fmtD(d.duty_date)}</td>
+                    <td style={S.td}>{(d.duty_type || '').toUpperCase()}</td>
+                    <td style={{ ...S.td, whiteSpace:'normal' }}>{routeOf(d)}</td>
+                    <td style={S.td}>{fmtDT(d.report_time)}</td>
+                    <td style={S.td}>{fmtDT(d.duty_end)}</td>
+                    <td style={S.td}>
+                      {g.rows.map(r => {
+                        const role = (r.sectors || [])[0]?.role;
+                        return <span key={r.id} style={{ marginRight:8 }}>
+                          {nameOf(r.pilot_id)}{role ? <span style={{ color:C.t3 }}> ({role})</span> : null}
+                        </span>;
+                      })}
+                    </td>
+                    <td style={S.td}>{statusBadge(d.status)}{d.match_review && <span style={{ ...badge('amber'), marginLeft:6 }}>REVIEW</span>}</td>
+                    <td style={{ ...S.td, textAlign:'right' }}>
+                      {!allCancelled && (
+                        <button style={{ ...S.btnS, padding:'5px 10px', marginRight:6 }}
+                                onClick={() => setPending({ mode:'cancel', rows:g.rows })}>CANCEL</button>
+                      )}
+                      {allDeletable && (
+                        <button style={{ ...S.btnS, padding:'5px 10px', color:C.red, borderColor:C.red }}
+                                onClick={() => setPending({ mode:'delete', rows:g.rows })}>DELETE</button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div style={{ ...S.note, margin:'0 16px 16px' }}>
+        CANCEL gorevi listeden duser ama kayitta birakir — gerceklesmis gorevlerde tek yol budur.
+        DELETE yalnizca hic gerceklesmemis gorevde cikar (planned · uçusa baglanmamis); bu sart
+        veritabaninda da dayatilir. Her ikisi de gerekce ister ve denetim izine yazilir.
+      </div>
+
+      {pending && (
+        <ReasonModal
+          title={pending.mode === 'delete' ? 'DELETE DUTY' : 'CANCEL DUTY'}
+          confirmLabel={pending.mode === 'delete' ? 'DELETE & LOG' : 'CANCEL DUTY & LOG'}
+          warn={pending.mode === 'delete'
+            ? `${pending.rows.length} satir KALICI silinecek. Gorev hic gerceklesmedigi icin buna izin var; gerekce denetim izinde kalir.`
+            : null}
+          onCancel={() => setPending(null)}
+          onConfirm={apply}
+        />
+      )}
     </div>
   );
 }
