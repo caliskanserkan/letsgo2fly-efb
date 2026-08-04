@@ -323,6 +323,15 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
     { lbl: "SIC (PM)", val: V(fr.pm_name) },
     A("pax", { lbl: "Pax", val: V(fr.pax) }),
   ]);
+  // 3 PILOT / CHECK RIDE (4 Agu): PF/PM icin nasil veri uretiliyorsa CRZ CPT
+  // ve TRE/TRI de raporda ayni sekilde gorunur (Serkan talebi).
+  if (fr.crew?.crz?.name || fr.crew?.check_ride) {
+    cellRow(c, [
+      { lbl: "CRZ CPT", val: V(fr.crew?.crz?.name) },
+      { lbl: "Check Ride", val: fr.crew?.check_ride ? "YES" : DASH },
+      { lbl: "TRE/TRI (external)", val: V(fr.crew?.external_examiner) },
+    ]);
+  }
 
   // ── 2) FLIGHT DATA ────────────────────────────────────────────────────────
   cardHeader(c, "FLIGHT DATA");
@@ -549,6 +558,7 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
     if (!id) return DASH;
     if (id === fr.crew?.pf?.id) return fr.crew.pf.name || String(id);
     if (id === fr.crew?.pm?.id) return fr.crew.pm.name || String(id);
+    if (id === fr.crew?.crz?.id) return fr.crew.crz.name || String(id);
     return String(id);
   };
 
@@ -659,11 +669,12 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
 
   cardHeader(c, "EASA FTL - ORO.FTL (CREW DUTY & REST)");
   cellRow(c, [
-    { lbl: "Duty End (both crew)", val: dutyEndM !== null ? fromMins(dutyEndM) + " UTC" : DASH, note: "On Block +00:30" },
+    { lbl: "Duty End (all crew)", val: dutyEndM !== null ? fromMins(dutyEndM) + " UTC" : DASH, note: "On Block +00:30" },
     { lbl: "Sectors", val: "1" },
   ]);
 
-  for (const who of ["pf", "pm"] as const) {
+  const ftlRoles: ("pf" | "pm" | "crz")[] = fr.crew?.crz ? ["pf", "pm", "crz"] : ["pf", "pm"];
+  for (const who of ftlRoles) {
     const crew = fr.crew?.[who];
     const hb = crew?.home_base;
     const destHome = isHome(hb, destIcao);
@@ -678,7 +689,7 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
 
     subHeader(
       c,
-      `${who.toUpperCase()} - ${V(crew?.name)}   Home: ${V(hb)}`,
+      `${who === "crz" ? "CRZ CPT" : who.toUpperCase()} - ${V(crew?.name)}   Home: ${V(hb)}`,
       who === "pf" ? C.wpt : rgb(0.059, 0.463, 0.431),
     );
     cellRow(c, [

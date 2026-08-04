@@ -155,6 +155,10 @@ Deno.serve(async (req) => {
     // Crew kaynagi: flight_crew_data birincil (iOS buraya yazar), plans fallback
     const pfPilot = crewD?.crew_pf ?? plan.pf_pilot ?? null;
     const pmPilot = crewD?.crew_pm ?? plan.pm_pilot ?? null;
+    // 3 PILOT / CHECK RIDE (4 Agu): CRZ CPT sirket pilotu; TRE/TRI dis ad-soyad.
+    const crzPilot = crewD?.crew_crz ?? plan.crz_pilot ?? null;
+    const checkRide = crewD?.check_ride ?? plan.check_ride ?? false;
+    const externalExaminer = crewD?.external_examiner ?? plan.external_examiner ?? null;
 
     const [wxRows, docRows] = await Promise.all([
       admin.from("wx_snapshots").select("icao,type,raw_text,fetched_at")
@@ -254,7 +258,7 @@ Deno.serve(async (req) => {
     }
 
     // ── 8) Crew + home_base (FTL raporu icin) ───────────────────────────────
-    const pilotIds = [pfPilot, pmPilot].filter(Boolean);
+    const pilotIds = [pfPilot, pmPilot, crzPilot].filter(Boolean);
     const { data: pilots } = pilotIds.length
       ? await admin.from("profiles").select("id,full_name").in("id", pilotIds)
       : { data: [] as any[] };
@@ -267,6 +271,10 @@ Deno.serve(async (req) => {
     const crew = {
       pf: { id: pfPilot, name: nameOf(pfPilot), home_base: hbOf(pfPilot) },
       pm: { id: pmPilot, name: nameOf(pmPilot), home_base: hbOf(pmPilot) },
+      // CRZ CPT tam ekip uyesidir (duty saatleri FTL'de islenir);
+      // TRE/TRI dis denetci — yalniz kayit (FTL kumulatifi tutulmaz).
+      ...(crzPilot ? { crz: { id: crzPilot, name: nameOf(crzPilot), home_base: hbOf(crzPilot) } } : {}),
+      ...(checkRide ? { check_ride: true, external_examiner: externalExaminer } : {}),
     };
 
     // ── 9) Ucak / motor saatleri (arsivden SONRAKI toplam) ───────────────────
