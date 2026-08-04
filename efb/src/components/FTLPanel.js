@@ -44,6 +44,15 @@ const localISO = (dateStr, hhmm) => {
   return isNaN(d) ? null : d.toISOString();
 };
 const addMin = (iso, min) => iso ? new Date(new Date(iso).getTime() + min * 60000).toISOString() : null;
+// crypto.randomUUID Safari 15.4 oncesinde yok — yedegi RFC4122 v4 uretir.
+const newUuid = () => {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  const b = new Uint8Array(16);
+  window.crypto.getRandomValues(b);
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+};
 const fmtDT = (iso) => iso ? new Date(iso).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }).toUpperCase() : '—';
 const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short' }).toUpperCase() : '—';
 
@@ -386,11 +395,28 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
     setSaving(true);
     try {
       const rows = [];
+      // GECMISE GIRILEN GOREV 'planned' OLAMAZ (3 Agu, Serkan): genel havacilikta
+      // planlama safhasi atlanabiliyor, ucus once yapilip kayda sonra giriliyor.
+      // Gecmis tarihli bir gorev "planlanmis" degil OLMUS BITMIS ucustur.
+      //   gecmis  -> actual  (gorev kapali; girilen saatler gercek kabul edilir,
+      //                       rest ve earliest_next_report onlardan hesaplanir)
+      //   bugun/ileri -> planned
+      // NOT: bu, girilen saatlerin GERCEK off/on block oldugu varsayimina dayanir.
+      // Ucus uygulamada arsivlenmisse dogrusu arsivden gelir; archive-flight'in
+      // duzeltme yolu bu gorevi bulup uzerine yazar (sektordeki plan_id ile).
+      const isPast = date < new Date().toISOString().slice(0, 10);
+      // AYNI ATAMADAN DOGAN TUM PILOT SATIRLARI AYNI assignment_id'yi TASIR.
+      // Bu olmadan "ucusu iptal et" tek islem degil N ayri islem olur; biri
+      // duserse PF'in gorevi iptal, PM'inki ayakta kalir ve kimse fark etmez.
+      // (Goc eski satirlari doldurdu; yeni satirlari YAZAN BURASI.)
+      const assignmentId = newUuid();
       const base = {
+        assignment_id: assignmentId,
         customer_id: myProfile.customer_id, created_by: myProfile.id,
         ruleset_id: ruleset.id, ruleset_snapshot: { regulation: ruleset.regulation, company: ruleset.company },
         duty_date: date, report_tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        status: 'planned',
+        status: isPast ? 'actual' : 'planned',
+        ...(isPast ? { duty_finished: true } : {}),
       };
       if (dutyType === 'flight') {
         if (!win || legs.some(l => !l.dep || !l.dest || !l.etd || !l.eta)) { toast('Complete all sector fields.', 'error'); setSaving(false); return; }
@@ -405,7 +431,20 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
           rows.push({
             ...base, pilot_id: pid, duty_type: 'flight',
             report_time: reportISO, duty_end: endISO,
-            sectors: legs.map((l, i) => ({ seq: i + 1, dep: l.dep.toUpperCase(), dest: l.dest.toUpperCase(), etd: l.etd, eta: l.eta, role: selected[pid] })),
+            // GECMIS TARIHTE ELLE GIRILEN SAAT = GERCEK SAAT (Serkan, 3 Agu):
+            // "elle giris varsa sistemde bir hata/kirilma veya son dakika
+            //  degisiklik olmustur; elle girilen deger saat-dk takibinde GERCEK
+            //  degerdir, gecmise donuk plan degil olmus bitmis istir."
+            // Bu yuzden gecmiste off_block/on_block da yazilir.
+            // AMA `plan_id` YAZILMAZ — ayrimi o tasiyor: plan_id'si olan sektor
+            // ARSIVDEN olculmustur, olmayan ELLE yazilmistir. archive-flight
+            // elle yazilmis sektorun uzerine hala yazabilir; "gerceklesen ucus
+            // atanmis gorevin ustune HER ZAMAN yazar" kurali boylece korunur.
+            sectors: legs.map((l, i) => ({
+              seq: i + 1, dep: l.dep.toUpperCase(), dest: l.dest.toUpperCase(),
+              etd: l.etd, eta: l.eta, role: selected[pid],
+              ...(isPast ? { off_block: l.etd, on_block: l.eta, entered_manually: true } : {}),
+            })),
             split_duty: win.split.isSplit, break_minutes: win.breakMin,
             accommodation: win.split.isSplit ? accommodation : null,
             max_fdp_minutes: win.maxFdpMin, fdp_minutes: win.fdpMin, fdp_exceeded: !!win.fdpExceeded,

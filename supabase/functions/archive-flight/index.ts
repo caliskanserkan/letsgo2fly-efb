@@ -528,7 +528,14 @@ Deno.serve(async (req) => {
           if (!matches.length) {
             for (const duty of cands) {
               (duty.sectors ?? []).forEach((s: any, idx: number) => {
-                if (s.off_block) return;                     // zaten actual almis
+                // ZATEN BIR PLANA BAGLI sektor aday DEGIL — o baska bir ucusun
+                // olculmus kaydidir, uzerine yazilmaz.
+                // ELLE GIRILEN sektor (off_block var ama plan_id YOK) aday'dir:
+                // app bozulup hard copy uculdugunda admin saatleri elle girer;
+                // sonradan gercek arsiv gelirse OLCULEN deger elle girilenin
+                // ustune yazar ("gerceklesen ucus her zaman ustune yazar").
+                // Hic arsiv gelmezse elle girilen kayit olarak kalir.
+                if (s.plan_id) return;
                 if ((s.dep ?? "").toUpperCase() !== (plan.dep ?? "").toUpperCase()) return;
                 if ((s.dest ?? "").toUpperCase() !== (plan.dest ?? "").toUpperCase()) return;
                 const etd = hm(s.etd);
