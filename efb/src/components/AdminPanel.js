@@ -8,6 +8,7 @@ import { supabase } from '../supabaseClient';
 import { RiskSurvey, AssessmentHistory } from './RiskSurvey';
 import PlanDocuments from './PlanDocuments';
 import Drawer from './Drawer';
+import AdminHelp from './AdminHelp';
 import ThemeToggle from './ThemeToggle';
 
 // ─── Font Controls ────────────────────────────────────────────
@@ -1263,6 +1264,13 @@ export default function AdminPanel({onBack}){
                 <span style={{ fontSize:12, fontWeight:tab===n.id?700:500, color:tab===n.id?C.accent:C.t2, letterSpacing:0.5, fontFamily:'var(--mono)', textTransform:'uppercase' }}>{n.label}</span>
               </div>
             ))}
+            {/* FAQ & HELP — bilerek AYRIK (Serkan: Edit Reports'un 2 satir bosluk altinda) */}
+            <div className="adm-nav-item"
+              style={{ padding:'10px 12px', margin:'34px 0 2px', cursor:'pointer', display:'flex', alignItems:'center', gap:10, borderRadius:8, background:tab==='help'?'var(--accent-soft)':'transparent' }}
+              onClick={() => { setTab('help'); setSidebarOpen(false); }}>
+              <span style={{ fontSize:15, width:20, textAlign:'center', color:tab==='help'?C.accent:C.t3 }}>?</span>
+              <span style={{ fontSize:12, fontWeight:tab==='help'?700:500, color:tab==='help'?C.accent:C.t2, letterSpacing:0.5, fontFamily:'var(--mono)', textTransform:'uppercase' }}>FAQ &amp; HELP</span>
+            </div>
           </div>
           <div style={{ padding:'14px 16px', borderTop:`1px solid ${C.border}` }}>
             <div style={{ fontSize:10, color:C.t2, fontWeight:700, letterSpacing:1, marginBottom:4 }}>{user?.email?.split('@')[0]?.toUpperCase()}</div>
@@ -1288,6 +1296,7 @@ export default function AdminPanel({onBack}){
             {tab==='stations'  && <StationInfo  toast={showToast}/>}
             {tab==='logs'      && <FltLogsAndTimes/>}
             {tab==='reports'   && <EditReports/>}
+            {tab==='help'      && <AdminHelp/>}
           </div>
         </div>
       </div>
