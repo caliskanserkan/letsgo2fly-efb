@@ -36,7 +36,7 @@ const MODULES = [
   { id:'mandatory', num:'2',  label:'Mandatory',        icon:'✅', group:'pre',  color:'blue'  },
   { id:'efp',       num:'3',  label:'eFP',              icon:'📋', group:'pre',  color:'blue'  },
   { id:'fuel',      num:'4',  label:'Fuel',             icon:'⛽', group:'pre',  color:'blue'  },
-  { id:'rass',      num:'5',  label:'RASS',             icon:'🗺',  group:'pre',  color:'blue'  },
+  { id:'rass',      num:'5',  label:'RAAQ',             icon:'🗺',  group:'pre',  color:'blue'  },
   { id:'accept',    num:'6',  label:'Accept & Sign',    icon:'✍️', group:'pre',  color:'red'   },
   { id:'takeoff',   num:'7',  label:'T/O Data',         icon:'🛫', group:'in',   color:'blue'  },
   { id:'navlog',    num:'8',  label:'Nav Log',          icon:'🛣',  group:'in',   color:'blue'  },

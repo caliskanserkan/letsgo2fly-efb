@@ -138,11 +138,11 @@ const ACTION_META = {
 // Teknik id gosterilmez. Realtime: yeni log satiri saniyesinde ekrana duser
 // (flight_logs publication'a ekli olmali); 30s polling yedek olarak kalir.
 
-const MODULE_ORDER = ['PLAN','FLT CREW','MANDATORY','eFP','FUEL','RASS','ACCEPT & SIGN','T/O DATA','NAV LOG','LND DATA','END FLT','DOC UPLOAD','OTHER'];
+const MODULE_ORDER = ['PLAN','FLT CREW','MANDATORY','eFP','FUEL','RAAQ','ACCEPT & SIGN','T/O DATA','NAV LOG','LND DATA','END FLT','DOC UPLOAD','OTHER'];
 
 // iOS ModuleKey rawValue -> ekran adi (MODULE_COMPLETE icin)
 const MODULE_KEY_MAP = {
-  'flight-crew':'FLT CREW', mandatory:'MANDATORY', efp:'eFP', fuel:'FUEL', rass:'RASS',
+  'flight-crew':'FLT CREW', mandatory:'MANDATORY', efp:'eFP', fuel:'FUEL', rass:'RAAQ',
   'accept-sign':'ACCEPT & SIGN', todata:'T/O DATA', navlog:'NAV LOG', lnddata:'LND DATA',
   endflt:'END FLT', docupload:'DOC UPLOAD',
 };
@@ -154,7 +154,7 @@ const ACTION_MODULE = {
   MANDATORY_SIGNED:'MANDATORY', PREFLIGHT_MANDATORY_COMPLETE:'MANDATORY',
   OFP_OPENED:'eFP', OFP_MARKUP:'eFP', WXR_REFRESHED:'eFP', NOTAM_SEEN:'eFP',
   FUEL_CHECKED:'FUEL',
-  RASS_REVIEWED:'RASS',
+  RASS_REVIEWED:'RAAQ',
   PLAN_ACCEPTED:'ACCEPT & SIGN', PLAN_ACCEPTANCE_REVOKED:'ACCEPT & SIGN', SYNC_TO_PM:'ACCEPT & SIGN',
   TKOF_RWY_SELECTED:'T/O DATA', TKOF_ATIS_ENTERED:'T/O DATA', TKOF_SPEEDS_ENTERED:'T/O DATA',
   TKOF_ATC_CLR:'T/O DATA', TKOF_RVSM_GROUND:'T/O DATA',
@@ -1150,7 +1150,7 @@ const NAV=[
   {id:'crews',    icon:'◈', label:'Crews'},
   {id:'ftl',      icon:'⏱', label:'FTL'},
   {id:'stats',    icon:'▦', label:'Statistics'},
-  {id:'stations', icon:'◉', label:'RASS'},
+  {id:'stations', icon:'◉', label:'RAAQ'},
   {id:'logs',     icon:'≡', label:'FLTs Logs & Times'},
   {id:'reports',  icon:'R', label:'Edit Reports'},
 ];

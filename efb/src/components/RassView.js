@@ -40,6 +40,44 @@ function PpsSection({ title, text, color }) {
   );
 }
 
+// FOP-FRM-02 (RAAQ) ozel maddeleri — survey yokken formda gomulu; "reviewed"
+// onayiyla OTOMATIK tiklenir: CAT A/B -> 1-4, CAT C -> 1-5 (iOS ile birebir).
+const RAAQ_ITEMS = [
+  'NON-STANDARD APPROACH AIDS OR APPROACH PROCEDURES',
+  'UNUSUAL LOCAL WEATHER CONDITIONS',
+  'UNUSUAL CHARACTERISTICS OR PERFORMANCE LIMITATIONS',
+  'OTHER RELEVANT CONSIDERATIONS INCLUDING OBSTRUCTIONS, PHYSICAL LAYOUT, LIGHTING ETC.',
+  'CATEGORY C AERODROMES: ADDITIONAL CONSIDERATIONS FOR THE APPROACH, LANDING OR TAKE-OFF — SPECIAL TRAINING COMPLETED BY AIRCREW',
+];
+
+function RaaqBlock({ cat, checked }) {
+  const c = (cat || '').trim().toUpperCase();
+  if (!c) return (
+    <div style={{ fontSize:10, color:'#fbbf24', fontFamily:"'Courier New',monospace", lineHeight:1.7 }}>
+      AERODROME CATEGORY NOT SET — CONTACT DISPATCH.<br/>RAAQ ITEMS CANNOT BE AUTO-CHECKED (CAT A/B: 4 ITEMS, CAT C: 5 ITEMS).
+    </div>
+  );
+  const count = c === 'C' ? 5 : 4;
+  return (
+    <div>
+      <div style={{ fontSize:9, color:'#334155', fontFamily:"'Courier New',monospace", letterSpacing:1, marginBottom:10 }}>
+        NO PPS BRIEFING ON FILE — RAAQ SPECIAL ITEMS (FOP-FRM-02)
+      </div>
+      {RAAQ_ITEMS.slice(0, count).map((t, i) => (
+        <div key={i} style={{ display:'flex', gap:8, alignItems:'flex-start', marginBottom:6 }}>
+          <div style={{ width:14, height:14, borderRadius:3, flexShrink:0, marginTop:1, border:`2px solid ${checked?'#4ade80':'#334155'}`, background:checked?'#4ade80':'transparent', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            {checked && <span style={{ color:'#0f172a', fontSize:9, lineHeight:1, fontWeight:700 }}>✓</span>}
+          </div>
+          <span style={{ fontSize:10, color:checked?'var(--t1,#e2e8f0)':'#64748b', fontFamily:"'Courier New',monospace", lineHeight:1.5 }}>({i+1}) {t}</span>
+        </div>
+      ))}
+      <div style={{ fontSize:8.5, color:checked?'#4ade80':'#334155', fontFamily:"'Courier New',monospace", marginTop:8 }}>
+        {checked ? `ITEMS AUTO-CHECKED ON REVIEW — AERODROME CAT ${c}` : `ITEMS WILL BE AUTO-CHECKED WHEN REVIEW IS CONFIRMED BELOW — AERODROME CAT ${c}`}
+      </div>
+    </div>
+  );
+}
+
 function AirportCard({ role, icao, data, checked, onCheck }) {
   const rm = data ? getRiskMeta(data.risk_level) : { color:C.t3, bg:'transparent', border:C.border };
   const hasPps = data && (data.section1 || data.section2 || data.section3);
@@ -86,9 +124,7 @@ function AirportCard({ role, icao, data, checked, onCheck }) {
             <PpsSection title="SECTION 2 — METEOROLOGY / WIND"              text={data.section2} color="#fbbf24" />
             <PpsSection title="SECTION 3 — SECURITY / HANDLING / NAV"       text={data.section3} color="#4ade80" />
           </> : (
-            <div style={{ fontSize:10, color:'#334155', fontFamily:"'Courier New',monospace", fontStyle:'italic' }}>
-              No PPS briefing on file — admin risk survey not yet completed.
-            </div>
+            <RaaqBlock cat={data.category} checked={checked} />
           )}
         </div>
       </> : (
@@ -172,7 +208,7 @@ export default function RassView({ setStatus }) {
 
   if (loading) return (
     <div style={{ padding:40, textAlign:'center', color:C.t3, fontFamily:"'Courier New',monospace", fontSize:11, letterSpacing:2, background:'#0f172a', minHeight:'100%' }}>
-      LOADING RASS DATA...
+      LOADING RAAQ DATA...
     </div>
   );
   if (error) return (
