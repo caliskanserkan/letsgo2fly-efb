@@ -178,7 +178,12 @@ const routeOf = (d) => {
   if (d.duty_type !== 'flight') return (d.ground_kind || d.off_subtype || d.duty_type || '').toUpperCase();
   const s = d.sectors || [];
   if (!s.length) return '—';
-  return s.map(x => `${x.dep || '?'}-${x.dest || '?'}`).join(' · ');
+  // DIVERT gorunur (4 Agu): arsiv sektore actual_dest yazar — planlanan
+  // varistan farkliysa "DEP-DEST>ACT DVT" olarak basilir.
+  return s.map(x => {
+    const act = x.actual_dest && x.actual_dest !== x.dest ? `>${x.actual_dest} DVT` : '';
+    return `${x.dep || '?'}-${x.dest || '?'}${act}`;
+  }).join(' · ');
 };
 
 function ReasonModal({ title, warn, confirmLabel, onCancel, onConfirm }) {
@@ -1165,7 +1170,7 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
           const blkS = l.off_block || l.etd, blkE = l.on_block || l.eta;
           return `<tr class="${actual ? '' : 'pln'}">
             <td>${i === 0 ? esc(fmtD(d.duty_date)) : ''}</td><td>${i === 0 ? 'FLT' : ''}</td>
-            <td>${esc(l.dep)}–${esc(l.dest)}</td><td>${esc(blkS)}–${esc(blkE)}</td>
+            <td>${esc(l.dep)}–${esc(l.dest)}${l.actual_dest && l.actual_dest !== l.dest ? '&gt;' + esc(l.actual_dest) + ' DVT' : ''}</td><td>${esc(blkS)}–${esc(blkE)}</td>
             <td>${fmtMin(spanMin(blkS, blkE))}</td><td class="role">${esc(l.role || 'PF')}</td>
             <td>${i === 0 ? dutyT : ''}</td><td>${i === 0 ? st : ''}</td></tr>`;
         }).join('');
@@ -1273,7 +1278,7 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
                       <tr key={`${d.id}_${i}`} style={last ? { borderBottom:`2px solid ${C.border2}` } : {}}>
                         <td style={{ ...S.td, ...dimC, borderBottom: last ? undefined : 'none' }}>{i === 0 ? fmtD(d.duty_date) : ''}</td>
                         <td style={{ ...S.td, borderBottom: last ? undefined : 'none' }}>{i === 0 ? <span style={badge('blue')}>FLT</span> : ''}</td>
-                        <td style={{ ...S.td, ...dimC, borderBottom: last ? undefined : 'none' }}>{l.dep}–{l.dest}</td>
+                        <td style={{ ...S.td, ...dimC, borderBottom: last ? undefined : 'none' }}>{l.dep}–{l.dest}{l.actual_dest && l.actual_dest !== l.dest ? `>${l.actual_dest} DVT` : ''}</td>
                         <td style={{ ...S.td, ...dimC, borderBottom: last ? undefined : 'none' }}>{blkS}–{blkE}</td>
                         <td style={{ ...S.td, ...dimC, borderBottom: last ? undefined : 'none' }}>{fmtMin(spanMin(blkS, blkE))}</td>
                         <td style={{ ...S.td, ...dimC, borderBottom: last ? undefined : 'none' }}>{i === 0 ? `${fmtDT(d.report_time).slice(-5)}–${fmtDT(d.duty_end).slice(-5)}` : ''}</td>

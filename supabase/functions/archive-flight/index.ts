@@ -510,7 +510,8 @@ Deno.serve(async (req) => {
         return m ? Number(m[1]) * 60 + Number(m[2]) : null;
       };
       const offMin = hm(offBlock);
-      for (const pid of [pfPilot, pmPilot].filter(Boolean)) {
+      // CRZ CPT de tam ekip uyesidir (4 Agu) — saatleri/penceresi ayni sekilde islenir.
+      for (const pid of [pfPilot, pmPilot, crzPilot].filter(Boolean)) {
         try {
           // 'actual' gorevler de aday: DUZELTME onlarin uzerinde calisir.
           // (Ilk eslestirme yolu zaten `!s.off_block` sartiyla korunuyor, yani
