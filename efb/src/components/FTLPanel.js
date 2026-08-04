@@ -63,6 +63,7 @@ export default function FTLPanel({ toast, myProfile }) {
   const [baselines, setBaselines] = useState([]); // en güncel satır / pilot
   const [ruleset, setRuleset] = useState(null);
   const [offTypes, setOffTypes] = useState([]);
+  const [edits, setEdits] = useState([]);
   const [homeBases, setHomeBases] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -70,15 +71,16 @@ export default function FTLPanel({ toast, myProfile }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [{ data: p }, { data: d }, { data: b }, { data: cust }, { data: ot }, { data: hb }] = await Promise.all([
+    const [{ data: p }, { data: d }, { data: b }, { data: cust }, { data: ot }, { data: hb }, { data: ed }] = await Promise.all([
       supabase.from('profiles').select('id,code,full_name,role').order('full_name'),
       supabase.from('crew_duties').select('*').order('report_time', { ascending: true }),
       supabase.from('ftl_pilot_baselines').select('*').order('created_at', { ascending: false }),
       supabase.from('customers').select('id,ftl_ruleset_id').eq('id', customerId).single(),
       supabase.from('ftl_off_types').select('*').eq('active', true).order('code'),
       supabase.from('home_bases').select('pilot_id,icao'),
+      supabase.from('ftl_duty_edits').select('*').order('created_at', { ascending: false }),
     ]);
-    setPilots(p || []); setDuties(d || []); setOffTypes(ot || []);
+    setPilots(p || []); setDuties(d || []); setOffTypes(ot || []); setEdits(ed || []);
     setHomeBases(Object.fromEntries((hb || []).map(h => [h.pilot_id, h.icao])));
     // pilot başına en güncel baseline
     const seen = {};
@@ -103,6 +105,7 @@ export default function FTLPanel({ toast, myProfile }) {
       <div style={{ display:'flex', borderBottom:`1px solid ${C.border}`, background:C.bg2 }}>
         <div style={tabS('assign')} onClick={() => setView('assign')}>Assign Duty</div>
         <div style={tabS('history')} onClick={() => setView('history')}>Duty History</div>
+        <div style={tabS('edits')} onClick={() => setView('edits')}>Edit Report</div>
         <div style={tabS('ruleset')} onClick={() => setView('ruleset')}>Ruleset</div>
         <div style={{ flex:1 }} />
         <div style={{ alignSelf:'center', paddingRight:16, fontSize:9, color:C.t3, letterSpacing:1, fontFamily:'var(--mono)' }}>
@@ -115,6 +118,7 @@ export default function FTLPanel({ toast, myProfile }) {
           <AssignDuty {...{ toast, myProfile, pilots, duties, baselines, ruleset, offTypes, homeBases, reload: load }} />
         </>}
         {view === 'history' && <DutyHistory {...{ pilots, duties, baselines, offTypes }} />}
+        {view === 'edits' && <EditReport {...{ pilots, edits, duties }} />}
         {view === 'ruleset' && <RulesetSettings {...{ toast, myProfile, ruleset, offTypes, reload: load }} />}
       </div>
     </div>
@@ -338,6 +342,108 @@ function DutyRoster({ toast, myProfile, pilots, duties, reload }) {
           onConfirm={apply}
         />
       )}
+    </div>
+  );
+}
+
+// ═══ 0b) FTL EDIT REPORT — DENETIM IZI (ftl_duty_edits) ═══════════
+// Serkan: "crew modulde yapilan edit ve delete islemlerinin log kayitlarini
+// goremiyorum — FTL edit report olsun."
+// Gorulmeyen denetim izi yarim denetim izidir. Ozellikle SILINEN gorevlerde
+// bu kayit TEK kanittir: satir artik yok, geriye yalniz mezar tasi kaliyor.
+// Tablo bilerek degistirilemez ve silinemez (UPDATE/DELETE policy YOK).
+function EditReport({ pilots, edits, duties }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const plus = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+  const [pilotId, setPilotId] = useState('');
+  const [from, setFrom] = useState(() => plus(today, -30));
+  const [to, setTo] = useState(today);
+
+  const pilotName = (id) => {
+    const p = pilots.find(x => x.id === id);
+    return p ? `${p.code || '—'} — ${p.full_name || ''}`.trim() : '—';
+  };
+  const dutyOf = (id) => (duties || []).find(d => d.id === id);
+
+  const rows = useMemo(() => (edits || []).filter(e => {
+    const day = String(e.created_at || '').slice(0, 10);
+    if (day < from || day > to) return false;
+    if (pilotId && e.pilot_id !== pilotId) return false;
+    return true;
+  }), [edits, from, to, pilotId]);
+
+  const kindBadge = (t) => {
+    const k = t === 'DELETE' ? 'red' : t === 'CANCEL' ? 'amber'
+            : t === 'CREW_CHANGE' ? 'blue' : t === 'AUTO_CREATED' ? 'dim' : 'blue';
+    return <span style={badge(k)}>{t}</span>;
+  };
+
+  return (
+    <div style={S.panel}>
+      <div style={S.panelH}>
+        <span style={S.panelT}>FTL edit report — audit trail</span>
+        <span style={{ fontSize:9, color:C.t3, letterSpacing:1, fontFamily:'var(--mono)' }}>
+          ftl_duty_edits · immutable · no delete
+        </span>
+      </div>
+
+      <div style={{ display:'flex', gap:14, alignItems:'flex-end', padding:'14px 16px', flexWrap:'wrap' }}>
+        <div style={{ width:260 }}><span style={S.label}>Pilot</span>
+          <select style={S.input} value={pilotId} onChange={e => setPilotId(e.target.value)}>
+            <option value="">ALL PILOTS</option>
+            {pilots.filter(p => ['pilot','admin_pilot'].includes(p.role))
+                   .map(p => <option key={p.id} value={p.id}>{p.code} — {p.full_name}</option>)}
+          </select></div>
+        <div style={{ width:170 }}><span style={S.label}>From</span>
+          <input type="date" style={S.input} value={from} onChange={e => setFrom(e.target.value)} /></div>
+        <div style={{ width:170 }}><span style={S.label}>To</span>
+          <input type="date" style={S.input} value={to} onChange={e => setTo(e.target.value)} /></div>
+        <div style={{ flex:1 }} />
+        <button style={S.btnS} onClick={() => window.print()}>PRINT / PDF</button>
+      </div>
+
+      {!rows.length ? (
+        <div style={{ ...S.note, margin:'0 16px 16px' }}>NO EDITS RECORDED IN THIS RANGE.</div>
+      ) : (
+        <div style={{ overflowX:'auto' }}>
+          <table style={S.table}>
+            <thead><tr>
+              <th style={S.th}>When</th><th style={S.th}>Pilot</th><th style={S.th}>Duty</th>
+              <th style={S.th}>Action</th><th style={S.th}>Field</th>
+              <th style={S.th}>Old → New</th><th style={S.th}>Reason</th>
+            </tr></thead>
+            <tbody>
+              {rows.map(e => {
+                const d = dutyOf(e.duty_id);
+                return (
+                  <tr key={e.id}>
+                    <td style={S.td}>{fmtDT(e.created_at)}</td>
+                    <td style={S.td}>{pilotName(e.pilot_id)}</td>
+                    <td style={S.td}>
+                      {d ? `${fmtD(d.duty_date)} ${routeOf(d)}`
+                         : <span style={{ color:C.t3 }}>— deleted —</span>}
+                    </td>
+                    <td style={S.td}>{kindBadge(e.edit_type)}</td>
+                    <td style={S.td}>{e.field_name || '—'}</td>
+                    <td style={{ ...S.td, whiteSpace:'normal' }}>
+                      <span style={{ color:C.red, textDecoration:'line-through' }}>{e.old_value || '—'}</span>
+                      <span style={{ color:C.t3 }}> → </span>
+                      <span style={{ color:C.green, fontWeight:700 }}>{e.new_value || '—'}</span>
+                    </td>
+                    <td style={{ ...S.td, whiteSpace:'normal', fontWeight:400 }}>{e.reason}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div style={{ ...S.note, margin:'12px 16px 16px' }}>
+        Bu kayitlar degistirilemez ve silinemez. Gerekce zorunludur — bos gerekce
+        veritabani seviyesinde reddedilir. "Duty" sutununda <b>— deleted —</b> yaziyorsa
+        gorev satiri artik yoktur; o gorevden geriye YALNIZ bu kayit kalmistir.
+      </div>
     </div>
   );
 }
