@@ -382,7 +382,8 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
     for (const f of changes) {
       if (f.type === 'time') {
         if (!form[f.key]) { updateObj[f.key] = null; continue; }
-        const iso = hhmmToTs(form[f.key], flight[f.key], flight.plans?.date);
+        const iso = hhmmToTs(form[f.key], flight[f.key], flight.plans?.date,
+                             f.key === 'off_blocks' ? null : (flight.off_blocks || flight.takeoff_time));
         if (!iso) { toast(`${f.label}: cannot resolve a date for "${form[f.key]}" — edit not saved.`, 'error'); setSaving(false); return; }
         updateObj[f.key] = iso;
       } else updateObj[f.key] = form[f.key] || null;
@@ -522,17 +523,42 @@ const TIME_KEYS = ['off_blocks','takeoff_time','landing_time','on_blocks'];
 /** timestamptz -> "HH:MM" (karsilastirma ve gosterim icin tek kaynak) */
 export const tsToHHMM = (v) => v ? new Date(v).toISOString().slice(11,16) : '';
 
+/** Plan tarihi coziculeri: once ISO ("2026-08-03"), sonra OFP bicimi
+ *  ("03 AUG 2026"). 🔴 4 Agu bulgusu (Serkan: bos inis saatine deger
+ *  yazilamiyordu): eski kod yalniz ISO deniyordu, plans.date ise OFP
+ *  bicimindedir -> Invalid Date -> null -> her deneme "cannot resolve a
+ *  date" hatasi. Bicim artik acikca parse ediliyor. */
+const parseFlightDate = (sVal) => {
+  if (!sVal) return null;
+  const iso = new Date(`${sVal}T00:00:00Z`);
+  if (!isNaN(iso.getTime())) return iso;
+  const m = /^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/.exec(String(sVal).trim());
+  if (!m) return null;
+  const mon = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
+    .indexOf(m[2].toUpperCase());
+  if (mon < 0) return null;
+  return new Date(Date.UTC(Number(m[3]), mon, Number(m[1])));
+};
+
 /** "HH:MM" -> timestamptz. Tarih MEVCUT damgadan alinir (gece yarisini asan
- *  inisler dogru gunde kalir); damga yoksa ucus tarihinden. Ikisi de yoksa
- *  tarih UYDURULMAZ -> null doner, cagiran acik hata verir (Ilke 1). */
-export const hhmmToTs = (hhmm, prevIso, flightDate) => {
+ *  inisler dogru gunde kalir); damga yoksa ucus tarihinden (ISO veya
+ *  "03 AUG 2026"). Ikisi de yoksa tarih UYDURULMAZ -> null doner, cagiran
+ *  acik hata verir (Ilke 1). notBeforeIso verilirse (or. inis icin off block)
+ *  sonuc ondan ONCEYE dusuyorsa +24s alinir — gece yarisini asan inis, ucus
+ *  tarihinden turetilirken de dogru gune oturur. */
+export const hhmmToTs = (hhmm, prevIso, flightDate, notBeforeIso) => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm||'').trim());
   if (!m) return null;
-  const base = prevIso ? new Date(prevIso)
-             : flightDate ? new Date(`${flightDate}T00:00:00Z`) : null;
+  const base = prevIso ? new Date(prevIso) : parseFlightDate(flightDate);
   if (!base || isNaN(base.getTime())) return null;
   const d = new Date(base);
   d.setUTCHours(Number(m[1]), Number(m[2]), 0, 0);
+  if (notBeforeIso) {
+    const ref = new Date(notBeforeIso);
+    if (!isNaN(ref.getTime()) && d.getTime() < ref.getTime()) {
+      d.setTime(d.getTime() + 24 * 3600000);
+    }
+  }
   return d.toISOString();
 };
 
@@ -642,7 +668,7 @@ function ArchivedFlts({toast,user}){
     for(const[k,v]of changes){
       if(TIME_KEYS.includes(k)){
         if(!v){updateObj[k]=null;continue;}
-        const iso=hhmmToTs(v,sel[k],sel.plans?.date);
+        const iso=hhmmToTs(v,sel[k],sel.plans?.date,k==='off_blocks'?null:(sel.off_blocks||sel.takeoff_time));
         if(!iso){toast(`${k}: cannot resolve a date for "${v}" — edit not saved.`,'error');setSaving(false);return;}
         updateObj[k]=iso;
       } else updateObj[k]=v;
