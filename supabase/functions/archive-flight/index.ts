@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
     const paxIn    = num(body.pax);
     const cyclesIn = num(body.cycles) ?? 1;
     const divertReason: string | null = body.divert_reason ?? null;
-    const regenOnly: boolean = body.regenerate_pdf === true;
+    let regenOnly: boolean = body.regenerate_pdf === true;
 
     // ── 3) Plan (tenant kontrolu) ────────────────────────────────────────────
     const { data: plan } = await admin.from("plans").select("*").eq("id", planId).single();
@@ -117,8 +117,51 @@ Deno.serve(async (req) => {
       // basari yolunda raporu indirir, plani lokalde ARSIVLENDI isaretler.
       // Cift archived_flights kaydi imkansizdir.
       const { data: exAf } = await admin.from("archived_flights")
-        .select("id, block_minutes, airborne_minutes, destination_icao")
+        .select("id, block_minutes, airborne_minutes, destination_icao, off_blocks, takeoff_time, landing_time, on_blocks")
         .eq("plan_id", planId).maybeSingle();
+
+      // 🔴 BOSLARI TAMAMLA (4 Agu 2026 saha bulgusu — LEIB→LTFE demo ucusu):
+      // Ilk arsiv cagrisiyla navlog aynasinin yazimi YARISABILIR: arsiv, inis
+      // saatleri sunucuya dusmeden okursa kolonlar NULL kalir; ikinci cagri da
+      // burada "already archived" deyip veriyi TAZELEMEDEN donuyordu — eksik
+      // kalici oluyordu. Artik: aynada olup arsivde BOS olan zaman kolonlari
+      // doldurulur (DOLU kolona ASLA yazilmaz — EASA/duzeltme yolu admin EDIT),
+      // bir sey dolduysa regen akisina gecilir: PDF yenilenir + 14. adim FTL'i
+      // gercek saatlerle kurar. Hicbir sey eksik degilse eski davranis aynen.
+      if (exAf) {
+        const { data: navQ } = await admin.from("navlog_data")
+          .select("waypoints, entries").eq("plan_id", planId).maybeSingle();
+        const isoD = toIsoDate(plan.date);
+        const wptsQ: any[] = navQ?.waypoints ?? [];
+        const entsQ: Record<string, any> = navQ?.entries ?? {};
+        const depQ = wptsQ.find(w => w.type === "dep");
+        const arrQ = wptsQ.find(w => w.type === "divert-arpt") ?? wptsQ.find(w => w.type === "dest");
+        const depEQ = depQ ? entsQ[depQ.uid] ?? {} : {};
+        const arrEQ = arrQ ? entsQ[arrQ.uid] ?? {} : {};
+        const fill: Record<string, unknown> = {};
+        if (!exAf.off_blocks   && depEQ.offBlock) fill.off_blocks   = ts(depEQ.offBlock, isoD);
+        if (!exAf.takeoff_time && depEQ.toTime)   fill.takeoff_time = ts(depEQ.toTime, isoD);
+        if (!exAf.landing_time && arrEQ.lndTime)  fill.landing_time = ts(arrEQ.lndTime, isoD);
+        if (!exAf.on_blocks    && arrEQ.onBlock)  fill.on_blocks    = ts(arrEQ.onBlock, isoD);
+        Object.keys(fill).forEach(k => { if (fill[k] == null) delete fill[k]; });
+        if (Object.keys(fill).length) {
+          if (exAf.block_minutes == null) {
+            const ob = (fill.off_blocks as string) ?? exAf.off_blocks;
+            const nb = (fill.on_blocks as string) ?? exAf.on_blocks;
+            if (ob && nb) fill.block_minutes = Math.round((new Date(nb).getTime() - new Date(ob).getTime()) / 60000);
+          }
+          if (exAf.airborne_minutes == null) {
+            const tt = (fill.takeoff_time as string) ?? exAf.takeoff_time;
+            const lt = (fill.landing_time as string) ?? exAf.landing_time;
+            if (tt && lt) fill.airborne_minutes = Math.round((new Date(lt).getTime() - new Date(tt).getTime()) / 60000);
+          }
+          const { error: fillErr } = await admin.from("archived_flights").update(fill).eq("id", exAf.id);
+          if (!fillErr) {
+            regenOnly = true;   // PDF + FTL 14. adim taze saatlerle kosar
+          }
+        }
+      }
+      if (!regenOnly) {
       const { data: exRep } = await admin.from("efb_documents")
         .select("file_path").eq("plan_id", planId)
         .eq("section", "REPORT").eq("status", "CURRENT").maybeSingle();
@@ -137,6 +180,7 @@ Deno.serve(async (req) => {
         flight_date: plan.date ?? null,
         report_pdf_path: exRep?.file_path ?? null,
       });
+      }
     }
     if (regenOnly && plan.status !== "archived") return json({ error: "Not archived yet" }, 409);
 
