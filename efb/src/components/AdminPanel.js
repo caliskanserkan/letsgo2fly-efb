@@ -549,7 +549,12 @@ const parseFlightDate = (sVal) => {
 export const hhmmToTs = (hhmm, prevIso, flightDate, notBeforeIso) => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm||'').trim());
   if (!m) return null;
-  const base = prevIso ? new Date(prevIso) : parseFlightDate(flightDate);
+  // Taban zinciri: mevcut damga -> ucus tarihi -> ayni ucusun BASKA damgasi
+  // (off block). Ucuncu basamak sayesinde plan tarihi hic cozulemese bile
+  // ayni ucusta dolu tek bir saat varsa tarih ondan turer (4 Agu bulgusunun
+  // tum varyantlarini kapatir).
+  const base = prevIso ? new Date(prevIso)
+             : (parseFlightDate(flightDate) ?? (notBeforeIso ? new Date(notBeforeIso) : null));
   if (!base || isNaN(base.getTime())) return null;
   const d = new Date(base);
   d.setUTCHours(Number(m[1]), Number(m[2]), 0, 0);
