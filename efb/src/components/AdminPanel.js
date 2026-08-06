@@ -637,6 +637,7 @@ function ArchivedFlts({toast,user}){
   const[filter,setFilter]=useState({route:''});
   const[editModal,setEditModal]=useState(false);
   const[deleteModal,setDeleteModal]=useState(false);
+  const[regen,setRegen]=useState(false);
   const[editForm,setEditForm]=useState({});
   const[deleteReason,setDeleteReason]=useState('');
   const[saving,setSaving]=useState(false);
@@ -796,6 +797,20 @@ function ArchivedFlts({toast,user}){
           footer={
             <>
               <button style={{...S.btnPrimary,flex:1}} onClick={()=>openEdit(sel)}>EDIT ALL FIELDS</button>
+              {/* RAPORU YENIDEN URET (6 Agu 2026, Serkan: "raporlarda geriye
+                  donuk SHT/HG uyarlamasi yapacaktik, hala EASA yaziyor").
+                  Eskiden regen YALNIZ bir duzeltmenin yan etkisiydi; rapor KODU
+                  degistiginde mevcut PDF'leri tazelemenin yolu yoktu ve insan
+                  sahte bir duzeltme yapmak zorunda kaliyordu. Bu dugme VERIYE
+                  DOKUNMAZ, PDF'i guncel sablonla yeniden cizer. */}
+              <button style={S.btnSecondary} disabled={regen} onClick={async()=>{
+                setRegen(true);
+                const{error}=await supabase.functions.invoke('archive-flight',
+                  {body:{plan_id:sel.plan_id,regenerate_pdf:true}});
+                toast(error?`Report regen failed: ${error.message}`
+                           :'Report PDF regenerated with the current template.',error?'error':'success');
+                setRegen(false); load();
+              }}>{regen?'REGENERATING…':'REGEN REPORT'}</button>
               <button style={S.btnDanger} onClick={()=>setDeleteModal(true)}>DELETE RECORD</button>
             </>
           }>
