@@ -520,6 +520,30 @@ function ActiveFlts({toast}){
 //        denetim izi kaydi) tamamen kilitliydi.
 const TIME_KEYS = ['off_blocks','takeoff_time','landing_time','on_blocks'];
 
+// 🔴 SURE ALANLARI (6 Agu 2026 saha bulgusu, Serkan): BLOCK ve FLIGHT
+// veritabaninda TAMSAYI DAKIKA (`block_minutes`/`airborne_minutes`), ama form
+// serbest metin gonderiyordu → "3:08" gidince Postgres
+// `invalid input syntax for type integer` ile REDDEDIYOR. Sonuc: o kayitta
+// HICBIR alan duzeltilemiyordu (ATIS bile), cunku UPDATE tek islem.
+// Cozum: saat alanlariyla AYNI desen — formda HH:MM gosterilir/maskelenir,
+// yazarken dakikaya cevrilir, karsilastirma da HH:MM uzerinden yapilir
+// (yoksa dokunulmamis alan her seferinde "degisti" gorunur).
+const DURATION_KEYS = ['block_minutes','airborne_minutes'];
+
+/** dakika -> "HH:MM" (normTime maskesiyle ayni bicim: saat 2 haneli) */
+export const minsToHHMM = (m) => (m == null || m === '' || isNaN(m)) ? ''
+  : `${String(Math.floor(Math.abs(m)/60)).padStart(2,'0')}:${String(Math.abs(m)%60).padStart(2,'0')}`;
+
+/** "HH:MM" -> dakika. Cozulemezse null (SAYI UYDURULMAZ — cagiran hata verir). */
+export const hhmmToMins = (v) => {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return v;
+  const m = String(v).trim().match(/^(\d{1,3}):([0-5]\d)$/);
+  if (m) return Number(m[1])*60 + Number(m[2]);
+  if (/^\d+$/.test(String(v).trim())) return Number(v);   // duz dakika da kabul
+  return null;
+};
+
 /** timestamptz -> "HH:MM" (karsilastirma ve gosterim icin tek kaynak) */
 export const tsToHHMM = (v) => v ? new Date(v).toISOString().slice(11,16) : '';
 
@@ -648,7 +672,8 @@ function ArchivedFlts({toast,user}){
       takeoff_time:f.takeoff_time?new Date(f.takeoff_time).toISOString().slice(11,16):'',
       landing_time:f.landing_time?new Date(f.landing_time).toISOString().slice(11,16):'',
       on_blocks:f.on_blocks?new Date(f.on_blocks).toISOString().slice(11,16):'',
-      block_minutes:f.block_minutes||'',airborne_minutes:f.airborne_minutes||'',
+      // Sure alanlari FORMDA HH:MM (kayitta dakika) — bkz. DURATION_KEYS notu.
+      block_minutes:minsToHHMM(f.block_minutes),airborne_minutes:minsToHHMM(f.airborne_minutes),
       takeoff_fuel:f.takeoff_fuel||'',remaining_fuel:f.remaining_fuel||'',
       actual_lw:f.actual_lw||'',vref:f.vref||'',req_landing_dist:f.req_landing_dist||'',
       dep_rwy:f.dep_rwy||'',arr_rwy:f.arr_rwy||'',dep_atis:f.dep_atis||'',
@@ -664,7 +689,9 @@ function ArchivedFlts({toast,user}){
     const{reason,...fields}=editForm;
     // Saat alanlari HH:MM olarak KARSILASTIRILIR (ikisi de ayni bicime indirilir),
     // yoksa dokunulmamis saatler her seferinde "degisti" gorunur.
-    const cur=k=>TIME_KEYS.includes(k)?tsToHHMM(sel[k]):String(sel[k]==null?'':sel[k]);
+    const cur=k=>TIME_KEYS.includes(k)?tsToHHMM(sel[k])
+               :DURATION_KEYS.includes(k)?minsToHHMM(sel[k])
+               :String(sel[k]==null?'':sel[k]);
     const changes=Object.entries(fields).filter(([k,v])=>String(v==null?'':v)!==cur(k));
     if(!changes.length){toast('No changes detected.','error');setSaving(false);return;}
 
@@ -676,6 +703,14 @@ function ArchivedFlts({toast,user}){
         const iso=hhmmToTs(v,sel[k],sel.plans?.date,k==='off_blocks'?null:(sel.off_blocks||sel.takeoff_time));
         if(!iso){toast(`${k}: cannot resolve a date for "${v}" — edit not saved.`,'error');setSaving(false);return;}
         updateObj[k]=iso;
+      } else if(DURATION_KEYS.includes(k)){
+        // HH:MM -> dakika. Cozulemiyorsa YAZMA ve alani ISIMLENDIREREK soyle —
+        // eskiden ham metin gidip Postgres'in tip hatasina donuyordu, kullanici
+        // hangi alanin bozuk oldugunu goremiyordu.
+        if(v===''||v==null){updateObj[k]=null;continue;}
+        const mins=hhmmToMins(v);
+        if(mins==null){toast(`${k}: "${v}" is not a valid duration (use HH:MM) — edit not saved.`,'error');setSaving(false);return;}
+        updateObj[k]=mins;
       } else updateObj[k]=v;
     }
     const{error:upErr}=await supabase.from('archived_flights').update(updateObj).eq('id',sel.id);
@@ -807,7 +842,7 @@ function ArchivedFlts({toast,user}){
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
             <EF form={editForm} setForm={setEditForm} label="OFF BLOCK (HH:MM)" k="off_blocks" type="time"/><EF form={editForm} setForm={setEditForm} label="T/O TIME (HH:MM)" k="takeoff_time" type="time"/>
             <EF form={editForm} setForm={setEditForm} label="LANDING (HH:MM)" k="landing_time" type="time"/><EF form={editForm} setForm={setEditForm} label="ON BLOCK (HH:MM)" k="on_blocks" type="time"/>
-            <EF form={editForm} setForm={setEditForm} label="BLOCK MINS" k="block_minutes"/><EF form={editForm} setForm={setEditForm} label="FLIGHT MINS" k="airborne_minutes"/>
+            <EF form={editForm} setForm={setEditForm} label="BLOCK (HH:MM)" k="block_minutes" type="time"/><EF form={editForm} setForm={setEditForm} label="FLIGHT (HH:MM)" k="airborne_minutes" type="time"/>
             <EF form={editForm} setForm={setEditForm} label="T/O FUEL (lb)" k="takeoff_fuel"/><EF form={editForm} setForm={setEditForm} label="REM FUEL (lb)" k="remaining_fuel"/>
             <EF form={editForm} setForm={setEditForm} label="ACTUAL LW (lb)" k="actual_lw"/><EF form={editForm} setForm={setEditForm} label="VREF (kt)" k="vref"/>
             <EF form={editForm} setForm={setEditForm} label="REQ LND DIST (ft)" k="req_landing_dist"/><EF form={editForm} setForm={setEditForm} label="LANDINGS" k="landing_count"/>
