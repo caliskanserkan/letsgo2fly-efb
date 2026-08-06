@@ -19,3 +19,21 @@ export const normTime = (v) => {
   if (mm.length === 2 && Number(mm) > 59) mm = '59';
   return `${hh}:${mm}`;
 };
+
+// normDuration: SÜRE girişleri (blok / uçuş süresi). Serkan (6 Ağu): "düz rakam
+//     bile yazsam HH:MM üretmesi gerekirdi" — maskenin işi bu, kullanıcı iki
+//     nokta aramamalı.
+//     normTime'dan FARKI RAKAM YORUMU: normTime ilk iki haneyi SAAT sayar
+//     (saat-of-day geleneği), o yüzden "308" → "23:8" gibi çöp üretir. Sürede
+//     SON İKİ HANE DAKİKADIR: "308" → 3:08, "0308" → 3:08, "1230" → 12:30.
+//     TAVAN 23:59 (Serkan, 6 Ağu: "bizim uçaklar zaten o kadar uçmuyor") —
+//     tek bacağın blok süresi 24 saati aşmaz; aşan bir değer giriş hatasıdır.
+export const normDuration = (v) => {
+  const d = String(v ?? '').replace(/[^\d]/g, '').slice(0, 4);
+  if (d.length <= 2) return d;
+  let hh = String(Number(d.slice(0, d.length - 2)));   // bastaki sifirlar atilir
+  let mm = d.slice(-2);
+  if (Number(hh) > 23) hh = '23';
+  if (Number(mm) > 59) mm = '59';
+  return `${hh}:${mm}`;
+};
