@@ -1,0 +1,778 @@
+===== SAYFA 1 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 1 / 14 
+ 
+ 
+HAVA TAKSİ VE GENEL HAVACILIK İŞLETMELERİ İÇİN UÇUŞ VE GÖREV 
+SÜRESİ SINIRLAMALARI İLE DİNLENME GEREKLİLİKLERİ TALİMATI 
+(SHT-FTL/HG) 
+ 
+BİRİNCİ BÖLÜM 
+Amaç, Kapsam, Dayanak, Tanımlar ve Kısaltmalar 
+ 
+ Amaç 
+ MADDE 1 – (1) Bu Talimatın amacı, uçuş emniyetinin sağlanması için uçuş ve kabin 
+ekibi üyeleri ile işleticinin uyması zorunlu olan uçuş ve kabin ekibi üyelerine yönelik uçuş ve 
+görev süresi sınırlamaları ile dinlenme gerekliliklerine ilişkin esas ve usulleri belirlemek ve bu 
+konudaki faaliyetleri düzenlemektir. 
+ 
+ Kapsam 
+ MADDE 2 – (1) Bu Talimat, Bakanlık tarafından ruhsatlandırılmış hava taksi ve genel 
+havacılık işletmelerini, söz konusu işletmelerde görevli ilgili yönetici personeli ve geçerli lisans 
+ve/veya sertifika sahibi olan uçuş ve kabin ekibi üyelerini kapsar. 
+ 
+ Dayanak 
+ MADDE 3 – (1) Bu T alimat, 14/10/1983 tarih ve 2920 sayıl ı Türk Sivil Havacılık 
+Kanunu, 10/11/2005 tarih ve 5431 sayılı Sivil Havacılık Genel Müdürlüğü Teşkilat ve 
+Görevleri Hakkında Kanun , 16/06/1984 sayılı ve 18433 sayılı Resmi Gazete’de yayımlanan 
+Ticari Hava Taşıma İşletmeleri Yönetmeliğine (SHY 6A) ve 14/05/2013 tarihli ve 28647 sayılı 
+Resmi Gazete’de yayımlanan  Genel Havacılık Yönetmeliği (SHY 6B)  dayanılarak 
+hazırlanmıştır. 
+ 
+ Tanımlar ve kısaltmalar 
+ MADDE 4 – (1) Bu Talimatta geçen; 
+a) Ana üs: İlgili uçuş ve kabin ekibi üyesinin genel olarak bir görev süresine veya görev 
+süreleri serisine başladığı veya son verdiği ve normal koşullar altında işleticinin ilgili uçuş ve 
+kabin ekibi üyesinin konaklamasından sorumlu olmadığı, işletici tarafından uçuş ve kabin ekibi 
+üyesine tayin edilen mahalli, 
+b) Artırılmış uçuş ekibi: İlgili hava aracını işletmek üzere gerekli olan asgari sayının 
+üzerinde uçuş ekibi üyesinden oluşan, her bir uçuş ekibi üyesine tayin edildiği görev yerinden 
+ayrılma ve uygun nitelikte kalifiye başka bir uçuş ekibi üyesi ile değiştirilme imkânı veren uçuş 
+ekibini, 
+c) Bakanlık: Ulaştırma, Denizcilik ve Haberleşme Bakanlığı’nı, 
+ç) Diğer nöbet: Evdeki veya uygun konaklama tesisindeki nöbeti, 
+d) Dinlenme süresi: Ekip üyesinin tüm görevlerden  ve nöbetten muaf olduğu, görev 
+sonrasındaki veya görev öncesindeki, sürekli, kesintisiz ve tanımlanmış süre zarfını, 
+e) FTSS: Uçuş ve UGS sınırlamaları ile dinlenme gereklilikleri prosedürü, 
+f) Geçici üs: Ana üs dışında, uçuş harekâtının devamlılığı için, uçuş ve kabin ekibi 
+üyesinin UGS’nin başlayıp sona erdiği ve ekip üyesine işleticinin uygun konaklama tesisi ve 
+===== SAYFA 2 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 2 / 14 
+ 
+iaşe imkânı sağlamakla yükümlü olduğu, uçuş ve kabin ekibi üyelerinin geçici bir süre kalacağı 
+ve aynı zamanda işleticinin filosunda yer alan asgari bir hava aracının konuşlandığı işleticiler 
+tarafından tayin edilen yurt içi ve/veya yurt dışındaki mahali, 
+g) Genel Müdürlük: Sivil Havacılık Genel Müdürlüğü’nü, 
+ğ) Görev: Uçuş görevi, idari görevler, eğitim vermek veya almak ve kontrol leri 
+gerçekleştirmek, konumlandırma ve bir takım nöbet unsurları dâhil olmak üzere, ekip üyesinin 
+işletici için icra ettiği herhangi bir görevi, 
+h) Görev süresi:  Herhangi bir ekip üyesinin işletici tarafından bir görev için görev 
+yerinde hazır bulunduğu anda başlayan ve söz konusu kişinin,  uçuş sonrası görevi de dâ hil 
+olmak üzere tüm görevlerden muaf olduğu anda sona eren süreyi, 
+ı) Görevli ekip üyesi:  Bir uçuş  sırasında veya uçuşun bir bölümünde  hava aracında 
+görev yapan ekip üyesini, 
+i) Havaalanı nöbeti: Havaalanında icra edilen nöbeti, 
+j) Hava işi: Önceden belirlenmiş bir hava sahasında ve belirlenmiş bir amaca yönelik 
+olarak gerçekleştirilen operasyonları, 
+k) HEMS: Helikopterle gerçekleştirilen acil durum tıbbi hizmet operasyonlarını, 
+l) İntibak edilmiş: Herhangi bir ekip üyesinin günlük biyolojik saatinin, söz konusu ekip 
+üyesinin bulunduğu zaman dilimine senkronize edildiği hali, 
+m) Kabin ekibi  üyesi: İşletici tarafından operasyonlar sırasında yolcular ile uçuşun 
+emniyetine ilişkin görevler verilen, uçuş ekibi ya da teknik ekip üyesi dışındaki uygun 
+niteliklere sahip bir ekip üyesini, 
+n) Konumlandırma: Kişiye özel dinlenme yerinden tayin edilen göreve intikal yerine 
+kadarki ve tayin edilen göreve başlama yerinden kişiye özel dinlenme yerine kadarki seyahat 
+süresi ile dinlenme yerinden görevin başlamasına ve gö revin başlamasından dinlenme yerine 
+kadarki yerel ulaşım için geçen zaman hariç olmak üzere, görevli olmayan uçuş ve kabin ekibi 
+üyesinin işleticinin emriyle bir yerden başka bir yere ulaştırılmasını, 
+o) Mola: Herhangi bir UGS dâhilindeki, görev olarak sayılan ve uçuş ve kabin ekibi 
+üyesinin bu sırada tüm görevlerden muaf tutulduğu, dinlenme süresinden daha kısa olan bir 
+süre zarfını, 
+ö) Nöbet: Herhangi bir uçuş ve kabin ekibi üyesinin işletici tarafından herhangi bir uçuş, 
+konumlandırma veya araya giren dinlenme süresi olmadan sair görev için görevlendirme almak 
+üzere hazır bulunmasının gerekli görüldüğü önceden bildirilmiş ve tanımlanmış süreyi, 
+p) Rotasyon: Ana üs’te veya geçici üste başlayan ve işleticinin söz konusu ekip üyesinin 
+konaklamasından artık sorumlu olmadığı bir dinlenme süresi için ana üsse veya geçici üsse geri 
+döndüğünde sona eren, asgari bir uçuş görevini ve ana üs  veya geçici üs  dışındaki dinlenme 
+sürelerini içeren görev veya görevler serisini, 
+r) Sektör: UGS’nin bir parçası olarak, hava aracının kalkış amacıyla ilk hareketinden 
+itibaren, iniş sonrasında tayin edilmiş park pozisyonunda tamamıyla duruncaya kadar geçen 
+uçuşu, 
+s) SHT G-VFR-H: 21.09.2012 tarihli “Gece Görerek Şartlarda Helikopterlerin HEMS, 
+Ambulans, Arama Kurtarma ve İnsani Yardım Maksatlı Uçuşlarına İlişkin Talimat’ı, 
+===== SAYFA 3 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 3 / 14 
+ 
+ş) SHY-İPC: 29.01.2013 tarihli ve 28543 sayılı Resmi Gazete’de yayımlanan Sivil 
+Havacılık Genel Müdürlüğü Tarafından Verilecek İdari Para Cezaları Hakkında Yönetmelik’i, 
+t) SHY 6B: 14.05.2013 tarihli ve 28647 sayılı Resmi Gazete’de yayımlanan Genel 
+Havacılık Yönetmeliği’ni, 
+u) SKPK: Sorumlu kaptan pilot kararını, 
+ü) Tek boş gün: Önceden tebliğ edilen, bir yerel günden ve iki yerel geceden oluşan, 
+tüm görevlerden ve nöbet görevinden muaf olunan süreyi (Dinlenme süresi, boş gün kapsamına 
+dâhil edilebilir), 
+v) Turnaround: Sektörler arasındaki hazırlığı, 
+y) Uçuş ekibi üyesi: Bir UGS boyunca, hava aracının işletilmesi ile il gili görevleri ifa 
+eden pilot lisansına sahip ekip üyesini, 
+z) Uçuş görev süresi : Herhangi bir uçuş ve kabin ekibi üyesinin görev yerinde hazır 
+bulunmasıyla başlayan, bir sektör veya sektörler serisini kapsayan ve söz konusu uçuş ve kabin 
+ekibi üyesinin görevli ekip üyesi olarak hareket ettiği son sektörün sonunda hava aracının nihai 
+olarak durduğu , uçaklar için motorların kapatıldığı  veya helikopterler için pallerin durduğu  
+anda sona eren süreyi, 
+aa) Uçuş süresi-sabit kanat : Hava aracının kalkış am acıyla park yerinden ilk hareket 
+ettiği andan belirlenmiş park yerinde durmasına ve tüm motorların veya pervanelerin 
+kapatılmasına kadar geçen zamanı, 
+bb) Uçuş süresi -döner kanat:  Helikopter pallerinin dönmeye başladığı andan, uçuş 
+sonunda park yerinde motorun susturularak pallerin durduğu ana kadar geçen toplam süreyi, 
+cc) UGS: Uçuş görev süresini, 
+çç) US: Uçuş süresi (block time)’ni, 
+dd) Uygun konaklama tesisi: Nöbet görevi, açık mesai ve dinlenme kapsamındaki anlam 
+doğrultusunda, her bir uçuş ve kabin ekip üyesi için sessiz bir ortama sahip ve bir yatakla 
+donatılmış, yeterli şekilde havalandırmaya, sıcaklığın ve ışık yoğunluğunun ayarlanmasına 
+ilişkin bir cihaza ve yiyecek ile içeceğe erişim imkânına sahip olan ayrı bir odayı, 
+ee) Uzun menzil uçuşu: Bir UGS içinde, asgari 4 saatlik zaman dilimi geçilen bir uçuş 
+görevini, 
+ff) Yerel gece: Yerel saatle 22.00 ila 08.00 arasına tekabül eden  herhangi bir 8 saatlik 
+süreyi, 
+gg) Yerel gün: Yerel saatle 00.00’da başlayan 24 saatlik süreyi, 
+ifade eder. 
+ 
+İKİNCİ BÖLÜM 
+Genel Esaslar 
+ 
+ Boş gün 
+ MADDE 5 – (1) Bu Talimatta tanımlanan amaç doğrultusunda , ekip üyelerine 
+işletmeler tarafından verilecek boş günlere yönelik uygulamaların; 
+a) Biribirini takip eden 6 günü müteakip asgari 1 tek boş gün, 
+===== SAYFA 4 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 4 / 14 
+ 
+b) Her bir takvim ayı için asgari 7 yerel gün ve 
+c) Her bir takvim yılı için asgari 96 yerel gün olacak şekilde gerçekleştirilmesi 
+gerekmektedir. 
+ 
+(2) Boş günler, çalışılan gün sayısı ile orantılı olarak verilir. 
+ 
+(3) Boş günler, kullanıldığı ay içine ve ayın iki yarısına dengeli dağıtılır. 
+ 
+(4) Bir takvim ayı içerisinde verilmesi gereken asgari 7 yerel gün, 2+2+1+1+1 şeklinde 
+gruplanarak planlanır. 
+ 
+ Sorumluluklar 
+ MADDE 6 – (1) Bu Talimatta belirtilen esas ve sınırlamaların planlanmasından sorumlu 
+olmak üzere işletmeler tarafından asgari bir personel görevlendirilmesi gerekmektedir. 
+ 
+ (2) Ayrıca, bu Talimatta yer alan gerekliliklerin yerine getirilmesinden ve kontrolünden 
+işletmeler ve ekip üyeleri Genel Müdürlüğe karşı sorumludurlar. 
+ 
+ İşletici sorumlulukları 
+ MADDE 7 - (1) İşletici; 
+a) Her bir ekip üyesi için bir ana üs belirleyecektir. 
+b) Uçuş görev süreleri ve dinlenme sürelerinin sıklıkları ve biçimleri arasındaki ilişkiyi 
+dikkate alacak ve minimum dinlenme verilmiş uzun görevlerin ekip üyeleri üzerinde 
+oluşturacağı etkiyi göz önünde bulunduracaktır. 
+c) Boş günler planla yacak ve bunları ekip üyelerine asgari 24 saat önceden önceden 
+bildirecektir. 
+ç) Ekip üyelerine, ekip üyelerinin önceki görevlerin etkilerinin üstesinden gelmelerine 
+ve bir sonraki UGS’nin başlangıcı itibariyle dinlenmiş olmalarına imkân verecek şekilde yeterli 
+süreye sahip dinlenme süreleri temin edecektir. 
+d) Görev çizelgelerini, ekip üyelerinin yeterli dinlenmeyi planlamalarına imkân verecek 
+şekilde yayınlayacaktır. 
+e) Uçuş görevlerini, uçuş öncesi görevler, sektör, turnaround süreleri için gerekli zamanı 
+göz önünde bulundurarak müsaade edilen UGS dâhilinde planlayacaktır. 
+ 
+ Ekip üyesi sorumlulukları 
+ MADDE 8 - (1) Ekip üyesi, 
+a) Verilen dinlenmeye ilişkin imkanlardan ve kolaylıklardan optimal bir  şekilde 
+faydalanacak ve dinlenme sürelerini uygun bir şekilde planlayacak ve kullanacaktır. 
+b) Aşırı yorgun olduğu durumlarda hava aracında görevli olmayacaktır. 
+ 
+ Faaliyet kapsamı 
+ MADDE 9 – (1) İşleticinin sahip olduğu mevcut ruhsat kapsamına bakılmaksızın , 
+gerçekleştirmekte olduğu operasyon faaliyetine ilişkin olarak bu Talimat içerisinde yer alan 
+ilgili faaliyet hükümleri geçerli olacaktır. 
+ 
+ 
+ 
+===== SAYFA 5 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 5 / 14 
+ 
+ Bildirim süreleri 
+ MADDE 10 – (1) İşletici tarafından yer görevlerine ilişkin bildirim süreleri için 
+aşağıdaki hükümler geçerli olacaktır: 
+a) UGS kapsamında, b ir uçuş görevi için hazırlık yapılması ile ilk uçuş süresinin 
+başlaması arasında geçen süre, asgari 60 dakikadır. 
+b) Görev süresi kapsamında, uçuş/uçuş serilerinin sona ermesinden itibaren geçen süre 
+asgari 30 dakikadır. 
+c) Bu fıkranın (b) bendine istisna teşkil etmek üzere,  görev süresi kapsamında ki uçuş 
+sonrası bildirim süresi, simülatör görevleri ve eğitim faaliyetleri için asgari 60, sabit kanat hava 
+ambulans görevleri için asgari 15 dakikadır. 
+ç) Bu fıkranın (a) bendine istisna teşkil etmek üzere, UGS kapsamındaki uçuş öncesi 
+bildirim süresi, helikopter hava ambulans görevleri için asgari 15, sabit kanat hava ambulans 
+görevleri için 45 dakikadır. 
+ 
+ Sabit kanat operasyonları kapsamında u çuş sırasındaki dinlenmeye bağlı olarak 
+azami günlük UGS’nin uzatılması 
+ MADDE 11 - (1) Uçuş sırasındaki dinlenme olanağı, hava aracı kabinindeki veya 
+kokpitteki, dikey yönde geri yaslanabilen  ve istirahat eden ekip üyesi için konforlu bir koltuk 
+anlamına gelmektedir. 
+ 
+ (2) UGS, 3 sektör ile sınırlıdır. 
+ 
+ (3) Uçuş sırasında asgari dinlenme süresi her bir ekip üyesi için ardışık 90 dakika ve son 
+inişi yapacak uçuş ekibi üyeleri için ardışık 2 saattir. 
+ 
+ (4) Azami günlük UGS limitleri, uçuş ekibi için uçuş sırasında dinlenmeye bağlı olarak 
+bir ilave uçuş ekibi üyesi ile 2 saat, iki ilave uçuş ekibi üyesi ile 3 saat uzatılabilecektir. 
+ 
+ (5) Dinlenme olanağında geçirilen tüm zaman, UGS’den sayılır. 
+ 
+ Uçuş operasyonlarında öngörülemeyen haller – SKPK 
+ MADDE 12 - (1) Aşağıda belirtilen hususlara uygun olmak kaydıyla, görev başlangıcı 
+sonrasında başlayan, uçuş operasyonlarındaki öngörülemeyen haller de, UGS’ye ve dinlenme 
+sürelerine ilişkin limitler, diğer ekip üyeleri ile de istişare edildikten sonra sorumlu kaptan pilot 
+tarafından değiştirilebilir. 
+a) Bu Talimat  hükümleri kapsamında belirlenen azami UGS  limitleri, azami 2 saat 
+arttırılabilir. Artırılmış uçuş ekibi olması durumunda ise,  azami UGS limitleri  azami 3 saat 
+arttırılabilir. Son sektörde, izin verilen artışın kalkış sonrasında öngörülemeyen haller sebebiyle 
+aşılması durumunda, uçuş planlanmış varış noktasına veya yedek havaalanına devam edilebilir. 
+b) Ciddi aşırı yorgunluğa sebebiyet verebilecek öngörülemeyen haller durumunda, 
+sorumlu kaptan pilot, uçuş emniyeti üzerindeki her nevi yıkıcı etkiyi ortadan kaldırmak 
+amacıyla gerçek UGS’yi kısaltacak ve/veya dinleme süresini arttıracaktır. 
+c) İşletici aşağıdakileri sağlamalıdır: 
+1) Sorumlu kaptan pilot tarafından, herhangi bir UGS kendi takdir hakkı ve yetkisi 
+doğrultusunda arttırıldığında veya dinlenme süresi kısaltıldığında işleticiye bir rapor sunulur. 
+===== SAYFA 6 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 6 / 14 
+ 
+2) Gerçekleştirilen UGS’nin artırılmasının veya dinlenme süresinin kısaltılmasının 1 
+saati aştığı hallerde, işletici tarafından, işleticinin kendi yorumları ile birlikte kaptan raporunun 
+bir kopyası söz konusu olaydan en geç 28 gün içerisinde Genel Müdürlüğe gönderilir. 
+ 
+(2) Dinlenm e süresi nin kısaltılması , sadece yapılacak olan planlı uçuş görevinin 
+zamanında icrasının şüpheli duruma geldiği zamanlarda uygulanabilir. Dinlenme süresi, azami 
+2 saat kısaltılabilir. Kısaltılması durumunda, müteakip görev sonrasındaki hak edilen dinlenme 
+süresi, kısaltılan miktarın 2 katı kadar arttırılacaktır. Ancak, bu Talimat hükümleri kapsamında 
+belirtilen hak edilen dinlenme süresi 10 saatin altına kısaltılamaz. 
+ 
+(3) UGS’nin SKPK ile uzatılmasını müteakip dinlenme süresi kısaltılamaz. 
+ 
+ Uçuş ve görev süresi sınırlamaları 
+ MADDE 13 - (1) Herhangi bir ekip üyesinin görevlendirildiği toplam görev süresi 
+aşağıdakileri aşmayacaktır: 
+a) Birbirini izleyen herhangi 7 gün içerisinde 60 saat görev süresi; 
+b) Birbirini izleyen herhangi 14 gün içerisinde 110 saat görev süresi; 
+c) Birbirini izleyen herhangi 28 gün içerisinde 190 saat görev süresi, bu süre boyunca 
+uygulanabildiği ölçüde eşit oranda yayılmış; 
+ç) Herhangi bir takvim yılı içerisinde 2000 saat görev süresi. 
+ 
+(2) Herhangi bir  ekip üyesinin görevlendirildiği sektörlerin toplam uçuş süresi 
+aşağıdakileri aşmayacaktır: 
+a) Birbirini izleyen herhangi 28 gün içerisinde, sabit kanat için 100 saatlik uçuş süresi, 
+döner kanat için 90 saatlik uçuş süresi; 
+b) Birbirini izleyen herhangi 12 takvim ayı içerisinde 1000 saatlik uçuş süresi; 
+c) Döner kanat operasyonları için birbirini izleyen herhangi 7 gün içerisinde 30 saatlik 
+uçuş süresi. 
+ 
+ Konumlandırma 
+ MADDE 14 - (1) Konumlandırmaya ilişkin hususlarda aşağıdaki hükümler geçerli 
+olacaktır: 
+a) Konumlandırmalarda harcanan tüm zaman, görev süresi olarak kayıt altına 
+alınacaktır. 
+b) Uçuş görev başlangıç ve sonrasındaki konumlandırmalar sektör sayılmayacaktır. 
+Ancak, uçuş operasyonu öncesindeki konumlandırma UGS olarak sayılacaktır; 
+c) Uçuş görevi sonrasındaki konumlandırma, bu Talimat hükümlerinde belirtilen hak 
+edilen dinlenme süreleri hesaplanırken dikkate alınır. 
+ 
+ Açık mesai 
+ MADDE 15 - (1) Yerde verilen bir molaya bağlı olarak azami günlük UGS’nin 
+uzatılmasına ilişkin koşullar aşağıdaki hususlar doğrultusunda olacaktır: 
+a) UGS dâhilindeki, uygun konaklama tesisinde gerçekleştirilen mola asgari ardışı k 3 
+saatlik bir süreye sahiptir. 
+b) Bu Talimat kapsamında belirtilen azami uçuş görev süreleri, molanın %50’sine kadar 
+arttırılabilecektir ancak bu süre hiçbir şekilde 4 saati aşamaz. 
+===== SAYFA 7 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 7 / 14 
+ 
+c) Yerde verilen mola, bütünüyle UGS olarak sayılacaktır; 
+ç) Uygun konaklama tesisi sağlanır. 
+d) Açık mesai, uçuş sırasındaki dinlenme ile birleştirilemez. 
+e) Uçuş sonrası ve uçuş öncesi görevleri ile seyahat haline ilişkin asgari toplam süre 60 
+dakikadır. 
+ 
+ Dinlenme süreleri 
+ MADDE 16 - (1) Ana üs’te başlayan herhangi bir UGS’nin öncesinde sağlanan asgari 
+dinlenme süresi en azından, hangisi daha uzun ise, bir önceki görev süresi kadar veya 12 saattir. 
+ 
+ (2) Ana üs dışında başlayan herhangi bir UGS’nin öncesinde sağlanan asgari dinlenme 
+süresi en azından, hangisi daha uzun ise, bir önceki görev süresi kadar veya 10 saattir. Bu süre, 
+seyahat ve fizyolojik ihtiyaçlar için olan süreye ilaveten 8 saatlik uyku imkânını kapsayacaktır. 
+Fizyolojik ihtiyaçlar için izin verilen süre 1 saat tir.  Dolayısıyla, uygun konaklama tesisine 
+seyahat süresinin 30 dakikanın üzerinde olması halinde, işletici dinlenme süresini, 30 dakikanın 
+üzerindeki seyahat süresinin farkının iki katı kadar artırmalıdır. 
+ 
+ (3) Uzun menzil uçuşlarına ilişkin dinlenme süreleri ile ilgili aşağıdaki hükümler geçerli 
+olacaktır: 
+a) Varış noktasındaki asgari dinlenme, hangisi daha uzunsa, en az bir önceki görev 
+süresi kadar veya 14 saattir. 
+b) İlgili ekip üyelerin e, a na üs veya geçici üs’se döndükten sonra 2 yerel geceyi 
+kapsayan asgari 48 saatlik dinlenme süresi verilir. 
+ 
+ Nöbet 
+ MADDE 17 - (1) Havaalanı nöbetine ilişkin hususlarda aşağıdaki hükümler geçerli 
+olacaktır: 
+a) Ekip üyesinin, bildirim noktasında bildirimde bul unmasından itibaren tebliğ edilen 
+havaalanında nöbet süresinin sonuna kadar havaalanında nöbette olduğu sayılır. 
+b) Havaalanı nöbeti, görev süresine dâhil edilir. 
+c) UGS, UGS’nin başlangıcından itibaren sayılır. Azami UGS, nöbette geçirilen 4 saatin 
+üzerindeki süre kadar kısaltılır. 
+ç) Havaalanı nöbetinin ve tahsis edilmiş UGS’nin azami birleşik süresi 16 saattir. Böyle 
+bir durumda havaalanı nöbeti, bu Talimat hükümlerinde belirtilen asgari dinlenme süresi 
+hesaplamalarında dikkate alınması için görev süresine eklenir. 
+d) UGS’nin tahsisine yol açmaması halinde, havaalanında nöbet sonrasında , bu 
+Talimatın 16ncı maddesinde belirtildiği üzere bir dinlenme süresi gelir. 
+e) Havaalanında nöbetteyken, işletici ekip üyesine halka açık olmayan, yiyecek ile 
+içeceğe erişim imkânına sahip sessiz ve konforlu bir yer sağlar. 
+  
+(2) Havaalanı harici nöbete ilişkin aşağıdaki hükümler geçerli olacaktır: 
+a) Havaalanı harici nöbetin azami süresi 16 saattir. 
+b) Nöbet sonrasında, görev verilmediyse, asgari 8 saatlik dinlenme süresi gelir. 
+c) Nöbet, ekip üyesi için UGS’nin başlanmasıyla sona erer. 
+ç) Nöbetin ilk 6 saat içerisinde sona ermesi halinde, azami UGS, uçuş görev i 
+başlangıcından itibaren işler. 
+===== SAYFA 8 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 8 / 14 
+ 
+d) Nöbetin ilk 6 saat sonrasında sona ermesi halinde, azami UGS, 6 saati aşan nöbet 
+süresi miktarı oranında kısaltılır. 
+e) UGS’nin uçuş sırasındaki dinlenmeye bağlı olarak veya açık mesaiye bağ lı olarak 
+uzatılması halinde, bu fıkranın (ç) ve (d) bentlerinde belirtilen 6 saatlik süre 8 saate uzatılır. 
+f) İşletici ekip üyesine uygun konaklama tesisi imkânlarına sahip bir yer sağlar. 
+g) Havaalanı haricindeki nöbette harcanan sürenin %25’i, bu Talimatın ilgili hükümleri 
+kapsamında görev süresi olarak sayılır; 
+ 
+ Uçuş görevi, görev ve dinlenme süresi kayıtları 
+ MADDE 18 - (1) İşletici, ekip üyelerine ait aşağıdaki kayıtları muhafaza eder: 
+a) Uçuş (blok) süreleri; 
+b) Her bir görev süresinin ve UGS’nin başlangıcı, süresi ve bitişi; 
+c) Dinlenme süreleri ve tüm görevlerden muaf olarak geçirilen boş günler. 
+ 
+(2) Ayrıca bu kayıtlar bu Talimatta belirtilen gerekliliklere uygun olarak tutulur ve talep 
+üzerine, işletici, söz konusu kayıtların münferit kopyalarını ilgili ekip üyesine temin eder. 
+ 
+(3) Bu maddenin 1inci fıkrasında yer alan kayıtlar ekip üyesinin tüm uçuş görev, görev 
+ve dinlenme sürelerini kapsamıyorsa, ilgili ekip üyesi aşağıdaki kayıtları kendi muhafaza eder:   
+a) Uçuş (blok) süreleri; 
+b) Her bir görev süresinin ve UGS’nin başlangıcı, süresi ve bitişi; 
+c) Dinlenme süreleri ve tüm görevlerden muaf olarak geçirilen boş günler. 
+ 
+(4) E kip üyesi , görevli olduğu  işleticiye uçuş görevlerine başlamadan önce ilgili 
+kayıtlarını temin eder. 
+ 
+(5) Kayıtlar, asgari 24 ay süresince muhafaza edilir. 
+ 
+(6) Ayrıca, işletici, SKPK’lara ilişkin raporlar asgari 24 ay boyunca muhafaza edilir. 
+ 
+(7) Bu maddede bahsi geçen  aylık k ayıtlar, takip eden ayın 10 ’una kadar, Genel 
+Müdürlüğe elektronik ortamda gönderilecektir. Ayrıca, Genel Müdürlük tarafından  gerekli 
+görülmesi durumunda, bu kayıtlar her zaman talep edilebilir. 
+ 
+ İstisnai ve özel durumlar 
+ MADDE 19 – (1) Genel Müdürlük, işleticilerin detaylı gerekçeleri ile birlikte müracaatı 
+üzerine bu Talimatta belirtilen hususlarla ilgili sınırlamaların, sürelerin ve bununla ilgili 
+uygulamaların dışına çıkılmasına müsaade edebilir. 
+ 
+ (2) Bu Talimatta belirtilen gerekliliklere, arama/ kurtarma faaliyetleri, sel, yangın, 
+deprem ve benzeri durumlardaki doğal afetler ile Devlet görevleri için, Genel Müdürlüğün izni 
+ve/veya bilgisi dâhilinde istisnai uygulamalar yapılabilir. 
+ 
+ 
+ 
+ 
+ 
+===== SAYFA 9 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 9 / 14 
+ 
+ Gözetim ve denetim 
+ MADDE 20 – (1) Bu Talimat hükümlerinin uygulanmasına yönelik Genel Müdürlük 
+denetim yapmaya yetkilidir. Bu denetimlerde işletmelerin uçuş kayıtları, uçuş ekiplerinin şahsi 
+uçuş kayıtları ve/veya kule kayıtları dikkate alınır. Bu amaçla yapılacak denet imlerde 
+gösterilmek üzere uçuş ekiplerinin şahsi uçuş kayıt defterleri, her yılsonunda işlet iciler 
+tarafından kontrol edildiğini gösterecek şekilde imzalanarak onaylanır. 
+ 
+ (2) Bu Talimatta belirtilen hususlara çeşitli nedenlerle gerçekleşen uyumsuzluklar veya 
+ihlallerin tespit tarihinden itibaren Genel Müdürlüğe 7 (yedi) iş günü içerisinde bildirilir. 
+ 
+ÜÇÜNCÜ BÖLÜM 
+Hava Taksi Faaliyetleri 
+ 
+ FTSS başvuru ve onayı 
+ MADDE 21 – (1) FTSS onay ve/veya değişiklik başvurusu , işleticiler tarafından bu 
+Talimat ve bu konuda Genel Müdürlük tarafından yayımlanan  mevzuatın usul ve esaslar ına 
+uygun şekilde yapılacaktır. 
+ 
+ (2) İşletici, bu Talimat gerekliliklerine uyduğunu kanıtladığı takdirde, Genel Müdürlük 
+tarafından işleticinin FTSS’si onaylanacaktır. 
+ 
+ Azami günlük uçuş süresi, görev süresi ve UGS limitleri 
+ MADDE 22 – (1) Ekip üyesinin, kalkış noktasındaki yerel saati çevreleyen 2 saat 
+genişliğine sahip zaman dilimindeki bir meydana uçuş görevi icrası sonrasında asgari dinlenme 
+süresini müteakiben gerçekleştirilecek ilk görev için o meydanın yerel saatine intibak ettiği  
+sayılır. 
+ 
+Azami günlük UGS’nin hesaplanması için , görevin başladığı yerdeki yerel saat in bir sonraki 
+görevin başladığı yerdeki yerel saatten 2 saatin üzerinde farklılık gösterdiğ i durumlarda, ilgili 
+ekip üyesi ana üs veya geçici üs dışında 24 saatten daha az dinlendiğinde ilk kalkış meydanına 
+intibak ettiği, 24 saat veya daha fazla dinlendi ğinde mevcut kalkış meydanına intibak etmiş 
+sayılır. 
+ 
+ (2) Sabit kanat operasyonlarına ilişkin azami günlük UGS limitleri, Tablo 1’de belirtilen 
+limitlerdir. 
+Tablo 1 – Günlük Azami Uçuş Görev Süreleri 
+Görev başlangıç 
+saati (yerel) 
+1-4 sektör 5 sektör 6 sektör ve üzeri 
+Tek 
+Pilot 
+Çift 
+Pilot 
+Tek 
+Pilot 
+Çift 
+Pilot 
+Tek 
+Pilot 
+Çift 
+Pilot 
+06:00 – 15:00 11:00 13:30 10:00 12:30 09:00 11:30 
+15:01 – 18:00 10:00 12:30 09:00 11:30 08:00 10:30 
+18:01 – 05:59 09:00 11:30 08:00 10:30 07:00 09:30 
+ 
+ (3) Sabit kanat operasyonları kapsamında standart sayıda uçuş ekibi üyesi ile 
+gerçekleştirilen uzun menzil uçuşları için azami günlük UGS 14 saattir. 
+ 
+===== SAYFA 10 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 10 / 14 
+ 
+ (4) Döner kanat operasyonlarına ilişkin azami günlük uçuş görev ve uçuş süresi limitleri, 
+Tablo 2’de belirtilen limitlerdir.  
+Tablo 2 – Günlük Azami Uçuş Görev ve Uçuş Süreleri 
+Görev başlangıç 
+saati (yerel) 
+Tek Pilot Çift Pilot 
+UGS US UGS US 
+05:00 – 05:59 10 5 11 6 
+06:00 – 13:59 10 6 12 7 
+14:00 – 20:59 10 5 11 6 
+21:00 – 04:59 9 4 10 5 
+ 
+ (5) Döner kanat operasyonlarına ilişkin ilave limitler aşağıda belirtildiği gibidir. 
+a) 3 saatlik bir uçuş süresi sonrasında, saat başına ortalama 10 ve daha fazla iniş-kalkış 
+içeren kısa mesafeli uçuşlarda uçuş ekibi üyelerine, tüm görevlerden muaf olacak şekilde ancak 
+UGS içerisinde mütalaa edilen asgari 30 dakika mola verilecektir.  
+b) 3 saatlik bir uçuş süresi sonrasında, helikopterle icra edilecek harici yük ve vinç gibi 
+zorlu operasyonlarda uçuş ekibi üyelerine, tüm görevlerden muaf olacak şekilde  ancak UGS 
+içerisinde mütalaa edilen asgari 30 dakika mola verilecektir. 
+c) 3 saatlik bir uçuş süresi sonrasında, offshore operasyonlarında görevli uçuş eki bi 
+üyelerine, tüm görevlerden muaf olacak şekilde ancak UGS içerisinde mütalaa edilen asgari 30 
+dakika mola verilecektir. 
+ç) Helikopterle yapılan ve hayatta kalma kıyafetinin (survival suits) giyilmesinin 
+zorunlu olduğu operasyonlarda; uçuş ekibi yük ve bagaj taşıma gibi fiziksel yorgunluğa sebeb 
+olacak işlerden uzak duracak ve bu faaliyetleri sadece gözlemleyecektir. Hayatta kalma kıyafeti 
+ile gerçekleştirilen azami 3 saatlik bir uçuşun ardından, uçuş ekibi  üyelerine tüm görevlerden 
+muaf olacak şekilde ancak UGS içerisinde mütalaa edilen asgari 30 dakika mola verilecektir. 
+ 
+ (6) Gece görerek şartlarda helikopterler ile HEMS, ambulans, arama kurtarma ve insani 
+yardım maksatlı gerçekleştirilecek uçuşlar için SHT G-VFR-H gereklilikleri geçerli olacaktır. 
+ 
+ Karma operasyonlar 
+ MADDE 23 - (1) Bir ekip üyesinin aynı görev periyodu içerisinde, hem simülatörde  
+eğitim/kontrol maksatlı ve/veya uçuş öğretmeni/ kontrol pilotu olarak, hem de hava aracında 
+uçuş için görevlendirilmesi durumunda, simülatörde görevlendirilen sürenin tamamı UGS’ye 
+dâhil edilecek, ancak sektör olarak sayılmayacaktır. 
+ 
+ (2) Bir görev periyo du içerisinde birden fazla farklı operasyon tipinde (t ek pilot/çok 
+pilot, sabit kanat/döner kanat vb.)  uçuş yapılması durumunda daha kısıtlayıcı olan UGS/US 
+limitleri geçerli olacaktır.  
+ 
+DÖRDÜNCÜ BÖLÜM 
+Genel Havacılık, Hava İşi ve Eğitim Faaliyetleri 
+ 
+ Uçuş ve görev süresi prosedürü 
+ MADDE 24 – (1) İşletici, SHY-6B kapsamında hazırladığı “İşletme El Kitabı ” 
+içerisinde bu Talimata yönelik prosedürlerini oluşturur. 
+ 
+===== SAYFA 11 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 11 / 14 
+ 
+ Genel havacılık faaliyetleri 
+ MADDE 25 – (1) Genel havacılık faaliyetleri, ticari amaç dışında yapılan tüm havacılık 
+faaliyetlerini kapsamakta olup, günlük sınırlamalara ilişkin detaylar aşağıda yer almaktadır. 
+a) Sabit kanat hava araçları için; 
+1) Tek pilot: UGS, 12 saattir. 
+2) Çift pilot: UGS, 14 saattir. 
+b) Döner kanat ve diğer hava araçları için; 
+1) Tek pilot: 10 saat UGS, 5 saat uçuş süresi. 
+2) Çift pilot: 12 saat UGS, 7 saat uçuş süresi. 
+ 
+ Hava işi faaliyetleri 
+ MADDE 26 - (1) SHY 6B ’nin 5inci maddesinde belirtilen hava iş i operasyonlar ına 
+yönelik limitler, hava taksi faaliyetleri için ilgili maddelerde belirtilen limitler olacaktır. 
+ 
+ Eğitim faaliyetleri 
+ MADDE 27 - (1) Kontrol pilotları, öğretmen pilotlar, adaylar ve onaylı eğitim 
+organizasyonları tarafından yapılacak eğitim faaliyetlerinde aşağıdaki sınırlamalar geçerli 
+olacaktır: 
+a) Gerçekleştirilen günlük uçuşlarda aşağıdaki tabloda belirtilen gerekliliklere uyulur. 
+Eğitim Alan Pilot ve Pilot Adayları Azami Uçuş Süresi Azami UGS 
+PPL, CPL, IR, Sınıf/Tip Eğitimleri 4 saat 12 saat 
+Kalkış Meydanından farklı meydanlara inişi 
+içeren seyrüsefer eğitimleri 6 saat 12 saat 
+En az PPL lisansı sahibi pilotların 
+gerçekleştirecekleri tüm yalnız ve PIC uçuşlar 6 saat 12 saat 
+Tüm Sentetik Uçuş Eğitimleri 4 saat 12 saat 
+b) Öğretmen pilotlar ve kontrol pilotları için günlük uçuş süresi 6 saati, UGS ise 12 saati 
+geçemez. 
+c) Teorik eğitim faaliyetleri , günlük 8 saat ve birbirin takip eden 7 gün içerisinde 40 
+saati geçemez. 
+ç) Aynı gün içerisinde uçuş/simülatör  ve teorik eğitim gerçekleştirilmesi durumunda, 
+yukarıdaki tabloda belirtilen azami uçuş sürelerinin yarısı uygulanır. Ancak, bir günlük süre 
+içerisinde uçuş/simülatör ve teorik eğitim toplamı 8 saati geçemez. 
+ 
+BEŞİNCİ BÖLÜM 
+Hava Ambulans Faaliyetleri – Sabit Kanat 
+ 
+ Hava ambulans maksatlı uçuşlar 
+ MADDE 28 – (1) Bu bölüm , Sağlık Bakanlığı tarafından hava ambulans faaliyetleri 
+yapmaya yetkilendirilmiş işleticilerin tescil edilmiş hava araçları ile gerçekleştirilen 
+operasyonlar için geçerlidir. 
+ 
+ (2) Hava am bulans operasyonları gerçekleştirilirken, aşağıdaki koşulların oluşması 
+durumunda bu Talimatın 22nci maddesinde belirtilen azami UGS limitleri , 2 saate kadar 
+uzatılabilir. 
+===== SAYFA 12 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 12 / 14 
+ 
+a) Ekip üyeleri, hava ambulans uçuşuna başlamadan önceki göreviyle ilgili bu Talimatta 
+yer alan dinlenme gerekliliklerini karşılamış olmalıdır. 
+b) UGS’nin, müsaade edile n 2  saatlik uzatma hakkına ilaveten SKPK ile uzatılması 
+sadece hasta ya da organ naklinin nihai teslim noktasına gerçekleştirilmesi maksadıyla 
+kullanılabilir. SKPK, hasta teslimi ya da organ nakli görevinin bitiminden sonra kullanılamaz. 
+SKPK raporu işletici tarafından, işleticinin kendi yorumları ile birlikte kaptan raporunun bir 
+kopyası söz konusu olaydan en geç 28 gün içerisinde Genel Müdürlüğe gönderilir. 
+c) Hava ambulans görevl erinden sonra bu T alimatta yer alan  dinlenme gereklilikleri  
+ekibe sağlanmalıdır. 
+ç) Uzatılmış iki hava ambulans görevleri arasında asgari 48 saat olmalıdır. 2 veya daha 
+fazla uzatılmış UGS gerektiren ambulans operasyonlarında (ilki bir hasta alımı ya da organ  
+nakli için pozisyon uçuşu gerektiren), 48 saatlik dinlenme süresi ana üs’se dönene kadar 
+ertelenebilir. Bu du rumda, Sorumlu Kaptan ilk UGS ’ye ilişkin dinlenme süresini , uygun 
+konaklama tesisinin kullanılması kaydıyla, azami 3 saate kadar kısaltılabilir veya 10 saat olarak 
+uygulayabilir (hangisi daha uzun ise). 
+d) Bir uçuş ekibi üyesi,  birbirini takip eden 28 gün içerisinde sadece 3 kez uzatılmış 
+hava ambulans görevleri icra edebilir. Bu husus, görev arttırımının 1,5 saati aştığı durumlarda 
+geçerli olacaktır. 
+e) İlgi görev kayıtları , UGS’nin bu bölüm gereği uygulandığını gösterecek şekilde 
+düzenlenmelidir. 
+f) UGS, açık mesai ile uzatılamaz. 
+ 
+ Farklı görev tiplerinin kullanılması 
+ MADDE 29 – (1) İşletici, herhangi bir gün içerisinde, bir uçağı ve uçuş ekibini, hava 
+ambulans ve farklı bir uçuş faaliyetinde kullanmak istediğinde, bu Talimatın 28inci maddesinin 
+2nci fıkrasında yer alan uygulama hariç olmak üzere, bu Talimatta belirtilen ilgili azami UGS 
+limitlerine tabi olacaktır. İzin verilen UGS limitleri, açık mesai ve SKPK ile uzatılabilir. Bu 
+durumda, hava ambulans faaliyetleri için izin verilen uzatma limitleri geçerli değildir. 
+ 
+ Arttırılmış uçuş ekibi 
+ MADDE 30 – (1) Bu Talimatın 11inci madde gerekliliklerine istisna teşkil etmek üzere, 
+arttırılmış uçuş ekibi ile gerçekleştirilen görevlere ilişkin ilave gereklilikler  kapsamında 
+aşağıdaki koşullar sağlandığı takdirde , hava ambulans operasyonlarında azami UGS limitleri, 
+izin verilen 2 saate ilave olarak 2 saat daha arttırılabilir. 
+a) Uçuşta, üçüncü uçuş ekibi üyesi olarak uygun niteliklere sahip  Kaptan pilot yer 
+alacaktır. 
+b) İstirahat eden ekip üyesi için bir sedye ya da konforlu geri  yaslanan koltuk 
+sağlanmalıdır. 
+c) Azami UGS 16  saat veya bu Talimatın 22nci  maddesinde belirtilen azami UGS 
+limitlerine 4 saat ilave edildiğinde tespit edilen süre olacaktır (hangisi daha kısa ise). 
+ç) Hava ambulans operasyonu , hastanın teslimi ya da organ nakli sonrasında sona 
+erecektir ve ekipler bu noktada tam dinlenme hakkına sahip olacaklardır. 
+d) İlave “ tek boş gün” (2 yerel gece içerecek şekilde asgari 34 saat) , tam dinlenme 
+hakkının tamamlanmasını müteakip sağlanacaktır.   
+e) Tüm ilave ekip görevleri, Genel Müdürlüğe raporlanacaktır. 
+ 
+===== SAYFA 13 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 13 / 14 
+ 
+(2) Arttırılmış uçuş ekibi ile gerçekleştirilen görevlere ilişkin k ümülatif görev süresi 
+sınırlamaları ile ilgili olarak, bu Talimatın 13üncü maddesinin 1inci fıkrasının (c) bendi ile 2nci 
+fıkrasının (a) ve (c) bentlerine istisna teşkil etmek üzere, aşağıdaki hükümler geçerli olacaktır: 
+a) Birbirini takip eden 28 gü n içerisinde sadece 2 kez arttırılmış uçuş ekibi ile 
+gerçekleştirilecek görevlere izin verilmektedir. 
+b) Birbirini takip eden 28 gün içerisinde; 
+1) Asgari 10 boş gün sağlanacaktır. 
+2) Azami görev süresi, 160 saati aşmayacaktır. 
+3) Azami uçuş süresi, 75 saat ile sınırlıdır.  
+4) Birbirini takip eden 28 günlük 3 periyod içerisinde ortalama uçuş süresi , azami 60 
+saat olacaktır. 
+5) Bu ve benzer periyodlar bahse konu  operasyonları içeriyorsa, 12 takvim ayı 
+içerisinde izin verilen uçuş saatleri 700 saat ile sınırlıdır. 
+ 
+ALTINCI BÖLÜM 
+Hava Ambulans Faaliyetleri – Döner Kanat 
+ 
+ Hava ambulans maksatlı uçuşlar 
+ MADDE 31 – (1) Bu bölüm , Sağlık Bakanlığı tarafından hava ambulans faaliyetleri 
+yapmaya yetkilendirilmiş işleticilerin filosunda yer alan h ava araçları ile gerçekleştirilen çift 
+pilotlu operasyonlar için geçerlidir. Tek pilotlu operasyonlar için bu Talimatta döner kanat hava 
+araçları için belirlenen gereklilikler geçerli olacaktır. 
+ 
+ (2) Hava ambulans operasyonları için günlük azami UGS limiti 12, uçuş süresi 7 saattir. 
+ 
+ (3) Hava ambulans operasyonları gerçekleştirilirken bu maddenin 2nci fıkrasında 
+belirtilen UGS, aşağıdaki koşullara göre 15 saate artırılabilecektir. 
+a) Görevlendirme kapsamı ardışık asgari 2 günü , azami 4 günü  içerecektir. Bu 
+görevlendirmelerde, asgari dinlenme süresi 8 saat olarak uygulanacaktır. 
+b) Görevli ekip üyelerine, uçuş görevi esnasında asgari 1 kez dinlenme verilecek ve bu 
+dinlenme kesintisiz olacak şekilde asgari 1 saatlik bir süreye sahip olacaktır. 
+c) Uygun konaklama tesisi sağlanacaktır. 
+ç) Ekip üyeleri, hava ambulans uçuşuna başlamadan önceki göreviyle ilgili bu Talimatta 
+yer alan dinlenme gerekliliklerini karşılamış olmalıdır. 
+d) UGS’nin, müsaade edilen uzatma hakkına ilaveten SKPK ile uzatılması sadece hasta 
+ya da organ naklinin nihai teslim noktasına gerçekleştirilmesi maksadıyla kullanılabilir. SKPK, 
+hasta teslimi ya da organ nakli görevinin bitiminden sonra kullanılamaz. 
+e) İlgi görev kayıtları , UGS’nin bu bölüm gereği uygulandığını gösterecek şekilde 
+düzenlenmelidir. 
+ 
+ (4) Ekip üyelerine, bu maddenin 3üncü fıkrasının (a) bendinde yapılacak görevlendirme 
+sonrasında söz konusu görevlendirme  günü kadar ardışık boş gün  dinlenme verilecektir. Söz 
+konusu ardışık boş gün dinlenmelerinin uygulanmasında, bu Talimatın 5inci maddesinin 3üncü 
+fıkrasının amir hükmü geçerli olacaktır. 
+ 
+===== SAYFA 14 =====
+ 
+ 
+SHT-FTL/HG Yayım Tarihi 
+13/04/2018 
+Revizyon No 
+00 
+Revizyon Tarihi 
+00/00/0000 Sayfa 14 / 14 
+ 
+ (5) Helikopter ambulans operasyonlarında, herhangi bir ekip üyesinin görevlendirildiği 
+toplam görev süresi için bu Talimatın 13üncü maddesinin 1inci fıkrasındaki limitler ya da bu 
+Talimatın 13üncü maddesinin 1inci fıkrasının (ç) bendi hükmü ile birlikte aşağıdaki hükümler 
+geçerli olacaktır. 
+a) Birbirini izleyen herhangi 14 gün içerisinde 110 saat görev süresi; veya 
+b) Birbirini izleyen herhangi 28 gün içerisinde 190 saat görev süresi, bu süre boyunca 
+uygulanabildiği ölçüde eşit oranda yayılmış. 
+ 
+YEDİNCİ BÖLÜM 
+Son Hükümler 
+ 
+ Aykırı davranışlar ve idari yaptırımlar 
+ MADDE 32 – (1) Bu Talimat hükümlerine aykırı davranışlarda bulunan işleticiler, ilgili 
+Sorumlu Yönetici Personel ve ekip üyeleri hakkında 2920 Sayılı Kanun’un 143üncü maddesi 
+ve/veya SHY-İPC gereğince gerekli idari para cezası uygulanır. 
+  
+ (2) Kusur derecesi de göz önünde bulundurularak bu Talimat hükümlerine aykırı 
+hususların devamı ve/veya tekrarı halinde ayrıca; 
+a) İlgili Yönetici Personelin onay belgesi iptal edilebilir, ve/veya 
+b) İlgili ekip üyelerinin lisansı veya sertifikası azami 6 (altı) ay süre ile askıya alınabilir 
+veya iptal edilebilir. 
+ 
+ Yürürlükten kaldırılan mevzuat 
+ MADDE 33 – (1) 07.06.2005 tarihli “Uçucu Ekip Uçuş Görev ve Dinlenme Süreleri ile 
+Uygulama Esasları Talimatı (SHT-6A.50)”, bu Talimatın yayımlanmasını müteakip  
+yürürlükten kaldırılacaktır. 
+ 
+ Yürürlük 
+ MADDE 34 – (1) Bu Talimat 1 Temmuz 2018 tarihinde yürürlüğe girer. 
+ 
+ (2) 1 Temmuz 2018 tarihine kadar işletmelerin mevcut onaylı işletme el kitaplarında yer 
+alan uçuş görev ve uçuş süresi limitleri ile dinlenme gereklilikleri prosedürleri geçerli olacaktır. 
+ 
+(3) Döner kanat hava ambulans faaliyetlerine ilişkin gereklilikler, 1 Ekim 2018 tarihinde 
+yürürlüğe girecektir. 
+ 
+ Yürütme 
+ MADDE 35 – (1) Bu Talimat hükümlerini Genel Müdür yürütür.
+ 

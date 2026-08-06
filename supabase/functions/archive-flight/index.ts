@@ -13,6 +13,11 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildReportPdf } from "./report-pdf.ts";
+// FTL motoru web ile TEK KAYNAK. Sunucu artik kendi UGS tablosunu TASIMIYOR
+// (K-2'nin kok nedeni buydu) — faaliyet tipi arsivde degistiginde azami UGS'yi
+// panelin kullandigi AYNI fonksiyonla yeniden hesaplar. esbuild bundle'lar.
+import { maxFdpMinutes, effectiveRules, toMin }
+  from "../../../efb/src/components/FTLEngine.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -343,6 +348,14 @@ Deno.serve(async (req) => {
       if (!wxMap[k]) wxMap[k] = { icao: r.icao, type: r.type, raw_text: r.raw_text };
     }
 
+    // FTL propagasyonunun sonucu (11. bolumde, PDF'ten HEMEN ONCE doldurulur).
+    // Rapor uretilmeyen yollarda 14. adimin yerinde ayrica kosar — FTL guncellemesi
+    // rapora BAGLI DEGILDIR, rapor olmasa da gorev guncellenmelidir.
+    let ftlResult: { ftlUpdate: Record<string, string>; dutyRows: Record<string, any> } | null = null;
+    // iOS End Flt "DUTY FINISHED?" cevabi — hem eslestirme hem turetme kullanir.
+    const dutyFinishedIn: boolean | null =
+      typeof body.duty_finished === "boolean" ? body.duty_finished : null;
+
     // ── 11) flt_report UPSERT — RAPORUN TEK KAYNAGI ─────────────────────────
     const navlogJson = wpts.map((w, i) => {
       const e = entries[w.uid] ?? {};
@@ -475,8 +488,13 @@ Deno.serve(async (req) => {
           amendments = ed ?? [];
         }
 
+        // FTL PROPAGASYONU RAPORDAN ONCE (6 Agu 2026) — bkz. 14. adimdaki not.
+        // Rapor kayitli degeri bastigi icin once kayit guncel olmali.
+        ftlResult = await propagateFtl();
+
         const pdfBytes = await buildReportPdf({
           fr: frRow, plan, signatures: sigs, attachments: atts, amendments, photos,
+          duties: ftlResult.dutyRows, ftlStatus: ftlResult.ftlUpdate,
         });
 
         const fname = `GO2_FltReport_${plan.reg ?? "AC"}_${plan.dep ?? ""}-${destIcao ?? ""}_${isoDate}.pdf`
@@ -544,10 +562,199 @@ Deno.serve(async (req) => {
     // Eskiden bu adim `!regenOnly` ile korunuyordu: duzeltme PDF'e giriyor, FTL'e
     // GIRMIYORDU. Adim artik "ilk kez actual gordum" degil "guncel actual'i
     // senkronla" mantiginda — ayni saatlerle tekrar kosarsa ayni sonucu yazar.
-    let ftlUpdate: Record<string, string> = {};
+    // ── SIRA (6 Agu 2026): bu adim RAPORDAN ONCE kosar ────────────────────────
+    // Rapor artik kendi FDP'sini hesaplamiyor, crew_duties'teki KAYITLI degeri
+    // basiyor (K-2 kapandi). Dolayisiyla once gorev guncellenmeli, sonra PDF
+    // uretilmeli — aksi halde rapor bir onceki durumu basar ve ozellikle REGEN
+    // yolunda (admin saat duzeltmesi) rapor duzeltmeden ONCEKI degeri gosterir.
+    // `function` bildirimi HOISTED oldugu icin 11. bolumden cagrilabiliyor;
+    // 130 satirlik blogu tasimak yerine yerinde birakildi (diff okunur kalsin).
+    // Donen: {ftlUpdate, dutyRows} — dutyRows dogrudan rapora gider, PDF'in
+    // veritabanini ikinci kez okumasina gerek kalmaz (yaris ihtimali de yok).
+    /** ── PAKET (BUNDLE) BACAKLARI ────────────────────────────────────────
+     *  Biz havayolu gibi "planla → uç → kaydet → arşivle" akışıyla uçmuyoruz
+     *  (Serkan, 6 Ağu). Uçuş önce olur, kayıt sonra gelir; dispatch her zaman
+     *  ofiste olmayabilir, sistem çökmüşken de uçulur. Bu yüzden GÜNÜN ŞEKLİNİ
+     *  görev atamasından değil, ELDEKİ PLAN PAKETİNDEN öğreniriz: 4 bacaklık
+     *  bir paket ayrıştırıldıysa o günün 4 bacaklı olduğu ZATEN bilinir.
+     *
+     *  Paket kimliği: `dispatch_no`'nun `-S<n>` eki SEKTÖR numarasıdır
+     *  (TC-REC-10Jul2026-S1 / -S2). Ek atılınca paket anahtarı kalır; eksiz
+     *  tek bacaklı paketlerde dispatch_no'nun kendisi anahtardır. Aynı gün +
+     *  aynı tescil + aynı müşteri şartı da aranır (farklı paketler karışmasın).
+     *
+     *  NEDEN ÖNEMLİ: azami UGS SEKTÖR SAYISINA bağlıdır (Md.22 Tablo 1) ve
+     *  sektörü EKSİK saymak limiti OLDUĞUNDAN BÜYÜK gösterir — gevşek, yani
+     *  emniyetsiz yön. Rapordan söktüğüm "sectors: 1" kusurunun aynısını
+     *  türetmede tekrarlamamak için bacaklar buradan gelir. */
+    async function bundleLegs(): Promise<any[]> {
+      try {
+        const dn = String((plan as any).dispatch_no ?? "");
+        if (!dn) return [plan];
+        const key = dn.replace(/-S\d+$/i, "");
+        const { data } = await admin.from("plans")
+          .select("id,dispatch_no,dep,dest,date,std,eta,reg,fms_ident,operation_type,operation_type_source")
+          .eq("customer_id", plan.customer_id).eq("date", plan.date);
+        const sibs = (data ?? []).filter((p: any) =>
+          String(p.dispatch_no ?? "").replace(/-S\d+$/i, "") === key &&
+          String(p.reg ?? "") === String(plan.reg ?? ""));
+        if (!sibs.length) return [plan];
+        // Bacak sırası STD'ye göre; STD yoksa dispatch_no eki, o da yoksa kayıt sırası.
+        const sn = (p: any) => Number(String(p.dispatch_no ?? "").match(/-S(\d+)$/i)?.[1] ?? 0);
+        return sibs.sort((a: any, b: any) => {
+          const ta = hmNum(a.std), tb = hmNum(b.std);
+          if (ta != null && tb != null && ta !== tb) return ta - tb;
+          return sn(a) - sn(b);
+        });
+      } catch { return [plan]; }
+    }
+    const hmNum = (s: string | null | undefined): number | null => {
+      const m = String(s ?? "").match(/(\d{1,2}):?(\d{2})/);
+      return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+    };
+
+    /** Planlama atlanmis: gorevi UCUSTAN turetir (auto_created).
+     *  Elde olanlar: DEP/DEST, off/on block, pilot, rol, tarih, plan_id ve
+     *  planin faaliyet tipi. Rapor saati kuraldan turetilir (off block − rapor
+     *  suresi), tipki planli gorevlerde oldugu gibi.
+     *  UYDURMA YOK: musterinin ruleset'i yoksa gorev acilmaz (Ilke 1) — yanlis
+     *  kural setiyle acilmis bir gorev, hic olmayandan kotudur. */
+    async function deriveDutyFromFlight(pid: string): Promise<any | null> {
+      try {
+        const { data: cust } = await admin.from("customers")
+          .select("ftl_ruleset_id").eq("id", plan.customer_id).single();
+        if (!cust?.ftl_ruleset_id) return null;
+        const { data: rs } = await admin.from("ftl_rulesets")
+          .select("*").eq("id", cust.ftl_ruleset_id).single();
+        if (!rs) return null;
+        const { rules, company } = effectiveRules(rs);
+        // Kalkis meydaninin dilimi — rapor/dinlenme penceresi buna gore.
+        const { data: apt } = await admin.from("airports")
+          .select("icao,tz").in("icao", [plan.dep, destIcao].filter(Boolean));
+        const tzOf = (i: string) => apt?.find((a: any) => a.icao === i)?.tz ?? null;
+        const depTz = tzOf(plan.dep), destTz = tzOf(destIcao);
+        const offISO = ts(offBlock, isoDate), onISO = ts(onBlock, isoDate);
+        if (!offISO || !onISO) return null;
+        const preMin = Math.max(company.preFlightReportMin ?? 60,
+                                rules.notification_times?.preflight_report_min ?? 60);
+        const postMin = Math.max(company.postFlightDutyMin ?? 30,
+                                 rules.notification_times?.postflight_min ?? 30);
+        const reportISO = new Date(new Date(offISO).getTime() - preMin * 60000).toISOString();
+        const endISO = new Date(new Date(onISO).getTime() + postMin * 60000).toISOString();
+        const repLocal = depTz
+          ? Object.values(Object.fromEntries(new Intl.DateTimeFormat("en-US",
+              { timeZone: depTz, hour12: false, hour: "2-digit", minute: "2-digit" })
+              .formatToParts(new Date(reportISO)).map((p: any) => [p.type, p.value])))
+              .slice(0, 2).join(":")
+          : new Date(reportISO).toISOString().slice(11, 16);
+        const singlePilot = [pfPilot, pmPilot, crzPilot].filter(Boolean).length === 1;
+        const opType = (plan as any).operation_type ?? null;
+        const role = pid === pfPilot ? "PF" : pid === pmPilot ? "PM" : "CRZ CPT";
+
+        // ── GÜNÜN ŞEKLİ: SEKTÖRLER PAKETTEN ──────────────────────────────
+        // "DUTY FINISHED?" cevabı burada bir PLANLAMA girdisidir:
+        //   HAYIR (devam ediyor) → paketin kalan bacakları da UÇULACAK demektir;
+        //     sektör olarak eklenir ki azami UGS DOĞRU sektör sayısıyla hesaplansın.
+        //     (Yalnız uçulanı saymak limiti olduğundan büyük gösterir = gevşek yön.)
+        //   EVET (bitti)        → kalanlar uçulmadı; görev bu bacakla kapanır.
+        //   CEVAP YOK           → BİLMİYORUZ: bacak UYDURULMAZ (İlke 1), görev
+        //     açık kalır; sonraki bacak arşivlenince kendini ekler ve azami UGS
+        //     o anda yeniden hesaplanır.
+        const legs = await bundleLegs();
+        const thisIdx = Math.max(0, legs.findIndex((l: any) => String(l.id) === String(planId)));
+        const useLegs = dutyFinishedIn === false ? legs : [legs[thisIdx] ?? plan];
+        const sectorsOut = useLegs.map((l: any, i: number) => {
+          const isThis = String(l.id) === String(planId);
+          return {
+            seq: i + 1, dep: l.dep, dest: l.dest,
+            etd: isThis ? offBlock : (l.std ?? null), eta: isThis ? onBlock : (l.eta ?? null),
+            role, plan_id: l.id,
+            ...(isThis ? { off_block: offBlock, on_block: onBlock,
+                           ...(isDivert ? { actual_dest: destIcao } : {}) } : {}),
+          };
+        });
+        const maxFdp = opType
+          ? maxFdpMinutes(repLocal, sectorsOut.length, rules, { operationType: opType, singlePilot })
+          : null;
+        const fdpMin = Math.round(
+          (new Date(onISO).getTime() - new Date(reportISO).getTime()) / 60000);
+        const dutyMin = fdpMin + postMin;
+        const home = (await admin.from("home_bases").select("icao")
+          .eq("pilot_id", pid).maybeSingle()).data?.icao ?? null;
+        const atBase = !home || String(destIcao).toUpperCase() === String(home).toUpperCase();
+        const minRest = Math.max(dutyMin, atBase
+          ? (rules.min_rest?.home_base_min ?? 720) : (rules.min_rest?.out_of_base_min ?? 600));
+        const row = {
+          customer_id: plan.customer_id, pilot_id: pid, duty_type: "flight",
+          duty_date: isoDate, report_time: reportISO, report_tz: depTz, duty_end: endISO,
+          // Gerceklesmis ucus: gorev ACIK degil, OLMUS bitmis. duty_finished
+          // cevabi geldiyse ona uyulur; gelmediyse gorev acik birakilir
+          // (kapatma karari pilotundur — planli gorevlerdeki kuralin aynisi).
+          status: dutyFinishedIn === true ? "actual" : "open",
+          duty_finished: dutyFinishedIn === true,
+          auto_created: true,
+          sectors: sectorsOut,
+          plan_ids: [...new Set(sectorsOut.map((s: any) => s.plan_id).filter(Boolean))],
+          ruleset_id: rs.id,
+          ruleset_snapshot: { regulation: rs.regulation, company: rs.company },
+          // İNTİBAK (Md.22/1): türetilen görev zincirin İLK halkası olabilir de
+          // olmayabilir de. Burada önceki görevin referansını çözecek TAM bağlam
+          // yok (dinlenme yeri/ana üs zinciri panelde çözülüyor) — bu yüzden
+          // UYDURMUYORUZ: kalkış meydanı yazılır, bu "ilk görev" halinin doğru
+          // cevabıdır ve zincir varsa panel EDIT'te düzeltilir. Yanlış bir
+          // referans yazmaktansa en muhafazakâr doğru olanı yazarız.
+          acclimatised_to: plan.dep ?? null,
+          ...(opType ? { operation_type: opType,
+                         operation_type_source: `derived at archive from plan ${planId}`
+                           + ((plan as any).operation_type_source ? ` — ${(plan as any).operation_type_source}` : "") }
+                     : {}),
+          max_fdp_minutes: maxFdp, fdp_minutes: fdpMin,
+          fdp_exceeded: maxFdp != null && fdpMin > maxFdp,
+          min_rest_minutes: minRest,
+          earliest_next_report: new Date(new Date(endISO).getTime() + minRest * 60000).toISOString(),
+          ...(destTz ? {} : {}),
+        };
+        const { data: ins, error } = await admin.from("crew_duties")
+          .insert(row).select("*").single();
+        if (error) { console.warn("[archive] derive duty:", error.message); return null; }
+        return ins;
+      } catch (e) { console.warn("[archive] derive duty:", String(e)); return null; }
+    }
+
+    /** Azami UGS'yi GOREVIN KENDI snapshot'iyla yeniden hesaplar.
+     *  NEDEN GEREKLI: azami UGS sektor SAYISINA bagli (Md.22 Tablo 1). Bacak
+     *  sonradan eklenirse (plan yokken ucup sonra kaydetmek, ya da pakete
+     *  bacak katilmasi) eski deger OLDUGUNDAN BUYUK kalir — ihlal gorunmez.
+     *  "Illegalite olmasin, saatler yeter" (Serkan): saatler dogruysa limitin
+     *  de dogru olmasi sart, yoksa asim tespit edilemez.
+     *  Nobet (Md.17) kisaltmasi ve SKPK (Md.12) uzatmasi KAYITLI olduklari icin
+     *  yeni taban degerin uzerine aynen tasinir. Hesaplanamazsa null doner ve
+     *  cagiran eski degere DOKUNMAZ (sayi uydurmaktansa dokunmamak). */
+    function recomputeMaxFdp(duty: any, sectorCount: number, opType: string | null,
+                             singlePilot: boolean): number | null {
+      try {
+        if (!duty?.ruleset_snapshot?.regulation || !duty.report_time || !opType) return null;
+        const { rules } = effectiveRules(duty.ruleset_snapshot);
+        const rt = new Date(duty.report_time).getTime();
+        const parts = duty.report_tz
+          ? Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: duty.report_tz,
+              hour12: false, hour: "2-digit", minute: "2-digit" })
+              .formatToParts(new Date(rt)).map((p: any) => [p.type, p.value]))
+          : null;
+        const repLocal = parts ? `${parts.hour}:${parts.minute}`
+          : new Date(rt).toISOString().slice(11, 16);
+        const base = maxFdpMinutes(repLocal, sectorCount, rules,
+          { operationType: opType, singlePilot });
+        if (base == null) return null;
+        return Math.max(0, base - (duty.standby_reduction_min ?? 0))
+             + (duty.skpk_fdp_extension_min ?? 0);
+      } catch { return null; }
+    }
+
+    async function propagateFtl(): Promise<{ ftlUpdate: Record<string, string>; dutyRows: Record<string, any> }> {
+    const ftlUpdate: Record<string, string> = {};
+    const dutyRows: Record<string, any> = {};
     if (offBlock && onBlock) {
-      const dutyFinishedIn: boolean | null =
-        typeof body.duty_finished === "boolean" ? body.duty_finished : null;
       const hm = (s: string | null) => {
         if (!s) return null;
         const m = String(s).match(/(\d{1,2}):?(\d{2})/);
@@ -563,7 +770,21 @@ Deno.serve(async (req) => {
           const { data: cands } = await admin.from("crew_duties")
             .select("*").eq("pilot_id", pid).eq("duty_type", "flight")
             .eq("duty_date", isoDate);
-          if (!cands?.length) { ftlUpdate[pid] = "no_duty_found"; continue; }
+          // ── ARSIVDEN GOREV TURETME (3 Agu kurali, Serkan) ────────────────
+          // "Planlama safhasi atlanabiliyor — genel havacilikta ucuslar acele
+          //  cikiyor. Gorev atanmamissa arsiv, gorevi UCUSTAN turetir."
+          // Ayni gun o pilotun BASKA bir gorevi varsa YENI GOREV ACILMAZ,
+          // sektor eklenir — yoksa FDP bacak basina hesaplanir ve olmasi
+          // gerekenden KISA cikar (gevsek yon). Bu yuzden turetme yalniz
+          // "o gun hic gorev yok" halinde calisir; digerini asagidaki
+          // eslestirme zaten hallediyor.
+          if (!cands?.length) {
+            const derived = await deriveDutyFromFlight(pid);
+            if (!derived) { ftlUpdate[pid] = "no_duty_found"; continue; }
+            ftlUpdate[pid] = "auto_created";
+            dutyRows[pid] = derived;
+            continue;
+          }
 
           type Cand = { duty: any; idx: number; dist: number };
           const matches: Cand[] = [];
@@ -599,10 +820,73 @@ Deno.serve(async (req) => {
             }
           }
           if (!matches.length) {
-            // tarih tutuyor ama sektor eslesmiyor (divert/degisiklik) → bayrakla, yazma
-            await admin.from("crew_duties").update({ match_review: true })
-              .in("id", cands.map(c => c.id));
-            ftlUpdate[pid] = "match_review";
+            // ── PLANLANMAMIS BACAK ────────────────────────────────────────
+            // "Plan yapıldı uçuldu ok; uçuldu plan sonradan yapıldı o da ok"
+            // (Serkan, 6 Ağu) — sistem iki sırayı da desteklemeli.
+            // Bu bacak o günün hiçbir planlı sektörüyle eşleşmedi. İki hal var:
+            //
+            // (a) Gündeki AÇIK görevin bütün sektörleri zaten uçulmuş → planlı
+            //     iş bitmiş, bu EK bir bacak. Serkan'ın 3 Ağu kuralı: "aynı gün
+            //     mevcut görev varsa YENİ GÖREV AÇMA, SEKTÖR EKLE" — yoksa FDP
+            //     bacak başına hesaplanır ve olduğundan kısa çıkar (gevşek yön).
+            //     Sektör eklenince azami UGS YENİDEN HESAPLANIR: sektör sayısı
+            //     limiti belirler, eski değer bırakılırsa ihlal görünmez.
+            //
+            // (b) Görevde HENÜZ UÇULMAMIŞ planlı sektör var ve bu bacak onunla
+            //     eşleşmiyor → gerçekten BELİRSİZ (rota değişikliği mi, başka
+            //     uçuş mu?). Eskisi gibi YAZMA, match_review. Buraya sektör
+            //     eklemek uçulmamış planlı sektörü öksüz bırakır, görev asla
+            //     tamamlanamaz.
+            const open = cands.filter((d: any) => d.status !== "actual" && !d.duty_finished);
+            const target = open.find((d: any) =>
+              (d.sectors ?? []).length > 0 &&
+              (d.sectors ?? []).every((s: any) => s.off_block && s.on_block));
+            if (!target) {
+              // (b) — ya belirsiz, ya da gündeki görevlerin hepsi KAPALI.
+              const allClosed = open.length === 0;
+              if (allClosed) {
+                // Gorev kapanmis, sonra tekrar uculmus: bu YENI bir gorevdir.
+                const derived = await deriveDutyFromFlight(pid);
+                if (derived) { ftlUpdate[pid] = "auto_created_after_close"; dutyRows[pid] = derived; continue; }
+              }
+              await admin.from("crew_duties").update({ match_review: true })
+                .in("id", cands.map(c => c.id));
+              ftlUpdate[pid] = "match_review";
+              continue;
+            }
+            // (a) — sektoru ekle, pencereyi yeniden kur.
+            const role = pid === pfPilot ? "PF" : pid === pmPilot ? "PM" : "CRZ CPT";
+            const secs = [...(target.sectors ?? []), {
+              seq: (target.sectors?.length ?? 0) + 1, dep: plan.dep, dest: plan.dest,
+              etd: offBlock, eta: onBlock, off_block: offBlock, on_block: onBlock,
+              role, plan_id: planId, ...(isDivert ? { actual_dest: destIcao } : {}),
+            }];
+            const snapC = target.ruleset_snapshot?.company ?? {};
+            const postMin = snapC.post_flight_duty_minutes ?? 30;
+            const lastOn2 = ts(onBlock, isoDate);
+            const upd2: Record<string, unknown> = {
+              sectors: secs,
+              plan_ids: [...new Set([...(target.plan_ids ?? []), planId])],
+            };
+            const single2 = [pfPilot, pmPilot, crzPilot].filter(Boolean).length === 1;
+            const newMax = recomputeMaxFdp(target, secs.length, target.operation_type ?? null, single2);
+            if (newMax != null) upd2.max_fdp_minutes = newMax;
+            if (lastOn2 && target.report_time) {
+              const endMs2 = new Date(lastOn2).getTime() + postMin * 60000;
+              const fdp2 = Math.round(
+                (new Date(lastOn2).getTime() - new Date(target.report_time).getTime()) / 60000);
+              const eff2 = newMax ?? target.max_fdp_minutes;
+              const minRest2 = Math.max(target.min_rest_minutes ?? 0, fdp2 + postMin);
+              upd2.duty_end = new Date(endMs2).toISOString();
+              upd2.fdp_minutes = fdp2;
+              upd2.fdp_exceeded = eff2 != null && fdp2 > eff2;
+              upd2.min_rest_minutes = minRest2;
+              upd2.earliest_next_report = new Date(endMs2 + minRest2 * 60000).toISOString();
+              if (dutyFinishedIn === true) { upd2.status = "actual"; upd2.duty_finished = true; }
+            }
+            const { error: e2 } = await admin.from("crew_duties").update(upd2).eq("id", target.id);
+            ftlUpdate[pid] = e2 ? `error: ${e2.message}` : "sector_appended";
+            if (!e2) dutyRows[pid] = { ...target, ...upd2 };
             continue;
           }
           matches.sort((a, b) => a.dist - b.dist);
@@ -626,6 +910,67 @@ Deno.serve(async (req) => {
             plan_ids: [...new Set([...(duty.plan_ids ?? []), planId])],
           };
 
+          // ── FAALIYET TIPI ARSIVDE KESINLESIR (6 Agu 2026, Serkan sordu) ────
+          // Atama aninda plan henuz olmayabilir (genel havacilikta ucus once
+          // cikar, kayit sonra) — tip ya bos kalir ya VARSAYIMLA girer.
+          // Ucus kapandiginda plan KESIN bilinir, dogru yer burasi.
+          //   bos / varsayim        → arsiv yazar, kaynagi belirtir
+          //   plandan gelmis, ayni  → dokunma
+          //   MANUAL OVERRIDE, farkli → YAZMA, match_review (insan karari
+          //                             sessizce ezilmez — ayni ilke: belirsiz
+          //                             eslesmede de yazmiyoruz)
+          const planOp = (plan as any).operation_type as string | null;
+          const dutySrc = String(duty.operation_type_source ?? "");
+          const isManual = /^manual override/i.test(dutySrc);
+          const isAssumed = duty.operation_type == null
+            || /ASSUMED|no matching flight plan/i.test(dutySrc);
+          let opChangedTo: string | null = null;
+          if (planOp && duty.operation_type !== planOp) {
+            if (isManual) {
+              upd.match_review = true;                 // insan dedi, arsiv itiraz ediyor
+            } else if (isAssumed) {
+              opChangedTo = planOp;
+            } else {
+              // Tip plandan gelmisti ama BASKA bir tip — sektorler farkli
+              // faaliyetten olabilir. Sessizce degistirmek yerine isaretle.
+              upd.match_review = true;
+            }
+          }
+          if (opChangedTo) {
+            upd.operation_type = opChangedTo;
+            upd.operation_type_source =
+              `resolved at archive from plan ${planId}` +
+              ((plan as any).operation_type_source ? ` — ${(plan as any).operation_type_source}` : "");
+            // LIMIT SETI DEGISTI → AZAMI UGS ESKI SETE GORE HESAPLANMIS DEMEKTIR.
+            // Eski degeri birakmak sessiz bir yanlistir. Panelin kullandigi AYNI
+            // motorla yeniden hesaplanir; nobet (Md.17) ve SKPK (Md.12) etkileri
+            // KAYITLI olduklari icin uzerine aynen tasinir.
+            try {
+              const snapReg = duty.ruleset_snapshot?.regulation;
+              if (snapReg && duty.report_time) {
+                const { rules } = effectiveRules(duty.ruleset_snapshot);
+                // Rapor saati GOREVIN KENDI diliminde (report_tz = kalkis meydani).
+                // UTC ile hesaplamak +03'te bandi kaydirir ve yanlis satiri okur.
+                const rt = new Date(duty.report_time).getTime();
+                const parts = duty.report_tz
+                  ? Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: duty.report_tz,
+                      hour12: false, hour: "2-digit", minute: "2-digit" })
+                      .formatToParts(new Date(rt)).map((p: any) => [p.type, p.value]))
+                  : null;
+                const repLocal = parts ? `${parts.hour}:${parts.minute}`
+                  : new Date(rt).toISOString().slice(11, 16);
+                const singlePilot = [pfPilot, pmPilot, crzPilot].filter(Boolean).length === 1;
+                const base = maxFdpMinutes(repLocal, sectors.length, rules,
+                  { operationType: opChangedTo, singlePilot });
+                if (base != null) {
+                  const reduced = Math.max(0, base - (duty.standby_reduction_min ?? 0));
+                  const withSkpk = reduced + (duty.skpk_fdp_extension_min ?? 0);
+                  upd.max_fdp_minutes = withSkpk;
+                }
+              }
+            } catch (_e) { /* hesaplanamazsa eski deger kalir; tip yine de kaydedilir */ }
+          }
+
           // tum sektorler actual aldiysa gorev penceresini gercek degerlerle kur
           const allActual = sectors.every((s: any) => s.off_block && s.on_block);
           if (allActual) {
@@ -638,7 +983,11 @@ Deno.serve(async (req) => {
               const dutyEnd = new Date(endMs).toISOString();
               const fdpMin = Math.round((new Date(lastOn).getTime() -
                 new Date(duty.report_time).getTime()) / 60000);
-              const fdpExceeded = duty.max_fdp_minutes != null && fdpMin > duty.max_fdp_minutes;
+              // ASIM KONTROLU GUNCEL LIMITLE: faaliyet tipi bu arsivde
+              // kesinlestiyse azami UGS yukarida YENIDEN hesaplandi; eski
+              // degerle karsilastirmak asimi kacirir ya da uydurur.
+              const effMax = (upd.max_fdp_minutes as number | undefined) ?? duty.max_fdp_minutes;
+              const fdpExceeded = effMax != null && fdpMin > effMax;
               const dutyMin = fdpMin + postMin;
               const minRest = Math.max(duty.min_rest_minutes ?? 0, dutyMin);
               upd.duty_end = dutyEnd;
@@ -659,11 +1008,18 @@ Deno.serve(async (req) => {
           const { error: updErr } = await admin.from("crew_duties")
             .update(upd).eq("id", duty.id);
           ftlUpdate[pid] = updErr ? `error: ${updErr.message}` : (allActual ? upd.status as string : "sector_updated");
+          // Raporun basacagi GUNCEL satir (yazdigimiz alanlar uzerine bindirilir).
+          if (!updErr) dutyRows[pid] = { ...duty, ...upd };
         } catch (e) {
           ftlUpdate[pid] = `error: ${String(e)}`;   // FTL adimi arsivlemeyi ASLA dusurmez
         }
       }
     }
+    return { ftlUpdate, dutyRows };
+    }
+    // Rapor uretilmediyse (flt_report yok) burada kosar — FTL guncellemesi
+    // raporun varligina bagli olamaz.
+    if (!ftlResult) ftlResult = await propagateFtl();
 
     return json({
       ok: true,
@@ -678,7 +1034,7 @@ Deno.serve(async (req) => {
       reg: plan.reg ?? null,
       flight_date: plan.date ?? null,
       report_pdf_path: reportPath,
-      ftl_update: ftlUpdate,
+      ftl_update: ftlResult.ftlUpdate,
     });
   } catch (e) {
     return json({ error: "Unhandled", detail: String(e) }, 500);

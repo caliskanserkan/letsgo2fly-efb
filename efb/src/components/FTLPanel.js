@@ -5,7 +5,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import {
   toMin, fmtMin, spanMin, effectiveRules, overrideDirection,
-  fitness, dutyWindow,
+  fitness, dutyWindow, tzOffsetMin, zonedISO, daysOffSummary,
+  standbyBefore, standbyEffect, standbyLimits, standbyRef,
+  skpkLimits, skpkRef, previousDuty, acclimatisation, bandReportHHMM,
 } from './FTLEngine';
 import { normTime, up } from './inputFormat';
 
@@ -52,22 +54,8 @@ const addMin = (iso, min) => iso ? new Date(new Date(iso).getTime() + min * 6000
 // hesaplaniyordu. Artik: report/ETD kalkis meydaninin, ETA/duty_end varis
 // meydaninin IANA tz'siyle (airports.tz) mutlaklastirilir. tz bulunamazsa
 // admin dilimine duser ve KAYITLI UYARI verilir (sessiz gecilmez).
-const tzOffsetMin = (tz, ts) => {
-  const dtf = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false,
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-  const p = Object.fromEntries(dtf.formatToParts(new Date(ts)).map(x => [x.type, x.value]));
-  return (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - ts) / 60000;
-};
-const zonedISO = (dateStr, hhmm, tz) => {
-  if (!dateStr || !hhmm) return null;
-  if (!tz) return localISO(dateStr, hhmm);
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const [hh, mm] = hhmm.split(':').map(Number);
-  const guess = Date.UTC(y, m - 1, d, hh, mm);
-  let ts = guess - tzOffsetMin(tz, guess) * 60000;
-  ts = guess - tzOffsetMin(tz, ts) * 60000;   // DST siniri icin ikinci gecis
-  return new Date(ts).toISOString();
-};
+// tzOffsetMin / zonedISO artik FTLEngine'den gelir — ayni aritmetigin
+// ikinci kopyasi olmasin (K-2 dersi).
 const fetchTzMap = async (icaos) => {
   const clean = [...new Set(icaos.filter(Boolean).map(x => x.toUpperCase()))];
   if (!clean.length) return {};
@@ -128,6 +116,20 @@ export default function FTLPanel({ toast, myProfile }) {
 
   const tabS = (t) => ({ flex:'none', padding:'10px 24px', textAlign:'center', cursor:'pointer', fontFamily:'var(--mono)', fontSize:11, fontWeight:700, letterSpacing:2, textTransform:'uppercase', color:view===t?C.accent:C.t3, borderBottom:view===t?`2px solid ${C.accent}`:'2px solid transparent', background:view===t?`var(--accent-soft)`:'transparent' });
 
+  // SKPK'nin 28 gunluk SHGM suresi (Md.12/1/c/2) SESSIZCE gecmemeli: gecikmis
+  // sayi SEKMENIN USTUNDE durur, ilgili sekme acilmasa bile gorunur.
+  const skpkOverdue = useMemo(() => {
+    const now = Date.now();
+    const seen = new Set();
+    return (duties || []).filter(d => {
+      if (d.status === 'cancelled' || !d.skpk_authority_due || d.skpk_authority_reported_at) return false;
+      const k = d.assignment_id || d.id;
+      if (seen.has(k)) return false;                       // olay basina 1 kez
+      seen.add(k);
+      return new Date(d.skpk_authority_due).getTime() < now;
+    }).length;
+  }, [duties]);
+
   if (!customerId) return <div style={{ padding:32, color:C.t3, fontSize:11, fontFamily:'var(--mono)' }}>NO CUSTOMER CONTEXT — select a company first.</div>;
   if (loading) return <div style={{ padding:32, textAlign:'center', color:C.t3, fontSize:11, fontFamily:'var(--mono)' }}>LOADING FTL DATA...</div>;
   if (!ruleset) return <div style={{ padding:32, color:C.red, fontSize:11, fontFamily:'var(--mono)' }}>NO FTL RULESET LINKED TO THIS CUSTOMER — run Faz 0 SQL / link customers.ftl_ruleset_id.</div>;
@@ -137,6 +139,9 @@ export default function FTLPanel({ toast, myProfile }) {
       <div style={{ display:'flex', borderBottom:`1px solid ${C.border}`, background:C.bg2 }}>
         <div style={tabS('assign')} onClick={() => setView('assign')}>Assign Duty</div>
         <div style={tabS('history')} onClick={() => setView('history')}>Duty History</div>
+        <div style={tabS('skpk')} onClick={() => setView('skpk')}>
+          SKPK{skpkOverdue > 0 && <span style={{ ...badge('red'), marginLeft:6 }}>{skpkOverdue}</span>}
+        </div>
         <div style={tabS('edits')} onClick={() => setView('edits')}>Edit Report</div>
         <div style={tabS('ruleset')} onClick={() => setView('ruleset')}>Ruleset</div>
         <div style={{ flex:1 }} />
@@ -149,10 +154,180 @@ export default function FTLPanel({ toast, myProfile }) {
           <DutyRoster {...{ toast, myProfile, pilots, duties, baselines, homeBases, offTypes, reload: load }} />
           <AssignDuty {...{ toast, myProfile, pilots, duties, baselines, ruleset, offTypes, homeBases, reload: load }} />
         </>}
-        {view === 'history' && <DutyHistory {...{ pilots, duties, baselines, offTypes }} />}
+        {view === 'history' && <DutyHistory {...{ pilots, duties, baselines, offTypes, ruleset, homeBases }} />}
+        {view === 'skpk' && <SkpkTracker {...{ toast, myProfile, pilots, duties, reload: load }} />}
         {view === 'edits' && <EditReport {...{ pilots, edits, duties }} />}
         {view === 'ruleset' && <RulesetSettings {...{ toast, myProfile, ruleset, offTypes, reload: load }} />}
       </div>
+    </div>
+  );
+}
+
+// ═══ 0z) SKPK TAKIPCISI — SHT-FTL/HG Md.12(1)(c) ═════════════════
+// Md.12(1)(c)(1): her SKPK'da isleticiye rapor sunulur (istisnasiz).
+// Md.12(1)(c)(2): gerceklesen uzatma/kisaltma 1 SAATI ASARSA, kaptan raporunun
+//   kopyasi ISLETICININ KENDI YORUMLARIYLA BIRLIKTE, olaydan itibaren en gec
+//   28 GUN icinde Genel Mudurluge gonderilir.
+//
+// Bu ekranin varlik sebebi: 28 gunluk sure sessizce gecer. Kolona yazilmis ama
+// kimsenin bakmadigi bir tarih, denetimde "takip edilmiyor" demektir — kayit
+// tutmak yetmez, SURENIN DOLDUGUNU SOYLEYEN bir yer olmali. (Ilke 1'in uyum
+// hali: sessiz gecme yok.)
+function SkpkTracker({ toast, myProfile, pilots, duties, reload }) {
+  const [pending, setPending] = useState(null);   // {rows, label}
+  const nameOf = (pid) => { const x = pilots.find(p => p.id === pid); return x ? (x.code || x.full_name) : '—'; };
+
+  // Bir SKPK = bir UCUS = bir komutan karari. Satirlar pilot bazli oldugu icin
+  // atama kimligine gore gruplanir; Genel Mudurluge giden de TEK pakettir.
+  const groups = useMemo(() => {
+    const rows = (duties || []).filter(d =>
+      d.status !== 'cancelled' &&
+      ((d.skpk_fdp_extension_min || 0) > 0 || (d.skpk_rest_reduction_min || 0) > 0));
+    const map = new Map();
+    rows.forEach(d => {
+      const key = d.assignment_id || d.id;
+      if (!map.has(key)) map.set(key, { key, head: d, rows: [] });
+      map.get(key).rows.push(d);
+    });
+    return [...map.values()].sort((a, b) =>
+      String(b.head.duty_date).localeCompare(String(a.head.duty_date)));
+  }, [duties]);
+
+  const today = new Date();
+  const statusOf = (d) => {
+    if (!d.skpk_authority_due) return { kind:'operator', label:'OPERATOR ONLY (≤01:00)', tone:'dim' };
+    if (d.skpk_authority_reported_at) return { kind:'sent', label:`SENT ${fmtD(d.skpk_authority_reported_at)}`, tone:'green' };
+    const days = Math.floor((new Date(d.skpk_authority_due) - today) / 86400000);
+    if (days < 0) return { kind:'overdue', label:`OVERDUE BY ${-days} DAY(S)`, tone:'red', days };
+    return { kind:'due', label:`DUE IN ${days} DAY(S)`, tone: days <= 7 ? 'amber' : 'dim', days };
+  };
+
+  const overdue = groups.filter(g => statusOf(g.head).kind === 'overdue').length;
+  const soon = groups.filter(g => { const s = statusOf(g.head); return s.kind === 'due' && s.days <= 7; }).length;
+
+  const markSent = async (reason) => {
+    const rows = pending.rows;
+    const stamp = new Date().toISOString();
+    // IZ ONCE (silme/iptal/edit ile ayni ilke)
+    const { error: eErr } = await supabase.from('ftl_duty_edits').insert(rows.map(r => ({
+      duty_id: r.id, customer_id: r.customer_id, pilot_id: r.pilot_id,
+      assignment_id: r.assignment_id || null, edit_type: 'EDIT', field_name: 'skpk_authority_report',
+      old_value: r.skpk_authority_reported_at ? `sent ${r.skpk_authority_reported_at}` : 'not sent',
+      new_value: `sent to DGCA ${stamp} (due ${r.skpk_authority_due})`,
+      reason: reason.trim(), edited_by: myProfile?.id ?? null })));
+    if (eErr) { toast(`Audit write failed: ${eErr.message}`, 'error'); return; }
+    for (const r of rows) {
+      const { error } = await supabase.from('crew_duties')
+        .update({ skpk_authority_reported_at: stamp, skpk_operator_comment: reason.trim() })
+        .eq('id', r.id);
+      if (error) { toast(`Update failed: ${error.message}`, 'error'); return; }
+    }
+    toast('Marked as reported to the DGCA (logged).', 'success');
+    setPending(null); reload();
+  };
+
+  // SHGM PAKETI: Md.12(1)(c)(2) "kaptan raporunun bir kopyasi ISLETICININ KENDI
+  // YORUMLARI ILE BIRLIKTE" — ikisi tek belgede basilir, gonderilecek olan bu.
+  const printPacket = (g) => {
+    const esc = (x) => String(x ?? '—').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const d = g.head;
+    const sectors = (d.sectors || []).map(s =>
+      `${esc(s.dep)}–${esc(s.dest)} ${esc(s.off_block || s.etd)}–${esc(s.on_block || s.eta)}`).join(' · ') || '—';
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) return;
+    w.document.write(`<!doctype html><html><head><title>SKPK — ${esc(fmtD(d.duty_date))}</title><style>
+      body{font-family:-apple-system,'Helvetica Neue',sans-serif;color:#0f172a;margin:28px;font-size:12px}
+      h1{font-size:15px;letter-spacing:2px;margin:0 0 2px}
+      .sub{font-size:10px;color:#64748b;margin-bottom:16px}
+      .box{border:1px solid #cbd5e1;border-radius:6px;padding:12px 14px;margin-bottom:12px}
+      .box h2{font-size:10px;letter-spacing:1.5px;margin:0 0 8px;color:#475569}
+      .kv{display:flex;gap:28px;flex-wrap:wrap}.kv div{font-size:11px}
+      .kv b{display:block;font-size:9px;color:#64748b;letter-spacing:1px;margin-bottom:2px}
+      pre{white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:11px;margin:0}
+      .warn{color:#b91c1c;font-weight:700}
+      @media print{body{margin:10mm}}
+    </style></head><body>
+      <h1>COMMANDER'S DISCRETION REPORT — SKPK</h1>
+      <div class="sub">SHT-FTL/HG Md.12(1)(c)(2) — commander's report with the operator's comments, to the DGCA within 28 days of the event</div>
+      <div class="box"><h2>FLIGHT</h2><div class="kv">
+        <div><b>DATE</b>${esc(fmtD(d.duty_date))}</div>
+        <div><b>SECTORS</b>${sectors}</div>
+        <div><b>CREW</b>${g.rows.map(r => esc(nameOf(r.pilot_id))).join(', ')}</div>
+        <div><b>DUTY</b>${esc(fmtDT(d.report_time))} → ${esc(fmtDT(d.duty_end))}</div>
+      </div></div>
+      <div class="box"><h2>DISCRETION APPLIED</h2><div class="kv">
+        <div><b>FDP EXTENSION</b>${fmtMin(d.skpk_fdp_extension_min || 0)}</div>
+        <div><b>REST REDUCTION</b>${fmtMin(d.skpk_rest_reduction_min || 0)}</div>
+        <div><b>MAX FDP AFTER</b>${fmtMin(d.max_fdp_minutes)}</div>
+        <div><b>NEXT REST (incl. 2× compensation)</b>${fmtMin(d.min_rest_minutes)}</div>
+        <div><b>REPORTED TO OPERATOR</b>${esc(fmtDT(d.skpk_reported_at))}</div>
+        <div><b>DGCA DUE</b>${esc(fmtD(d.skpk_authority_due))}</div>
+      </div></div>
+      <div class="box"><h2>COMMANDER'S REPORT</h2><pre>${esc(d.skpk_reason || '—')}</pre></div>
+      <div class="box"><h2>OPERATOR'S COMMENTS</h2><pre>${d.skpk_operator_comment ? esc(d.skpk_operator_comment) : '<span class="warn">NOT RECORDED YET — required by Md.12(1)(c)(2)</span>'}</pre></div>
+    </body></html>`);
+    w.document.close();
+  };
+
+  return (
+    <div style={S.panel}>
+      <div style={S.panelH}>
+        <span style={S.panelT}>SKPK — COMMANDER'S DISCRETION (Md.12)</span>
+        <span style={{ fontSize:10, fontFamily:'var(--mono)', color:C.t3 }}>
+          {groups.length} EVENT(S){overdue ? ` · ${overdue} OVERDUE` : ''}{soon ? ` · ${soon} DUE ≤7D` : ''}
+        </span>
+      </div>
+      {(overdue > 0 || soon > 0) && (
+        <div style={{ ...S.note, borderLeftColor: overdue ? C.red : C.accent,
+                      color: overdue ? C.red : C.t2, margin:0, borderRadius:0 }}>
+          {overdue > 0 && <>{overdue} SKPK EVENT(S) PAST THE 28-DAY DGCA DEADLINE (Md.12/1/c/2). </>}
+          {soon > 0 && <>{soon} DUE WITHIN 7 DAYS. </>}
+          The commander's report plus the operator's comments must reach the DGCA — print the packet, send it, then mark it here.
+        </div>
+      )}
+      <div style={{ overflowX:'auto' }}>
+        <table style={S.table}>
+          <thead><tr>{['DATE', 'SECTORS', 'CREW', 'FDP EXT', 'REST RED', 'OPERATOR REPORT', 'DGCA STATUS', ''].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <tbody>
+            {groups.map(g => {
+              const d = g.head; const st = statusOf(d);
+              return (
+                <tr key={g.key}>
+                  <td style={S.td}>{fmtD(d.duty_date)}</td>
+                  <td style={{ ...S.td, whiteSpace:'normal' }}>{routeOf(d)}</td>
+                  <td style={S.td}>{g.rows.map(r => nameOf(r.pilot_id)).join(', ')}</td>
+                  <td style={{ ...S.td, color: d.skpk_fdp_extension_min ? C.accent : C.t3, fontWeight:700 }}>
+                    {d.skpk_fdp_extension_min ? `+${fmtMin(d.skpk_fdp_extension_min)}` : '—'}</td>
+                  <td style={{ ...S.td, color: d.skpk_rest_reduction_min ? C.accent : C.t3, fontWeight:700 }}>
+                    {d.skpk_rest_reduction_min ? `−${fmtMin(d.skpk_rest_reduction_min)}` : '—'}</td>
+                  <td style={{ ...S.td, color:C.t3 }} title={d.skpk_reason || ''}>{fmtDT(d.skpk_reported_at)}</td>
+                  <td style={S.td}><span style={badge(st.tone)}>{st.label}</span></td>
+                  <td style={{ ...S.td, textAlign:'right' }}>
+                    <button style={{ ...S.btnS, padding:'5px 10px', marginRight:6 }} onClick={() => printPacket(g)}>PACKET</button>
+                    {d.skpk_authority_due && !d.skpk_authority_reported_at && (
+                      <button style={{ ...S.btnS, padding:'5px 10px' }}
+                              onClick={() => setPending({ rows: g.rows, label: `${fmtD(d.duty_date)} ${routeOf(d)}` })}>
+                        MARK SENT
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {!groups.length && (
+              <tr><td style={{ ...S.td, color:C.t3 }} colSpan={8}>No commander's discretion recorded. SKPK is entered on a flown duty via ROSTER → EDIT.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {pending && (
+        <ReasonModal
+          title={`MARK REPORTED TO DGCA — ${pending.label}`}
+          warn={'This records that the commander\'s report AND the operator\'s comments were sent to the DGCA (Md.12/1/c/2). What you type here is stored as the OPERATOR\'S COMMENTS and printed on the packet — write the operator\'s assessment, not just "sent".'}
+          confirmLabel="MARK SENT"
+          onCancel={() => setPending(null)}
+          onConfirm={markSent} />
+      )}
     </div>
   );
 }
@@ -340,7 +515,21 @@ function DutyRoster({ toast, myProfile, pilots, duties, baselines, homeBases, of
                 return (
                   <tr key={g.key} style={{ opacity: allCancelled ? .45 : 1 }}>
                     <td style={S.td}>{d0 === d1 ? fmtD(d0) : `${fmtD(d0)} — ${fmtD(d1)}`}</td>
-                    <td style={S.td}>{(d.duty_type || '').toUpperCase()}</td>
+                    <td style={S.td}>
+                      {(d.duty_type || '').toUpperCase()}
+                      {d.operation_type && d.operation_type !== 'air_taxi' && (
+                        <span style={{ ...badge('blue'), marginLeft:6 }}>
+                          {d.operation_type === 'general_aviation' ? 'GA'
+                            : d.operation_type === 'training' ? 'TRN'
+                            : d.operation_type === 'aerial_work' ? 'AW' : d.operation_type}
+                        </span>
+                      )}
+                      {(d.ground_kind === 'airport_standby' || d.ground_kind === 'other_standby') && (
+                        <span style={{ ...badge('amber'), marginLeft:6 }}>
+                          STANDBY {d.ground_kind === 'airport_standby' ? 'Md.17/1' : 'Md.17/2'}
+                        </span>
+                      )}
+                    </td>
                     <td style={{ ...S.td, whiteSpace:'normal' }}>{routeOf(d)}</td>
                     <td style={S.td}>{fmtDT(d.report_time)}</td>
                     <td style={S.td}>{fmtDT(d.duty_end)}</td>
@@ -349,6 +538,22 @@ function DutyRoster({ toast, myProfile, pilots, duties, baselines, homeBases, of
                         const role = (r.sectors || [])[0]?.role;
                         return <span key={r.id} style={{ marginRight:8 }}>
                           {nameOf(r.pilot_id)}{role ? <span style={{ color:C.t3 }}> ({role})</span> : null}
+                          {/* NOBET KISALTMASI PILOT BAZLIDIR (Md.17) — gorev satirinda
+                              degil ekip uyesinin yaninda gosterilir; ayni ucusta bir
+                              pilotun tavani kisa, digerininki tam olabilir. */}
+                          {r.standby_reduction_min > 0 && (
+                            <span style={{ ...badge('amber'), marginLeft:4 }} title={r.standby_ref || 'SHT-FTL/HG Md.17'}>
+                              SB −{fmtMin(r.standby_reduction_min)}
+                            </span>
+                          )}
+                          {/* İNTİBAK yalnız KALKIŞ MEYDANINDAN FARKLIYSA gösterilir:
+                              aynıysa bilgi taşımaz, gürültü olur (alan 8 dersi). */}
+                          {r.acclimatised_to &&
+                           String(r.acclimatised_to).toUpperCase() !== String((r.sectors || [])[0]?.dep || '').toUpperCase() && (
+                            <span style={{ ...badge('amber'), marginLeft:4 }} title="SHT-FTL/HG Md.22(1) — Table 1 band read in this aerodrome's local time">
+                              ACCL {r.acclimatised_to}
+                            </span>
+                          )}
                         </span>;
                       })}
                       {d.check_ride && (
@@ -357,7 +562,18 @@ function DutyRoster({ toast, myProfile, pilots, duties, baselines, homeBases, of
                         </span>
                       )}
                     </td>
-                    <td style={S.td}>{statusBadge(d.status)}{d.match_review && <span style={{ ...badge('amber'), marginLeft:6 }}>REVIEW</span>}</td>
+                    <td style={S.td}>{statusBadge(d.status)}{d.match_review && <span style={{ ...badge('amber'), marginLeft:6 }}>REVIEW</span>}
+                      {/* SKPK gorunur olmali: kaydin azami UGS/dinlenmesi komutan
+                          kararıyla degistirilmis demektir. SHGM suresi gecmisse
+                          KIRMIZI — takipcinin uyarisi burada da tekrarlanir. */}
+                      {((d.skpk_fdp_extension_min || 0) > 0 || (d.skpk_rest_reduction_min || 0) > 0) && (
+                        <span style={{ ...badge(d.skpk_authority_due && !d.skpk_authority_reported_at
+                                                 && new Date(d.skpk_authority_due) < new Date() ? 'red' : 'amber'), marginLeft:6 }}
+                              title={d.skpk_ref || 'SHT-FTL/HG Md.12'}>
+                          SKPK{d.skpk_fdp_extension_min ? ` +${fmtMin(d.skpk_fdp_extension_min)}` : ''}{d.skpk_rest_reduction_min ? ` −${fmtMin(d.skpk_rest_reduction_min)}` : ''}
+                        </span>
+                      )}
+                    </td>
                     <td style={{ ...S.td, textAlign:'right' }}>
                       {!allCancelled && d.duty_type === 'flight' && (
                         <button style={{ ...S.btnS, padding:'5px 10px', marginRight:6 }}
@@ -431,16 +647,88 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
     role: (r.sectors || [])[0]?.role || 'PF' })));
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
+  // ── SKPK (Md.12) — SKPK bir PLANLAMA araci degil, OLMUS BITMIS bir olayin
+  // kaydidir ("gorev baslangici SONRASINDA baslayan ongorulemeyen haller").
+  // Bu yuzden yalniz planned OLMAYAN gorevlerde acilir.
+  const skpkAllowed = head.status !== 'planned';
+  const [skpkExt, setSkpkExt] = useState(() => fmtMin(head.skpk_fdp_extension_min || 0) === '—' ? '' : (head.skpk_fdp_extension_min ? fmtMin(head.skpk_fdp_extension_min) : ''));
+  const [skpkRed, setSkpkRed] = useState(() => head.skpk_rest_reduction_min ? fmtMin(head.skpk_rest_reduction_min) : '');
+  const [skpkReason, setSkpkReason] = useState(head.skpk_reason || '');
 
   const snapshotRuleset = head.ruleset_snapshot || null;
   const timeOk = (t) => /^\d{2}:\d{2}$/.test(t || '');
+  // Faaliyet tipi gorevin KENDI kaydindan gelir (Md.9) — snapshot ile birlikte
+  // gorevin yazildigi andaki kural evreni korunur. Opsiyonlar TEK KAYNAK:
+  // ortak pencere ve pilot-bazli (nobet kisaltmali) pencere ayni sette kurulur.
+  const winOpts = useMemo(() => ({
+    threePilot: crew.some(c => c.role === 'CRZ CPT'),
+    operationType: head.operation_type || 'air_taxi',
+    trainingKind: head.training_kind,
+    sameDayTheory: !!head.same_day_theory,
+    singlePilot: crew.length === 1,
+  }), [crew, head.operation_type, head.training_kind, head.same_day_theory]);
   const win = useMemo(() => {
     if (isActual || !snapshotRuleset) return null;
     const complete = legs.filter(l => timeOk(l.etd) && timeOk(l.eta));
     if (complete.length !== legs.length || !legs.length) return null;
-    const threePilot = crew.some(c => c.role === 'CRZ CPT');
-    return dutyWindow(legs, head.accommodation || 'hotel', snapshotRuleset, { threePilot });
-  }, [legs, snapshotRuleset, isActual, head.accommodation, crew]);
+    return dutyWindow(legs, head.accommodation || 'hotel', snapshotRuleset, winOpts);
+  }, [legs, snapshotRuleset, isActual, head.accommodation, winOpts]);
+
+  /** Bir pilotun bu gorev icin NOBET durumu (Md.17) — gorevin KENDI snapshot'iyla.
+   *  EDIT'te iki yoldan gerekir: (1) saat/sektor degisti, (2) PILOT DEGISTI.
+   *  (2) ozellikle onemli: nobette beklemis bir pilot yerine gecirildiginde
+   *  azami UGS sessizce eski degerde kalirsa gorev yasadisi hale gelir. */
+  const standbyFor = (pilotId, dutyDate, reportISO) => {
+    if (!snapshotRuleset || !win) return { pWin: win, sb: null, sbDuty: null };
+    const { rules } = effectiveRules(snapshotRuleset);
+    const sbDuty = standbyBefore(duties, pilotId, dutyDate, reportISO);
+    const sbEffect = sbDuty
+      ? standbyEffect(sbDuty, rules, { fdpExtended: !!(win.split.isSplit || win.augmented) }) : null;
+    const pWin = sbEffect?.fdpReductionMin
+      ? dutyWindow(legs, head.accommodation || 'hotel', snapshotRuleset,
+                   { ...winOpts, standbyReductionMin: sbEffect.fdpReductionMin })
+      : win;
+    return { pWin, sb: sbEffect ? standbyLimits(sbEffect, pWin.fdpMin) : null, sbDuty };
+  };
+
+  // ── SKPK (Md.12) — pilot bazli ────────────────────────────────────
+  // TABAN DEGERLER HER ZAMAN GERI ALINARAK bulunur: kayittaki max_fdp ve
+  // min_rest onceki bir SKPK'nin etkisini ZATEN icerebilir. Uzerine tekrar
+  // eklersek ayni SKPK iki kez uygulanir (duzenleme her acildiginda buyur).
+  // Bu yuzden: taban = kayitli deger EKSI kayitli SKPK etkisi. Idempotent.
+  const skpkFor = (row) => {
+    if (!snapshotRuleset || !skpkAllowed) return null;
+    const { rules } = effectiveRules(snapshotRuleset);
+    const baseMaxFdp = row.max_fdp_minutes != null
+      ? row.max_fdp_minutes - (row.skpk_fdp_extension_min || 0) : null;
+    const baseEarnedRest = row.min_rest_minutes != null
+      ? row.min_rest_minutes - 2 * (row.skpk_rest_reduction_min || 0) : null;
+    // Gerceklesen UGS: rapor → son ON BLOCK. Md.12(1)(c)(2) "GERCEKLESTIRILEN
+    // UGS'nin artirilmasi" der — plan degil, OLAN.
+    // DIKKAT — SAAT DILIMI: report_time timestamptz (mutlak), on_block ise
+    // YEREL "HH:MM" dizgesi. Ikisini dogrudan karsilastirmak +03'te 3 saatlik
+    // hata verir. Rapor once gorevin KENDI diliminde (report_tz = kalkis
+    // meydani) yerellestirilir. report_tz yoksa TAHMIN URETMEYIZ (Ilke 1):
+    // oneri gosterilmez, kaptanin beyani esas alinir.
+    const lastOn = (row.sectors || []).slice(-1)[0]?.on_block;
+    const repLocalHHMM = (row.report_time && row.report_tz)
+      ? fmtMin(((new Date(row.report_time).getTime() / 60000)
+                + tzOffsetMin(row.report_tz, new Date(row.report_time).getTime())) % 1440)
+      : null;
+    const actualFdpMin = (repLocalHHMM && lastOn)
+      ? spanMin(repLocalHHMM, lastOn) : (row.fdp_minutes ?? null);
+    const prev = previousDuty(duties, row.pilot_id, row.report_time, row.id);
+    const skpk = skpkLimits(
+      { fdpExtensionMin: toMin(skpkExt) || 0, restReductionMin: toMin(skpkRed) || 0 },
+      rules,
+      { augmented: !!(win?.augmented || (row.sectors || []).some(s => s.role === 'CRZ CPT')),
+        baseMaxFdpMin: baseMaxFdp, fdpMin: actualFdpMin,
+        earnedRestMin: baseEarnedRest,
+        prevMinRestMin: prev?.min_rest_minutes ?? null,
+        prevHadSkpkExtension: (prev?.skpk_fdp_extension_min || 0) > 0,
+        dutyEndISO: row.duty_end });
+    return { skpk, prev, baseMaxFdp, baseEarnedRest, actualFdpMin };
+  };
 
   const nameOf = (pid) => { const x = pilots.find(p => p.id === pid); return x ? (x.code || x.full_name) : '—'; };
   const setLeg = (i, k, v) => setLegs(ls => ls.map((l, j) => j === i ? { ...l, [k]: v } : l));
@@ -467,7 +755,7 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
         const tzMap = await fetchTzMap([legs[0].dep, legs[legs.length-1].dest]);
         const depTz = tzMap[legs[0].dep.toUpperCase()] || null;
         const destTz = tzMap[legs[legs.length-1].dest.toUpperCase()] || null;
-        if (!depTz || !destTz) tzWarn = 'AIRPORT TZ NOT IN DATABASE — admin timezone used (EASA ORO.FTL.235 kontrolu elde yapilmali).';
+        if (!depTz || !destTz) tzWarn = 'AIRPORT TZ NOT IN DATABASE — admin timezone used (SHT-FTL/HG Md.16 kontrolu elde yapilmali).';
         reportISO = zonedISO(date, win.report, depTz);
         const lastEta = legs[legs.length - 1].eta;
         const crossesMidnight = toMin(lastEta) < toMin(win.report);
@@ -480,15 +768,41 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
         }
       }
 
+      // Regulasyon TAVANLARI (nobet Md.17 / SKPK Md.12) — delinirse yazma YOK.
+      const blocked = [];
       for (const c of crew) {
         const row = group.rows.find(r => r.id === c.rowId);
         const upd = {};
-        if (c.pilot !== c.oldPilot) {
+        const crewChanged = c.pilot !== c.oldPilot;
+        if (crewChanged) {
           upd.pilot_id = c.pilot;
           edits.push({ duty_id: row.id, customer_id: row.customer_id, pilot_id: c.oldPilot,
             assignment_id: row.assignment_id || null, edit_type: 'EDIT', field_name: 'crew',
             old_value: nameOf(c.oldPilot), new_value: nameOf(c.pilot),
             reason: reason.trim(), edited_by: myProfile?.id ?? null });
+        }
+        // NOBET (Md.17) — pilot bazli. Saat/sektor DEGISMESE BILE pilot degistiyse
+        // yeniden cozulur: yeni pilotun nobeti varsa azami UGS onun icin kisadir.
+        const { pWin, sb, sbDuty } = (!isActual && win && (sectorsChanged || dateChanged || crewChanged))
+          ? standbyFor(c.pilot, date, reportISO)
+          : { pWin: win, sb: null, sbDuty: null };
+        if (sb && !sb.ok) blocked.push(`${nameOf(c.pilot)} — STANDBY: ${sb.reasons.join('; ')}`);
+        if (!isActual && crewChanged && !sectorsChanged && !dateChanged && win) {
+          // Yalniz ekip degisti: saatler ayni kalir, NOBET TURETILEN alanlar yenilenir.
+          const oldRed = row.standby_reduction_min || 0;
+          const newRed = sb?.fdpReductionMin || 0;
+          if (newRed !== oldRed || (row.standby_duty_id || null) !== (sbDuty?.id || null)) {
+            upd.max_fdp_minutes = pWin.maxFdpMin;
+            upd.fdp_exceeded = !!pWin.fdpExceeded;
+            upd.standby_reduction_min = newRed || null;
+            upd.standby_duty_id = sbDuty?.id || null;
+            upd.standby_ref = sb ? standbyRef(sbDuty, sb) : null;
+            edits.push({ duty_id: row.id, customer_id: row.customer_id, pilot_id: c.pilot,
+              assignment_id: row.assignment_id || null, edit_type: 'EDIT', field_name: 'standby/max_fdp',
+              old_value: `MAX ${fmtMin(row.max_fdp_minutes)} · standby −${fmtMin(oldRed)}`,
+              new_value: `MAX ${fmtMin(pWin.maxFdpMin)} · standby −${fmtMin(newRed)}${sb ? ` (${sb.reference})` : ''}`,
+              reason: reason.trim(), edited_by: myProfile?.id ?? null });
+          }
         }
         if (sectorsChanged || dateChanged) {
           upd.duty_date = date;
@@ -496,9 +810,12 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
             dep: l.dep.toUpperCase(), dest: l.dest.toUpperCase(), etd: l.etd, eta: l.eta,
             role: c.role }));
           upd.report_time = reportISO; upd.duty_end = endISO;
-          upd.max_fdp_minutes = win.maxFdpMin; upd.fdp_minutes = win.fdpMin;
-          upd.fdp_exceeded = !!win.fdpExceeded;
-          const newDutyMin = win.dutyMin || 0;
+          upd.max_fdp_minutes = pWin.maxFdpMin; upd.fdp_minutes = pWin.fdpMin;
+          upd.fdp_exceeded = !!pWin.fdpExceeded;
+          upd.standby_reduction_min = sb?.fdpReductionMin || null;
+          upd.standby_duty_id = sbDuty?.id || null;
+          upd.standby_ref = sb ? standbyRef(sbDuty, sb) : null;
+          const newDutyMin = pWin.dutyMin || 0;
           upd.min_rest_minutes = Math.max(newDutyMin, row.min_rest_minutes || 0);
           upd.earliest_next_report = addMin(endISO, upd.min_rest_minutes);
           edits.push({ duty_id: row.id, customer_id: row.customer_id, pilot_id: c.pilot,
@@ -514,9 +831,68 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
             chainWarn.push(`${nameOf(c.pilot)}: next duty ${fmtDT(nxt.report_time)} < earliest ${fmtDT(upd.earliest_next_report)}`);
           }
         }
+
+        // ── SKPK (Md.12) ────────────────────────────────────────────
+        // Komutanın kararı TÜM EKİBİ bağlar (tek uçuş, tek karar) — bu yüzden
+        // gruptaki her satıra aynı uzatma/kısaltma işlenir; ama TABAN ve
+        // "hak edilen dinlenme" pilot bazlıdır, o yüzden hesap satır satır.
+        const extIn = toMin(skpkExt) || 0, redIn = toMin(skpkRed) || 0;
+        const skpkChanged = skpkAllowed && (
+          extIn !== (row.skpk_fdp_extension_min || 0) ||
+          redIn !== (row.skpk_rest_reduction_min || 0) ||
+          (skpkReason || '').trim() !== (row.skpk_reason || ''));
+        if (skpkChanged) {
+          // Md.12(1)(c)(1): SKPK varsa işleticiye rapor İSTİSNASIZ sunulur —
+          // gerekçesiz SKPK kaydı yasaktır (boş gerekçe yasağıyla aynı ilke).
+          if ((extIn > 0 || redIn > 0) && !skpkReason.trim()) {
+            toast('COMMANDER\'S REPORT is mandatory for any SKPK (SHT-FTL/HG Md.12/1/c/1).', 'error');
+            setSaving(false); return;
+          }
+          const s = skpkFor(row);
+          if (s && !s.skpk.ok) blocked.push(`${nameOf(c.pilot)} — SKPK: ${s.skpk.reasons.join('; ')}`);
+          const baseMax = upd.max_fdp_minutes != null ? upd.max_fdp_minutes : s?.baseMaxFdp;
+          const baseRest = upd.min_rest_minutes != null && (sectorsChanged || dateChanged)
+            ? upd.min_rest_minutes : s?.baseEarnedRest;
+          const newMax = baseMax != null ? baseMax + extIn : null;
+          const newRest = baseRest != null ? baseRest + (redIn * 2) : null;
+          const endForRest = upd.duty_end || row.duty_end;
+          if (newMax != null) upd.max_fdp_minutes = newMax;
+          if (s?.skpk.fdpStillExceeded != null) upd.fdp_exceeded = !!s.skpk.fdpStillExceeded;
+          if (newRest != null) {
+            upd.min_rest_minutes = newRest;
+            upd.earliest_next_report = addMin(endForRest, newRest);
+          }
+          upd.skpk_fdp_extension_min = extIn || null;
+          upd.skpk_rest_reduction_min = redIn || null;
+          upd.skpk_reason = skpkReason.trim() || null;
+          // İşleticiye rapor damgası: ilk kez kaydedildiğinde atılır, sonraki
+          // düzeltmelerde KORUNUR (raporun ne zaman sunulduğu geriye kaymaz).
+          upd.skpk_reported_at = (extIn > 0 || redIn > 0)
+            ? (row.skpk_reported_at || new Date().toISOString()) : null;
+          upd.skpk_authority_due = s?.skpk.authorityDueISO || null;
+          if (!s?.skpk.authorityReportRequired) upd.skpk_authority_reported_at = null;
+          upd.skpk_ref = s ? skpkRef(s.skpk) : null;
+          edits.push({ duty_id: row.id, customer_id: row.customer_id, pilot_id: c.pilot,
+            assignment_id: row.assignment_id || null, edit_type: 'EDIT', field_name: 'skpk',
+            old_value: `FDP +${fmtMin(row.skpk_fdp_extension_min || 0)} · REST −${fmtMin(row.skpk_rest_reduction_min || 0)}`,
+            new_value: `FDP +${fmtMin(extIn)} · REST −${fmtMin(redIn)}${s?.skpk.authorityReportRequired ? ' · DGCA REPORT DUE' : ''} — ${skpkReason.trim() || '(cleared)'}`,
+            reason: reason.trim(), edited_by: myProfile?.id ?? null });
+          // Telafi zinciri: artan dinlenme sonraki görevi deliyor mu?
+          const nx = (duties || []).filter(x => x.pilot_id === c.pilot && x.id !== row.id &&
+            x.status !== 'cancelled' && x.report_time && x.report_time > endForRest)
+            .sort((a, b) => String(a.report_time).localeCompare(String(b.report_time)))[0];
+          if (nx && upd.earliest_next_report && nx.report_time < upd.earliest_next_report) {
+            chainWarn.push(`${nameOf(c.pilot)}: SKPK compensation pushes rest to ${fmtDT(upd.earliest_next_report)}, next duty starts ${fmtDT(nx.report_time)}`);
+          }
+        }
         if (Object.keys(upd).length) updates.push({ id: row.id, upd });
       }
 
+      // REGULASYON KAPISI (Md.17 nobet / Md.12 SKPK): tavan deliniyorsa YAZILMAZ.
+      // Iz de yazilmaz — degisiklik hic olmadi, reddedildi.
+      if (blocked.length) {
+        toast(`REGULATORY LIMIT — ${blocked.join(' | ')}`, 'error'); setSaving(false); return;
+      }
       if (!edits.length) { toast('No changes.', 'error'); setSaving(false); return; }
       // IZ ONCE yazilir (silme/iptalle ayni ilke).
       const { error: eErr } = await supabase.from('ftl_duty_edits').insert(edits);
@@ -571,6 +947,21 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
               {win.fdpExceeded ? ' · EXCEEDED' : ''}
             </div>
           )}
+          {/* NOBET (Md.17) — pilot bazli oldugu icin yukaridaki tek satir yetmez.
+              Kaydetmeden ONCE hangi pilotun tavaninin nereye dustugu gorunur. */}
+          {win && (() => {
+            const est = localISO(date, win.report);
+            const rows = crew.map(c => ({ c, ...standbyFor(c.pilot, date, est) })).filter(r => r.sb);
+            if (!rows.length) return null;
+            return rows.map(({ c, pWin, sb }) => (
+              <div key={c.rowId} style={{ ...S.note, margin:'0 0 8px',
+                     borderLeftColor: sb.ok ? C.accent : C.red, color: sb.ok ? C.t2 : C.red }}>
+                {nameOf(c.pilot)} — {sb.kind === 'airport_standby' ? 'AIRPORT' : 'OTHER'} STANDBY {fmtMin(sb.standbyMin)} ({sb.reference})
+                {sb.fdpReductionMin > 0 ? ` · MAX FDP −${fmtMin(sb.fdpReductionMin)} → ${fmtMin(pWin.maxFdpMin)}` : ' · NO FDP REDUCTION'}
+                {sb.reasons.length ? ` · ${sb.reasons.join('; ')}` : ''}
+              </div>
+            ));
+          })()}
         </>)}
 
         <span style={S.label}>Crew</span>
@@ -583,6 +974,77 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
             </select>
           </div>
         ))}
+
+        {/* ── SKPK — SORUMLU KAPTAN PILOT KARARI (SHT-FTL/HG Md.12) ──────
+              Yalniz GERCEKLESMIS gorevde: Md.12(1) "gorev baslangici SONRASINDA
+              baslayan ongorulemeyen haller" der — SKPK planlama araci degildir.
+              Girilen degerler kaydin azami UGS'sini ve dinlenmesini DEGISTIRIR;
+              bu yuzden ayri bir bolum, gizli bir yan etki degil. ── */}
+        {skpkAllowed && (
+          <div style={{ border:`1px dashed ${C.border2}`, padding:'12px 14px', margin:'14px 0' }}>
+            <div style={{ ...S.panelT, marginBottom:6 }}>COMMANDER'S DISCRETION — SKPK (Md.12)</div>
+            <div style={{ ...S.note, marginBottom:10 }}>
+              Record what the commander actually did AFTER duty start because of unforeseen circumstances.
+              Leave blank if none. Any entry changes this duty's MAX FDP and rest, is reported to the
+              operator (Md.12/1/c/1), and — if it exceeds 01:00 — must reach the DGCA within 28 days (Md.12/1/c/2).
+            </div>
+            <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:10 }}>
+              <div style={{ width:150 }}><span style={S.label}>FDP extension</span>
+                <input style={S.input} placeholder="HH:MM" value={skpkExt}
+                       onChange={e => setSkpkExt(normTime(e.target.value))} /></div>
+              <div style={{ width:150 }}><span style={S.label}>Rest reduction</span>
+                <input style={S.input} placeholder="HH:MM" value={skpkRed}
+                       onChange={e => setSkpkRed(normTime(e.target.value))} /></div>
+            </div>
+            {/* PILOT BAZLI SONUC — taban ve hak edilen dinlenme pilota gore degisir */}
+            {group.rows.map(row => {
+              const s = skpkFor(row);
+              if (!s) return null;
+              const k = s.skpk;
+              const showSuggest = !skpkExt && s.actualFdpMin != null && s.baseMaxFdp != null
+                                  && s.actualFdpMin > s.baseMaxFdp;
+              return (
+                <div key={row.id} style={{ ...S.note, marginBottom:8,
+                       borderLeftColor: k.ok ? C.accent : C.red, color: k.ok ? C.t2 : C.red }}>
+                  <b>{nameOf(row.pilot_id)}</b>
+                  {' · '}MAX FDP {fmtMin(s.baseMaxFdp)}{k.extensionMin > 0 ? ` → ${fmtMin(k.maxFdpWithSkpkMin)}` : ''}
+                  {s.actualFdpMin != null && <> · ACTUAL FDP {fmtMin(s.actualFdpMin)}{k.fdpStillExceeded ? ' — STILL EXCEEDED' : ''}</>}
+                  {k.reductionMin > 0 && <>
+                    {' · '}EARNED REST BEFORE {fmtMin(s.prev?.min_rest_minutes)} − {fmtMin(k.reductionMin)} = {fmtMin(k.restAfterReductionMin)} (floor {fmtMin(k.restFloorMin)})
+                    {' · '}NEXT REST {fmtMin(s.baseEarnedRest)} → {fmtMin(k.minRestWithCompensationMin)} (2× Md.12/2)
+                  </>}
+                  {k.applied && <> · {k.authorityReportRequired
+                    ? `DGCA REPORT DUE ${fmtD(k.authorityDueISO)}`
+                    : 'OPERATOR REPORT ONLY (≤01:00)'}</>}
+                  {k.reasons.length ? <> · {k.reasons.join('; ')}</> : null}
+                  {showSuggest && (
+                    <div style={{ marginTop:6 }}>
+                      {/* ILKE 1: hesaplanan degeri KENDIMIZ yazmayiz — oneririz,
+                          insan onaylar. Uydurma yok, sessiz yazma da yok. */}
+                      <button style={{ ...S.btnS, padding:'4px 10px' }}
+                              onClick={() => setSkpkExt(fmtMin(s.actualFdpMin - s.baseMaxFdp))}>
+                        USE {fmtMin(s.actualFdpMin - s.baseMaxFdp)} (actual {fmtMin(s.actualFdpMin)} − max {fmtMin(s.baseMaxFdp)})
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <span style={S.label}>Commander's report (mandatory when SKPK is used — Md.12/1/c/1)</span>
+            <textarea style={{ ...S.input, minHeight:60, resize:'vertical' }} value={skpkReason}
+                      onChange={e => setSkpkReason(e.target.value)}
+                      placeholder="Unforeseen circumstances and what the commander decided…" />
+            {head.skpk_reported_at && (
+              <div style={{ ...S.note, marginTop:8 }}>
+                REPORTED TO OPERATOR {fmtDT(head.skpk_reported_at)}
+                {head.skpk_authority_due && <> · DGCA DUE {fmtD(head.skpk_authority_due)}
+                  {head.skpk_authority_reported_at
+                    ? ` · SENT ${fmtD(head.skpk_authority_reported_at)}`
+                    : ' · NOT SENT YET'}</>}
+              </div>
+            )}
+          </div>
+        )}
 
         <span style={S.label}>Reason (mandatory — audit trail)</span>
         <textarea style={{ ...S.input, minHeight:70, resize:'vertical' }} value={reason} onChange={e => setReason(e.target.value)} />
@@ -770,18 +1232,147 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
   // (jump seat denetcisi dinlenme rotasyonu saglamaz).
   const [extraMode, setExtraMode] = useState(null);
   const [examiner, setExaminer] = useState('');
+  // FAALIYET TIPI (SHT-FTL/HG Md.9): hangi faaliyeti icra ediyorsak O bolumun
+  // limitleri gecerlidir. air_taxi/aerial_work → Md.22 Tablo 1,
+  // general_aviation → Md.25 (duz), training → Md.27 (UGS 12h + ucus siniri).
+  const [opType, setOpType] = useState('air_taxi');
+  const [trainingKind, setTrainingKind] = useState('instructor_examiner');
+  const [sameDayTheory, setSameDayTheory] = useState(false);
 
   const timeOk = (t) => /^\d{2}:\d{2}$/.test(t || '');
+  // UZUN MENZIL TESPITI (SHT-FTL/HG Md.4(ee)): kalkis-varis dilim farki >=4h.
+  // Meydan tz'leri async cekilir; gelene kadar longRange=false, gelince pencere
+  // canli yeniden hesaplanir (Md.22(3) 14:00 tavani motor icinde uygulanir).
+  // Ana us dilimleri: YEREL GECE (Md.4(ff)) ekip uyesinin ana ussunun yerel
+  // saatiyle olculur — dispatcher'in tarayici dilimiyle degil.
+  const [hbTz, setHbTz] = useState({});
+  useEffect(() => {
+    const icaos = [...new Set(Object.values(homeBases || {}).filter(Boolean))];
+    if (!icaos.length) { setHbTz({}); return; }
+    let dead = false;
+    (async () => {
+      const m = await fetchTzMap(icaos);
+      if (dead) return;
+      const out = {};
+      Object.entries(homeBases || {}).forEach(([pid, icao]) => {
+        if (icao && m[icao.toUpperCase()]) out[pid] = m[icao.toUpperCase()];
+      });
+      setHbTz(out);
+    })();
+    return () => { dead = true; };
+  }, [homeBases]);
+
+  // FAALIYET TIPI PLANDAN (6 Agu 2026, Serkan): ucusun niteligi ATC FPL'inde
+  // zaten yazili (RMK/BUSINESS FLIGHT → hava taksi, RMK/PRIVATE FLIGHT → GH).
+  // Ayni tarih+DEP+DEST'te plan varsa tip ONDAN gelir; elle secim yine mumkun
+  // ama kaynak kayda gecer — hangi limitin NEDEN uygulandigi belgelenir.
+  const [planOp, setPlanOp] = useState(null);   // {type, source, planId}
+  const [opManual, setOpManual] = useState(false);
+  useEffect(() => {
+    if (dutyType !== 'flight') { setPlanOp(null); return; }
+    const dep = legs[0]?.dep, dest = legs[legs.length - 1]?.dest;
+    if (!dep || dep.length !== 4 || !dest || dest.length !== 4 || !date) { setPlanOp(null); return; }
+    let dead = false;
+    (async () => {
+      const { data } = await supabase.from('plans')
+        .select('id,dep,dest,date,operation_type,operation_type_source,fpl_remark')
+        .eq('dep', dep.toUpperCase()).eq('dest', dest.toUpperCase())
+        .not('operation_type', 'is', null).limit(20);
+      if (dead) return;
+      // plans.date "05 AUG 2026" bicimindedir; gorev tarihi ISO. Gun/ay/yil esle.
+      const target = new Date(date + 'T12:00:00Z');
+      const hit = (data || []).find(p => {
+        const d = new Date(String(p.date || '').replace(/(\d{1,2}) (\w{3}) (\d{4})/, '$2 $1, $3'));
+        return !isNaN(d) && d.getUTCFullYear() === target.getUTCFullYear()
+          && d.getUTCMonth() === target.getUTCMonth() && d.getUTCDate() === target.getUTCDate();
+      }) || (data || [])[0];
+      setPlanOp(hit ? { type: hit.operation_type, source: hit.operation_type_source, planId: hit.id } : null);
+    })();
+    return () => { dead = true; };
+  }, [dutyType, legs, date]);
+  useEffect(() => {
+    if (planOp?.type && !opManual) setOpType(planOp.type);
+  }, [planOp, opManual]);
+
+  // ── İNTİBAK (Md.22/1) — PİLOT BAZLI ────────────────────────────────
+  // Zincir görev geçmişinden çözülür: pilotun bu görevden ÖNCEKİ görevi, onun
+  // intibak referansı (acclimatised_to, yoksa kalkış meydanı), aradaki dinlenme
+  // ve ana üssü. Sonuç Tablo 1'in hangi bantla okunacağını belirler.
+  // Nöbet gibi PİLOT BAZLIDIR: aynı uçuşa atanan iki pilot farklı yerlerden
+  // gelmiş olabilir, biri intibaklı diğeri değil.
+  const [acclTz, setAcclTz] = useState({});   // icao -> IANA tz (ihtiyaç duyulanlar)
+  useEffect(() => {
+    if (dutyType !== 'flight') return;
+    const dep = legs[0]?.dep;
+    const refs = new Set();
+    if (dep && dep.length === 4) refs.add(dep.toUpperCase());
+    Object.values(homeBases || {}).forEach(h => h && refs.add(String(h).toUpperCase()));
+    (duties || []).forEach(d => {
+      if (d.acclimatised_to) refs.add(String(d.acclimatised_to).toUpperCase());
+      const s0 = (d.sectors || [])[0];
+      if (s0?.dep) refs.add(String(s0.dep).toUpperCase());
+      const sl = (d.sectors || []).slice(-1)[0];
+      if (sl?.actual_dest) refs.add(String(sl.actual_dest).toUpperCase());
+      if (sl?.dest) refs.add(String(sl.dest).toUpperCase());
+    });
+    if (!refs.size) return;
+    let dead = false;
+    (async () => {
+      const m = await fetchTzMap([...refs]);
+      if (!dead) setAcclTz(m);
+    })();
+    return () => { dead = true; };
+  }, [dutyType, legs, duties, homeBases]);
+
+  const [tzDiffH, setTzDiffH] = useState(null);
+  useEffect(() => {
+    if (dutyType !== 'flight') { setTzDiffH(null); return; }
+    const dep = legs[0]?.dep, dest = legs[legs.length - 1]?.dest;
+    if (!dep || dep.length !== 4 || !dest || dest.length !== 4) { setTzDiffH(null); return; }
+    let dead = false;
+    (async () => {
+      const m = await fetchTzMap([dep, dest]);
+      if (dead) return;
+      const a = m[dep.toUpperCase()], b = m[dest.toUpperCase()];
+      if (!a || !b) { setTzDiffH(null); return; }
+      const now = Date.now();
+      setTzDiffH(Math.abs(tzOffsetMin(a, now) - tzOffsetMin(b, now)) / 60);
+    })();
+    return () => { dead = true; };
+  }, [dutyType, legs]);
+  // PENCERE OPSIYONLARI TEK KAYNAK: ortak (nobetsiz) pencere ile her pilotun
+  // KENDI (nobet kisaltmali) penceresi ayni opsiyonlarla kurulur — ikisi zamanla
+  // ayrismasin diye tek yerde duruyor.
+  const winOpts = useMemo(() => ({
+    operationType: opType,
+    trainingKind, sameDayTheory,
+    threePilot: extraMode === 'crz',
+    singlePilot: Object.keys(selected).length === 1,
+    longRange: tzDiffH != null && tzDiffH >= 4,
+  }), [opType, trainingKind, sameDayTheory, extraMode, selected, tzDiffH]);
+
   const win = useMemo(() => {
     if (dutyType !== 'flight') return null;
     const complete = legs.filter(l => timeOk(l.etd) && timeOk(l.eta));
     return complete.length === legs.length
-      ? dutyWindow(complete, accommodation, ruleset, { threePilot: extraMode === 'crz' })
+      ? dutyWindow(complete, accommodation, ruleset, winOpts)
       : null;
-  }, [legs, accommodation, ruleset, dutyType, extraMode]);
+  }, [legs, accommodation, ruleset, dutyType, winOpts]);
 
   const { rules } = useMemo(() => effectiveRules(ruleset), [ruleset]);
   const lim = rules.cumulative_limits || {};
+
+  // GND formunda YAZILMAKTA OLAN nobetin etkisi (canli onizleme).
+  const gndEffect = useMemo(() => {
+    if (dutyType !== 'ground') return null;
+    if (gnd.kind !== 'airport_standby' && gnd.kind !== 'other_standby') return null;
+    if (!timeOk(gnd.start) || !timeOk(gnd.end)) return null;
+    const startISO = localISO(date, gnd.start);
+    const endISO = localISO(toMin(gnd.end) < toMin(gnd.start) ? nextDay(date) : date, gnd.end);
+    if (!startISO || !endISO) return null;
+    return standbyEffect(
+      { duty_type:'ground', ground_kind: gnd.kind, report_time: startISO, duty_end: endISO }, rules);
+  }, [dutyType, gnd, date, rules]);
 
   // her pilot için uygunluk
   const fitList = useMemo(() => {
@@ -791,12 +1382,69 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
       const myDuties = duties.filter(d => d.pilot_id === p.id);
       const f = fitness({
         pilot: p, baseline: baselines[p.id] || null, duties: myDuties, ruleset,
-        newDuty: { reportISO, sectors: legs, dutyMin: win.dutyMin },
+        newDuty: { reportISO, sectors: legs, dutyMin: win.dutyMin, dutyDate: date },
         asOf: reportISO ? new Date(reportISO) : new Date(),
       });
-      return { pilot: p, ...f };
+      // Md.5 — bu pilotun ATAMA AYINDAKI bos gun durumu (yerel gece dogrulamali)
+      const [yy, mm] = String(date).split('-').map(Number);
+      const off = daysOffSummary(myDuties, rules, { year: yy, month: mm, tz: hbTz[p.id] || null, offTypes });
+
+      // ── NOBET (SHT-FTL/HG Md.17) — PILOT BAZLI ───────────────────────
+      // Nobet her pilotun KENDI gecmisidir: ayni ucusa atanan iki pilottan biri
+      // sabahtan beri nobette beklemis, digeri evinde olmus olabilir. Bu yuzden
+      // azami UGS ORTAK DEGIL, pilot basina hesaplanir — ortak pencere yalnizca
+      // "nobetsiz taban"dir. Kisaltilmis pencere ayni motordan gecer.
+      const sbDuty = standbyBefore(myDuties, p.id, date, reportISO);
+      const sbEffect = sbDuty
+        ? standbyEffect(sbDuty, rules, { fdpExtended: !!(win.split.isSplit || win.augmented) })
+        : null;
+
+      // ── İNTİBAK (Md.22/1) — Tablo 1'in bandını bu belirler ─────────
+      const depIcao = String(legs[0]?.dep || '').toUpperCase();
+      const nowMs = reportISO ? new Date(reportISO).getTime() : Date.now();
+      const offOf = (icao) => {
+        const tz = acclTz[String(icao || '').toUpperCase()];
+        return tz ? tzOffsetMin(tz, nowMs) : null;
+      };
+      const prevD = previousDuty(myDuties, p.id, reportISO);
+      // Önceki görevin intibak referansı: kayıtlıysa o, değilse VARDIĞI meydan
+      // (ekip oraya uçtu, dinlenmesi orada başladı).
+      const prevLast = (prevD?.sectors || []).slice(-1)[0];
+      const prevRefIcao = prevD
+        ? (prevD.acclimatised_to || prevLast?.actual_dest || prevLast?.dest || null) : null;
+      const accl = acclimatisation(
+        prevD ? { refIcao: prevRefIcao, refOffsetMin: offOf(prevRefIcao), dutyEndISO: prevD.duty_end } : null,
+        { depIcao, depOffsetMin: offOf(depIcao), reportISO, homeBaseIcao: homeBases?.[p.id] || null },
+        rules);
+      const bandRep = (!accl.unavailable && accl.icao !== depIcao)
+        ? bandReportHHMM(win.report, offOf(depIcao), accl.offsetMin) : null;
+
+      const pOpts = { ...winOpts,
+        ...(bandRep ? { bandReport: bandRep } : {}),
+        ...(accl.icao ? { acclimatisedTo: accl.icao } : {}) };
+      const pWin = (sbEffect?.fdpReductionMin || bandRep)
+        ? dutyWindow(legs, accommodation, ruleset,
+            { ...pOpts, ...(sbEffect?.fdpReductionMin ? { standbyReductionMin: sbEffect.fdpReductionMin } : {}) })
+        : win;
+      const sb = sbEffect ? standbyLimits(sbEffect, pWin.fdpMin) : null;
+
+      const reasons = [...f.reasons];
+      if (sb) reasons.push(...sb.reasons);
+      // UGS asimi NOBET yuzunden dogduysa PILOT BAZLIDIR -> uygunluk gerekcesi
+      // olmali; aksi halde ortak pencere yesil gorunurken nobetli pilot sessizce
+      // yasadisi atanir. (Nobetsiz asim zaten ortak pencerede kirmizi notta.)
+      if (sb && pWin.fdpExceeded && !win.fdpExceeded) {
+        reasons.push(`FDP ${fmtMin(pWin.fdpMin)} > MAX ${fmtMin(pWin.maxFdpMin)} AFTER STANDBY REDUCTION ${fmtMin(sb.fdpReductionMin)} (${sb.reference})`);
+      }
+      // İntibak ÇÖZÜLEMEDİYSE sessizce kalkış saatiyle devam etmeyiz: hangi
+      // bandın okunduğu belirsizken azami UGS doğrulanmış sayılamaz (İlke 1).
+      if (accl.unavailable) {
+        reasons.push(`ACCLIMATISATION NOT DETERMINED (Md.22/1) — ${accl.reason}`);
+      }
+      return { pilot: p, ...f, reasons, legal: reasons.length === 0, off, sb, sbDuty,
+               accl, win: pWin };
     });
-  }, [pilots, duties, baselines, ruleset, legs, win, date, dutyType]);
+  }, [pilots, duties, baselines, ruleset, legs, win, winOpts, accommodation, date, dutyType, rules, hbTz, offTypes, acclTz, homeBases]);
 
   const setLeg = (i, k, v) => setLegs(ls => ls.map((l, j) => j === i ? { ...l, [k]: v } : l));
 
@@ -872,14 +1520,37 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
         const endISO = addMin(zonedISO(crossesMidnight ? nextDay(date) : date, lastEta, destTz), (effectiveRules(ruleset).company.postFlightDutyMin));
         if (depTz && destTz && reportISO && endISO) {
           const tzDiff = Math.abs(tzOffsetMin(destTz, new Date(endISO).getTime()) - tzOffsetMin(depTz, new Date(reportISO).getTime()));
-          if (tzDiff >= 240) toast(`TZ CROSSING ${Math.round(tzDiff / 60)}H — verify additional rest per EASA ORO.FTL.235 (not auto-applied).`, 'error');
+          if (tzDiff >= 240) toast(`TZ CROSSING ${Math.round(tzDiff / 60)}H — long-range rules per SHT-FTL/HG Md.22(3)/16(3): FDP cap 14:00, arrival rest max(duty,14:00), 48h/2 local nights on return.`, 'error');
+        }
+        // NOBET KAPISI (Md.17): secili bir pilotun nobet ihlali varsa kayit
+        // ENGELLENIR. Liste NOT LEGAL satirin secilmesini zaten onluyor ama
+        // secimden SONRA saat/sektor degistirilirse ihlal sonradan dogabilir —
+        // o durumda sessizce yasadisi gorev yazilmasin.
+        const sbBlocked = ids
+          .map(pid => fitList.find(f => f.pilot.id === pid))
+          .filter(f => f?.sb && !f.sb.ok);
+        if (sbBlocked.length) {
+          toast(`STANDBY LIMIT — ${sbBlocked.map(f => `${f.pilot.code}: ${f.sb.reasons.join('; ')}`).join(' | ')}`, 'error');
+          setSaving(false); return;
         }
         ids.forEach(pid => {
           const home = homeBases[pid];
           const atBase = !home || legs[legs.length - 1].dest.toUpperCase() === home.toUpperCase();
-          const minRest = Math.max(win.dutyMin || 0, atBase ? (rules.min_rest?.home_base_min ?? 720) : (rules.min_rest?.out_of_base_min ?? 600));
+          // PILOT BAZLI PENCERE (nobet kisaltmasi uygulanmis olabilir); nobeti
+          // olmayan pilotta ortak pencerenin AYNISIDIR.
+          const fp = fitList.find(f => f.pilot.id === pid);
+          const pWin = fp?.win || win;
+          const sb = fp?.sb || null;
+          const minRest = Math.max(pWin.dutyMin || 0, atBase ? (rules.min_rest?.home_base_min ?? 720) : (rules.min_rest?.out_of_base_min ?? 600));
           rows.push({
             ...base, pilot_id: pid, duty_type: 'flight',
+            operation_type: opType,
+            operation_type_source: planOp
+              ? (opManual && planOp.type !== opType
+                  ? `manual override (flight plan: ${planOp.type} — ${planOp.source})`
+                  : planOp.source)
+              : 'manual selection (no matching flight plan)',
+            ...(opType === 'training' ? { training_kind: trainingKind, same_day_theory: sameDayTheory } : {}),
             report_tz: depTz || base.report_tz,
             report_time: reportISO, duty_end: endISO,
             // GECMIS TARIHTE ELLE GIRILEN SAAT = GERCEK SAAT (Serkan, 3 Agu):
@@ -896,19 +1567,49 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
               etd: l.etd, eta: l.eta, role: selected[pid],
               ...(isPast ? { off_block: l.etd, on_block: l.eta, entered_manually: true } : {}),
             })),
-            split_duty: win.split.isSplit, break_minutes: win.breakMin,
-            accommodation: win.split.isSplit ? accommodation : null,
-            max_fdp_minutes: win.maxFdpMin, fdp_minutes: win.fdpMin, fdp_exceeded: !!win.fdpExceeded,
+            split_duty: pWin.split.isSplit, break_minutes: pWin.breakMin,
+            accommodation: pWin.split.isSplit ? accommodation : null,
+            max_fdp_minutes: pWin.maxFdpMin, fdp_minutes: pWin.fdpMin, fdp_exceeded: !!pWin.fdpExceeded,
+            // NOBET IZI (Md.17): hem KISALTMA MIKTARI, hem KAYNAK GOREV, hem de
+            // insan-okur OZET yazilir. Ozet donar (ruleset_snapshot mantigi) ki
+            // nobet satiri sonradan duzeltilse/silinse bile "bu UGS neden kisaydi"
+            // sorusunun cevabi kaydin ICINDE kalsin.
+            standby_reduction_min: sb?.fdpReductionMin || null,
+            standby_duty_id: fp?.sbDuty?.id || null,
+            standby_ref: sb ? standbyRef(fp.sbDuty, sb) : null,
+            // İNTİBAK (Md.22/1): Tablo 1 hangi meydanın saatiyle okundu.
+            // Zincirin sonraki halkası bu değeri referans alır.
+            acclimatised_to: fp?.accl?.icao || null,
             min_rest_minutes: minRest, earliest_next_report: addMin(endISO, minRest),
-            mandatory_report_due: win.fdpExceeded ? addMin(endISO, (effectiveRules(ruleset).company.mandatoryReportHours) * 60) : null,
+            mandatory_report_due: pWin.fdpExceeded ? addMin(endISO, (effectiveRules(ruleset).company.mandatoryReportHours) * 60) : null,
           });
         });
       } else if (dutyType === 'ground') {
         const startISO = localISO(date, gnd.start);
         const endISO = localISO(toMin(gnd.end) < toMin(gnd.start) ? nextDay(date) : date, gnd.end);
         const dMin = (new Date(endISO) - new Date(startISO)) / 60000;
+        // Md.17(2)(b) — HAVAALANI HARICI NOBET AZAMI 16 SAAT. Bu nobetin KENDI
+        // ihlalidir (gorev atansa da atanmasa da gecersiz) -> kayit ENGELLENIR.
+        // Havaalani nobetinin kendi azami suresi YOKTUR; onun siniri gorevle
+        // BIRLESIK tavandir (Md.17/1/c) ve ucus atanirken kontrol edilir.
+        if (gnd.kind === 'other_standby') {
+          const maxMin = rules.standby?.other?.max_min ?? 960;
+          if (dMin > maxMin) {
+            toast(`OTHER STANDBY ${fmtMin(dMin)} EXCEEDS THE ${fmtMin(maxMin)} MAXIMUM (SHT-FTL/HG Md.17/2/b) — shorten it.`, 'error');
+            setSaving(false); return;
+          }
+        }
+        const gEffect = standbyEffect(
+          { duty_type:'ground', ground_kind: gnd.kind, report_time: startISO, duty_end: endISO }, rules);
         ids.forEach(pid => {
-          const minRest = Math.max(dMin, rules.min_rest?.home_base_min ?? 720);
+          // DINLENME TABANI: genel kural "dinlenme >= onceki gorev suresi, asgari
+          // ana usde 12h". HAVAALANI HARICI NOBETTE bu YANLIS olur: surenin yalniz
+          // %25'i gorev sayilir (Md.17/2/g) ve gorev verilmezse ozel hukum asgari
+          // 8 saat der (Md.17/2/e) — ozel hukum genel kurali ezer. 16 saat bekleyen
+          // pilota 16 saat dinlenme dayatmak regulasyonun demedigi bir kisittir.
+          const minRest = gnd.kind === 'other_standby'
+            ? Math.max(gEffect?.dutyCreditMin || 0, gEffect?.restIfNoDutyMin ?? 480)
+            : Math.max(dMin, rules.min_rest?.home_base_min ?? 720);
           rows.push({
             ...base, pilot_id: pid, duty_type: 'ground', ground_kind: gnd.kind,
             report_time: startISO, duty_end: endISO, fdp_minutes: null,
@@ -926,7 +1627,7 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
       const { error } = await supabase.from('crew_duties').insert(rows);
       if (error) throw error;
       toast(`${rows.length} duty row(s) created.`, 'success');
-      setSelected({}); setExtraMode(null); setExaminer(''); reload();
+      setSelected({}); setExtraMode(null); setExaminer(''); setSameDayTheory(false); reload();
     } catch (e) { toast(e.message, 'error'); }
     setSaving(false);
   };
@@ -941,6 +1642,39 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
         <div><span style={S.label}>Duty Type</span>
           <div style={{ display:'flex', border:`1px solid ${C.border2}`, width:'fit-content' }}>{seg('flight', 'FLT')}{seg('ground', 'GND')}{seg('off', 'OFF')}</div>
         </div>
+        {dutyType === 'flight' && (<>
+          <div><span style={S.label}>Operation (SHT-FTL/HG Md.9)</span>
+            <select style={{ ...S.input, width:210 }} value={opType}
+                    onChange={e => { setOpType(e.target.value); setOpManual(true); }}>
+              <option value="air_taxi">AIR TAXI — Md.22</option>
+              <option value="aerial_work">AERIAL WORK — Md.26</option>
+              <option value="general_aviation">GENERAL AVIATION — Md.25</option>
+              <option value="training">TRAINING — Md.27</option>
+            </select>
+            {planOp && (
+              <div style={{ fontSize:9, color: opManual && planOp.type !== opType ? (C.amber || 'var(--amber)') : C.t3,
+                            fontFamily:'var(--mono)', marginTop:3, maxWidth:230, lineHeight:1.5 }}>
+                {opManual && planOp.type !== opType
+                  ? `MANUAL OVERRIDE — flight plan says ${planOp.type} (${planOp.source})`
+                  : `FROM FLIGHT PLAN — ${planOp.source}`}
+              </div>
+            )}
+          </div>
+          {opType === 'training' && (<>
+            <div><span style={S.label}>Training kind</span>
+              <select style={{ ...S.input, width:230 }} value={trainingKind} onChange={e => setTrainingKind(e.target.value)}>
+                {Object.entries(effectiveRules(ruleset).rules.fdp_limits?.training?.kinds || {})
+                  .map(([k, v]) => <option key={k} value={k}>{v.label} — {fmtMin(v.flight_time_min)}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:8, paddingBottom:8 }}>
+              <input type="checkbox" checked={sameDayTheory} onChange={e => setSameDayTheory(e.target.checked)} id="sdt" />
+              <label htmlFor="sdt" style={{ fontSize:11, color:C.t2, fontFamily:'var(--mono)' }}>
+                SAME-DAY THEORY (Md.27/ç — halves flight limit)
+              </label>
+            </div>
+          </>)}
+        </>)}
         <div style={{ width:170 }}><span style={S.label}>{dutyType === 'off' ? 'Start Date' : 'Date'}</span>
           <input type="date" style={S.input} value={date} onChange={e => setDate(e.target.value)} />
         </div>
@@ -958,13 +1692,36 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
           <div style={{ width:200 }}><span style={S.label}>Kind</span>
             <select style={S.input} value={gnd.kind} onChange={e => setGnd(g => ({ ...g, kind: e.target.value }))}>
               <option value="office">OFFICE</option><option value="training">TRAINING</option>
-              <option value="sim">SIM</option><option value="airport_standby">AIRPORT STANDBY</option>
+              <option value="sim">SIM</option><option value="theoretical">THEORETICAL TRAINING (Md.27/c)</option>
+                <option value="airport_standby">AIRPORT STANDBY (Md.17/1)</option>
+                <option value="other_standby">OTHER STANDBY (Md.17/2)</option>
             </select>
           </div>
           <div style={{ width:110 }}><span style={S.label}>Start (LT)</span><input style={S.input} value={gnd.start} onChange={e => setGnd(g => ({ ...g, start: normTime(e.target.value) }))} /></div>
           <div style={{ width:110 }}><span style={S.label}>End (LT)</span><input style={S.input} value={gnd.end} onChange={e => setGnd(g => ({ ...g, end: normTime(e.target.value) }))} /></div>
         </>)}
       </div>
+
+      {/* ── NOBETIN SONUCU ONCEDEN GORUNSUN (Md.17) ──────────────────────
+            Nobet kaydi tek basina zararsiz gorunur ama AYNI GUN atanacak ucusun
+            azami UGS'sini kisaltir. Dispatcher bunu ucusa gelince degil, nobeti
+            YAZARKEN gormeli — yoksa "neden bu pilot NOT LEGAL" sorusu sonra
+            cikar ve kaynagi gorunmez olur. ── */}
+      {dutyType === 'ground' && gndEffect && (
+        <div style={{ ...S.note, borderLeftColor: gndEffect.maxExceeded ? C.red : C.accent,
+                      color: gndEffect.maxExceeded ? C.red : C.t2, marginBottom:14 }}>
+          {gndEffect.kind === 'airport_standby' ? (<>
+            AIRPORT STANDBY {fmtMin(gndEffect.standbyMin)} ({gndEffect.reference}) — COUNTS AS DUTY IN FULL.
+            {' '}A FLIGHT DUTY ASSIGNED THE SAME DAY HAS ITS MAX FDP REDUCED BY {fmtMin(gndEffect.fdpReductionMin)}
+            {' '}(TIME BEYOND {fmtMin(gndEffect.reductionThresholdMin)}); STANDBY + FDP COMBINED MAY NOT EXCEED {fmtMin(gndEffect.combinedCapMin)}.
+          </>) : (<>
+            OTHER STANDBY {fmtMin(gndEffect.standbyMin)} ({gndEffect.reference}) — {fmtMin(gndEffect.dutyCreditMin)} COUNTS AS DUTY (25%).
+            {' '}MAX FDP REDUCTION IF A FLIGHT FOLLOWS: {fmtMin(gndEffect.fdpReductionMin)} (TIME BEYOND {fmtMin(gndEffect.reductionThresholdMin)}).
+            {' '}IF NO DUTY IS ASSIGNED, {fmtMin(gndEffect.restIfNoDutyMin)} REST FOLLOWS.
+            {gndEffect.maxExceeded && <> {' '}⚠ EXCEEDS THE {fmtMin(gndEffect.maxStandbyMin)} MAXIMUM — CANNOT BE SAVED.</>}
+          </>)}
+        </div>
+      )}
 
       {dutyType === 'flight' && (<>
         <span style={S.label}>Sectors</span>
@@ -998,6 +1755,9 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
                 ['REPORT (AUTO)', win.report], ['MAX FDP', fmtMin(win.maxFdpMin)],
                 ['PLANNED FDP', fmtMin(win.fdpMin)], ['LATEST FDP END', win.latestFdpEnd],
                 ['DUTY END (PLN)', win.dutyEnd],
+                // Md.27: egitimde gunluk UCUS SURESI ayri bir limittir
+                ...(win.flightLimitMin != null
+                  ? [['FLIGHT TIME', `${fmtMin(win.flightMin)} / ${fmtMin(win.flightLimitMin)}`]] : []),
               ].map(([k, v]) => (
                 <div key={k} style={{ background:C.bg3, padding:'10px 13px' }}>
                   <div style={{ fontSize:9, letterSpacing:1.5, color:C.t3, textTransform:'uppercase', marginBottom:5, fontFamily:'var(--mono)' }}>{k}</div>
@@ -1005,7 +1765,20 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
                 </div>
               ))}
             </div>
+            {win.longRangeCapped && <div style={{ ...S.note, borderLeftColor:C.amber || 'var(--amber)', marginTop:8 }}>LONG-RANGE DUTY (TZ CROSSING ≥4H) — MAX FDP CAPPED AT {fmtMin(win.maxFdpMin)} (SHT-FTL/HG Md.22(3)); arrival rest = max(duty, 14:00) and 48h/2 local nights on return (Md.16(3)).</div>}
+            {win.flightLimitExceeded && <div style={{ ...S.note, borderLeftColor:C.red, color:C.red, marginTop:8 }}>TRAINING FLIGHT TIME {fmtMin(win.flightMin)} EXCEEDS THE DAILY LIMIT {fmtMin(win.flightLimitMin)} (SHT-FTL/HG Md.27){sameDayTheory ? ' — halved because theoretical training is planned the same day (Md.27/ç)' : ''}.</div>}
             {win.fdpExceeded && <div style={{ ...S.note, borderLeftColor:C.red, color:C.red, marginTop:8 }}>PLANNED FDP EXCEEDS MAX FDP — assignment should not be planned this way.</div>}
+            {/* NOBET UYARISI: yukaridaki MAX FDP kutusu NOBETSIZ tabandir. Nobette
+                beklemis pilotun tavani daha DUSUKTUR ve pilot basina degisir —
+                kutu tek sayi gosterdigi icin bu ACIKCA soylenmeli, yoksa yanlis
+                sayiya bakilir. Pilot bazli gercek tavan asagidaki tabloda. */}
+            {fitList.some(f => f.sb?.fdpReductionMin > 0) && (
+              <div style={{ ...S.note, borderLeftColor:C.accent, color:C.t2, marginTop:8 }}>
+                MAX FDP ABOVE IS THE BASELINE WITHOUT STANDBY. {fitList.filter(f => f.sb?.fdpReductionMin > 0)
+                  .map(f => `${f.pilot.code}: −${fmtMin(f.sb.fdpReductionMin)} → ${fmtMin(f.win.maxFdpMin)}`).join(' · ')}
+                {' '}(SHT-FTL/HG Md.17). PER-PILOT VALUES ARE IN THE CREW TABLE AND ARE WHAT GETS SAVED.
+              </div>
+            )}
           </div>
         )}
 
@@ -1013,9 +1786,9 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
           <span style={S.label}>Crew — who can fly this duty?</span>
           <div style={{ overflowX:'auto' }}>
             <table style={S.table}>
-              <thead><tr>{['', 'PILOT', 'FITNESS', 'REASON', `FLT 28D / ${fmtMin(lim.flt_28d_min)}`, `DUTY 7D / ${fmtMin(lim.duty_7d_min)}`, 'ROLE'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <thead><tr>{['', 'PILOT', 'FITNESS', 'REASON', 'ACCLIM (Md.22/1)', 'STANDBY (Md.17)', `FLT 28D / ${fmtMin(lim.flt_28d_min)}`, `DUTY 7D / ${fmtMin(lim.duty_7d_min)}`, 'DAYS OFF (MON)', 'ROLE'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
               <tbody>
-                {fitList.map(({ pilot, legal, reasons, cum }) => {
+                {fitList.map(({ pilot, legal, reasons, cum, off, sb, accl, win: pWin }) => {
                   const sel = selected[pilot.id];
                   return (
                     <tr key={pilot.id} onClick={() => legal && toggle(pilot.id)} style={{ cursor: legal ? 'pointer' : 'default', opacity: legal ? 1 : .65, background: sel ? `var(--accent-soft)` : 'transparent' }}>
@@ -1023,8 +1796,47 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
                       <td style={{ ...S.td, color: legal ? C.accent : C.t3, fontWeight:700 }}>{pilot.code} — {pilot.full_name}</td>
                       <td style={S.td}><span style={badge(legal ? 'green' : 'red')}>{legal ? 'LEGAL' : 'NOT LEGAL'}</span></td>
                       <td style={{ ...S.td, color:C.red, fontSize:11, whiteSpace:'normal', maxWidth:280 }}>{reasons.join(' · ') || '—'}</td>
+                      {/* İNTİBAK: hangi meydanın saatiyle Tablo 1 okundu.
+                          Kalkış meydanından FARKLIYSA amber — o zaman rapor
+                          saati ile bandın okunduğu saat ayrışıyor demektir. */}
+                      <td style={S.td} title={accl?.reason || ''}>
+                        {!accl ? <span style={{ color:C.t3 }}>—</span>
+                          : accl.unavailable
+                            ? <span style={badge('red')}>UNKNOWN</span>
+                            : (<span style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+                                <span style={badge(accl.icao === String(legs[0]?.dep || '').toUpperCase() ? 'dim' : 'amber')}>
+                                  {accl.icao}
+                                </span>
+                                {pWin?.bandReport && pWin.bandReport !== pWin.report && (
+                                  <span style={{ color:C.accent, fontSize:11 }}>BAND {pWin.bandReport}</span>
+                                )}
+                              </span>)}
+                      </td>
+                      {/* NOBET: hem SURESI hem SONUCU (kisaltilmis azami UGS) gorunur —
+                          "kisaldi" demek yetmez, dispatcher YENI TAVANI gormeli. */}
+                      <td style={S.td} title={sb ? `${sb.reference} · standby ${fmtMin(sb.standbyMin)} · duty credit ${fmtMin(sb.dutyCreditMin)}${sb.combinedMin != null ? ` · combined ${fmtMin(sb.combinedMin)}/${fmtMin(sb.combinedCapMin)}` : ''}` : ''}>
+                        {!sb ? <span style={{ color:C.t3 }}>—</span> : (
+                          <span style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+                            <span style={badge(sb.ok ? (sb.fdpReductionMin ? 'amber' : 'dim') : 'red')}>
+                              {sb.kind === 'airport_standby' ? 'APT' : 'OTHER'} {fmtMin(sb.standbyMin)}
+                            </span>
+                            {sb.fdpReductionMin > 0 && (
+                              <span style={{ color:C.accent, fontSize:11 }}>
+                                −{fmtMin(sb.fdpReductionMin)} → MAX {fmtMin(pWin?.maxFdpMin)}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </td>
                       <td style={S.td}>{fmtMin(cum.flt28d)}</td>
                       <td style={S.td}>{fmtMin(cum.duty7d)}</td>
+                      <td style={S.td} title={off?.invalid?.length
+                        ? `Not counted (2 local nights not free — Md.4/ü): ${off.invalid.join(', ')}` : ''}>
+                        <span style={{ color: off?.ok === false ? C.amber || 'var(--amber)' : C.t2, fontWeight:700 }}>
+                          {off ? `${off.count}/${off.required ?? '—'}` : '—'}
+                        </span>
+                        {off?.invalid?.length ? <span style={{ ...badge('amber'), marginLeft:6 }}>{off.invalid.length} ✕</span> : null}
+                      </td>
                       <td style={S.td}>{sel ? <span style={badge('blue')}>{sel}</span> : '—'}</td>
                     </tr>
                   );
@@ -1062,10 +1874,16 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
                               onClick={() => { setSelected(sl => { const n = { ...sl }; Object.keys(n).forEach(k => { if (n[k] === 'CRZ CPT') delete n[k]; }); return n; }); setExtraMode(null); }}>REMOVE</button>
                     </div>
                     <div style={{ ...S.note, borderLeftColor:C.accent }}>
-                      AUGMENTED CREW ACTIVE — MAX FDP {win ? fmtMin(win.maxFdpMin) : '15:00'} (EASA CS FTL.1.205(c),
-                      CLASS 3 REST FACILITY ASSUMED — raise via ruleset augmented_crew.three_pilot_max_fdp_min for Class 1/2).
-                      Split-duty extension is NOT combined. Duty &amp; rest limits apply to all three crew.
+                      AUGMENTED CREW ACTIVE — MAX FDP {win ? fmtMin(win.maxFdpMin) : '—'} (SHT-FTL/HG Md.11:
+                      table value +2:00 with one additional pilot; in-flight rest 90 min each / 2h for landing crew,
+                      reclining seat required; FDP limited to 3 sectors; split-duty NOT combinable — Md.15(d)).
+                      Duty &amp; rest limits apply to all three crew.
                     </div>
+                    {win?.augmentedSectorLimitExceeded && (
+                      <div style={{ ...S.note, borderLeftColor:C.red, color:C.red, marginTop:6 }}>
+                        AUGMENTED FDP IS LIMITED TO 3 SECTORS (SHT-FTL/HG Md.11(2)) — reduce sectors or remove CRZ CPT.
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -1114,10 +1932,23 @@ const nextDay = (dateStr) => {
 };
 
 // ═══ 2) DUTY HISTORY ══════════════════════════════════════════════
-function DutyHistory({ pilots, duties, baselines, offTypes }) {
+function DutyHistory({ pilots, duties, baselines, offTypes, ruleset, homeBases }) {
   const flyable = pilots.filter(p => ['pilot', 'admin_pilot'].includes(p.role));
   const [pilotId, setPilotId] = useState('');
   useEffect(() => { if (!pilotId && flyable.length) setPilotId(flyable[0].id); }, [flyable, pilotId]);
+
+  // Secili pilotun ana us dilimi (yerel gece hesabi icin)
+  const [hbIcaoTz, setHbIcaoTz] = useState(null);
+  useEffect(() => {
+    const icao = (homeBases || {})[pilotId];
+    if (!icao) { setHbIcaoTz(null); return; }
+    let dead = false;
+    (async () => {
+      const m = await fetchTzMap([icao]);
+      if (!dead) setHbIcaoTz(m[icao.toUpperCase()] || null);
+    })();
+    return () => { dead = true; };
+  }, [homeBases, pilotId]);
 
   // Tarih aralığı — varsayılan: içinde bulunulan ay
   const now = new Date();
@@ -1149,8 +1980,18 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
         else { s.pfCount++; s.pfMin += m; }
       });
     });
+    // Md.5 — bos gunler: aralikta KAC TANESI gecerli (2 yerel gece sarti) ve
+    // takvim yili toplami 96'ya gore nerede. Yerel gece ana us diliminde olculur.
+    const myDuties = (duties || []).filter(d => d.pilot_id === pilotId);
+    const tz = hbIcaoTz;
+    const rulesNow = effectiveRules(ruleset).rules;
+    const yearNum = Number(String(to).slice(0, 4));
+    const yr = daysOffSummary(myDuties, rulesNow, { year: yearNum, tz, offTypes });
+    s.offValidInRange = yr.valid.filter(d => d >= from && d <= to).length;
+    s.offRecordedInRange = yr.offDates.filter(d => d >= from && d <= to).length;
+    s.offYear = yr.count; s.offYearRequired = yr.required;
     return s;
-  }, [rows]);
+  }, [rows, duties, pilotId, hbIcaoTz, ruleset, offTypes, from, to]);
 
   const srcBadge = (d) => d.status === 'planned' ? <span style={badge('dim')}>PLN</span>
     : d.status === 'open' ? <span style={badge('amber')}>OPEN</span>
@@ -1166,7 +2007,7 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
       const st = d.status === 'planned' ? 'PLN' : d.status === 'open' ? 'OPEN' : 'ACT';
       const dutyT = d.report_time && d.duty_end ? fmtMin((new Date(d.duty_end) - new Date(d.report_time)) / 60000) : '—';
       if (d.duty_type === 'flight' && (d.sectors || []).length) {
-        return d.sectors.map((l, i) => {
+        const secRows = d.sectors.map((l, i) => {
           const blkS = l.off_block || l.etd, blkE = l.on_block || l.eta;
           return `<tr class="${actual ? '' : 'pln'}">
             <td>${i === 0 ? esc(fmtD(d.duty_date)) : ''}</td><td>${i === 0 ? 'FLT' : ''}</td>
@@ -1174,8 +2015,32 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
             <td>${fmtMin(spanMin(blkS, blkE))}</td><td class="role">${esc(l.role || 'PF')}</td>
             <td>${i === 0 ? dutyT : ''}</td><td>${i === 0 ? st : ''}</td></tr>`;
         }).join('');
+        // NOBET DAYANAGI RAPORDA (Md.17): azami UGS kisaltilmissa denetci
+        // "neden kisa" sorusunu raporun kendisinden cevaplayabilmeli — baska
+        // ekrana bakmak zorunda kalmamali. standby_ref kayitta DONMUS ozettir.
+        const sbRow = d.standby_reduction_min > 0
+          ? `<tr class="${actual ? '' : 'pln'}"><td></td><td></td><td colspan="6" class="sb">STANDBY (SHT-FTL/HG Md.17) — MAX FDP ${fmtMin(d.max_fdp_minutes)} AFTER −${fmtMin(d.standby_reduction_min)} · ${esc(d.standby_ref || '')}</td></tr>`
+          : '';
+        // SKPK RAPORDA (Md.12): komutan karariyla degistirilmis bir UGS/dinlenme
+        // denetimin ilk bakacagi seydir — kaptan raporunun ozeti ve SHGM
+        // yukumlulugunun durumu raporun kendisinde durur.
+        // İNTİBAK RAPORDA (Md.22/1): azami UGS'nin HANGİ MEYDANIN saatiyle
+        // okunduğu, kalkış meydanından farklıysa denetim için kritiktir.
+        const acclRow = (d.acclimatised_to &&
+          String(d.acclimatised_to).toUpperCase() !== String((d.sectors || [])[0]?.dep || '').toUpperCase())
+          ? `<tr class="${actual ? '' : 'pln'}"><td></td><td></td><td colspan="6" class="sb">ACCLIMATISED TO ${esc(d.acclimatised_to)} (SHT-FTL/HG Md.22/1) — Table 1 band read in that aerodrome's local time, not ${esc((d.sectors || [])[0]?.dep || '?')}</td></tr>`
+          : '';
+        const skpkRow = ((d.skpk_fdp_extension_min || 0) > 0 || (d.skpk_rest_reduction_min || 0) > 0)
+          ? `<tr class="${actual ? '' : 'pln'}"><td></td><td></td><td colspan="6" class="sb">COMMANDER'S DISCRETION (SHT-FTL/HG Md.12) — FDP +${fmtMin(d.skpk_fdp_extension_min || 0)} · REST −${fmtMin(d.skpk_rest_reduction_min || 0)} · MAX FDP ${fmtMin(d.max_fdp_minutes)} · NEXT REST ${fmtMin(d.min_rest_minutes)}`
+            + (d.skpk_authority_due
+                ? ` · DGCA DUE ${esc(fmtD(d.skpk_authority_due))} ${d.skpk_authority_reported_at ? `— SENT ${esc(fmtD(d.skpk_authority_reported_at))}` : '— <b>NOT SENT</b>'}`
+                : ' · operator report only')
+            + `${d.skpk_reason ? ` · ${esc(d.skpk_reason)}` : ''}</td></tr>`
+          : '';
+        return secRows + acclRow + sbRow + skpkRow;
       }
-      const kind = d.duty_type === 'off' ? `OFF · ${esc(d.off_subtype || '—')}` : `GND · ${esc((d.ground_kind || '—').toUpperCase())}`;
+      const kind = d.duty_type === 'off' ? `OFF · ${esc(d.off_subtype || '—')}`
+        : `GND · ${esc((d.ground_kind || '—').toUpperCase())}${d.ground_kind === 'airport_standby' ? ' (Md.17/1)' : d.ground_kind === 'other_standby' ? ' (Md.17/2)' : ''}`;
       return `<tr class="${actual ? '' : 'pln'}"><td>${esc(fmtD(d.duty_date))}</td><td>${d.duty_type === 'off' ? 'OFF' : 'GND'}</td>
         <td colspan="4">${kind}</td><td>${d.duty_type === 'off' ? '—' : dutyT}</td><td>${st}</td></tr>`;
     }).join('');
@@ -1192,6 +2057,7 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
       td{padding:5px 8px;border-bottom:1px solid #eef2f7}
       tr.pln td{color:#94a3b8;font-style:italic}
       td.role{font-weight:700}
+      td.sb{font-size:9.5px;color:#92400e;background:#fffbeb}
       .baseline{font-size:10px;color:#64748b;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:7px 10px;margin-bottom:10px}
       .sum{margin-top:16px;border:2px solid #0f172a;border-radius:8px;padding:12px 16px}
       .sum h2{font-size:11px;letter-spacing:2px;margin:0 0 8px}
@@ -1213,6 +2079,8 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
       <tbody>${dRows || '<tr><td colspan="8">No duties in selected period.</td></tr>'}</tbody></table>
       <div class="sum"><h2>PERIOD TOTALS — ${esc(pilot.code)}</h2>
         <div class="sumgrid">
+          <div><b>DAYS OFF IN RANGE (Md.5)</b>${summary.offValidInRange} valid / ${summary.offRecordedInRange} recorded</div>
+          <div><b>DAYS OFF — CAL YEAR</b>${summary.offYear} / ${summary.offYearRequired ?? '—'}</div>
           <div><b>SECTORS AS PF</b>${summary.pfCount} · ${fmtMin(summary.pfMin)}</div>
           <div><b>SECTORS AS PM</b>${summary.pmCount} · ${fmtMin(summary.pmMin)}</div>
           ${summary.crzCount ? `<div><b>SECTORS AS CRZ CPT</b>${summary.crzCount} · ${fmtMin(summary.crzMin)}</div>` : ''}
@@ -1285,7 +2153,7 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
                         <td style={{ ...S.td, ...dimC, borderBottom: last ? undefined : 'none' }}>{last ? fmtMin(d.report_time && d.duty_end ? (new Date(d.duty_end) - new Date(d.report_time)) / 60000 : null) : ''}</td>
                         <td style={{ ...S.td, color: isPln ? C.t3 : C.green, fontWeight:700, borderBottom: last ? undefined : 'none' }}>{last ? fmtMin(d.min_rest_minutes) : ''}</td>
                         <td style={{ ...S.td, color: isPln ? C.t3 : C.accent, fontWeight:700, borderBottom: last ? undefined : 'none' }}>{last ? fmtDT(d.earliest_next_report) : ''}</td>
-                        <td style={{ ...S.td, borderBottom: last ? undefined : 'none' }}>{last ? <>{srcBadge(d)}{d.match_review && <span style={{ ...badge('red'), marginLeft:6 }}>MATCH REVIEW</span>}{d.fdp_exceeded && <span style={{ ...badge('red'), marginLeft:6 }}>FDP EXC</span>}</> : ''}</td>
+                        <td style={{ ...S.td, borderBottom: last ? undefined : 'none' }}>{last ? <>{srcBadge(d)}{d.match_review && <span style={{ ...badge('red'), marginLeft:6 }}>MATCH REVIEW</span>}{d.fdp_exceeded && <span style={{ ...badge('red'), marginLeft:6 }}>FDP EXC</span>}{d.standby_reduction_min > 0 && <span style={{ ...badge('amber'), marginLeft:6 }} title={d.standby_ref || 'SHT-FTL/HG Md.17'}>SB −{fmtMin(d.standby_reduction_min)}</span>}{((d.skpk_fdp_extension_min || 0) > 0 || (d.skpk_rest_reduction_min || 0) > 0) && <span style={{ ...badge('amber'), marginLeft:6 }} title={d.skpk_ref || 'SHT-FTL/HG Md.12'}>SKPK</span>}{d.acclimatised_to && String(d.acclimatised_to).toUpperCase() !== String(legs[0]?.dep || '').toUpperCase() && <span style={{ ...badge('amber'), marginLeft:6 }} title="SHT-FTL/HG Md.22(1)">ACCL {d.acclimatised_to}</span>}</> : ''}</td>
                       </tr>
                     );
                   });
@@ -1294,7 +2162,14 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
                   <tr key={d.id} style={{ borderBottom:`2px solid ${C.border2}` }}>
                     <td style={{ ...S.td, ...dimC }}>{fmtD(d.duty_date)}</td>
                     <td style={S.td}><span style={badge(d.duty_type === 'off' ? 'dim' : 'amber')}>{d.duty_type === 'off' ? 'OFF' : 'GND'}</span></td>
-                    <td style={{ ...S.td, color:C.t3 }}>{d.duty_type === 'off' ? (d.off_subtype || '—') : (d.ground_kind || '—').toUpperCase()}</td>
+                    <td style={{ ...S.td, color:C.t3 }}>
+                      {d.duty_type === 'off' ? (d.off_subtype || '—') : (d.ground_kind || '—').toUpperCase()}
+                      {(d.ground_kind === 'airport_standby' || d.ground_kind === 'other_standby') && (
+                        <span style={{ ...badge('amber'), marginLeft:6 }}>
+                          {d.ground_kind === 'airport_standby' ? 'Md.17/1' : 'Md.17/2'}
+                        </span>
+                      )}
+                    </td>
                     <td style={{ ...S.td, color:C.t3 }}>—</td><td style={{ ...S.td, color:C.t3 }}>—</td>
                     <td style={{ ...S.td, ...dimC }}>{d.report_time ? `${fmtDT(d.report_time).slice(-5)}–${fmtDT(d.duty_end).slice(-5)}` : '—'}</td>
                     <td style={{ ...S.td, ...dimC }}>{d.report_time && d.duty_end ? fmtMin((new Date(d.duty_end) - new Date(d.report_time)) / 60000) : '—'}</td>
@@ -1315,6 +2190,8 @@ function DutyHistory({ pilots, duties, baselines, offTypes }) {
           {[
             ['SECTORS AS PF', `${summary.pfCount} · ${fmtMin(summary.pfMin)}`, false],
             ...(summary.crzCount ? [['SECTORS AS CRZ CPT', `${summary.crzCount} · ${fmtMin(summary.crzMin)}`, false]] : []),
+            ['DAYS OFF IN RANGE (Md.5)', `${summary.offValidInRange} valid / ${summary.offRecordedInRange} recorded`, false],
+            ['DAYS OFF — CAL YEAR', `${summary.offYear} / ${summary.offYearRequired ?? '—'}`, false],
             ['SECTORS AS PM', `${summary.pmCount} · ${fmtMin(summary.pmMin)}`, false],
             ['TOTAL FLT TIME', fmtMin(summary.pfMin + summary.pmMin), true],
             ['TOTAL DUTY TIME', fmtMin(summary.dutyMin), false],
@@ -1356,10 +2233,13 @@ function RulesetSettings({ toast, myProfile, ruleset, offTypes, reload }) {
     ['cumulative_limits.duty_28d_min', 'MAX DUTY — 28 DAYS', 'min'],
     ['cumulative_limits.duty_cal_year_min', 'MAX DUTY — CAL YEAR', 'min'],
     ['cumulative_limits.flt_28d_min', 'MAX FLT — 28 DAYS', 'min'],
-    ['cumulative_limits.flt_cal_year_min', 'MAX FLT — CAL YEAR', 'min'],
     ['cumulative_limits.flt_12mo_min', 'MAX FLT — 12 MONTHS', 'min'],
-    ['recurrent_rest.min_hours', 'RECURRENT REST — MIN HOURS', 'count'],
-    ['recurrent_rest.max_between_hours', 'RECURRENT REST — MAX BETWEEN (H)', 'count'],
+    // SHT-FTL/HG Md.5 — bos gunler (eski EASA 'recurrent rest' yerine).
+    // Md.13'te TAKVIM YILI UCUS limiti YOKTUR; o satir bilerek listede degil.
+    ['days_off.single_day_off_after_consecutive_days', 'DAY OFF AFTER — CONSECUTIVE DAYS', 'count'],
+    ['days_off.per_calendar_month_local_days', 'MIN OFF — LOCAL DAYS / MONTH', 'count'],
+    ['days_off.per_calendar_year_local_days', 'MIN OFF — LOCAL DAYS / YEAR', 'count'],
+    ['days_off.notice_hours', 'DAYS OFF — NOTICE (H)', 'count'],
   ];
   const getPath = (obj, path) => path.split('.').reduce((n, k) => n?.[k], obj);
 
@@ -1479,7 +2359,7 @@ function RulesetSettings({ toast, myProfile, ruleset, offTypes, reload }) {
           <span style={{ fontSize:9, color:C.t3, letterSpacing:1, fontFamily:'var(--mono)' }}>no delete — deactivate only · toggle = audit logged</span>
         </div>
         <table style={S.table}>
-          <thead><tr>{['CODE', 'LABEL', 'ASSIGNABLE', 'COUNTS AS RECURRENT REST'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <thead><tr>{['CODE', 'LABEL', 'ASSIGNABLE', 'COUNTS AS DAY OFF (Md.5)'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
           <tbody>
             {offTypes.map(t => (
               <tr key={t.id}>

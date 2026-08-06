@@ -7,6 +7,9 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getDocumentProxy } from "https://esm.sh/unpdf@0.11.0";
+// Faaliyet tipi tespiti web ile TEK KAYNAK (FTLEngine'in bundle edilmesiyle
+// ayni mimari karar) — deploy sirasinda esbuild bu dosyayi da paketler.
+import { detectOperationType } from "../../../efb/src/components/planOps.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -158,6 +161,16 @@ function parseAllSectors(text: string): any[] {
       // Tam ATC FPL blogu (oldugu gibi, parantezden parantize)
       const fplFull = fbText.match(/\(FPL-[\s\S]*?\)/);
       sector.atc_fpl = fplFull ? fplFull[0].trim() : fbText.trim();
+
+      // ── FAALIYET TIPI PLANDAN (6 Agu 2026, Serkan): ucusun niteligi ATC
+      // FPL'inde zaten yazili — elle secime bagli kalmayalim.
+      // MANTIK BURADA DEGIL: `efb/src/components/planOps.js` TEK KAYNAK; sinama
+      // koşumu da onu import eder. Kural iki yerde ayri ayri durmaz.
+      const op = detectOperationType(fbText);
+      sector.fpl_remark = op.rmk;
+      sector.fpl_flight_type = op.flightType;
+      sector.operation_type = op.operationType;
+      sector.operation_type_source = op.source;
       break;
     }
     // FIR'lar — iç hat dahil her bacakta bilinmeli (CZIB kontrolü için).
@@ -281,6 +294,8 @@ Deno.serve(async (req) => {
           dispatch_no: dispatchNo, subject: filename, dep: s.dep, dest: s.dest, date: s.date,
           std: s.std, eta: s.eta, ete: s.ete, fob: s.fob, ac_type: s.ac_type, reg: s.reg,
           route: s.route, fms_ident: s.fms_ident, level_speed: s.level_speed, atc_fpl: s.atc_fpl, route_firs: s.route_firs, operator: s.operator, callsign: s.callsign, alternate: s.alternate,
+          fpl_remark: s.fpl_remark, fpl_flight_type: s.fpl_flight_type,
+          operation_type: s.operation_type, operation_type_source: s.operation_type_source,
           trip_fuel: s.trip_fuel, alternate_fuel: s.alternate_fuel, reserve_fuel: s.reserve_fuel,
           tow: s.tow, zfw: s.zfw, pax: s.pax, cruise_fl: s.cruise_fl, log_nr: s.log_nr,
           status: "available", customer_id: callerCustomerId,
@@ -297,7 +312,9 @@ Deno.serve(async (req) => {
         const { count } = await admin.from("plan_versions").select("*", { count: "exact", head: true }).eq("plan_id", existing.id);
         await admin.from("plan_versions").insert({ plan_id: existing.id, dispatch_no: dispatchNo, version_no: (count || 0) + 1, raw_text: pdfText });
         // Parser türevi alanlar yeniden yüklemede tazelenir (elle düzenlenen alanlara dokunulmaz)
-        await admin.from("plans").update({ atc_fpl: s.atc_fpl, route_firs: s.route_firs }).eq("id", existing.id);
+        await admin.from("plans").update({ atc_fpl: s.atc_fpl, route_firs: s.route_firs,
+          fpl_remark: s.fpl_remark, fpl_flight_type: s.fpl_flight_type,
+          operation_type: s.operation_type, operation_type_source: s.operation_type_source }).eq("id", existing.id);
         results.push({ dep: s.dep, dest: s.dest, status: `updated v${(count || 0) + 1}` });
       }
     }

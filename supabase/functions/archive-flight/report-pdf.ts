@@ -258,6 +258,12 @@ export interface ReportInput {
   // orijinal deger ustu cizili + yaninda yesil YENI deger (kagit logbook gelenegi).
   // fr verisi ORIJINALDIR; duzeltme yalniz gosterimdir (EASA: kayit degismez).
   amendments?: { field_name: string; old_value: string | null; new_value: string | null; reason?: string | null; created_at?: string | null }[];
+  // FTL: pilot_id -> guncel crew_duties satiri. Rapor bu degerleri BASAR,
+  // yeniden HESAPLAMAZ (K-2). Cagiran, 14. adimi PDF'ten ONCE kosup verir.
+  duties?: Record<string, any>;
+  // pilot_id -> 14. adimin sonucu ("no_duty_found" / "match_review" / ...).
+  // Gorev baglanamadiginda raporda SEBEBI yazabilmek icin (Ilke 1).
+  ftlStatus?: Record<string, string>;
 }
 
 export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
@@ -640,75 +646,95 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
     ]);
   }
 
-  // ── 9) EASA FTL ───────────────────────────────────────────────────────────
-  // Kural: Report time = STD - 01:00 (her ucus). Min rest: varis meydani home
-  // base ise 12:00, degilse 10:00 (ORO.FTL.235) - onceki gorev suresinden kisa olamaz.
-  const onBlockM = toMins(fr.on_block);
-  const dutyEndM = onBlockM !== null ? onBlockM + 30 : null;
-  const stdM = toMins(plan?.std);
-  const reportM = stdM !== null ? stdM - 60 : null;
-
-  const isHome = (hb: string | null | undefined, icao: string): boolean => {
-    if (!hb) return false;
-    if (hb === icao) return true;
-    if (hb === "LTAC" && icao === "ESB") return true;
-    if (hb === "ESB" && icao === "LTAC") return true;
-    return false;
+  // ── 9) FTL — KAYITLI GOREVDEN BASILIR, BURADA HESAP YOK ───────────────────
+  // K-2 KAPANDI (6 Agu 2026, Serkan karari). Eskiden bu bolum KENDI EASA
+  // tablosunu tasiyordu: sabit "Report = STD-01:00", gomulu bant tablosu,
+  // gomulu 12:00/10:00 dinlenme ve — en kotusu — SEKTOR SAYISI SABIT 1.
+  // Sonuc: kanunun UCUNCU kopyasi (panel, motor, rapor), birbirinden bagimsiz
+  // sapan; cok bacakli gorevde azami UGS oldugundan BUYUK cikiyordu (gevsek
+  // yon, yani emniyetsiz yon). SHT-FTL/HG'ye gecisle celiskisi de kacinilmazdi.
+  //
+  // YENI KURAL: RAPOR HESAP YAPMAZ. crew_duties satirindaki degeri BASAR.
+  // O deger gorevin KENDI ruleset_snapshot'iyla, nobet (Md.17) ve SKPK (Md.12)
+  // etkileri islenmis halde panel/motor tarafindan yazildi. Rapor onun aynasidir.
+  // Gorev kaydi yoksa SAYI UYDURULMAZ — neden basilamadigi yazilir (Ilke 1).
+  const duties = input.duties ?? {};
+  const ftlStatus = input.ftlStatus ?? {};
+  const OPS: Record<string, string> = {
+    air_taxi: "AIR TAXI (Md.22)", aerial_work: "AERIAL WORK (Md.26)",
+    general_aviation: "GENERAL AVIATION (Md.25)", training: "TRAINING (Md.27)",
   };
+  const hhmmZ = (iso: string | null | undefined): string =>
+    iso ? String(new Date(iso).toISOString()).slice(11, 16) : DASH;
+  const dmyZ = (iso: string | null | undefined): string =>
+    iso ? String(new Date(iso).toISOString()).slice(0, 10) : DASH;
 
-  const maxFdp = (rm: number, sectors: number): number => {
-    const s = Math.min(sectors, 6);
-    const penalty = Math.max(0, s - 2) * 30;
-    let base: number;
-    if (rm >= 360 && rm < 780) base = 780;
-    else if (rm >= 300 && rm < 360) base = 720;
-    else if (rm >= 780 && rm < 930) base = 780 - Math.floor((rm - 780) / 15) * 15;
-    else base = 660;
-    return Math.max(540, base - penalty);
-  };
-
-  cardHeader(c, "EASA FTL - ORO.FTL (CREW DUTY & REST)");
-  cellRow(c, [
-    { lbl: "Duty End (all crew)", val: dutyEndM !== null ? fromMins(dutyEndM) + " UTC" : DASH, note: "On Block +00:30" },
-    { lbl: "Sectors", val: "1" },
-  ]);
+  cardHeader(c, "FTL - CREW DUTY & REST (recorded values, not recomputed here)");
 
   const ftlRoles: ("pf" | "pm" | "crz")[] = fr.crew?.crz ? ["pf", "pm", "crz"] : ["pf", "pm"];
   for (const who of ftlRoles) {
     const crew = fr.crew?.[who];
-    const hb = crew?.home_base;
-    const destHome = isHome(hb, destIcao);
-    const fdpM = (reportM !== null && dutyEndM !== null)
-      ? ((dutyEndM - reportM) + 1440) % 1440
-      : null;
-    const maxM = reportM !== null ? maxFdp(((reportM % 1440) + 1440) % 1440, 1) : null;
-    const fdpOk = (fdpM !== null && maxM !== null) ? fdpM <= maxM : null;
-    const restBase = destHome ? 720 : 600;
-    const minRest = fdpM !== null ? Math.max(fdpM, restBase) : restBase;
-    const next = onBlockM !== null ? fromMins(onBlockM + 30 + minRest) : DASH;
-
+    const duty = crew?.id ? duties[crew.id] : null;
     subHeader(
       c,
-      `${who === "crz" ? "CRZ CPT" : who.toUpperCase()} - ${V(crew?.name)}   Home: ${V(hb)}`,
+      `${who === "crz" ? "CRZ CPT" : who.toUpperCase()} - ${V(crew?.name)}   Home: ${V(crew?.home_base)}`,
       who === "pf" ? C.wpt : rgb(0.059, 0.463, 0.431),
     );
+    if (!duty) {
+      // Gorev kaydi yok/eslesmedi: SESSIZ GECILMEZ, sebebi yazilir.
+      const why = (crew?.id && ftlStatus[crew.id]) || "no crew duty record";
+      cellRow(c, [{ lbl: "Duty record", val: "NOT LINKED",
+        note: `FTL values cannot be shown - ${why}`, color: C.red }]);
+      continue;
+    }
+    const fdpOk = duty.fdp_exceeded === true ? false
+                : duty.fdp_minutes != null && duty.max_fdp_minutes != null ? true : null;
     cellRow(c, [
-      { lbl: "Report Time", val: reportM !== null ? fromMins(reportM) + " UTC" : DASH, note: "STD - 01:00" },
-      {
-        lbl: "FDP",
-        val: fromMins(fdpM),
-        note: maxM !== null ? "Max: " + fromMins(maxM) : undefined,
-        color: fdpOk === null ? C.text : (fdpOk ? C.green : C.red),
-      },
-      { lbl: "Min Rest", val: fromMins(minRest), note: destHome ? "Home 12:00" : "Away 10:00" },
-      { lbl: "Earliest Next Duty", val: next + " UTC" },
+      { lbl: "Operation", val: OPS[duty.operation_type] ?? V(duty.operation_type),
+        note: duty.operation_type_source ? String(duty.operation_type_source).slice(0, 46) : undefined },
+      { lbl: "Report Time", val: hhmmZ(duty.report_time) + " UTC",
+        note: duty.report_tz ? String(duty.report_tz) : undefined },
+      { lbl: "Duty End", val: hhmmZ(duty.duty_end) + " UTC" },
     ]);
+    cellRow(c, [
+      { lbl: "FDP", val: fromMins(duty.fdp_minutes),
+        note: duty.max_fdp_minutes != null ? "Max: " + fromMins(duty.max_fdp_minutes) : undefined,
+        color: fdpOk === null ? C.text : (fdpOk ? C.green : C.red) },
+      { lbl: "Min Rest", val: fromMins(duty.min_rest_minutes) },
+      { lbl: "Earliest Next Duty", val: hhmmZ(duty.earliest_next_report) + " UTC",
+        note: dmyZ(duty.earliest_next_report) },
+      { lbl: "Status", val: String(duty.status ?? DASH).toUpperCase(),
+        note: duty.match_review ? "MATCH REVIEW" : undefined,
+        color: duty.match_review ? C.red : C.text },
+    ]);
+    // AZAMI UGS'nin NEDEN o deger oldugu raporda dursun: nobet kisaltmasi ve
+    // komutan karari, denetimin ilk soracagi iki seydir.
+    // Md.22(1) — azami UGS'nin bandi hangi meydanin saatiyle okundu. Kalkis
+    // meydanindan FARKLIYSA basilir; ayni ise bilgi tasimaz (gurultu uretme).
+    if (duty.acclimatised_to &&
+        String(duty.acclimatised_to).toUpperCase() !== String(depIcao).toUpperCase()) {
+      cellRow(c, [{ lbl: "Acclimatised to (Md.22/1)", val: String(duty.acclimatised_to),
+        note: `Table 1 band read in ${duty.acclimatised_to} local time, not ${depIcao}` }]);
+    }
+    if (duty.standby_reduction_min > 0) {
+      cellRow(c, [{ lbl: "Standby (Md.17)", val: "-" + fromMins(duty.standby_reduction_min),
+        note: duty.standby_ref ? String(duty.standby_ref).slice(0, 92) : "max FDP reduced" }]);
+    }
+    if ((duty.skpk_fdp_extension_min ?? 0) > 0 || (duty.skpk_rest_reduction_min ?? 0) > 0) {
+      const due = duty.skpk_authority_due
+        ? ` | DGCA due ${dmyZ(duty.skpk_authority_due)}${duty.skpk_authority_reported_at ? " (sent)" : " NOT SENT"}`
+        : " | operator report only";
+      cellRow(c, [{ lbl: "Commander's discretion (Md.12)",
+        val: `FDP +${fromMins(duty.skpk_fdp_extension_min ?? 0)} / REST -${fromMins(duty.skpk_rest_reduction_min ?? 0)}`,
+        note: ((duty.skpk_reason ? String(duty.skpk_reason) : "") + due).slice(0, 92),
+        color: duty.skpk_authority_due && !duty.skpk_authority_reported_at ? C.red : C.text }]);
+    }
   }
 
   ensure(c, 14);
   fill(c, M, c.y - 12, CONTENT_W, 12, C.hdrBg);
   box(c, M, c.y - 12, CONTENT_W, 12);
-  txt(c, "WOCL 02:00-05:59 . Cumulative: 60h/7d . 190h/28d . Flight Time: 100h/28d . 900h/year",
+  txt(c, "Values above are the RECORDED duty values (crew_duties) computed under that duty's own ruleset snapshot - this report does not recompute limits.",
     M + 6, c.y - 8.5, 5.5, c.mono, C.label);
   c.y -= 12;
 
