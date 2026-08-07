@@ -420,6 +420,40 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
 
     const divertIdx = nav.findIndex((r) => r.type === "divert-arpt");
 
+    // ── BACAK BAZLI SAPMA (saha maddesi 6, 6 Agu 2026, Serkan) ────────────
+    // iOS NavLog'daki DEV/F-DEV artik "BU BACAKTA ne kazandim/kaybettim" gosteriyor
+    // (plan bacak − gercek bacak; + = kazanc). Rapor kumulatif ata−eta / actual−plan
+    // basmaya devam etseydi UYGULAMAYLA CELISIRDI — CLAUDE.md kurali: "NavLog neyse
+    // rapor o". Ayni kural burada da uygulanir; ARALIK son GERCEK GIRISLI satirdan
+    // bu satira (aradaki bos noktalar plan tarafinda da atlandigi icin dogru kalir).
+    //
+    // NOT: ±1000 lb VURGUSU kumulatif farkta kalir (fuel_actual − fuel_plan) —
+    // o bir yakit DURUMU isareti, bacak VERIMI degil. Ikisi ayri sorudur.
+    const hasActual = (r: any) => r && !(r.ata == null && r.fuel_actual == null);
+    const legDev = (idx: number): { t: number | null; f: number | null; multi: boolean } => {
+      const row = nav[idx];
+      if (!hasActual(row)) return { t: null, f: null, multi: false };
+      let ai = -1;
+      for (let i = idx - 1; i >= 0; i--) if (hasActual(nav[i])) { ai = i; break; }
+      if (ai < 0) return { t: null, f: null, multi: false };
+      const anc = nav[ai];
+      let t: number | null = null;
+      const pN = toMins(row.eta), pA = toMins(anc.eta);
+      const aN = toMins(row.ata), aA = toMins(anc.ata);
+      if (pN !== null && pA !== null && aN !== null && aA !== null) {
+        let planLeg = pN - pA; if (planLeg < 0) planLeg += 1440;
+        let actLeg  = aN - aA; if (actLeg  < 0) actLeg  += 1440;
+        t = planLeg - actLeg;
+      }
+      let f: number | null = null;
+      if (row.fuel_plan != null && anc.fuel_plan != null &&
+          row.fuel_actual != null && anc.fuel_actual != null) {
+        f = (Number(anc.fuel_plan) - Number(row.fuel_plan))
+          - (Number(anc.fuel_actual) - Number(row.fuel_actual));
+      }
+      return { t, f, multi: idx - ai > 1 };
+    };
+
     nav.forEach((row, idx) => {
       const notFlown = divertIdx >= 0 && idx > divertIdx;
       const isDiv = row.type === "divert-arpt";
@@ -481,15 +515,10 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
       x += cols[2].w;
       navCell(V(row.ata), x, cols[3].w, 7, c.monoBold, notFlown ? C.label : C.text);
       x += cols[3].w;
-      // T-DEV: ATA - ETA (dk; gece yarisi gecisi duzeltilir). |>=15dk| vurgulu.
+      // T-DEV: BU BACAKTA kazanilan dakika (plan bacak − gercek bacak).
+      // + = erken vardin (kazanc). |>=15 dk| vurgulu.
       {
-        const pe = toMins(row.eta), pa = toMins(row.ata);
-        let td: number | null = null;
-        if (pe !== null && pa !== null && !notFlown) {
-          td = pa - pe;
-          if (td > 720) td -= 1440;
-          if (td < -720) td += 1440;
-        }
+        const td = notFlown ? null : legDev(idx).t;
         const tStr = td === null ? DASH : (td > 0 ? "+" : "") + td + "m";
         navCell(tStr, x, cols[4].w, 7, Math.abs(td ?? 0) >= 15 ? c.monoBold : c.mono,
                 td === null ? C.label : (Math.abs(td) >= 15 ? C.divert : C.muted));
@@ -501,21 +530,30 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
       navCell(row.fuel_actual != null ? fmtLb(row.fuel_actual) : DASH, x, cols[6].w, 7, c.monoBold,
               notFlown ? C.label : C.text);
       x += cols[6].w;
-      // F-DEV: actual - plan (lb). NavLog kuralindaki gibi |>=1000 lb| vurgulu.
+      // F-DEV: BU BACAKTA kazanilan lb (plan yanma − gercek yanma). + = az yaktin.
+      // VURGU ise KUMULATIF yakit durumuna bakar (actual − plan >= 1000 lb) —
+      // bacak kucuk olsa da toplam yakit durumu bozulmus olabilir.
       {
-        let fd: number | null = null;
-        if (row.fuel_plan != null && row.fuel_actual != null && !notFlown) {
-          fd = Number(row.fuel_actual) - Number(row.fuel_plan);
-        }
+        const fd = notFlown ? null : legDev(idx).f;
+        const cum = (row.fuel_plan != null && row.fuel_actual != null && !notFlown)
+          ? Number(row.fuel_actual) - Number(row.fuel_plan) : null;
+        const hot = Math.abs(cum ?? 0) >= 1000;
         const fStr = fd === null ? DASH : (fd > 0 ? "+" : "") + fd.toLocaleString("en-US");
-        navCell(fStr, x, cols[7].w, 7, Math.abs(fd ?? 0) >= 1000 ? c.monoBold : c.mono,
-                fd === null ? C.label : (Math.abs(fd) >= 1000 ? C.divert : C.muted));
+        navCell(fStr, x, cols[7].w, 7, hot ? c.monoBold : c.mono,
+                fd === null ? C.label : (hot ? C.divert : C.muted));
       }
       x += cols[7].w;
       navCell(V(row.rvsm), x, cols[8].w, 6.5, c.mono, C.muted);
 
       c.y -= 13;
     });
+
+    // TANIM SATIRI: denetci hangi tanimi okudugunu bilmeli. "+ = kazanc"
+    // sezgisel degildir ve isaret ters okunursa rapor yanlis yorumlanir.
+    ensure(c, 11);
+    txt(c, "T-DEV / F-DEV = per leg, measured from the previous point that has an actual entry: planned leg minus actual leg. Positive = time or fuel SAVED. Bold/red marks a cumulative fuel gap of 1000 lb or more.",
+        M + 2, c.y - 8, 5.5, c.mono, C.label);
+    c.y -= 11;
   }
 
   // ── 5) T/O & LANDING ──────────────────────────────────────────────────────
