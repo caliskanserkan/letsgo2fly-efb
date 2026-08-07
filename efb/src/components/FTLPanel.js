@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import {
   toMin, fmtMin, spanMin, effectiveRules, overrideDirection,
-  fitness, dutyWindow, tzOffsetMin, zonedISO, daysOffSummary,
+  fitness, dutyWindow, tzOffsetMin, daysOffSummary,
   standbyBefore, standbyEffect, standbyLimits, standbyRef,
   skpkLimits, skpkRef, previousDuty, acclimatisation, bandReportHHMM,
 } from './FTLEngine';
@@ -39,23 +39,38 @@ const badge = (kind) => {
   return { display:'inline-block', padding:'2px 8px', fontSize:9, letterSpacing:1, fontWeight:700, border:`1px solid ${map.bd}`, color:map.c, background:map.bg, fontFamily:'var(--mono)' };
 };
 
-// tarih + yerel "HH:MM" → ISO (dispatcher'ın tarayıcı saat dilimi — Faz 1: TR operasyonu)
-const localISO = (dateStr, hhmm) => {
+// ── TÜM SAATLER UTC (6 Ağu 2026, Serkan ilkesi) ─────────────────────
+// "Bizim prensibe göre bütün zamanlar UTC olmalı; lokal time işleri için
+//  kendi hesaplamasını yapabilir."
+// Girilen ve gösterilen HER saat UTC'dir — EFB'nin geri kalanıyla (iOS, uçuş
+// raporu, arşiv) aynı. YEREL saat yalnız REGÜLASYONUN İSTEDİĞİ yerde, İÇERİDE
+// türetilir: Tablo 1 bandı (Md.22/2) ekibin İNTİBAK ETTİĞİ meydanın yerel
+// saatiyle okunur, boş gün pencereleri (Md.4/ü) ana üssün yerel gecesiyle.
+// İkisi de meydan tz'sinden hesaplanır, kullanıcıdan istenmez.
+//
+// Bu, eski "girilen saat kalkış meydanının yerelidir" kurgusunu bitirir ve
+// onunla birlikte iki hata kaynağını da: dispatcher'ın TARAYICI dilimi ve
+// "meydan tz yok → admin dilimi kullanıldı" yaması. Artık tz eksikse saat
+// kaymaz; yalnız BANT çözülemez ve pilot NOT LEGAL olur (sessiz tahmin yok).
+const utcISO = (dateStr, hhmm) => {
   if (!dateStr || !hhmm) return null;
-  const d = new Date(`${dateStr}T${hhmm.padStart(5, '0')}:00`);
+  const d = new Date(`${dateStr}T${String(hhmm).padStart(5, '0')}:00Z`);
   return isNaN(d) ? null : d.toISOString();
 };
 const addMin = (iso, min) => iso ? new Date(new Date(iso).getTime() + min * 60000).toISOString() : null;
 
-// ── SAAT DILIMI DOGRU MUTLAKLASTIRMA (4 Agu, Serkan: "TZ gecisleri kaynakli
-// dinlenme sureleri atlanmasin"). Eski localISO saatleri ADMIN MAKINESININ
-// diliminde ISO'ya ceviriyordu; donus meydani farkli dilimdeyse duty_end ve
-// earliest_next_report mutlak zamanda kayiyor, dinlenme penceresi yanlis
-// hesaplaniyordu. Artik: report/ETD kalkis meydaninin, ETA/duty_end varis
-// meydaninin IANA tz'siyle (airports.tz) mutlaklastirilir. tz bulunamazsa
-// admin dilimine duser ve KAYITLI UYARI verilir (sessiz gecilmez).
-// tzOffsetMin / zonedISO artik FTLEngine'den gelir — ayni aritmetigin
-// ikinci kopyasi olmasin (K-2 dersi).
+// ── MEYDAN DİLİMİ NEDEN HÂLÂ LAZIM (saatler UTC olmasına rağmen) ────
+// Tarihçe: 4 Ağu'da saatler ADMIN MAKİNESİNİN diliminde mutlaklaştırılıyordu;
+// dönüş meydanı farklı dilimdeyse duty_end ve earliest_next_report mutlak
+// zamanda kayıyor, dinlenme penceresi yanlış çıkıyordu. Buna karşı saatler
+// meydan dilimleriyle mutlaklaştırıldı (`zonedISO`).
+// 6 Ağu'da Serkan ilkeyi netleştirdi: **bütün zamanlar UTC**. Böylece
+// mutlaklaştırma DÜZ hale geldi ve `zonedISO` ile "tz yoksa admin dilimi"
+// yaması tamamen gereksizleşti — kayma kaynağı kökten kalktı.
+// Meydan dilimi yine de gerekli, ama artık YALNIZ regülasyonun yerel saat
+// istediği yerlerde: Tablo 1 bandı (Md.22/2, intibak edilen meydanın yereli),
+// boş gün pencereleri (Md.4/ü, ana üssün yerel gecesi) ve uzun menzil
+// tespiti (Md.4/ee). Bunlar hesaplanır, kullanıcıdan istenmez.
 const fetchTzMap = async (icaos) => {
   const clean = [...new Set(icaos.filter(Boolean).map(x => x.toUpperCase()))];
   if (!clean.length) return {};
@@ -73,8 +88,9 @@ const newUuid = () => {
   const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
   return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 };
-const fmtDT = (iso) => iso ? new Date(iso).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }).toUpperCase() : '—';
-const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short' }).toUpperCase() : '—';
+// Gösterim de UTC — tarayıcının dilimi kayda da ekrana da karışmaz.
+const fmtDT = (iso) => iso ? new Date(iso).toLocaleString('en-GB', { timeZone:'UTC', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }).toUpperCase() : '—';
+const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-GB', { timeZone:'UTC', day:'2-digit', month:'short' }).toUpperCase() : '—';
 
 export default function FTLPanel({ toast, myProfile }) {
   const [view, setView] = useState('assign'); // assign | history | ruleset
@@ -146,7 +162,7 @@ export default function FTLPanel({ toast, myProfile }) {
         <div style={tabS('ruleset')} onClick={() => setView('ruleset')}>Ruleset</div>
         <div style={{ flex:1 }} />
         <div style={{ alignSelf:'center', paddingRight:16, fontSize:9, color:C.t3, letterSpacing:1, fontFamily:'var(--mono)' }}>
-          {ruleset.name} · ALL TIMES LOCAL
+          {ruleset.name} · ALL TIMES UTC
         </div>
       </div>
       <div style={{ padding:18 }}>
@@ -667,12 +683,29 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
     sameDayTheory: !!head.same_day_theory,
     singlePilot: crew.length === 1,
   }), [crew, head.operation_type, head.training_kind, head.same_day_theory]);
+  // BANT SAATİ İÇİN MEYDAN DİLİMİ (Md.22/2): saatler UTC girildiği için Tablo 1
+  // doğrudan UTC ile okunamaz. Görev İNTİBAK ETTİĞİ meydanı kaydında taşıyor
+  // (`acclimatised_to`); yoksa kalkış meydanı kullanılır.
+  const [bandTz, setBandTz] = useState(null);
+  const bandIcao = (head.acclimatised_to || legs[0]?.dep || '').toUpperCase();
+  useEffect(() => {
+    if (!bandIcao || bandIcao.length !== 4) { setBandTz(null); return; }
+    let dead = false;
+    (async () => { const m = await fetchTzMap([bandIcao]); if (!dead) setBandTz(m[bandIcao] || null); })();
+    return () => { dead = true; };
+  }, [bandIcao]);
+
   const win = useMemo(() => {
     if (isActual || !snapshotRuleset) return null;
     const complete = legs.filter(l => timeOk(l.etd) && timeOk(l.eta));
     if (complete.length !== legs.length || !legs.length) return null;
-    return dutyWindow(legs, head.accommodation || 'hotel', snapshotRuleset, winOpts);
-  }, [legs, snapshotRuleset, isActual, head.accommodation, winOpts]);
+    const w0 = dutyWindow(legs, head.accommodation || 'hotel', snapshotRuleset, winOpts);
+    if (!w0 || !bandTz) return w0;                  // dilim yoksa bant UYDURULMAZ
+    const ref = utcISO(date, legs[0]?.etd) || new Date().toISOString();
+    const band = bandReportHHMM(w0.report, 0, tzOffsetMin(bandTz, new Date(ref).getTime()));
+    return band ? dutyWindow(legs, head.accommodation || 'hotel', snapshotRuleset,
+                             { ...winOpts, bandReport: band, acclimatisedTo: bandIcao }) : w0;
+  }, [legs, snapshotRuleset, isActual, head.accommodation, winOpts, bandTz, bandIcao, date]);
 
   /** Bir pilotun bu gorev icin NOBET durumu (Md.17) — gorevin KENDI snapshot'iyla.
    *  EDIT'te iki yoldan gerekir: (1) saat/sektor degisti, (2) PILOT DEGISTI.
@@ -752,16 +785,17 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
       if ((sectorsChanged || dateChanged)) {
         if (!win) { toast('Complete all sector fields.', 'error'); setSaving(false); return; }
         if (legs.some(l => !l.dep || !l.dest)) { toast('DEP/DEST required.', 'error'); setSaving(false); return; }
+        // SAATLER UTC (Serkan ilkesi): mutlaklastirma duz. Meydan tz'si yalniz
+        // uzun menzil tespiti ve Tablo 1 bandi icin.
         const tzMap = await fetchTzMap([legs[0].dep, legs[legs.length-1].dest]);
         const depTz = tzMap[legs[0].dep.toUpperCase()] || null;
         const destTz = tzMap[legs[legs.length-1].dest.toUpperCase()] || null;
-        if (!depTz || !destTz) tzWarn = 'AIRPORT TZ NOT IN DATABASE — admin timezone used (SHT-FTL/HG Md.16 kontrolu elde yapilmali).';
-        reportISO = zonedISO(date, win.report, depTz);
+        reportISO = utcISO(date, win.report);
         const lastEta = legs[legs.length - 1].eta;
         const crossesMidnight = toMin(lastEta) < toMin(win.report);
         const endDate = crossesMidnight ? nextDay(date) : date;
         const post = (snapshotRuleset?.company?.postFlightDutyMin ?? 30);
-        endISO = addMin(zonedISO(endDate, lastEta, destTz), post);
+        endISO = addMin(utcISO(endDate, lastEta), post);
         if (depTz && destTz) {
           const diff = Math.abs(tzOffsetMin(destTz, new Date(endISO).getTime()) - tzOffsetMin(depTz, new Date(reportISO).getTime()));
           if (diff >= 240) tzWarn = `TZ CROSSING ${Math.round(diff/60)}H — verify additional rest per EASA ORO.FTL.235.`;
@@ -950,7 +984,7 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
           {/* NOBET (Md.17) — pilot bazli oldugu icin yukaridaki tek satir yetmez.
               Kaydetmeden ONCE hangi pilotun tavaninin nereye dustugu gorunur. */}
           {win && (() => {
-            const est = localISO(date, win.report);
+            const est = utcISO(date, win.report);
             const rows = crew.map(c => ({ c, ...standbyFor(c.pilot, date, est) })).filter(r => r.sb);
             if (!rows.length) return null;
             return rows.map(({ c, pWin, sb }) => (
@@ -1343,6 +1377,18 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
   // PENCERE OPSIYONLARI TEK KAYNAK: ortak (nobetsiz) pencere ile her pilotun
   // KENDI (nobet kisaltmali) penceresi ayni opsiyonlarla kurulur — ikisi zamanla
   // ayrismasin diye tek yerde duruyor.
+  // KALKIŞ MEYDANININ UTC OFSETİ — ortak pencerenin bandı için.
+  // Saatler UTC girildiği için Tablo 1'i doğrudan UTC ile okumak YANLIŞ olur
+  // (Md.22/2 "görev başlangıç saati YEREL" der). Ortak pencere, ekibin çoğunun
+  // hâli olan "kalkış meydanına intibaklı" varsayımıyla bandı çözer; pilot
+  // bazlı GERÇEK bant aşağıda intibak zinciriyle yeniden hesaplanır.
+  const depOffsetMin = useMemo(() => {
+    const tz = acclTz[String(legs[0]?.dep || '').toUpperCase()];
+    if (!tz) return null;
+    const ref = utcISO(date, legs[0]?.etd) || new Date().toISOString();
+    return tzOffsetMin(tz, new Date(ref).getTime());
+  }, [acclTz, legs, date]);
+
   const winOpts = useMemo(() => ({
     operationType: opType,
     trainingKind, sameDayTheory,
@@ -1354,10 +1400,12 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
   const win = useMemo(() => {
     if (dutyType !== 'flight') return null;
     const complete = legs.filter(l => timeOk(l.etd) && timeOk(l.eta));
-    return complete.length === legs.length
-      ? dutyWindow(complete, accommodation, ruleset, winOpts)
-      : null;
-  }, [legs, accommodation, ruleset, dutyType, winOpts]);
+    if (complete.length !== legs.length) return null;
+    const w0 = dutyWindow(complete, accommodation, ruleset, winOpts);
+    if (!w0 || depOffsetMin == null) return w0;   // tz yoksa bant çözülmez (uydurma yok)
+    const band = bandReportHHMM(w0.report, 0, depOffsetMin);
+    return band ? dutyWindow(complete, accommodation, ruleset, { ...winOpts, bandReport: band }) : w0;
+  }, [legs, accommodation, ruleset, dutyType, winOpts, depOffsetMin]);
 
   const { rules } = useMemo(() => effectiveRules(ruleset), [ruleset]);
   const lim = rules.cumulative_limits || {};
@@ -1367,8 +1415,8 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
     if (dutyType !== 'ground') return null;
     if (gnd.kind !== 'airport_standby' && gnd.kind !== 'other_standby') return null;
     if (!timeOk(gnd.start) || !timeOk(gnd.end)) return null;
-    const startISO = localISO(date, gnd.start);
-    const endISO = localISO(toMin(gnd.end) < toMin(gnd.start) ? nextDay(date) : date, gnd.end);
+    const startISO = utcISO(date, gnd.start);
+    const endISO = utcISO(toMin(gnd.end) < toMin(gnd.start) ? nextDay(date) : date, gnd.end);
     if (!startISO || !endISO) return null;
     return standbyEffect(
       { duty_type:'ground', ground_kind: gnd.kind, report_time: startISO, duty_end: endISO }, rules);
@@ -1377,7 +1425,7 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
   // her pilot için uygunluk
   const fitList = useMemo(() => {
     if (dutyType !== 'flight' || !win) return [];
-    const reportISO = localISO(date, win.report);
+    const reportISO = utcISO(date, win.report);
     return pilots.filter(p => ['pilot', 'admin_pilot'].includes(p.role)).map(p => {
       const myDuties = duties.filter(d => d.pilot_id === p.id);
       const f = fitness({
@@ -1416,8 +1464,13 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
         prevD ? { refIcao: prevRefIcao, refOffsetMin: offOf(prevRefIcao), dutyEndISO: prevD.duty_end } : null,
         { depIcao, depOffsetMin: offOf(depIcao), reportISO, homeBaseIcao: homeBases?.[p.id] || null },
         rules);
-      const bandRep = (!accl.unavailable && accl.icao !== depIcao)
-        ? bandReportHHMM(win.report, offOf(depIcao), accl.offsetMin) : null;
+      // BANT SAATİ (Md.22/2): `win.report` artık UTC (Serkan ilkesi). Tablo 1
+      // ise YEREL saat ister — ekibin İNTİBAK ETTİĞİ meydanın yerel saati.
+      // Kayma bu yüzden UTC→intibak meydanı (0 → accl.offsetMin); eskiden
+      // kalkış meydanının yereliydi ve iki kez dilim uygulanırdı.
+      // İNTİBAK ÇÖZÜLEMEZSE bant hesaplanmaz → pilot NOT LEGAL (aşağıda).
+      const bandRep = !accl.unavailable
+        ? bandReportHHMM(win.report, 0, accl.offsetMin) : null;
 
       const pOpts = { ...winOpts,
         ...(bandRep ? { bandReport: bandRep } : {}),
@@ -1500,24 +1553,27 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
           ? { check_ride: true, external_examiner: examiner.trim().toUpperCase() } : {}),
         customer_id: myProfile.customer_id, created_by: myProfile.id,
         ruleset_id: ruleset.id, ruleset_snapshot: { regulation: ruleset.regulation, company: ruleset.company },
-        duty_date: date, report_tz: Intl.DateTimeFormat().resolvedOptions().timeZone, // flight'ta asagida depTz ile ezilir
+        // Saatler UTC yazilir. `report_tz` artik "saatin dilimi" DEGIL, kalkis
+        // meydaninin dilimidir — bandi/intibaki geriye donuk cozebilmek icin
+        // saklanir (rapor da bunu kullaniyor). Ucusta asagida depTz ile ezilir.
+        duty_date: date, report_tz: 'UTC',
         status: isPast ? 'actual' : 'planned',
         ...(isPast ? { duty_finished: true } : {}),
       };
       if (dutyType === 'flight') {
         if (!win || legs.some(l => !l.dep || !l.dest || !l.etd || !l.eta)) { toast('Complete all sector fields.', 'error'); setSaving(false); return; }
-        // TZ DOGRU MUTLAKLASTIRMA (4 Agu): report kalkis meydaninin, duty end
-        // varis meydaninin dilimiyle. tz yoksa admin dilimi + ACIK uyari.
+        // SAATLER UTC (6 Agu, Serkan ilkesi): girilen ETD/ETA zaten UTC oldugu
+        // icin mutlaklastirma DUZDUR — meydan dilimine ihtiyac YOK ve "tz yok →
+        // admin dilimi" yamasi da gereksizlesti. Meydan tz'si artik yalniz
+        // REGULASYONUN istedigi yerde kullaniliyor: Tablo 1 bandi (intibak) ve
+        // uzun menzil tespiti.
         const tzMap = await fetchTzMap([legs[0].dep, legs[legs.length - 1].dest]);
         const depTz = tzMap[legs[0].dep.toUpperCase()] || null;
         const destTz = tzMap[legs[legs.length - 1].dest.toUpperCase()] || null;
-        if (!depTz || !destTz) {
-          toast(`AIRPORT TZ MISSING (${[!depTz && legs[0].dep, !destTz && legs[legs.length-1].dest].filter(Boolean).join(', ')}) — admin timezone used. Rest window may shift; add tz to airports table.`, 'error');
-        }
-        const reportISO = zonedISO(date, win.report, depTz);
+        const reportISO = utcISO(date, win.report);
         const lastEta = legs[legs.length - 1].eta;
         const crossesMidnight = toMin(lastEta) < toMin(win.report);
-        const endISO = addMin(zonedISO(crossesMidnight ? nextDay(date) : date, lastEta, destTz), (effectiveRules(ruleset).company.postFlightDutyMin));
+        const endISO = addMin(utcISO(crossesMidnight ? nextDay(date) : date, lastEta), (effectiveRules(ruleset).company.postFlightDutyMin));
         if (depTz && destTz && reportISO && endISO) {
           const tzDiff = Math.abs(tzOffsetMin(destTz, new Date(endISO).getTime()) - tzOffsetMin(depTz, new Date(reportISO).getTime()));
           if (tzDiff >= 240) toast(`TZ CROSSING ${Math.round(tzDiff / 60)}H — long-range rules per SHT-FTL/HG Md.22(3)/16(3): FDP cap 14:00, arrival rest max(duty,14:00), 48h/2 local nights on return.`, 'error');
@@ -1585,8 +1641,8 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
           });
         });
       } else if (dutyType === 'ground') {
-        const startISO = localISO(date, gnd.start);
-        const endISO = localISO(toMin(gnd.end) < toMin(gnd.start) ? nextDay(date) : date, gnd.end);
+        const startISO = utcISO(date, gnd.start);
+        const endISO = utcISO(toMin(gnd.end) < toMin(gnd.start) ? nextDay(date) : date, gnd.end);
         const dMin = (new Date(endISO) - new Date(startISO)) / 60000;
         // Md.17(2)(b) — HAVAALANI HARICI NOBET AZAMI 16 SAAT. Bu nobetin KENDI
         // ihlalidir (gorev atansa da atanmasa da gecersiz) -> kayit ENGELLENIR.
@@ -1697,8 +1753,8 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
                 <option value="other_standby">OTHER STANDBY (Md.17/2)</option>
             </select>
           </div>
-          <div style={{ width:110 }}><span style={S.label}>Start (LT)</span><input style={S.input} value={gnd.start} onChange={e => setGnd(g => ({ ...g, start: normTime(e.target.value) }))} /></div>
-          <div style={{ width:110 }}><span style={S.label}>End (LT)</span><input style={S.input} value={gnd.end} onChange={e => setGnd(g => ({ ...g, end: normTime(e.target.value) }))} /></div>
+          <div style={{ width:110 }}><span style={S.label}>Start (UTC)</span><input style={S.input} value={gnd.start} onChange={e => setGnd(g => ({ ...g, start: normTime(e.target.value) }))} /></div>
+          <div style={{ width:110 }}><span style={S.label}>End (UTC)</span><input style={S.input} value={gnd.end} onChange={e => setGnd(g => ({ ...g, end: normTime(e.target.value) }))} /></div>
         </>)}
       </div>
 
@@ -1730,8 +1786,8 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
             <div style={{ fontSize:11, color:C.t3, textAlign:'center', fontFamily:'var(--mono)' }}>{i + 1}</div>
             <input style={S.input} placeholder="DEP" maxLength={4} value={l.dep} onChange={e => setLeg(i, 'dep', e.target.value.toUpperCase())} />
             <input style={S.input} placeholder="DEST" maxLength={4} value={l.dest} onChange={e => setLeg(i, 'dest', e.target.value.toUpperCase())} />
-            <input style={S.input} placeholder="ETD LT (06:30)" value={l.etd} onChange={e => setLeg(i, 'etd', normTime(e.target.value))} />
-            <input style={S.input} placeholder="ETA LT (07:45)" value={l.eta} onChange={e => setLeg(i, 'eta', normTime(e.target.value))} />
+            <input style={S.input} placeholder="ETD UTC (06:30)" value={l.etd} onChange={e => setLeg(i, 'etd', normTime(e.target.value))} />
+            <input style={S.input} placeholder="ETA UTC (07:45)" value={l.eta} onChange={e => setLeg(i, 'eta', normTime(e.target.value))} />
             <button style={{ ...S.btnS, padding:'8px 10px', color:C.red }} onClick={() => setLegs(ls => ls.length > 1 ? ls.filter((_, j) => j !== i) : ls)}>✕</button>
           </div>
         ))}

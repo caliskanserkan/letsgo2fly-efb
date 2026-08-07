@@ -102,13 +102,15 @@ const CHAPTERS = [
   },
   {
     id: 'ftl', icon: '⏱', title: 'FTL',
-    intro: 'Duty planning, the roster, duty history reports, the edit audit log and the ruleset — SHT-FTL/HG (air taxi, fixed wing), all times local.',
+    intro: 'Duty planning, the roster, duty history reports, the edit audit log and the ruleset — SHT-FTL/HG (air taxi, fixed wing). All times UTC; local time is derived internally only where the regulation requires it.',
     sections: [
       { h: 'ASSIGN DUTY', qa: [
         ['How is the duty window computed?',
-         'From the sectors\' local times: report = first ETD minus the pre-flight report period; FDP = report → last on-block; duty end = +post-flight period; Max FDP comes from SHT-FTL/HG Md.22(2) Table 1: report-time band (06:00-15:00 / 15:01-18:00 / 18:01-05:59) × sector group (1-4 / 5 / 6+) × single-or-dual pilot; long-range duties (≥4h timezone crossing) are capped at 14:00 (Md.22(3)). The wizard shows every pilot\'s fitness (rest, 7/14/28-day and year cumulatives) against the duty before you assign — NOT LEGAL rows cannot be selected.'],
-        ['What do airport timezones change?',
-         'Everything is absolutized with the AERODROME\'S IANA timezone — report with the departure aerodrome\'s, duty end with the arrival\'s. Rest windows therefore stay physically correct across timezone crossings. If dep/arr differ by 4h or more, an EASA ORO.FTL.235 advisory appears (additional-rest check is yours; it is not auto-applied). Every airport in the database carries a timezone, so the "TZ missing" fallback should never appear.'],
+         'From the sectors\' UTC times: report = first ETD minus the pre-flight report period; FDP = report → last on-block; duty end = +post-flight period; Max FDP comes from SHT-FTL/HG Md.22(2) Table 1: report-time band (06:00-15:00 / 15:01-18:00 / 18:01-05:59) × sector group (1-4 / 5 / 6+) × single-or-dual pilot; long-range duties (≥4h timezone crossing) are capped at 14:00 (Md.22(3)). The wizard shows every pilot\'s fitness (rest, 7/14/28-day and year cumulatives) against the duty before you assign — NOT LEGAL rows cannot be selected.'],
+        ['Are the times UTC or local?',
+         'UTC — every time you type and every time shown here, exactly like the rest of the EFB, the flight report and the archive. Local time is never asked for and never displayed. Where the regulation genuinely needs a LOCAL time, the panel derives it itself from the aerodrome timezone: the Table-1 band (Md.22/2, read in the local time of the aerodrome the crew is acclimatised to), the free-day windows (Md.4/ü, the home base\'s local night) and long-range detection (Md.4/ee).'],
+        ['What do airport timezones change then?',
+         'Only those three derived calculations — never the stored instant. Because times are UTC, absolutising them is direct, so a missing aerodrome timezone can no longer shift a duty end or a rest window. What it does affect is the Table-1 band: if the timezone is unknown, acclimatisation cannot be resolved and the pilot shows NOT LEGAL rather than being computed against a guessed band. Every airport in the database carries a timezone, so this should not appear.'],
         ['ADD COCKPIT CREW — CRZ CPT vs CHECK RIDE?',
          'Visible once PF and PM are set; it never alters the pairing. CRZ CPT: pick a third company pilot from the list — augmented-crew limits apply per SHT-FTL/HG Md.11 (Table-1 FDP +2:00 with one additional pilot, max 3 sectors, in-flight rest 90 min each / 2h for the landing crew on a reclining seat; never combined with split duty — Md.15(d)), and the third pilot is a full crew member for duty, rest and cumulatives. CHECK RIDE: type the external TRE/TRI\'s name — recorded on the assignment and printed on reports, but no company FTL is tracked for an external examiner and standard 2-pilot FDP applies.'],
         ['What is OPERATION and why does it change the limits?',

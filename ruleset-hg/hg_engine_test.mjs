@@ -309,6 +309,31 @@ eq('intibak bandi kayda doner', dutyWindow(
 eq('band gecilmezse kalkis saati kullanilir', dutyWindow(
   [{dep:'KJFK',dest:'LTAC',etd:'07:00',eta:'15:00'}], 'hotel', rs, {}).bandReport, '06:00');
 
+// ── SAATLER UTC, BANT YEREL (Serkan ilkesi 6 Agu + Md.22/2) ────────────────
+// "Butun zamanlar UTC olmali; lokal time isleri icin kendi hesaplamasini
+//  yapabilir." Girilen/gosterilen saat UTC; Tablo 1 ise YEREL saat ister.
+// Bandi UTC ile okumak YANLIS SATIRI secer — asagidaki fark tam olarak o.
+// LTAC (+03), ETD 04:00Z → rapor 03:00Z → YEREL 06:00 → gunduz bandi 13:30.
+eq('UTC rapor 03:00 → yerel 06:00 (+03)', bandReportHHMM('03:00', 0, 180), '06:00');
+eq('YEREL bant ile 2 sektor = 13:30', maxFdpMinutes('06:00', 2, rules), 810);
+eq('UTC ile okunsaydi GECE bandi = 11:30', maxFdpMinutes('03:00', 2, rules), 690);
+eq('fark 2 saat (yanlis bant bedeli)',
+   maxFdpMinutes('06:00', 2, rules) - maxFdpMinutes('03:00', 2, rules), 120);
+// dutyWindow: rapor UTC kalir, bant ayri okunur — fiziksel saat DEGISMEZ
+const legsUtc = [{dep:'LTAC',dest:'LTFE',etd:'04:00',eta:'05:15'}];
+const wUtc = dutyWindow(legsUtc, 'hotel', rs, {});
+eq('rapor UTC 03:00 (girilen saatten turer)', wUtc.report, '03:00');
+eq('bant gecilmezse rapor saati kullanilir → 690', wUtc.maxFdpMin, 690);
+const wBand = dutyWindow(legsUtc, 'hotel', rs, { bandReport: bandReportHHMM('03:00', 0, 180) });
+eq('bant yerel verilince → 810', wBand.maxFdpMin, 810);
+eq('rapor saati DEGISMEDI (fiziksel zaman ayni)', wBand.report, '03:00');
+eq('bandReport kayda doner', wBand.bandReport, '06:00');
+// Bati yonu: LEIB (+02) degil, KJFK (−04) — UTC 10:00 → yerel 06:00
+eq('UTC 10:00 → KJFK yerel 06:00', bandReportHHMM('10:00', 0, -240), '06:00');
+// Gece yarisini saran kayma
+eq('UTC 23:00 → +03 yerel 02:00', bandReportHHMM('23:00', 0, 180), '02:00');
+eq('UTC 01:00 → −04 yerel 21:00', bandReportHHMM('01:00', 0, -240), '21:00');
+
 // ── KURAL SETI TANIMLAMIYORSA SAYIYI KODDAN UYDURMA (Ilke 1) ───────────────
 // Canli ruleset (SHT-FTL Rev02) taramasinda bulundu: `standby` ve
 // `commander_discretion` bloklari YOKKEN motor `?? 240` gibi yedeklerle Turk HG
