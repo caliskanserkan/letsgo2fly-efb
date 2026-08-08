@@ -289,6 +289,117 @@ export function daysOffSummary(duties, rules, { year, month = null, tz = null, o
   };
 }
 
+// ── BOŞ GÜNE GÖREV VERİLEBİLİR Mİ (8 Ağu 2026, Serkan) ──────────────
+// ⚠️ REST İLE OFF AYRI ŞEYLERDİR (Serkan, 8 Ağu: "mecburi dinlenmeler OFF
+//    değil REST olur"). Mecburi dinlenme bir crew_duties satırı DEĞİLDİR;
+//    önceki görevin `earliest_next_report`undan TÜREİR ve `fitness()` içinde
+//    zorlanır — orada OFF satırları bilerek filtrelenir. Bu fonksiyon o kulvara
+//    HİÇ karışmaz; yalnız Md.5 BOŞ GÜN asgarilerine bakar.
+//
+// "Regülatif bir OFF'a görev verilemez, uyarı vermeli. Sistem ruleset'e göre
+//  arka planda takip yapar."  Kural KODA GÖMÜLMEZ: hangi OFF tipinin boş gün
+//  saydığı `ftl_off_types.counts_as_recurrent_rest`ten, asgariler
+//  `rules.days_off`tan gelir.
+//
+// KRİTİK İNCELİK (Serkan'ın örneği: "off tutan pilota öğleden sonra uçuş
+// verilebilir"): boş gün İKİ YEREL GECE PENCERESİYLE tanımlıdır
+// (önceki 22:00→08:00 ve o gün 22:00→ertesi 08:00). Öğleden sonraki bir görev
+// bu pencerelere DEĞMEZ — gün boş gün olarak DURUR, kayıp yoktur. Bu yüzden
+// "OFF günü = dokunulmaz" demek yanlış olurdu; ölçü GÜN değil, ÇAKIŞMA.
+//
+// Dönüş: { isOffDay, keepsDayOff, allowed, breaks[], before, after }
+//   breaks: 'monthly_minimum' | 'monthly_grouping' | 'monthly_balance' | 'yearly_minimum'
+export function offDayRelease(duties, pilotId, offDate, newDuty, rules,
+                              { offTypes = null, tz = null } = {}) {
+  const mine = (duties || []).filter(d => !pilotId || d.pilot_id === pilotId);
+  const offRow = mine.find(d => d.duty_type === 'off' && d.status !== 'cancelled'
+                                && d.duty_date === offDate);
+  if (!offRow) return { isOffDay: false, keepsDayOff: true, allowed: true, breaks: [] };
+
+  // Bu alt tip boş gün saymıyorsa (ruleset diyor) asgarileri beslemiyordur;
+  // kaldırmak bir asgariyi bozamaz.
+  const countsAsDayOff = (() => {
+    if (!offTypes || !offRow.off_subtype) return true;
+    const t = offTypes.find(x => x.code === offRow.off_subtype);
+    return t ? t.counts_as_recurrent_rest !== false : true;
+  })();
+  if (!countsAsDayOff) {
+    return { isOffDay: true, keepsDayOff: true, allowed: true, breaks: [],
+             note: `${offRow.off_subtype} does not count as a day off in this ruleset` };
+  }
+
+  // Görev gece pencerelerine değiyor mu? TEK KAYNAK: isSingleDayOff.
+  const withNew = [...mine, { ...newDuty, duty_type: newDuty.duty_type || 'flight',
+                              status: newDuty.status || 'planned' }];
+  const keepsDayOff = isSingleDayOff(offDate, withNew, rules, tz);
+  if (keepsDayOff) {
+    return { isOffDay: true, keepsDayOff: true, allowed: true, breaks: [] };
+  }
+
+  // Gün düşüyor — asgariler hâlâ tutuyor mu?
+  const [year, month] = offDate.split('-').map(Number);
+  const opts = { tz, offTypes };
+  const before = {
+    month: daysOffSummary(mine, rules, { year, month, ...opts }),
+    year:  daysOffSummary(mine, rules, { year, ...opts }),
+  };
+  const after = {
+    month: daysOffSummary(withNew, rules, { year, month, ...opts }),
+    year:  daysOffSummary(withNew, rules, { year, ...opts }),
+  };
+
+  const breaks = [];
+  const lost = (b, a) => b === true && a === false;      // yalnız SAĞLAMDAN bozuğa
+  if (lost(before.month.ok, after.month.ok)) breaks.push('monthly_minimum');
+  if (lost(before.month.groupingOk, after.month.groupingOk)) breaks.push('monthly_grouping');
+  if (lost(before.month.balancedOk, after.month.balancedOk)) breaks.push('monthly_balance');
+  if (lost(before.year.ok, after.year.ok)) breaks.push('yearly_minimum');
+
+  return { isOffDay: true, keepsDayOff: false, allowed: breaks.length === 0,
+           breaks, before, after };
+}
+
+// ── OFF PERİYODUNDA GÜN BAŞINA STATUS (8 Ağu, Serkan) ───────────────
+// "10 günlük bir OFF'un ilk 2 günü regülasyondan geliyorsa actual olabilir,
+//  diğerleri gerçekleştiği gün tek tek actual olsun. AVAC girilmişse ilgili
+//  periyotta actual olabilir — ama yine edit'lenebilir."
+//
+// ⚠️ TEK SAYI KAYNAĞI SORUNU: regülasyonun istediği ardışık blok boyutu (2)
+//    ruleset'te DEĞER olarak yok; yalnız `month_grouping_min_blocks_of_2`
+//    anahtarının ADINDA gömülü. Burada `regBlockDays` parametresi olarak
+//    dışarı alındı ve varsayılanı 2. Başka bir otoritenin bloğu 2 değilse o
+//    anahtar genelleştirilmeli — o güne kadar bu tek yerden değiştirilir.
+//
+// grantedLeave: `ftl_off_types.granted_leave` — VERİLMİŞ İZİN (AVAC/UVAC/MEDC)
+//    dinlenme değildir; taahhüt edildiği için tüm periyot actual yazılır.
+export function offPeriodStatuses(dates, { grantedLeave = false, today = null,
+                                           regBlockDays = 2 } = {}) {
+  const sorted = [...new Set((dates || []).filter(Boolean))].sort();
+  const out = {};
+  if (grantedLeave) { sorted.forEach(d => { out[d] = 'actual'; }); return out; }
+  sorted.forEach((d, i) => {
+    if (i < regBlockDays) { out[d] = 'actual'; return; }   // regülasyonun istediği blok
+    out[d] = (today && d <= today) ? 'actual' : 'planned'; // geri kalanı günü gelince
+  });
+  return out;
+}
+
+/** offDayRelease sonucunun insan okur karşılığı — panel ve sihirbaz AYNI metni
+ *  göstersin diye burada (Ilke 2). */
+export function offDayReleaseText(r) {
+  if (!r || !r.isOffDay) return null;
+  if (r.note) return r.note;
+  if (r.keepsDayOff) return 'DAY OFF PRESERVED — duty does not touch the local night windows';
+  const map = {
+    monthly_minimum:  `monthly days off would fall to ${r.after?.month?.count} (required ${r.after?.month?.required})`,
+    monthly_grouping: 'monthly grouping rule (blocks of 2) would be broken',
+    monthly_balance:  'both halves of the month must contain a day off',
+    yearly_minimum:   `yearly days off would fall to ${r.after?.year?.count} (required ${r.after?.year?.required})`,
+  };
+  if (!r.breaks.length) return 'DAY OFF WOULD BE LOST — minimums still met';
+  return `BLOCKED — ${r.breaks.map(b => map[b] || b).join(' · ')}`;
+}
+
 // ── Nöbet (SHT-FTL/HG Md.17) ────────────────────────────────────────
 // HAVAALANI NÖBETİ (Md.17/1): tamamı görev süresidir; azami UGS, nöbette
 //   geçen 4 saatin ÜZERİNDEKİ süre kadar kısalır; nöbet + tahsis edilen UGS

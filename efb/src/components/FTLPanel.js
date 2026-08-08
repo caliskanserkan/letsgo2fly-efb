@@ -8,6 +8,7 @@ import {
   fitness, dutyWindow, tzOffsetMin, daysOffSummary,
   standbyBefore, standbyEffect, standbyLimits, standbyRef,
   skpkLimits, skpkRef, previousDuty, acclimatisation, bandReportHHMM,
+  offDayRelease, offDayReleaseText, offPeriodStatuses,
 } from './FTLEngine';
 import { normTime, up } from './inputFormat';
 
@@ -591,7 +592,10 @@ function DutyRoster({ toast, myProfile, pilots, duties, baselines, homeBases, of
                       )}
                     </td>
                     <td style={{ ...S.td, textAlign:'right' }}>
-                      {!allCancelled && d.duty_type === 'flight' && (
+                      {/* 8 Agu (Serkan): EDIT her gorev tipinde — "sadece flt veya
+                          off degil". Ucus modali sektor/crew/SKPK tasir; ground ve
+                          off kendi dar modaline gider. */}
+                      {!allCancelled && (
                         <button style={{ ...S.btnS, padding:'5px 10px', marginRight:6 }}
                                 onClick={() => setEditing(g)}>EDIT</button>
                       )}
@@ -629,7 +633,7 @@ function DutyRoster({ toast, myProfile, pilots, duties, baselines, homeBases, of
           onConfirm={apply}
         />
       )}
-      {editing && (
+      {editing && editing.head.duty_type === 'flight' && (
         <EditDutyModal
           group={editing} pilots={pilots} duties={duties} myProfile={myProfile}
           toast={toast}
@@ -637,6 +641,219 @@ function DutyRoster({ toast, myProfile, pilots, duties, baselines, homeBases, of
           onSaved={() => { setEditing(null); reload(); }}
         />
       )}
+      {editing && editing.head.duty_type !== 'flight' && (
+        <EditNonFlightModal
+          group={editing} pilots={pilots} offTypes={offTypes} myProfile={myProfile}
+          toast={toast}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); reload(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ISO damgadan UTC "HH:MM". Panelin tum zamanlari UTC (Serkan ilkesi,
+// commit 48f15ef) — yerel dilime CEVIRMEK burada HATA olurdu.
+const hhmmUTC = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '' : d.toISOString().slice(11, 16);
+};
+
+// ═══ 0a-2) EDIT GROUND / OFF (8 Agu, Serkan: "her entry edit edilebilsin,
+// gorev turu ne olursa olsun sadece flt veya off degil" + "OFF verilmis bir
+// periyodu guncelleyebilmemiz lazim")
+//
+// Ucus modali sektor/crew/nobet/SKPK/UGS penceresi tasir — hicbiri ground/off
+// icin gecerli degil. Burasi dar ve net: TUR, TARIH ARALIGI, (ground'da) SAATLER.
+//
+// TARIH ARALIGI: crew_duties PILOT x GUN satiridir. Aralik kisalinca satir
+// SILINIR, uzayinca EKLENIR. Silmeyi DB politikasi yargilar (gerceklesmis gorev
+// silinemez) — biz tahmin yurutmeyiz, reddi oldugu gibi gosteririz; mevcut
+// DELETE akisindaki desenin aynisi.
+// GEREKCE her zaman zorunlu (ftl_duty_edits'te CHECK var).
+function EditNonFlightModal({ group, pilots, offTypes, myProfile, toast, onClose, onSaved }) {
+  const head = group.head;
+  const isOff = head.duty_type === 'off';
+  const rows = group.rows;
+  const dates = [...new Set(rows.map(r => r.duty_date).filter(Boolean))].sort();
+
+  const [kind, setKind] = useState(isOff ? (head.off_subtype || 'OFF') : (head.ground_kind || 'office'));
+  const [from, setFrom] = useState(dates[0] || head.duty_date || '');
+  const [to, setTo] = useState(dates[dates.length - 1] || head.duty_date || '');
+  const [start, setStart] = useState(head.report_time ? hhmmUTC(head.report_time) : '09:00');
+  const [end, setEnd] = useState(head.duty_end ? hhmmUTC(head.duty_end) : '17:00');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const pilotIds = [...new Set(rows.map(r => r.pilot_id))];
+  const nameOf = (id) => { const p = pilots.find(x => x.id === id); return p ? (p.full_name || p.email || id) : id; };
+  const dayList = (a, b) => { const out = []; let d = a; let guard = 0;
+    while (d && d <= b && guard++ < 400) { out.push(d); d = nextDay(d); } return out; };
+  const newDates = (from && to && from <= to) ? dayList(from, to) : [];
+  const removedDates = dates.filter(d => !newDates.includes(d));
+  const addedDates = newDates.filter(d => !dates.includes(d));
+  const realizedRemoved = rows.filter(r => removedDates.includes(r.duty_date) && r.status === 'actual');
+
+  const kindChanged = isOff ? kind !== (head.off_subtype || 'OFF') : kind !== (head.ground_kind || 'office');
+  const timesChanged = !isOff && (start !== hhmmUTC(head.report_time) || end !== hhmmUTC(head.duty_end));
+  const dirty = kindChanged || timesChanged || removedDates.length > 0 || addedDates.length > 0;
+  const canSave = dirty && reason.trim().length >= 3 && newDates.length > 0 && !saving;
+
+  const audit = (r, field, oldV, newV) => ({
+    duty_id: r.id, customer_id: r.customer_id, pilot_id: r.pilot_id,
+    assignment_id: r.assignment_id || null, edit_type: 'EDIT',
+    field_name: field, old_value: String(oldV ?? ''), new_value: String(newV ?? ''),
+    reason: reason.trim(), edited_by: myProfile?.id ?? null,
+  });
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const edits = [];
+      // 1) TUR / SAAT — kalan gunlerdeki satirlarda guncelle.
+      const keep = rows.filter(r => newDates.includes(r.duty_date));
+      if (kindChanged || timesChanged) {
+        for (const r of keep) {
+          const patch = {};
+          if (kindChanged) {
+            if (isOff) { patch.off_subtype = kind; edits.push(audit(r, 'off_subtype', r.off_subtype, kind)); }
+            else { patch.ground_kind = kind; edits.push(audit(r, 'ground_kind', r.ground_kind, kind)); }
+          }
+          if (timesChanged) {
+            const s = utcISO(r.duty_date, start);
+            const e = utcISO(toMin(end) < toMin(start) ? nextDay(r.duty_date) : r.duty_date, end);
+            patch.report_time = s; patch.duty_end = e;
+            edits.push(audit(r, 'times', `${hhmmUTC(r.report_time)}–${hhmmUTC(r.duty_end)}`, `${start}–${end}`));
+          }
+          const { error } = await supabase.from('crew_duties').update(patch).eq('id', r.id);
+          if (error) throw new Error(`Update failed (${r.duty_date}): ${error.message}`);
+        }
+      }
+      // 2) YENI GUNLER — mevcut satirin kopyasi, pilot basina.
+      if (addedDates.length) {
+        // Yeni gunler de ayni kurala tabi (Ilke 2): regulasyon blogu actual,
+        // gerisi gunu gelince. Ground gorevlerinde OFF kurali yok — prototipin
+        // statusu korunur.
+        const addedStatus = isOff
+          ? offPeriodStatuses(newDates, {
+              grantedLeave: !!(offTypes || []).find(t => t.code === kind)?.granted_leave,
+              today: new Date().toISOString().slice(0, 10),
+            })
+          : {};
+        const ins = [];
+        for (const pid of pilotIds) {
+          const proto = rows.find(r => r.pilot_id === pid) || head;
+          for (const d of addedDates) {
+            const base = {
+              customer_id: proto.customer_id, pilot_id: pid, duty_type: head.duty_type,
+              duty_date: d, status: addedStatus[d] || proto.status || 'planned',
+              assignment_id: proto.assignment_id || null,
+              ruleset_snapshot: proto.ruleset_snapshot || null,
+            };
+            if (isOff) base.off_subtype = kind;
+            else {
+              base.ground_kind = kind;
+              base.report_time = utcISO(d, start);
+              base.duty_end = utcISO(toMin(end) < toMin(start) ? nextDay(d) : d, end);
+            }
+            ins.push(base);
+          }
+        }
+        const { error } = await supabase.from('crew_duties').insert(ins);
+        if (error) throw new Error(`Insert failed: ${error.message}`);
+      }
+      // 3) CIKARILAN GUNLER — iz ONCE, silme sonra; DB reddederse duzeltme satiri.
+      if (removedDates.length) {
+        const drop = rows.filter(r => removedDates.includes(r.duty_date));
+        await supabase.from('ftl_duty_edits').insert(drop.map(r => ({
+          ...audit(r, 'duty_date', r.duty_date, '(removed from period)'),
+          edit_type: 'DELETE',
+        })));
+        const { error } = await supabase.from('crew_duties').delete().in('id', drop.map(r => r.id));
+        if (error) {
+          await supabase.from('ftl_duty_edits').insert(drop.map(r => ({
+            ...audit(r, 'duty_date', '(delete logged)', '(DELETE REFUSED — row still exists)'),
+          })));
+          throw new Error(`Delete refused by policy: ${error.message}`);
+        }
+      }
+      if (edits.length) {
+        const { error } = await supabase.from('ftl_duty_edits').insert(edits);
+        if (error) throw new Error(`Audit write failed: ${error.message}`);
+      }
+      toast('Duty updated — audit logged.', 'success');
+      onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:200,
+                  display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+      <div style={{ background:'var(--bg2)', border:`1px solid ${C.border2}`, width:'100%', maxWidth:620,
+                    maxHeight:'90vh', overflowY:'auto', padding:20 }}>
+        <div style={{ ...S.panelT, marginBottom:4 }}>
+          EDIT {isOff ? 'OFF' : 'GROUND'} — {pilotIds.map(nameOf).join(' · ')}
+        </div>
+        <div style={{ ...S.note, marginBottom:12 }}>
+          {rows.length} row(s) · {dates.length} day(s). crew_duties is one row per pilot per day —
+          shortening the period DELETES rows, extending it INSERTS rows. A realized duty cannot be
+          deleted; the database decides and the refusal is shown here.
+        </div>
+
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom:12 }}>
+          <div style={{ width:230 }}>
+            <span style={S.label}>{isOff ? 'OFF type' : 'Kind'}</span>
+            {isOff ? (
+              <select style={S.input} value={kind} onChange={e => setKind(e.target.value)}>
+                {(offTypes || []).map(t => <option key={t.code} value={t.code}>{t.code}</option>)}
+              </select>
+            ) : (
+              <select style={S.input} value={kind} onChange={e => setKind(e.target.value)}>
+                <option value="office">OFFICE</option><option value="training">TRAINING</option>
+                <option value="sim">SIM</option><option value="theoretical">THEORETICAL TRAINING (Md.27/c)</option>
+                <option value="airport_standby">AIRPORT STANDBY (Md.17/1)</option>
+                <option value="other_standby">OTHER STANDBY (Md.17/2)</option>
+              </select>
+            )}
+          </div>
+          <div style={{ width:150 }}><span style={S.label}>From</span>
+            <input type="date" style={S.input} value={from} onChange={e => setFrom(e.target.value)} /></div>
+          <div style={{ width:150 }}><span style={S.label}>To</span>
+            <input type="date" style={S.input} value={to} onChange={e => setTo(e.target.value)} /></div>
+          {!isOff && (<>
+            <div style={{ width:110 }}><span style={S.label}>Start (UTC)</span>
+              <input style={S.input} value={start} onChange={e => setStart(normTime(e.target.value))} /></div>
+            <div style={{ width:110 }}><span style={S.label}>End (UTC)</span>
+              <input style={S.input} value={end} onChange={e => setEnd(normTime(e.target.value))} /></div>
+          </>)}
+        </div>
+
+        {(addedDates.length > 0 || removedDates.length > 0) && (
+          <div style={{ ...S.note, borderLeftColor: realizedRemoved.length ? C.red : C.accent, marginBottom:12 }}>
+            {addedDates.length > 0 && <div>+ {addedDates.length} day(s) added: {addedDates.join(', ')}</div>}
+            {removedDates.length > 0 && <div>− {removedDates.length} day(s) removed: {removedDates.join(', ')}</div>}
+            {realizedRemoved.length > 0 && (
+              <div style={{ color:C.red, marginTop:4 }}>
+                {realizedRemoved.length} of these are REALIZED — the database will refuse to delete them.
+              </div>
+            )}
+          </div>
+        )}
+
+        <span style={S.label}>Reason (required)</span>
+        <textarea style={{ ...S.input, height:70 }} value={reason} onChange={e => setReason(e.target.value)}
+                  placeholder="Why is this duty being changed?" />
+
+        <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:14 }}>
+          <button style={S.btnS} onClick={onClose}>CANCEL</button>
+          <button style={{ ...S.btnP, opacity: canSave ? 1 : .45 }} disabled={!canSave} onClick={save}>
+            {saving ? 'SAVING…' : 'SAVE'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1494,8 +1711,25 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
       if (accl.unavailable) {
         reasons.push(`ACCLIMATISATION NOT DETERMINED (Md.22/1) — ${accl.reason}`);
       }
+      // ── BOŞ GÜN (Md.5, 8 Ağu — Serkan: "regülatif bir OFF'a görev verilemez,
+      //    uyarı vermeli; sistem ruleset'e göre arka planda takip yapar")
+      // Ölçü GÜN değil ÇAKIŞMA: öğleden sonraki bir görev yerel gece
+      // pencerelerine değmiyorsa boş gün DURUR ve engel yoktur. Kural motorda
+      // (offDayRelease) — panel ile EDIT aynı kaynağı kullanır (İlke 2).
+      // Gece yarısını geçen görevde `win.dutyEnd` yalnız HH:MM'dir, gün bilgisi
+      // taşımaz — aynı güne yazılırsa bitiş başlangıçtan ÖNCE görünür ve çakışma
+      // testi sessizce yanlış çalışır. Kodun başka yerindeki desen: bitiş
+      // başlangıçtan küçükse ertesi gün.
+      const relEndISO = utcISO(
+        toMin(win.dutyEnd) < toMin(win.report) ? nextDay(date) : date, win.dutyEnd);
+      const rel = offDayRelease(myDuties, p.id, date,
+                                { report_time: reportISO, duty_end: relEndISO || null },
+                                rules, { offTypes, tz: hbTz[p.id] || null });
+      if (rel.isOffDay && !rel.allowed) {
+        reasons.push(`DAY OFF (Md.5) — ${offDayReleaseText(rel)}`);
+      }
       return { pilot: p, ...f, reasons, legal: reasons.length === 0, off, sb, sbDuty,
-               accl, win: pWin };
+               accl, win: pWin, offRelease: rel };
     });
   }, [pilots, duties, baselines, ruleset, legs, win, winOpts, accommodation, date, dutyType, rules, hbTz, offTypes, acclTz, homeBases]);
 
@@ -1675,10 +1909,21 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
       } else { // off
         if (!ids.length) { toast('Select pilot(s) for OFF.', 'error'); setSaving(false); return; }
         const end = off.endDate || date;
-        for (let d = date; d <= end; d = nextDay(d)) {
-          ids.forEach(pid => rows.push({ ...base, pilot_id: pid, duty_type: 'off', off_subtype: off.subtype, duty_date: d, status: 'actual' }));
-          if (d === end) break;
-        }
+        const offDates = [];
+        for (let d = date; d <= end; d = nextDay(d)) { offDates.push(d); if (d === end) break; }
+        // 8 Agu (Serkan): periyodun TAMAMI actual yazilmaz. Regulasyonun istedigi
+        // ilk blok actual; kalan gunler GERCEKLESTIGI GUN actual olur (gunluk
+        // cron cevirir). Verilmis izin (AVAC vb.) taahhut edildigi icin bastan
+        // actual. Hangi tipin izin oldugu ruleset'ten gelir — koda gomulmez.
+        const grantedLeave = !!(offTypes || []).find(t => t.code === off.subtype)?.granted_leave;
+        const statuses = offPeriodStatuses(offDates, {
+          grantedLeave, today: new Date().toISOString().slice(0, 10),
+        });
+        offDates.forEach(d => {
+          ids.forEach(pid => rows.push({ ...base, pilot_id: pid, duty_type: 'off',
+                                         off_subtype: off.subtype, duty_date: d,
+                                         status: statuses[d] || 'planned' }));
+        });
       }
       const { error } = await supabase.from('crew_duties').insert(rows);
       if (error) throw error;
