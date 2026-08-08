@@ -2594,6 +2594,13 @@ function RulesetSettings({ toast, myProfile, ruleset, offTypes, reload }) {
     toast(`${t.code} updated.`, 'success'); reload();
   };
 
+  const toggleGranted = async (t) => {
+    const { error } = await supabase.from('ftl_off_types').update({ granted_leave: !t.granted_leave }).eq('id', t.id);
+    if (error) { toast(error.message, 'error'); return; }
+    await supabase.from('ftl_ruleset_changes').insert([{ ruleset_id: ruleset.id, changed_by: myProfile.id, field: `off_type.${t.code}.granted_leave`, old_value: t.granted_leave, new_value: !t.granted_leave }]);
+    toast(`${t.code} updated.`, 'success'); reload();
+  };
+
   const fmt = (v, f) => f === 'min' ? fmtMin(v) : String(v ?? '—');
 
   return (
@@ -2660,7 +2667,7 @@ function RulesetSettings({ toast, myProfile, ruleset, offTypes, reload }) {
           <span style={{ fontSize:9, color:C.t3, letterSpacing:1, fontFamily:'var(--mono)' }}>no delete — deactivate only · toggle = audit logged</span>
         </div>
         <table style={S.table}>
-          <thead><tr>{['CODE', 'LABEL', 'ASSIGNABLE', 'COUNTS AS DAY OFF (Md.5)'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <thead><tr>{['CODE', 'LABEL', 'ASSIGNABLE', 'COUNTS AS DAY OFF (Md.5)', 'GRANTED LEAVE'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
           <tbody>
             {offTypes.map(t => (
               <tr key={t.id}>
@@ -2669,6 +2676,12 @@ function RulesetSettings({ toast, myProfile, ruleset, offTypes, reload }) {
                 <td style={{ ...S.td, color:C.t3 }}>NO</td>
                 <td style={{ ...S.td, cursor:'pointer', color: t.counts_as_recurrent_rest ? C.green : C.t3, fontWeight:700 }}
                   onClick={() => toggleRest(t)}>{t.counts_as_recurrent_rest ? 'YES' : 'NO'} ⇄</td>
+                {/* VERILMIS IZIN (8 Agu): izin DINLENME DEGILDIR — taahhut
+                    edildigi icin periyodun TAMAMI bastan actual yazilir.
+                    Hangi tipin izin oldugu MUSTERININ otoritesine baglidir,
+                    o yuzden koda gomulmez, buradan isaretlenir. */}
+                <td style={{ ...S.td, cursor:'pointer', color: t.granted_leave ? C.accent : C.t3, fontWeight:700 }}
+                  onClick={() => toggleGranted(t)}>{t.granted_leave ? 'YES' : 'NO'} ⇄</td>
               </tr>
             ))}
           </tbody>
