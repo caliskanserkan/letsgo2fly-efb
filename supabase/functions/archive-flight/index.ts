@@ -104,8 +104,16 @@ Deno.serve(async (req) => {
 
     // ── 2) Girdi ─────────────────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
-    const planId: string | undefined = body.plan_id;
-    if (!planId) return json({ error: "plan_id required" }, 400);
+    // UUID HARF DUYARSIZDIR. iOS Swift `UUID.uuidString` BUYUK harf uretir,
+    // Postgres/web ise kucuk yazar — ayni ucus iki farkli metinle temsil
+    // ediliyordu ve 14. adimdaki sektor eslesmesi tutmuyordu: planli gorev
+    // bulunamayip AYNI UCUS ICIN IKINCI bir crew_duties satiri aciliyordu
+    // (8 Agu 2026 saha bulgusu — 07 Agu LTFM-LTAC, iki pilotta da mukerrer;
+    // duty saatleri cift sayiliyordu). Ayni tuzak daha once Storage yollarinda
+    // yasanmisti. Cozum tek yerde: girdiyi ALIRKEN normalize et.
+    const planIdRaw: string | undefined = body.plan_id;
+    if (!planIdRaw) return json({ error: "plan_id required" }, 400);
+    const planId: string = String(planIdRaw).toLowerCase();
     const paxIn    = num(body.pax);
     const cyclesIn = num(body.cycles) ?? 1;
     const divertReason: string | null = body.divert_reason ?? null;
@@ -794,7 +802,11 @@ Deno.serve(async (req) => {
           // sektor oldugu kesin (sektore `plan_id` yaziliyor, asagida).
           for (const duty of cands) {
             (duty.sectors ?? []).forEach((s: any, idx: number) => {
-              if (s.plan_id === planId) matches.push({ duty, idx, dist: -1 });
+              // Gecmis satirlarda plan_id BUYUK harfli olabilir; normalize
+              // edilmis planId ile karsilastirmak icin iki taraf da kucultulur.
+              if (s.plan_id && String(s.plan_id).toLowerCase() === planId) {
+                matches.push({ duty, idx, dist: -1 });
+              }
             });
           }
 
