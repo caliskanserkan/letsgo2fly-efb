@@ -1029,9 +1029,24 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
 
   const nameOf = (pid) => { const x = pilots.find(p => p.id === pid); return x ? (x.code || x.full_name) : '—'; };
   const setLeg = (i, k, v) => setLegs(ls => ls.map((l, j) => j === i ? { ...l, [k]: v } : l));
-  const usedIds = crew.map(c => c.pilot);
-  const options = (cur) => pilots.filter(p => ['pilot','admin_pilot'].includes(p.role))
-    .filter(p => p.id === cur || !usedIds.includes(p.id));
+  // 9 Agu (Serkan): "pilotlarin 3'u de gorunsun". Eskiden baska satirda
+  // kullanilan pilot listeden DUSURULUYORDU — 3 kisilik filoda 2 kisilik ekipte
+  // her hucrede yalniz 2 isim cikiyor, ucuncusu hic gorunmuyordu. Artik hepsi
+  // listelenir; zaten atanmis birini secerseniz iki pilot TAKAS edilir, boylece
+  // mukerrer atama da olusmaz.
+  const options = () => pilots.filter(p => ['pilot','admin_pilot'].includes(p.role));
+
+  /** Bir satira pilot secildiginde: o pilot BASKA satirdaysa ikisini takasla.
+   *  Rol degistirmenin en kolay yolu da bu — PF/PM'i el ile ters cevirmek yerine
+   *  isimleri degistirmek yeter. */
+  const pickPilot = (i, pid) => setCrew(cs => {
+    const j = cs.findIndex((x, k) => k !== i && x.pilot === pid);
+    return cs.map((x, k) => {
+      if (k === i) return { ...x, pilot: pid };
+      if (k === j) return { ...x, pilot: cs[i].pilot };   // takas
+      return x;
+    });
+  });
 
   const save = async () => {
     if (!reason.trim()) { toast('Reason is mandatory.', 'error'); return; }
@@ -1316,11 +1331,20 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
 
         <span style={S.label}>Crew</span>
         {crew.map((c, i) => (
-          <div key={c.rowId} style={{ display:'grid', gridTemplateColumns:'90px 1fr', gap:8, marginBottom:6, alignItems:'center' }}>
-            <div style={{ fontSize:11, color:C.t3, fontFamily:'var(--mono)' }}>{c.role}</div>
+          <div key={c.rowId} style={{ display:'grid', gridTemplateColumns:'110px 1fr', gap:8, marginBottom:6, alignItems:'center' }}>
+            {/* ROL ARTIK SECILEBILIR (9 Agu, Serkan: "pf pm rol degisikligi cok
+                zor"). Eskiden sabit metindi; PF/PM'i degistirmenin tek yolu
+                pilotlari elle yer degistirmekti. CRZ CPT ucuncu pilot icin
+                (win hesabi bunu `threePilot` olarak okur). */}
+            <select style={{ ...S.input, fontSize:11 }} value={c.role}
+                    onChange={e => setCrew(cs => cs.map((x, j) => j === i ? { ...x, role: e.target.value } : x))}>
+              <option value="PF">PF</option>
+              <option value="PM">PM</option>
+              <option value="CRZ CPT">CRZ CPT</option>
+            </select>
             <select style={S.input} value={c.pilot}
-                    onChange={e => setCrew(cs => cs.map((x, j) => j === i ? { ...x, pilot: e.target.value } : x))}>
-              {options(c.pilot).map(pp => <option key={pp.id} value={pp.id}>{pp.code} — {pp.full_name}</option>)}
+                    onChange={e => pickPilot(i, e.target.value)}>
+              {options().map(pp => <option key={pp.id} value={pp.id}>{pp.code} — {pp.full_name}</option>)}
             </select>
           </div>
         ))}
