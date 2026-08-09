@@ -409,6 +409,13 @@ function ReasonModal({ title, warn, confirmLabel, onCancel, onConfirm }) {
   );
 }
 
+// Faaliyet tipi kisa etiketi — sihirbazdaki secenek listesiyle AYNI degerler
+// (air_taxi Md.22 / aerial_work Md.26 / general_aviation Md.25 / training Md.27).
+const opLabel = (t) => ({
+  air_taxi: 'AIR TAXI', general_aviation: 'GENERAL AV',
+  training: 'TRAINING', aerial_work: 'AERIAL WORK',
+}[t] || String(t).toUpperCase());
+
 function DutyRoster({ toast, myProfile, pilots, duties, baselines, homeBases, offTypes, reload }) {
   const today = new Date().toISOString().slice(0, 10);
   const plus = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
@@ -513,6 +520,7 @@ function DutyRoster({ toast, myProfile, pilots, duties, baselines, homeBases, of
           <table style={S.table}>
             <thead><tr>
               <th style={S.th}>Date</th><th style={S.th}>Type</th><th style={S.th}>Route / Kind</th>
+              <th style={S.th}>Operation</th>
               <th style={S.th}>Report</th><th style={S.th}>Duty end</th><th style={S.th}>Crew</th>
               <th style={S.th}>Status</th><th style={S.th}></th>
             </tr></thead>
@@ -534,13 +542,7 @@ function DutyRoster({ toast, myProfile, pilots, duties, baselines, homeBases, of
                     <td style={S.td}>{d0 === d1 ? fmtD(d0) : `${fmtD(d0)} — ${fmtD(d1)}`}</td>
                     <td style={S.td}>
                       {(d.duty_type || '').toUpperCase()}
-                      {d.operation_type && d.operation_type !== 'air_taxi' && (
-                        <span style={{ ...badge('blue'), marginLeft:6 }}>
-                          {d.operation_type === 'general_aviation' ? 'GA'
-                            : d.operation_type === 'training' ? 'TRN'
-                            : d.operation_type === 'aerial_work' ? 'AW' : d.operation_type}
-                        </span>
-                      )}
+
                       {(d.ground_kind === 'airport_standby' || d.ground_kind === 'other_standby') && (
                         <span style={{ ...badge('amber'), marginLeft:6 }}>
                           STANDBY {d.ground_kind === 'airport_standby' ? 'Md.17/1' : 'Md.17/2'}
@@ -548,6 +550,19 @@ function DutyRoster({ toast, myProfile, pilots, duties, baselines, homeBases, of
                       )}
                     </td>
                     <td style={{ ...S.td, whiteSpace:'normal' }}>{routeOf(d)}</td>
+                    {/* FAALIYET TIPI (Md.9) — 9 Agu 2026, Serkan: roster'da kolon
+                        olsun. Eskiden yalniz air_taxi DISI tipler kucuk bir rozetle
+                        gorunuyordu; air taxi ile "hic yazilmamis" ayirt edilemiyordu.
+                        Nitelik azami UGS tablosunu sectigi icin (fdpLimitSet) bos
+                        olmasi sessiz gecilemez. */}
+                    <td style={S.td}>
+                      {d.duty_type !== 'flight' ? <span style={{ color:C.t3 }}>—</span>
+                        : d.operation_type ? (
+                          <span style={badge(d.operation_type === 'air_taxi' ? 'dim' : 'blue')}>
+                            {opLabel(d.operation_type)}
+                          </span>
+                        ) : <span style={badge('amber')}>NOT SET</span>}
+                    </td>
                     <td style={S.td}>{fmtDT(d.report_time)}</td>
                     <td style={S.td}>{fmtDT(d.duty_end)}</td>
                     <td style={S.td}>
@@ -880,6 +895,38 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
     role: (r.sectors || [])[0]?.role || 'PF' })));
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
+  // FAALIYET TIPI (Md.9) — 9 Agu 2026, Serkan: "duty planlarken gorev atamasi
+  // yapilirken seciliyor, bu guncellenebilmeli FTL acisindan". Planlamada
+  // ticari secilip ucusun genel havacilik cikmasi gercek bir durum; nitelik
+  // AZAMI UGS TABLOSUNU secer (fdpLimitSet), yani yanlis nitelik yanlis limit
+  // demektir. ACTUAL gorevde de degistirilebilir — hata zaten ucus BITTIKTEN
+  // sonra fark ediliyor.
+  const [opType, setOpType] = useState(head.operation_type || 'air_taxi');
+  const opTypeChanged = opType !== (head.operation_type || 'air_taxi');
+  // Planin ne dedigini GOSTER (sihirbazdaki ile ayni sorgu, ayni eslesme):
+  // atama plandan ONCE yapildiysa sihirbaz air_taxi varsayilaninda kalir ve
+  // hata ancak burada fark edilir. Neye gore duzelttigi gorunmeli (Ilke 1).
+  const [planOp, setPlanOp] = useState(null);
+  useEffect(() => {
+    const dep = legs[0]?.dep, dest = legs[legs.length - 1]?.dest;
+    if (!dep || dep.length !== 4 || !dest || dest.length !== 4 || !date) { setPlanOp(null); return; }
+    let dead = false;
+    (async () => {
+      const { data } = await supabase.from('plans')
+        .select('id,dep,dest,date,operation_type,operation_type_source')
+        .eq('dep', dep.toUpperCase()).eq('dest', dest.toUpperCase())
+        .not('operation_type', 'is', null).limit(20);
+      if (dead) return;
+      const target = new Date(date + 'T12:00:00Z');
+      const hit = (data || []).find(p => {
+        const d = new Date(String(p.date || '').replace(/(\d{1,2}) (\w{3}) (\d{4})/, '$2 $1, $3'));
+        return !isNaN(d) && d.getUTCFullYear() === target.getUTCFullYear()
+          && d.getUTCMonth() === target.getUTCMonth() && d.getUTCDate() === target.getUTCDate();
+      }) || (data || [])[0];
+      setPlanOp(hit ? { type: hit.operation_type, source: hit.operation_type_source } : null);
+    })();
+    return () => { dead = true; };
+  }, [legs, date]);
   // ── SKPK (Md.12) — SKPK bir PLANLAMA araci degil, OLMUS BITMIS bir olayin
   // kaydidir ("gorev baslangici SONRASINDA baslayan ongorulemeyen haller").
   // Bu yuzden yalniz planned OLMAYAN gorevlerde acilir.
@@ -895,11 +942,11 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
   // ortak pencere ve pilot-bazli (nobet kisaltmali) pencere ayni sette kurulur.
   const winOpts = useMemo(() => ({
     threePilot: crew.some(c => c.role === 'CRZ CPT'),
-    operationType: head.operation_type || 'air_taxi',
+    operationType: opType,
     trainingKind: head.training_kind,
     sameDayTheory: !!head.same_day_theory,
     singlePilot: crew.length === 1,
-  }), [crew, head.operation_type, head.training_kind, head.same_day_theory]);
+  }), [crew, opType, head.training_kind, head.same_day_theory]);
   // BANT SAATİ İÇİN MEYDAN DİLİMİ (Md.22/2): saatler UTC girildiği için Tablo 1
   // doğrudan UTC ile okunamaz. Görev İNTİBAK ETTİĞİ meydanı kaydında taşıyor
   // (`acclimatised_to`); yoksa kalkış meydanı kullanılır.
@@ -1016,6 +1063,32 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
         if (depTz && destTz) {
           const diff = Math.abs(tzOffsetMin(destTz, new Date(endISO).getTime()) - tzOffsetMin(depTz, new Date(reportISO).getTime()));
           if (diff >= 240) tzWarn = `TZ CROSSING ${Math.round(diff/60)}H — verify additional rest per EASA ORO.FTL.235.`;
+        }
+      }
+
+      // — FAALIYET TIPI (Md.9) — gerceklesmemis gorevde degistirilebilir.
+      //   Nitelik azami UGS tablosunu sectigi icin max_fdp_minutes de yeniden
+      //   yazilir; yoksa nitelik duzelir ama limit eski tabloda kalirdi.
+      if (opTypeChanged && !isActual) {
+        for (const r of group.rows) {
+          const upd = {
+            operation_type: opType,
+            operation_type_source: planOp
+              ? (planOp.type !== opType
+                  ? `manual correction (flight plan: ${planOp.type} — ${planOp.source})`
+                  : `corrected to match flight plan — ${planOp.source}`)
+              : 'manual correction (no matching flight plan)',
+          };
+          if (win?.maxFdpMin != null) upd.max_fdp_minutes = win.maxFdpMin;
+          const { error } = await supabase.from('crew_duties').update(upd).eq('id', r.id);
+          if (error) throw new Error(`Operation type update failed: ${error.message}`);
+          edits.push({
+            duty_id: r.id, customer_id: r.customer_id, pilot_id: r.pilot_id,
+            assignment_id: r.assignment_id || null, edit_type: 'EDIT',
+            field_name: 'operation_type',
+            old_value: String(r.operation_type || ''), new_value: opType,
+            reason: reason.trim(), edited_by: myProfile?.id ?? null,
+          });
         }
       }
 
@@ -1170,6 +1243,32 @@ function EditDutyModal({ group, pilots, duties, myProfile, toast, onClose, onSav
           {isActual
             ? 'ACTUAL duty: times are LOCKED (single source = archived flight). Crew can be corrected with a reason.'
             : 'Window is recomputed with the duty\'s OWN ruleset snapshot. Times use airport timezones.'}
+        </div>
+
+        {/* FAALIYET TIPI (Md.9) — 9 Agu 2026, Serkan: "ucus planlanirken ticari mi
+            genel havacilik mi secilir, baslamadan bir degisiklik olursa edit
+            edilebilir". Nitelik AZAMI UGS tablosunu secer (fdpLimitSet), yani
+            pencere de aninda yeniden hesaplanir. GERCEKLESMIS gorevde kilitli:
+            o gorevin FDP'si yazildigi andaki kurala gore hesaplandi; uyumsuzluk
+            varsa arsivlenmis ucusta UYARI olarak gosterilir, sessizce degismez. */}
+        <span style={S.label}>Operation (SHT-FTL/HG Md.9)</span>
+        <select style={{ ...S.input, width:230, marginBottom:4 }} value={opType}
+                disabled={isActual}
+                onChange={e => setOpType(e.target.value)}>
+          <option value="air_taxi">AIR TAXI — Md.22</option>
+          <option value="aerial_work">AERIAL WORK — Md.26</option>
+          <option value="general_aviation">GENERAL AVIATION — Md.25</option>
+          <option value="training">TRAINING — Md.27</option>
+        </select>
+        <div style={{ fontSize:9, marginBottom:12,
+                      color: planOp && planOp.type !== opType ? (C.amber || 'var(--amber)') : C.t3,
+                      fontFamily:'var(--mono)' }}>
+          {isActual ? 'REALIZED DUTY — operation type locked'
+            : planOp
+              ? (planOp.type !== opType
+                  ? `DOES NOT MATCH FLIGHT PLAN — plan says ${opLabel(planOp.type)} (${planOp.source})`
+                  : `MATCHES FLIGHT PLAN — ${planOp.source}`)
+              : 'NO MATCHING FLIGHT PLAN FOUND — set manually'}
         </div>
 
         {!isActual && (<>
