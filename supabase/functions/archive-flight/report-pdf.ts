@@ -340,24 +340,35 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   }
 
   // ── 2) FLIGHT DATA ────────────────────────────────────────────────────────
+  // ⚠️ KURGU (9 Agu 2026, Serkan): "LTAC altinda STD ve actual time (off block
+  // ve take off), DEST altinda STA ve actual zamanlar, diger kolonda flt time
+  // ve block time yer almali — mantikli bir kurgu olmali."
+  //
+  // ESKI DUZEN DAGINIKTI: STD ilk satirin SAGINDA, STA UCUNCU satirda, gercek
+  // saatler ortada; plan ile gercegi karsilastirmak icin goz uc satir arasinda
+  // gidip geliyordu. Yeni duzen ucusun kendi mantigini izliyor:
+  //   KALKIS sutunu (plan + gercek) · VARIS sutunu (plan + gercek) · SURELER
+  // Her sutun kendi icinde ustten alta PLANDAN GERCEGE okunur.
   cardHeader(c, "FLIGHT DATA");
+  subHeader(c, `DEPARTURE ${depIcao}`, C.dep);
   cellRow(c, [
-    { lbl: "DEP", val: depIcao },
-    { lbl: "DEST", val: destIcao, color: isDivert ? C.divert : C.text },
-    { lbl: "ALT", val: V(plan?.alternate) },
-    { lbl: "STD", val: V(plan?.std) },
+    { lbl: "STD (PLAN)", val: V(plan?.std) },
+    A("off_blocks", { lbl: "OFF BLOCK", val: V(fr.off_block) + " UTC" }),
+    A("takeoff_time", { lbl: "TAKE OFF", val: V(fr.takeoff_time) + " UTC" }),
   ]);
+  subHeader(c, `ARRIVAL ${destIcao}`, isDivert ? C.divert : C.dest,
+            isDivert ? "DIVERT" : undefined);
   cellRow(c, [
-    A("off_blocks", { lbl: "Off Block", val: V(fr.off_block) + " UTC" }),
-    A("takeoff_time", { lbl: "T/O", val: V(fr.takeoff_time) + " UTC" }),
-    A("landing_time", { lbl: "Landing", val: V(fr.landing_time) + " UTC" }),
-    A("on_blocks", { lbl: "On Block", val: V(fr.on_block) + " UTC" }),
+    { lbl: "STA (PLAN)", val: V(plan?.eta) },
+    A("landing_time", { lbl: "LANDING", val: V(fr.landing_time) + " UTC" }),
+    A("on_blocks", { lbl: "ON BLOCK", val: V(fr.on_block) + " UTC" }),
   ]);
+  subHeader(c, "TIMES", C.wpt);
   cellRow(c, [
-    A("block_minutes", { lbl: "Block Time", val: fromMins(fr.block_minutes) }),
-    A("airborne_minutes", { lbl: "Flight Time", val: fromMins(fr.airborne_minutes) }),
-    { lbl: "STA", val: V(plan?.eta) },
-    A("landing_count", { lbl: "Landings", val: V(fr.landing_count ?? 1) }),
+    A("airborne_minutes", { lbl: "FLIGHT TIME", val: fromMins(fr.airborne_minutes) }),
+    A("block_minutes", { lbl: "BLOCK TIME", val: fromMins(fr.block_minutes) }),
+    A("landing_count", { lbl: "LANDINGS", val: V(fr.landing_count ?? 1) }),
+    { lbl: "ALTERNATE", val: V(plan?.alternate) },
   ]);
 
   // ── 3) FUEL ───────────────────────────────────────────────────────────────
@@ -386,18 +397,39 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   if (nav.length) {
     cardHeader(c, "NAV LOG - Actual Times & Fuel");
 
+    // BOS TABLO SESSIZ KALMAZ (9 Agu 2026, LTAC-EGLF) — Ilke 1.
+    // Rapor `flt_report`tan uretilir; o satir sunucudaki `navlog_data` aynasi
+    // bayatken yazildiysa tablo bastan sona tire cikar. Aciklamasiz bir tire
+    // tablosu denetciye "pilot hicbir sey girmedi" der — YANLIS ve agir bir
+    // iddia. Boyle bir durumda sebep ACIKCA yazilir; tablo yine cizilir ki
+    // rota ve plan degerleri (denetimin diger yarisi) gorunmeye devam etsin.
+    if (!nav.some((r) => r && (r.ata != null || r.fuel_actual != null))) {
+      ensure(c, 24);
+      const n = txtWrap(c,
+        "NO ACTUAL TIMES OR FUEL WERE ON THE SERVER WHEN THIS FLIGHT WAS ARCHIVED - " +
+        "the tablet that closed the flight held its NavLog locally only. " +
+        "This is a synchronisation gap, NOT a missing crew entry. " +
+        "Re-generate this report after the NavLog mirror has synchronised.",
+        M + 4, c.y - 9, CONTENT_W - 8, 6.5, c.monoBold, C.divert, 8);
+      c.y -= n * 8 + 5;
+    }
+
     // 31 Tem saha (Serkan ekibi): "NavLog neyse rapor o olmali" — her wpt icin
     // plan/gercek zaman + plan/gercek yakit + SAPMALAR (T-DEV dk, F-DEV lb).
+    // FL KOLONU EKLENDI (9 Agu 2026 saha, Serkan): ucus FL430'da gecti, rapor
+    // seviyeyi HIC gostermiyordu. Genislikler yeniden dengelendi; RVSM son
+    // kolon oldugu icin artan genisligi o alir (fitSize zaten tasmayi onler).
     const cols = [
-      { t: "WPT",   w: 78 },
-      { t: "TYPE",  w: 52 },
-      { t: "ETA",   w: 44 },
-      { t: "ATA",   w: 44 },
-      { t: "T-DEV", w: 44 },
-      { t: "PLN FUEL", w: 58 },
-      { t: "ACT FUEL", w: 58 },
-      { t: "F-DEV", w: 52 },
-      { t: "RVSM",  w: CONTENT_W - 430 },
+      { t: "WPT",   w: 70 },
+      { t: "TYPE",  w: 44 },
+      { t: "FL",    w: 44 },
+      { t: "ETA",   w: 42 },
+      { t: "ATA",   w: 42 },
+      { t: "T-DEV", w: 42 },
+      { t: "PLN FUEL", w: 56 },
+      { t: "ACT FUEL", w: 56 },
+      { t: "F-DEV", w: 50 },
+      { t: "RVSM",  w: CONTENT_W - 446 },
     ];
     const toMins = (s: unknown): number | null => {
       if (typeof s !== "string" || !/^\d{1,2}:\d{2}/.test(s)) return null;
@@ -441,8 +473,20 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
       const pN = toMins(row.eta), pA = toMins(anc.eta);
       const aN = toMins(row.ata), aA = toMins(anc.ata);
       if (pN !== null && pA !== null && aN !== null && aA !== null) {
-        let planLeg = pN - pA; if (planLeg < 0) planLeg += 1440;
-        let actLeg  = aN - aA; if (actLeg  < 0) actLeg  += 1440;
+        // GECE DEVRI mi, SIRA BOZUKLUGU mu? (9 Agu 2026, GILDA bulgusu — Serkan)
+        // Eski kural HER negatif farki gece yarisi sayip +1440 ekliyordu.
+        // 09 AUG LTAC-EGLF: NILON ATA 12:50 -> GILDA ATA 12:49 (1 dk GERI, iki
+        // nokta planda ayni ETA'da ve otomatik ATA sirasi kaymis). Fark -1 idi,
+        // +1440 ile 1439'a cikti ve rapora "T-DEV -1439m" basildi — 1 dakikalik
+        // sira kaymasi 24 SAATLIK sapma iddiasina donustu. Yanlis alarm da
+        // tehlikelidir: denetci bu satiri gorup ucusu sorgulamaya baslar.
+        //
+        // Gercek bir gece devri kisa bir bacakta BUYUK negatif olarak gorunur
+        // (10 dk'lik bacak -1430 verir). 12 saatten kucuk geri fark gece devri
+        // DEGILDIR, gercekten geriye adimdir ve oylece gosterilmelidir.
+        const wrapDay = (d: number) => d < -720 ? d + 1440 : d;
+        const planLeg = wrapDay(pN - pA);
+        const actLeg  = wrapDay(aN - aA);
         t = planLeg - actLeg;
       }
       let f: number | null = null;
@@ -511,25 +555,35 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
 
       navCell(notFlown ? "NOT FLOWN" : V(row.type).toUpperCase(), x, cols[1].w, 6, c.mono, C.label);
       x += cols[1].w;
-      navCell(V(row.eta), x, cols[2].w, 7, c.mono, notFlown ? C.label : C.muted);
+      // FL: pilot seviye girdiyse GERCEK deger (mavi/kalin), yoksa planin degeri.
+      // Tirmanis/alcalis isaretleri (CLB/DSC) plandan gelir ve degismez —
+      // seyir seviyesi onlarin uzerine tasinmaz (iOS ile ayni kural).
+      {
+        const flAct = row.fl_actual ? String(row.fl_actual) : null;
+        navCell(flAct ?? V(row.fl), x, cols[2].w, 6.5,
+                flAct ? c.monoBold : c.mono,
+                notFlown ? C.label : (flAct ? C.wpt : C.muted));
+      }
       x += cols[2].w;
-      navCell(V(row.ata), x, cols[3].w, 7, c.monoBold, notFlown ? C.label : C.text);
+      navCell(V(row.eta), x, cols[3].w, 7, c.mono, notFlown ? C.label : C.muted);
       x += cols[3].w;
+      navCell(V(row.ata), x, cols[4].w, 7, c.monoBold, notFlown ? C.label : C.text);
+      x += cols[4].w;
       // T-DEV: BU BACAKTA kazanilan dakika (plan bacak − gercek bacak).
       // + = erken vardin (kazanc). |>=15 dk| vurgulu.
       {
         const td = notFlown ? null : legDev(idx).t;
         const tStr = td === null ? DASH : (td > 0 ? "+" : "") + td + "m";
-        navCell(tStr, x, cols[4].w, 7, Math.abs(td ?? 0) >= 15 ? c.monoBold : c.mono,
+        navCell(tStr, x, cols[5].w, 7, Math.abs(td ?? 0) >= 15 ? c.monoBold : c.mono,
                 td === null ? C.label : (Math.abs(td) >= 15 ? C.divert : C.muted));
       }
-      x += cols[4].w;
-      navCell(row.fuel_plan != null ? fmtLb(row.fuel_plan) : DASH, x, cols[5].w, 7, c.mono,
-              notFlown ? C.label : C.muted);
       x += cols[5].w;
-      navCell(row.fuel_actual != null ? fmtLb(row.fuel_actual) : DASH, x, cols[6].w, 7, c.monoBold,
-              notFlown ? C.label : C.text);
+      navCell(row.fuel_plan != null ? fmtLb(row.fuel_plan) : DASH, x, cols[6].w, 7, c.mono,
+              notFlown ? C.label : C.muted);
       x += cols[6].w;
+      navCell(row.fuel_actual != null ? fmtLb(row.fuel_actual) : DASH, x, cols[7].w, 7, c.monoBold,
+              notFlown ? C.label : C.text);
+      x += cols[7].w;
       // F-DEV: BU BACAKTA kazanilan lb (plan yanma − gercek yanma). + = az yaktin.
       // VURGU ise KUMULATIF yakit durumuna bakar (actual − plan >= 1000 lb) —
       // bacak kucuk olsa da toplam yakit durumu bozulmus olabilir.
@@ -539,21 +593,55 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
           ? Number(row.fuel_actual) - Number(row.fuel_plan) : null;
         const hot = Math.abs(cum ?? 0) >= 1000;
         const fStr = fd === null ? DASH : (fd > 0 ? "+" : "") + fd.toLocaleString("en-US");
-        navCell(fStr, x, cols[7].w, 7, hot ? c.monoBold : c.mono,
+        navCell(fStr, x, cols[8].w, 7, hot ? c.monoBold : c.mono,
                 fd === null ? C.label : (hot ? C.divert : C.muted));
       }
-      x += cols[7].w;
-      navCell(V(row.rvsm), x, cols[8].w, 6.5, c.mono, C.muted);
+      x += cols[8].w;
+      navCell(V(row.rvsm), x, cols[9].w, 6.5, c.mono, C.muted);
 
       c.y -= 13;
     });
 
     // TANIM SATIRI: denetci hangi tanimi okudugunu bilmeli. "+ = kazanc"
     // sezgisel degildir ve isaret ters okunursa rapor yanlis yorumlanir.
-    ensure(c, 11);
-    txt(c, "T-DEV / F-DEV = per leg, measured from the previous point that has an actual entry: planned leg minus actual leg. Positive = time or fuel SAVED. Bold/red marks a cumulative fuel gap of 1000 lb or more.",
-        M + 2, c.y - 8, 5.5, c.mono, C.label);
-    c.y -= 11;
+    // 🔴 SARMA ZORUNLU (9 Agu 2026 saha, Serkan: "tasma olmasin, gerekirse 2
+    // satir olsun"). Bu satir 201 karakter; 5,5 punto mono ile 663 pt eder ama
+    // kullanilabilir genislik 531 pt — sayfadan 132 pt TASIYORDU. 2 Agu'da tum
+    // VERI alanlarini sarmaya almistik; bu SABIT etiket `txt()` ile kalmisti,
+    // "uzunlugu yazarken biliniyor" gerekcesiyle. Gerekce yanlisti: uzunlugu
+    // bilmek tasmayi engellemiyor, olcmek engelliyor.
+    ensure(c, 20);
+    const defLines = txtWrap(c,
+      "T-DEV / F-DEV = per leg, measured from the previous point that has an actual entry: " +
+      "planned leg minus actual leg. Positive = time or fuel SAVED. " +
+      "Bold/red marks a cumulative fuel gap of 1000 lb or more.",
+      M + 2, c.y - 8, CONTENT_W - 4, 5.5, c.mono, C.label, 7);
+    c.y -= defLines * 7 + 4;
+
+    // ── WAYPOINT NOTLARI (9 Agu 2026) ───────────────────────────────────────
+    // Pilotun bir noktaya yazdigi serbest metin. 09 AUG LTAC-EGLF'te enroute
+    // alternatif meydan hava kontrolleri buraya yazilmisti (MAKOL: "LTBA LBSF
+    // LROP LHBP LOWW WXR CHECKED") — arsiv zincirinin hicbir yerinde
+    // tasinmadigi icin denetim kaydindan tamamen dusuyordu.
+    //
+    // NEDEN AYRI BLOK, NEDEN TABLOYA KOLON DEGIL: iki kural birden gecerli —
+    // NavLog tablosu TEK SATIR kalmali (satir ikiye cikarsa goz kayar, satir
+    // atlanir) ve serbest metin ASLA KIRPILMAZ (kirpilan karakter kaybolan
+    // kanittir). Ikisi ayni hucrede saglanamaz; ayri blokta ikisi de saglanir:
+    // burada metin SARILIR, tablonun satir duzeni bozulmaz.
+    const navNotes = nav.filter((r) => r && typeof r.note === "string" && r.note.trim() !== "");
+    if (navNotes.length) {
+      subHeader(c, "NAV LOG NOTES - crew free text", C.wpt);
+      const LBL_W = 64;
+      navNotes.forEach((r) => {
+        ensure(c, 13);
+        txt(c, V(r.wpt), M + 4, c.y - 8, 7, c.monoBold, C.wpt);
+        const n = txtWrap(c, String(r.note).trim(), M + 4 + LBL_W, c.y - 8,
+                          CONTENT_W - LBL_W - 10, 7, c.mono, C.text, 8.5);
+        c.y -= Math.max(11, n * 8.5 + 2.5);
+      });
+      c.y -= 3;
+    }
   }
 
   // ── 5) T/O & LANDING ──────────────────────────────────────────────────────

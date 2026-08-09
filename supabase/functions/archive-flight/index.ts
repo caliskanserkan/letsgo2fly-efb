@@ -173,6 +173,34 @@ Deno.serve(async (req) => {
             regenOnly = true;   // PDF + FTL 14. adim taze saatlerle kosar
           }
         }
+
+        // 🔴 RAPOR AYRICA KONTROL EDILIR (9 Agu 2026 — 4 Agu yamasinin eksigi):
+        // `archived_flights` TAM olsa bile `flt_report` bayat kalmis olabilir.
+        // 09 AUG LTAC-EGLF'te tam boyle oldu: ikinci cagri arsiv saatlerini
+        // onardi, `fill` bosaldigi icin regen'e GECMEDI ve asagida erken dondu —
+        // rapor 40 bos satirla kalici oldu. Erken donus, onarilabilir bir raporun
+        // uzerine kapanmamali. Onarimi 11a yapar; burada yalniz "regen'e gec".
+        if (!regenOnly) {
+          const { data: exFr } = await admin.from("flt_report")
+            .select("navlog, takeoff_time").eq("plan_id", planId).maybeSingle();
+          if (exFr) {
+            const st: any[] = Array.isArray(exFr.navlog) ? exFr.navlog : [];
+            const stActual = st.some(r => r && (r.ata != null || r.fuel_actual != null));
+            const stNoteCol = st.some(r => r && "note" in r);
+            const mirrorNotes = Object.values(entsQ).some((e: any) =>
+              typeof e?.note === "string" && e.note.trim() !== "");
+            const mirrorActual = wptsQ.some(w => {
+              const e = entsQ[w.uid];
+              return !!(e && (e.ata || e.toTime || e.lndTime || e.offBlock ||
+                              e.onBlock || e.fuel || e.toFuel || e.remFuel));
+            });
+            if ((mirrorActual && st.length > 0 && !stActual) ||
+                (exFr.takeoff_time == null && !!depEQ.toTime) ||
+                (mirrorNotes && st.length > 0 && !stNoteCol)) {
+              regenOnly = true;
+            }
+          }
+        }
       }
       if (!regenOnly) {
       const { data: exRep } = await admin.from("efb_documents")
@@ -227,6 +255,23 @@ Deno.serve(async (req) => {
     // ── 5) NavLog: zamanlar ve yakit BURADAN gelir (tek kaynak) ──────────────
     const wpts: any[] = navD?.waypoints ?? [];
     const entries: Record<string, any> = navD?.entries ?? {};
+
+    // ── BAYAT AYNA TESPITI (9 Agu 2026 saha, LTAC-EGLF) ─────────────────────
+    // Bu fonksiyon NavLog'u SUNUCUDAKI `navlog_data` satirindan okur — arsivi
+    // basan tabletin EKRANINDAN degil. Iki tabletli ucusta P2P sync ile veriyi
+    // ALAN tablet o veriyi sunucuya HIC yazmaz (FlightSnapshotStore yalniz
+    // UserDefaults'a yazar); onun aynasi kalkis oncesi halinde kalir:
+    // waypoints DOLU, entries BOS. O tablet arsiv yarisini kazanirsa rapor 40
+    // BOS satirla yazilir ve pilotun 4 saatlik kaydi raporda YOK gorunur.
+    //
+    // 09 AUG LTAC-EGLF'te tam olarak bu oldu: ucus PF'in tabletinde islendi
+    // (o uçak modundaydi, kuyrugu buyuktu), PM'in tableti 5,5 sn once cagriyi
+    // indirdi ve bayat aynayi okudu. Sessizce bos rapor yazmak Ilke 1 ihlali:
+    // sistem, elinde OLMAYAN veriyi "pilot girmemis" gibi gosterir.
+    // Once TESPIT (burada), sonra ONARIM (11a) — ve gorulmezse KAYDA GEC (13).
+    const entryHasActual = (e: any) => !!(e && (e.ata || e.toTime || e.lndTime ||
+      e.offBlock || e.onBlock || e.fuel || e.toFuel || e.remFuel));
+    const navHasActuals = wpts.some(w => entryHasActual(entries[w.uid]));
 
     const depWpt  = wpts.find(w => w.type === "dep");
     const divWpt  = wpts.find(w => w.type === "divert-arpt");
@@ -306,7 +351,11 @@ Deno.serve(async (req) => {
           wpt_uid: w.uid, wpt_name: w.name, wpt_type: w.type,
           eta: (w.eta && w.eta !== "—") ? w.eta : null,
           ata, fuel_plan: w.planFuel ?? null, fuel_actual: fuelActual,
-          rvsm: e.rvsm ?? null, seq: i,
+          // NOT (9 Agu 2026): pilotun waypoint'e yazdigi serbest metin. 09 AUG
+          // ucusunda enroute alternatif meydan WX kontrolleri bu alana yazilmisti
+          // ("LTBA LBSF LROP LHBP LOWW WXR CHECKED") — arsiv zincirinin HICBIR
+          // yerinde tasinmadigi icin denetim kaydindan tamamen dusuyordu.
+          rvsm: e.rvsm ?? null, note: e.note ?? null, seq: i,
         };
       });
       await admin.from("navlog_entries").delete().eq("plan_id", String(planId));
@@ -365,6 +414,29 @@ Deno.serve(async (req) => {
       typeof body.duty_finished === "boolean" ? body.duty_finished : null;
 
     // ── 11) flt_report UPSERT — RAPORUN TEK KAYNAGI ─────────────────────────
+
+    /** "400" / "FL400" -> "FL400"; "CLB" / "DSC" / "238ft" / "" -> null.
+     *  iOS `NavLogEngine.flLevel` ile AYNI kural (rapor neyse NavLog o). */
+    const flLevel = (s: unknown): string | null => {
+      const t = String(s ?? "").trim().toUpperCase();
+      if (!t) return null;
+      const d = t.startsWith("FL") ? t.slice(2) : t;
+      return /^\d+$/.test(d) ? `FL${d}` : null;
+    };
+    /** Bu noktada UCULAN seviye. iOS `NavLogEngine.effectiveFL` ile ayni sira:
+     *  (1) noktanin KENDI girisi her zaman kazanir, (2) plan sayisal ise geriden
+     *  gelen son giris tasinir, (3) safha isareti/kot ise seviye yazilmaz. */
+    const flActual = (i: number): string | null => {
+      const own = flLevel((entries[wpts[i].uid] ?? {}).cruiseFL);
+      if (own) return own;
+      if (!flLevel(wpts[i].fl)) return null;          // CLB / DSC / kot -> dokunma
+      for (let j = i - 1; j >= 0; j--) {
+        const lvl = flLevel((entries[wpts[j].uid] ?? {}).cruiseFL);
+        if (lvl) return lvl;
+      }
+      return null;
+    };
+
     const navlogJson = wpts.map((w, i) => {
       const e = entries[w.uid] ?? {};
       return {
@@ -376,8 +448,50 @@ Deno.serve(async (req) => {
         fuel_actual: num(e.fuel) ?? (w.type === "dep" ? num(e.toFuel) : null)
                                  ?? ((w.type === "dest" || w.type === "divert-arpt") ? num(e.remFuel) : null),
         rvsm: e.rvsm ?? null,
+        // SEVIYE (9 Agu 2026 saha, LTAC-EGLF): pilot FL430'a cikti, dort noktada
+        // seviye girdi, RVSM'i 43.000'den okudu — rapora seviye HIC girmiyordu
+        // (ne plan ne gercek). `fl` planin degeri (tirmanista "CLB", alcalista
+        // "DSC", meydanda kot), `fl_actual` pilotun girdigi gercek seyir seviyesi.
+        // iOS ile AYNI kural: gercek deger o noktadan sonrasina tasinir ama
+        // safha isaretlerinin (CLB/DSC) uzerine YAZILMAZ — orada seyir yok.
+        fl: (w.fl && w.fl !== "—") ? String(w.fl) : null,
+        fl_actual: flActual(i),
+        // Waypoint notu (9 Agu 2026) — rapora AYRI bir blok olarak basilir.
+        // Tabloya kolon eklenmedi: NavLog tablosu TEK SATIR kalmali (Serkan,
+        // 2 Agu) ama serbest metin de KIRPILAMAZ — ikisi ancak ayri blokta bir
+        // arada olur (blokta sarilir, tabloda satir bozulmaz).
+        note: (typeof e.note === "string" && e.note.trim()) ? e.note.trim() : null,
       };
     });
+
+    // ── RAPOR BLOKLARI — TEK TANIM (9 Agu 2026) ─────────────────────────────
+    // Ayni nesneler hem ILK YAZIMDA hem 11a ONARIMINDA kullanilir. Ikinci bir
+    // kopya cikarilsaydi, onarim ilk yazimdan farkli bir sekil uretebilirdi.
+    const frTakeoff = tkofD ? {
+      icao: tkofD.icao, rwy: depRwy, rwy_len: tkofD.manual_len,
+      atis: tkofD.dep_atis, sid: tkofD.sid, fl: tkofD.fl, sq: tkofD.sq, oth: tkofD.oth,
+      v1: tkofD.v1, vr: tkofD.vr, v2: tkofD.v2, vse: tkofD.vse, trim: tkofD.trim,
+      req_rw: tkofD.req_rw,
+      rvsm: { pri1: tkofD.rvsm1, sby: tkofD.rvsm_sby, pri2: tkofD.rvsm2 },
+      lmc: { lb: tkofD.lmc_lb, kg: tkofD.lmc_kg },
+    } : null;
+    const frLanding = lndD ? {
+      icao: lndD.icao, rwy: arrRwy, rwy_len: lndD.manual_len,
+      atis: lndD.arr_atis, qnh: lndD.qnh, rwy_cond: lndD.rwy_cond,
+      req_lnd: lndD.req_lnd, actual_lw: lndD.actual_lw, vref: lndD.vref,
+      is_divert: lndD.is_divert === "true",
+    } : null;
+    const frFuel = fuelD ? {
+      fob: fuelD.fob, density: fuelD.density,
+      uplift_lt: fuelD.uplift_lt, uplift_lb: fuelD.uplift_lb,
+      plan_trip: plan.trip_fuel, plan_alternate: plan.alternate_fuel,
+      plan_reserve: plan.reserve_fuel, plan_fob: plan.fob,
+    } : null;
+    const frRass = rassD ? {
+      dep_reviewed_at: rassD.dep_reviewed_at,
+      dest_reviewed_at: rassD.dest_reviewed_at,
+      altn_reviewed_at: rassD.altn_reviewed_at,
+    } : null;
 
     // regen modunda ARSIV VERISI DEGISMEZ (EASA) — sadece PDF yeniden uretilir
     if (!regenOnly) {
@@ -395,31 +509,10 @@ Deno.serve(async (req) => {
       navlog: navlogJson.length ? navlogJson : null,
       wx: Object.values(wxMap),
       crew,
-      takeoff: tkofD ? {
-        icao: tkofD.icao, rwy: depRwy, rwy_len: tkofD.manual_len,
-        atis: tkofD.dep_atis, sid: tkofD.sid, fl: tkofD.fl, sq: tkofD.sq, oth: tkofD.oth,
-        v1: tkofD.v1, vr: tkofD.vr, v2: tkofD.v2, vse: tkofD.vse, trim: tkofD.trim,
-        req_rw: tkofD.req_rw,
-        rvsm: { pri1: tkofD.rvsm1, sby: tkofD.rvsm_sby, pri2: tkofD.rvsm2 },
-        lmc: { lb: tkofD.lmc_lb, kg: tkofD.lmc_kg },
-      } : null,
-      landing: lndD ? {
-        icao: lndD.icao, rwy: arrRwy, rwy_len: lndD.manual_len,
-        atis: lndD.arr_atis, qnh: lndD.qnh, rwy_cond: lndD.rwy_cond,
-        req_lnd: lndD.req_lnd, actual_lw: lndD.actual_lw, vref: lndD.vref,
-        is_divert: lndD.is_divert === "true",
-      } : null,
-      fuel: fuelD ? {
-        fob: fuelD.fob, density: fuelD.density,
-        uplift_lt: fuelD.uplift_lt, uplift_lb: fuelD.uplift_lb,
-        plan_trip: plan.trip_fuel, plan_alternate: plan.alternate_fuel,
-        plan_reserve: plan.reserve_fuel, plan_fob: plan.fob,
-      } : null,
-      rass: rassD ? {
-        dep_reviewed_at: rassD.dep_reviewed_at,
-        dest_reviewed_at: rassD.dest_reviewed_at,
-        altn_reviewed_at: rassD.altn_reviewed_at,
-      } : null,
+      takeoff: frTakeoff,
+      landing: frLanding,
+      fuel: frFuel,
+      rass: frRass,
       mandatory: mandD ? {
         checks: mandD.checks, signed_by: mandD.signed_by,
         signature_url: mandD.signature_url, signed_at: mandD.signed_at,
@@ -433,6 +526,161 @@ Deno.serve(async (req) => {
       archived_at: new Date().toISOString(),
     }, { onConflict: "plan_id" });
     if (frErr) console.warn("[archive] flt_report:", frErr.message);
+    }
+
+    // ── 11a) FLT_REPORT ONARIMI — BOSLARI TAMAMLA, DOLUYU ASLA EZME ─────────
+    // 9 Agu 2026 saha (LTAC-EGLF). 4 Agu'da `archived_flights` icin ayni yamayi
+    // koymustuk; EKSIK kalmisti: `flt_report`a dokunmuyordu. Rapor PDF'i
+    // `flt_report`tan uretildigi icin hata KALICI oluyordu — ikinci arsiv cagrisi
+    // arsiv saatlerini onariyor, PDF hala bos `flt_report`tan basiliyordu.
+    // REGEN REPORT bile duzeltemiyordu, cunku regen `flt_report` upsert'ini
+    // bilerek atlar ("regen arsiv verisini degistirmez", EASA).
+    //
+    // Kural `archived_flights` yamasiyla BIREBIR AYNI: yalniz BOS alan doldurulur,
+    // dolu alana ASLA yazilmaz — duzeltme yolu admin EDIT'tir (gerekceli, izli).
+    // Bu adim REGEN DAHIL her yolda kosar: bayat ayna sonradan tazelendiginde
+    // rapor kendi kendini toparlar, elle mudahale gerekmez.
+    await repairFltReport();
+
+    /** Kayitli rapor satirinin BOS alanlarini guncel ayna verisiyle doldurur.
+     *  Doner: doldurulan alanlarin adlari (denetim izine yazilir; sessiz onarim
+     *  YOK — Ilke 1, sistem yaptigi duzeltmeyi soyler). */
+    async function repairFltReport(): Promise<string[]> {
+      const { data: cur } = await admin.from("flt_report")
+        .select("off_block, takeoff_time, landing_time, on_block, takeoff_fuel," +
+                " remaining_fuel, block_minutes, airborne_minutes, navlog")
+        .eq("plan_id", planId).maybeSingle();
+      if (!cur) return [];
+
+      const patch: Record<string, unknown> = {};
+      const fillBlank = (col: string, val: unknown) => {
+        if ((cur as Record<string, unknown>)[col] == null && val != null) patch[col] = val;
+      };
+      fillBlank("off_block", offBlock);
+      fillBlank("takeoff_time", takeoffTime);
+      fillBlank("landing_time", landingTime);
+      fillBlank("on_block", onBlock);
+      fillBlank("takeoff_fuel", toFuel);
+      fillBlank("remaining_fuel", remFuel);
+      fillBlank("block_minutes", blockMinutes);
+      fillBlank("airborne_minutes", airborneMinutes);
+      // MODUL BLOKLARI (9 Agu 2026): onarim once yalniz navlog + saatleri
+      // kapsiyordu, bu YETMEDI. 09 AUG kaydinda `landing` blogu komple NULL
+      // kaldi (inis verisi ucak modunda girilmisti, kuyruktan arsivden SONRA
+      // dustu) ve raporda LANDING karti HIC cikmadi — veri `lnd_data`da
+      // sapasaglam dururken. Ayni sekilde T/O yakiti da bostu.
+      // Blok NULL ise ve elimizde varsa doldurulur; DOLU bloga dokunulmaz.
+      fillBlank("landing", frLanding);
+      fillBlank("takeoff", frTakeoff);
+      fillBlank("fuel", frFuel);
+      fillBlank("rass", frRass);
+      fillBlank("crew", crew);
+      fillBlank("wx", Object.values(wxMap).length ? Object.values(wxMap) : null);
+      fillBlank("documents", docRows.length ? docRows : null);
+      fillBlank("ac_hours", acHours);
+
+      // NAVLOG: yalnizca BILGI EKLEYEN iki durumda yenilenir. Ikisi de "bos alani
+      // doldur" tanimina girer; mevcut gercek degerin uzerine ASLA yazilmaz.
+      //   (a) kayitli kopyada hic gercek deger yok, elimizde var  -> bayat ayna
+      //   (b) kayitli kopya `note` alanini hic tasimiyor, elimizde not var
+      //       -> eski surumle yazilmis rapor (notlar zinciri 9 Agu'da eklendi)
+      const countActuals = (rows: any[]) =>
+        rows.filter((r) => r && (r.ata != null || r.fuel_actual != null)).length;
+      const stored: any[] = Array.isArray(cur.navlog) ? cur.navlog : [];
+      const storedActuals = countActuals(stored);
+      const freshActuals  = countActuals(navlogJson);
+      // ESKI SEMA TESPITI: rapor satirlari 9 Agu'da iki alan kazandi (`note`,
+      // `fl`/`fl_actual`). Eski bir raporda bu ANAHTARLAR HIC YOK — degeri null
+      // olan bir satirla karistirilmamali, o yuzden "in" ile bakiyoruz.
+      const storedHasNoteField = stored.some((r) => r && "note" in r);
+      const storedHasFlField   = stored.some((r) => r && "fl_actual" in r);
+      const weHaveNotes = navlogJson.some((r) => r.note != null);
+      const weHaveFL    = navlogJson.some((r) => r.fl != null || r.fl_actual != null);
+      // GERI ADIM YASAK: yenileme yalniz BILGI EKLIYORSA yapilir. `freshActuals`
+      // kontrolu olmadan not-yenilemesi, ayna o an daralmissa (plan deaktive/
+      // yeniden aktive edilmis olabilir) dolu bir raporu daha zayif bir kopyayla
+      // degistirebilirdi — onarim rutini yeni bir kayip kaynagi olmamali.
+      if (navlogJson.length && freshActuals >= storedActuals &&
+          ((navHasActuals && storedActuals === 0) ||
+           (weHaveNotes && !storedHasNoteField) ||
+           (weHaveFL && !storedHasFlField))) {
+        patch.navlog = navlogJson;
+      }
+
+      // NOT: `patch` bos olsa bile DEVAM EDILIR — `archived_flights` (admin
+      // panelinin okudugu yuzey) ayri ayri bos kalmis olabilir. Erken donmek,
+      // raporu tam ama paneli bos birakirdi.
+      if (Object.keys(patch).length) {
+        const { error } = await admin.from("flt_report").update(patch).eq("plan_id", planId);
+        if (error) console.warn("[archive] flt_report repair:", error.message);
+      }
+
+      // navlog_entries AYNI bayat kopyadan yazilmisti. Iki denetim yuzeyi
+      // birbiriyle celismemeli (Ilke 2) — rapor onarildiysa tablo da onarilir.
+      if (patch.navlog && wpts.length) {
+        const { count } = await admin.from("navlog_entries")
+          .select("id", { count: "exact", head: true })
+          .eq("plan_id", planId).not("ata", "is", null);
+        if (!count) {
+          const rows = navlogJson.map((r, i) => ({
+            plan_id: String(planId),
+            wpt_uid: wpts[i]?.uid ?? null, wpt_name: r.wpt, wpt_type: r.type,
+            eta: r.eta, ata: r.ata, fuel_plan: r.fuel_plan, fuel_actual: r.fuel_actual,
+            rvsm: r.rvsm, note: r.note, seq: i,
+          }));
+          await admin.from("navlog_entries").delete().eq("plan_id", planId);
+          const { error: neErr } = await admin.from("navlog_entries").insert(rows);
+          if (neErr) console.warn("[archive] navlog_entries repair:", neErr.message);
+        }
+      }
+
+      // ── ARSIV KOLONLARI DA ONARILIR (9 Agu 2026) ──────────────────────────
+      // Admin panelinin okudugu `archived_flights` de ayni yaristan etkilendi:
+      // 09 AUG'da arr_rwy / arr_atis / vref / actual_lw / req_landing_dist /
+      // arr_qnh / rwy_condition ve iki yakit kolonu NULL kaldi — `lnd_data`
+      // ve NavLog'da degerler dururken panel bos gosterdi.
+      // Ayni disiplin: yalniz BOS kolon doldurulur, doluya ASLA yazilmaz.
+      const afPatch: Record<string, unknown> = {};
+      const { data: curAf } = await admin.from("archived_flights")
+        .select("takeoff_fuel, remaining_fuel, dep_rwy, sid, dep_atis, arr_rwy," +
+                " arr_atis, arr_qnh, rwy_condition, req_landing_dist, actual_lw, vref")
+        .eq("plan_id", planId).maybeSingle();
+      if (curAf) {
+        const fillAf = (col: string, val: unknown) => {
+          if ((curAf as Record<string, unknown>)[col] == null && val != null) afPatch[col] = val;
+        };
+        fillAf("takeoff_fuel", toFuel);
+        fillAf("remaining_fuel", remFuel);
+        fillAf("dep_rwy", depRwy);
+        fillAf("sid", tkofD?.sid ?? null);
+        fillAf("dep_atis", tkofD?.dep_atis ?? null);
+        fillAf("arr_rwy", arrRwy);
+        fillAf("arr_atis", lndD?.arr_atis ?? null);
+        fillAf("arr_qnh", num(lndD?.qnh));
+        fillAf("rwy_condition", lndD?.rwy_cond ?? null);
+        fillAf("req_landing_dist", num(lndD?.req_lnd));
+        fillAf("actual_lw", num(lndD?.actual_lw));
+        fillAf("vref", num(lndD?.vref));
+        if (Object.keys(afPatch).length) {
+          const { error: afErr2 } = await admin.from("archived_flights")
+            .update(afPatch).eq("plan_id", planId);
+          if (afErr2) console.warn("[archive] archived_flights repair:", afErr2.message);
+        }
+      }
+
+      const cols = [...Object.keys(patch), ...Object.keys(afPatch).map(c => "af." + c)];
+      // Onaracak bir sey yoktuysa iz de yazilmaz — her REGEN'de bos bir
+      // "onarildi" satiri dusmesi izi kirletir ve gercek onarimi gizler.
+      if (!cols.length) return [];
+      await admin.from("flight_logs").insert({
+        plan_id: planId, pilot_id: callerId, action: "REPORT_REPAIRED",
+        details: {
+          fields: cols.join(", "),
+          reason: "record was written before the module mirrors reached the server",
+        },
+      });
+      console.log("[archive] repaired:", cols.join(", "));
+      return cols;
     }
 
     // ── 11b) RAPOR PDF (sunucuda uretilir — web + iOS ayni dosyayi gosterir) ──
@@ -555,6 +803,24 @@ Deno.serve(async (req) => {
         archived_by: prof?.full_name ?? callerId,
       },
     });
+
+    // BAYAT AYNAYLA ARSIVLENDI (9 Agu 2026): waypoint listesi var ama HICBIR
+    // gercek saat/yakit yok. Ucus PreArchiveCheck'ten gectigine gore veri
+    // TABLETTE vardir — sunucudaki kopya bayattir. Bunu sessiz gecmek Ilke 1
+    // ihlali olur: denetci raporu bos gorup "pilot girmemis" diye okur.
+    // Kayit acikca boyle bir arsivin uzerine yazilir; 11a onarimi calistiginda
+    // ayrica REPORT_REPAIRED satiri duser, ikisi birlikte hikayeyi anlatir.
+    if (!regenOnly && wpts.length && !navHasActuals) {
+      await admin.from("flight_logs").insert({
+        plan_id: planId, pilot_id: callerId, action: "ARCHIVE_NAVLOG_MISSING",
+        details: {
+          waypoints: String(wpts.length),
+          reason: "navlog_data mirror on server had no actual times or fuel at archive time",
+          archived_by: prof?.full_name ?? callerId,
+        },
+      });
+      console.warn("[archive] navlog mirror stale — archived with empty navlog:", planId);
+    }
 
     // ── 14) FTL: actual saatleri crew_duties'e isle ──────────────────────────
     // Eslestirme kurali (tasarim): (1) tarih, (2) DEP/DEST, (3) saat yakinligi —
