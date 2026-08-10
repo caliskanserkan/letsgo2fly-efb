@@ -94,24 +94,21 @@ export const FEATURE_CATALOG = [
     note: 'Serkan (10 Agu): flap secip surati FMS\'ten okuyup ayri perf hesabi yapan operatorler kaydi istemiyor.',
   },
   {
-    key: 'ui.docupload.wb', section: 'ui', module: 'DOC UPLOAD', label: 'W&B belgesi',
+    // 10 Agu 2026: BASTA IKI ANAHTARDI (W&B + PERF), TEKE INDIRILDI.
+    // Sebep: iOS'ta ayri iki yukleme yeri YOK — DocUploadView'da tek bir
+    // zorunlu bolum var ("Analysis / TOLD / W&B ayri ayri ya da tek birlesik
+    // dosya olabilir"). Iki anahtar birakmak, panelde hicbir seyi kapatmayan
+    // bir dugme demekti; katalog uygulamayla ortusmek zorunda.
+    key: 'ui.docupload.perf', section: 'ui', module: 'DOC UPLOAD',
+    label: 'PERF & LOADING PLAN (zorunlu belge)',
     kind: 'cell', defaultOn: true,
     affects: [
-      'DOC UPLOAD\'da W&B yuklemesi gorunmez',
+      'DOC UPLOAD\'daki zorunlu PERF & LOADING PLAN bolumu gorunmez (W&B / TOLD / Analysis dahil)',
+      'PERF ayristirmasi calismaz: rota-tarih dogrulamasi, TRIM ve OEO usulleri cikarilmaz',
+      'Doc Upload modulu bu belge olmadan da GREEN olur',
       'EndFlt\'teki "W&B yok, yine de arsivle?" ONAY SORUSU sorulmaz',
-      'Doc Upload modul statusu W&B\'siz de GREEN olabilir',
     ],
-    note: 'Sert kapi degil, onayli uyari kapisi — PreArchiveCheck.swift:203.',
-  },
-  {
-    key: 'ui.docupload.perf', section: 'ui', module: 'DOC UPLOAD', label: 'PERF belgesi',
-    kind: 'cell', defaultOn: true,
-    affects: [
-      'DOC UPLOAD\'da PERF yuklemesi gorunmez',
-      'PERF ayristirmasi (rota/tarih dogrulamasi, OEO usulleri) calismaz',
-      'Doc Upload modul statusu PERF\'siz de GREEN olabilir',
-    ],
-    note: 'Serbest dokuman yukleme HER ZAMAN acik kalir — bu anahtar onu kapatmaz.',
+    note: 'Sert kapi degil, onayli uyari kapisi (PreArchiveCheck.swift:203). ANY UPLOAD (serbest dokuman) HER ZAMAN acik kalir.',
   },
 
   // ---------- WEB ADMIN ----------
