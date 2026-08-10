@@ -266,11 +266,20 @@ export interface ReportInput {
   ftlStatus?: Record<string, string>;
   // false ise FTL bolumu RAPORDA HIC CIZILMEZ (musteride admin.ftl kapali).
   ftlEnabled?: boolean;
+  // customers.features — kapali hucrelerin satirlari hic cizilmez.
+  features?: Record<string, boolean>;
 }
 
 export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   const { fr, plan, signatures, attachments } = input;
   const amendments = input.amendments ?? [];
+
+  // SIRKET KONFIGURASYONU (10 Agu 2026). customers.features YALNIZ SAPMALARI
+  // tutar; anahtar yoksa ACIK demektir (Kural 8: belirsizlik = acik). Bu yuzden
+  // kontrol "!== false", "=== true" DEGIL — okunamayan konfigurasyon raporu
+  // sessizce budamasin.
+  const feat = input.features ?? {};
+  const on = (k: string): boolean => feat[k] !== false;
 
   const pdf = await PDFDocument.create();
   const c: Ctx = {
@@ -672,15 +681,18 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
     }
     if (ld) {
       subHeader(c, `LANDING - ${V(ld.icao || destIcao)}`, C.dest, ld.is_divert ? "DIVERT" : undefined);
+      // KAPALI HUCRE RAPORDA HIC GORUNMEZ (10 Agu 2026, super admin settings).
+      // Bos satir birakmak yanlis olurdu: denetci "girilmemis" diye okur.
+      // O operatorde kayit baska yerde (OM'e gore FMS'te) — eksik degil, YOK.
       cellRow(c, [
         A("arr_rwy", { lbl: "RWY", val: V(ld.rwy) }),
-        A("vref", { lbl: "VREF", val: V(ld.vref) }),
-        { lbl: "QNH", val: V(ld.qnh) },
+        ...(on("ui.lnddata.vref") ? [A("vref", { lbl: "VREF", val: V(ld.vref) })] : []),
+        ...(on("ui.lnddata.qnh") ? [{ lbl: "QNH", val: V(ld.qnh) }] : []),
         A("req_landing_dist", { lbl: "REQ LND", val: V(ld.req_lnd) }),
         A("actual_lw", { lbl: "ACTUAL LW", val: V(ld.actual_lw) }),
       ]);
       cellRow(c, [
-        { lbl: "RWY COND", val: V(ld.rwy_cond) },
+        ...(on("ui.lnddata.rwycond") ? [{ lbl: "RWY COND", val: V(ld.rwy_cond) }] : []),
         { lbl: "RWY LEN", val: V(ld.rwy_len) },
         A("arr_atis", { lbl: "ATIS", val: V(ld.arr_atis ?? ld.atis) }),
       ]);

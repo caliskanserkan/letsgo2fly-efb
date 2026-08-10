@@ -760,6 +760,7 @@ Deno.serve(async (req) => {
         const pdfBytes = await buildReportPdf({
           fr: frRow, plan, signatures: sigs, attachments: atts, amendments, photos,
           duties: ftlResult.dutyRows, ftlStatus: ftlResult.ftlUpdate, ftlEnabled,
+          features: (custCfg?.features ?? {}) as Record<string, boolean>,
         });
 
         const fname = `GO2_FltReport_${plan.reg ?? "AC"}_${plan.dep ?? ""}-${destIcao ?? ""}_${isoDate}.pdf`
