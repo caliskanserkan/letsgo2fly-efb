@@ -439,11 +439,25 @@ function Dashboard({ user, myProfile, onLogout, onAdmin, onActivate, onDeactivat
     setLoading(false);
   };
 
+  // 10 Agu 2026 SAHA OLAYI — yarim kalan silme OFP metnini yok etti.
+  // Eski kod once plan_versions'i, sonra plans'i siliyordu. plan_versions'in
+  // FK'si ZATEN CASCADE, yani o ilk silme gereksizdi; ikinci silme RLS'e
+  // takilinca (super adminin customer_id'si YOK) geriye "metni silinmis ama
+  // karti duran" bir plan kaldi ve iPad "OFP TEXT NOT AVAILABLE" dedi.
+  // Hata da `catch {}` ile yutuldugu icin kimse gormedi.
+  //
+  // Iki ders koda yazildi:
+  //  1) TEK silme yeter — cocuk satirlari CASCADE temizler, yari yol yok.
+  //  2) RLS'in ENGELLEDIGI silme HATA DONDURMEZ, sadece 0 satir siler.
+  //     Bu yuzden `error` kontrolu YETMEZ; silinen satiri geri isteyip
+  //     gercekten gittigini dogrulariz. Sessiz basarisizlik bu olayin sebebiydi.
   const deletePlan = async (planId) => {
-    try {
-      await supabase.from('plan_versions').delete().eq('plan_id', planId);
-      await supabase.from('plans').delete().eq('id', planId);
-    } catch {}
+    const { data, error } = await supabase.from('plans').delete().eq('id', planId).select('id');
+    if (error) { alert(`Plan could not be deleted: ${error.message}`); return; }
+    if (!data || data.length === 0) {
+      alert('Plan could not be deleted: not permitted for this account, or the plan no longer exists. Nothing was changed.');
+      return;
+    }
     loadPlans();
   };
 
@@ -616,9 +630,12 @@ function Dashboard({ user, myProfile, onLogout, onAdmin, onActivate, onDeactivat
             {availablePlans.map((p, i) => (
               <div key={i}>
                 <CompanyTag p={p} />
+                {/* Super adminde SILME YOK: bu liste cok kiracilidir, yanlis
+                    sirketin plani tek tikla gidebilir. Ayrica onaylanan sinir
+                    "ucuslar salt okunur" idi — silme app sahibinin isi degil. */}
                 <PlanCard plan={planCard(p)} active={false} archived={false}
                   onOpen={() => activatePlan(p.id)}
-                  onDelete={() => deletePlan(p.id)}
+                  onDelete={isSA ? undefined : () => deletePlan(p.id)}
                 />
               </div>
             ))}
