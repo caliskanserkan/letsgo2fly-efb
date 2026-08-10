@@ -665,19 +665,31 @@ function App() {
     const loadProfile = async (u) => {
       const { data: prof } = await supabase.from('profiles').select('id,role,customer_id,is_super_admin').eq('id', u.id).single();
       setMyProfile(prof || null);
+      return prof || null;
     };
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // 10 Agu 2026 (Serkan): SUPER ADMIN aciliste SIRKET LISTESINE duser, uçuş
+    // dashboard'una degil — konfigurasyon her zaman bir sirkete aittir, once
+    // sirket secilir. Normal kullanicida hicbir sey degismez.
+    const landing = (prof) => (prof?.is_super_admin ? 'superadmin' : 'dashboard');
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
         setUser(session.user);
-        loadProfile(session.user);
-        setPage('dashboard');
+        setPage(landing(await loadProfile(session.user)));
       } else {
         setPage('login');
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) { setUser(session.user); loadProfile(session.user); }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session) {
+        setUser(session.user);
+        const prof = await loadProfile(session.user);
+        // YALNIZ giristen sonra yonlendir. Bu dinleyici token yenilemede de
+        // tetikleniyor; kosulsuz setPage yazarsak kullanici calisirken sayfa
+        // kendiliginden basa doner.
+        setPage(p => (p === 'login' || p === 'loading') ? landing(prof) : p);
+      }
       else { setUser(null); setMyProfile(null); setPage('login'); }
     });
     return () => subscription.unsubscribe();
@@ -712,7 +724,8 @@ function App() {
     </div>
   );
 
-  if (page === 'login') return <Login onLogin={() => setPage('dashboard')} />;
+  // Hedefi Login degil, oturum dinleyicisi secer (super admin -> sirket listesi).
+  if (page === 'login') return <Login onLogin={() => setPage('loading')} />;
   if (page === 'admin') return <AdminPanel onBack={() => setPage('dashboard')} />;
   if (page === 'superadmin') return <SuperAdminPanel onBack={() => setPage('dashboard')} />;
 

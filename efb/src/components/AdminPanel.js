@@ -1253,7 +1253,34 @@ const NAV=[
 ];
 
 // ─── AdminPanel ───────────────────────────────────────────────────────────────
-export default function AdminPanel({onBack}){
+// SUPER ADMIN KAPSAMI (10 Agu 2026)
+// customerId verilirse panel BASKA bir sirketin verisini gosterir ve SALT OKUNUR
+// calisir (yazma RLS'te de kapali: policy'ler customer_id = my_customer_id() ister).
+//
+// Alt panellerin cogu "giris yapanin sirketi" varsayimiyla yazilmis. Kapsami
+// DOGRULANMIS olanlar asagida sayilidir; digerleri kapsam modunda ACIKCA
+// "henuz kapsama alinmadi" der. Baslikta GO2Demo yazarken REC'in ucuslarini
+// gostermek Ilke 1'in ihlalidir — bos birakmak degil, SEBEBINI yazmak dogrudur.
+const SCOPED_TABS = ['crews', 'aircrafts'];
+
+// Kapsama alinmamis panel: BOS birakilmaz, sebebi yazilir (Ilke 1).
+function NotScopedYet({ tab, companyName }) {
+  return (
+    <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:32 }}>
+      <div style={{ maxWidth:460, textAlign:'center' }}>
+        <div style={{ fontSize:12, color:C.red, fontWeight:700, letterSpacing:1, marginBottom:10 }}>NOT SCOPED TO {(companyName||'').toUpperCase()}</div>
+        <div style={{ fontSize:12, color:C.t2, lineHeight:1.7 }}>
+          Bu panel henüz şirket kapsamına alınmadı; açılırsa <b>kendi şirketinin</b> verisini
+          gösterirdi. Yanlış şirketin verisini doğruymuş gibi göstermektense
+          göstermemeyi seçtik.
+        </div>
+        <div style={{ fontSize:11, color:C.t3, marginTop:10 }}>Panel: {tab.toUpperCase()}</div>
+      </div>
+    </div>
+  );
+}
+
+export default function AdminPanel({onBack, customerId=null, companyName=null}){
   const [tab,         setTab]         = useState('active');
   const [ready,       setReady]       = useState(false);
   const [user,        setUser]        = useState(null);
@@ -1316,12 +1343,18 @@ export default function AdminPanel({onBack}){
           <span style={{ fontSize:12, color:C.accent, fontWeight:700, letterSpacing:3 }}>GO2</span>
           <span style={{ width:1, height:18, background:C.border }} />
           <span style={{ fontSize:10, color:C.t3, letterSpacing:2 }}>ADMIN PANEL</span>
-          <span style={{ display:'inline-block', padding:'3px 9px', fontSize:9, letterSpacing:1, fontWeight:700, fontFamily:'var(--mono)', borderRadius:5, background:'var(--amber-soft)', color:'var(--amber)', border:'1px solid var(--line-soft)' }}>ADMIN MODE</span>
+          {customerId ? (
+            <span style={{ display:'inline-block', padding:'3px 9px', fontSize:9, letterSpacing:1, fontWeight:700, fontFamily:'var(--mono)', borderRadius:5, background:'var(--red-soft)', color:C.red, border:'1px solid var(--red-soft)' }}>
+              VIEWING {(companyName || '').toUpperCase()} — READ ONLY
+            </span>
+          ) : (
+            <span style={{ display:'inline-block', padding:'3px 9px', fontSize:9, letterSpacing:1, fontWeight:700, fontFamily:'var(--mono)', borderRadius:5, background:'var(--amber-soft)', color:'var(--amber)', border:'1px solid var(--line-soft)' }}>ADMIN MODE</span>
+          )}
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <span style={{ fontSize:10, color:C.t3 }}>{user?.email}</span>
           <ThemeToggle />
-          <FontControls /><button style={{ background:'none', color:'var(--t2)', border:`1px solid ${C.border2}`, borderRadius:6, padding:'7px 14px', fontSize:11, fontFamily:'var(--mono)', cursor:'pointer', letterSpacing:1 }} onClick={onBack}>DASHBOARD</button>
+          <FontControls /><button style={{ background:'none', color:'var(--t2)', border:`1px solid ${C.border2}`, borderRadius:6, padding:'7px 14px', fontSize:11, fontFamily:'var(--mono)', cursor:'pointer', letterSpacing:1 }} onClick={onBack}>{customerId ? '← SUPER ADMIN' : 'DASHBOARD'}</button>
         </div>
       </div>
 
@@ -1383,16 +1416,20 @@ export default function AdminPanel({onBack}){
             <span style={{ fontSize:10, color:C.accent, fontWeight:700, letterSpacing:3 }}>{tabTitle.toUpperCase()}</span>
           </div>
           <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
-            {tab==='active'    && <ActiveFlts   toast={showToast}/>}
-            {tab==='archived'  && <ArchivedFlts toast={showToast} user={user}/>}
-            {tab==='aircrafts' && <Aircrafts    toast={showToast} myProfile={myProfile}/>}
-            {tab==='crews'     && <Crews        toast={showToast} myProfile={myProfile}/>}
-            {tab==='ftl'       && <FTLPanel     toast={showToast} myProfile={myProfile}/>}
-            {tab==='stats'     && <Statistics/>}
-            {tab==='stations'  && <StationInfo  toast={showToast}/>}
-            {tab==='logs'      && <FltLogsAndTimes/>}
-            {tab==='reports'   && <EditReports/>}
-            {tab==='help'      && <AdminHelp/>}
+            {customerId && !SCOPED_TABS.includes(tab) && tab !== 'help' ? (
+              <NotScopedYet tab={tab} companyName={companyName} />
+            ) : (<>
+              {tab==='active'    && <ActiveFlts   toast={showToast}/>}
+              {tab==='archived'  && <ArchivedFlts toast={showToast} user={user}/>}
+              {tab==='aircrafts' && <Aircrafts    toast={showToast} myProfile={myProfile} customerId={customerId}/>}
+              {tab==='crews'     && <Crews        toast={showToast} myProfile={myProfile} customerId={customerId}/>}
+              {tab==='ftl'       && <FTLPanel     toast={showToast} myProfile={myProfile}/>}
+              {tab==='stats'     && <Statistics/>}
+              {tab==='stations'  && <StationInfo  toast={showToast}/>}
+              {tab==='logs'      && <FltLogsAndTimes/>}
+              {tab==='reports'   && <EditReports/>}
+              {tab==='help'      && <AdminHelp/>}
+            </>)}
           </div>
         </div>
       </div>
