@@ -1,0 +1,69 @@
+name: Gecelik yedek
+
+# GO2eFB yedegi: Supabase DB + Storage + iki GitHub reposu -> S3
+# Mac'teki launchd kosusunun AYNISI (ops/backup/backup.sh), farki GitHub'in
+# makinesinde kosmasi: Serkan'in bilgisayari kapali olsa da her gece alinir.
+# Mac'teki kosu ikinci kopya olarak durmaya devam eder (farkli saglayici).
+
+on:
+  schedule:
+    - cron: '0 1 * * *'      # 01:00 UTC = 04:00 Turkiye
+  workflow_dispatch:          # Actions sekmesinden elle tetik
+
+jobs:
+  yedek:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PostgreSQL 17 istemcisi kur
+        # Supabase sunucusu 17.6; ubuntu-latest 16 ile geliyor, pg_dump 16 ile
+        # 17 sunucudan dump ALINAMAZ (surum uyusmazligi hatasi).
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: backup.env olustur
+        # Sirlar dosyaya %q ile yazilir (parola icinde ozel karakter olsa da
+        # 'source' bozulmaz). Dosya calisma alaninda kalir, kosu bitince silinir.
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          umask 077
+          cat > ops/backup/backup.env <<'SABIT'
+          SUPABASE_URL="https://ojvqdsqodpxkvpxvwgrm.supabase.co"
+          S3_BUCKET="go2efb-backups-366700732982"
+          STORAGE_BUCKETS="ofp-pdfs efb-documents"
+          GIT_REPOS="https://github.com/caliskanserkan/go2efb-ios.git https://github.com/caliskanserkan/letsgo2fly-efb.git"
+          SABIT
+          printf 'SUPABASE_DB_URL=%q\n'      "$SUPABASE_DB_URL"      >> ops/backup/backup.env
+          printf 'SUPABASE_SERVICE_KEY=%q\n' "$SUPABASE_SERVICE_KEY" >> ops/backup/backup.env
+
+      - name: Private repolari klonlayabilmek icin kimlik
+        env:
+          PAT: ${{ secrets.BACKUP_GIT_PAT }}
+        run: |
+          git config --global \
+            url."https://x-access-token:${PAT}@github.com/".insteadOf "https://github.com/"
+
+      - name: Yedegi calistir
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: eu-central-1
+        run: bash ops/backup/backup.sh
+
+      - name: Log'u sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yedek-log
+          path: ops/backup/backup.log
+          if-no-files-found: warn
+          retention-days: 30

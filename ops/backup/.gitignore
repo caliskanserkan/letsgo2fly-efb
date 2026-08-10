@@ -1,0 +1,4 @@
+backup.env
+.last_run
+.last_success
+backup.log
