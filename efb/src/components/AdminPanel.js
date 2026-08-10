@@ -469,15 +469,17 @@ export function AdminEditsHistory({archivedFlightId, readOnly=false}){
 }
 
 // ─── 1. Active FLTs ───────────────────────────────────────────────────────────
-function ActiveFlts({toast}){
+// customerId: super admin baska bir sirketi izliyorsa dolu gelir. Normal adminde
+// null'dir ve filtre uygulanmaz — RLS zaten kendi sirketine kisitliyor.
+function ActiveFlts({toast, customerId=null}){
   const [plans,setPlans]=useState([]);
   const [loading,setLoading]=useState(true);
   const [selected,setSelected]=useState(null);
   const [detailTab,setDetailTab]=useState('details');
   const [pilots,setPilots]=useState([]);
-  useEffect(()=>{ supabase.from('profiles').select('id,full_name,code').then(({data})=>setPilots(data||[])); },[]);
+  useEffect(()=>{ let q=supabase.from('profiles').select('id,full_name,code'); if(customerId){q=q.eq('customer_id',customerId);} q.then(({data})=>setPilots(data||[])); },[customerId]);
   const pilotName = id => { if (!id) return '—'; const p = pilots.find(x=>x.id===id); return p ? `${p.code} — ${p.full_name}` : id.slice(0,8)+'...'; };
-  useEffect(()=>{ const load=async()=>{ setLoading(true); const{data}=await supabase.from('plans').select('*').eq('status','active').order('created_at',{ascending:false}); setPlans(data||[]); setLoading(false); }; load(); const iv=setInterval(load,30000); return()=>clearInterval(iv); },[]);
+  useEffect(()=>{ const load=async()=>{ setLoading(true); let q=supabase.from('plans').select('*').eq('status','active').order('created_at',{ascending:false}); if(customerId){q=q.eq('customer_id',customerId);} const{data}=await q; setPlans(data||[]); setLoading(false); }; load(); const iv=setInterval(load,30000); return()=>clearInterval(iv); },[customerId]);
   const sel=plans.find(p=>p.id===selected);
   const handleSelect = (id) => { setSelected(id===selected?null:id); setDetailTab('details'); };
   return(
@@ -629,7 +631,7 @@ function EF({label,k,type='text',form,setForm}){
   );
 }
 
-function ArchivedFlts({toast,user}){
+function ArchivedFlts({toast,user,customerId=null}){
   const[flights,setFlights]=useState([]);
   const[loading,setLoading]=useState(true);
   const[selected,setSelected]=useState(null);
@@ -644,17 +646,24 @@ function ArchivedFlts({toast,user}){
   const[planLogs,setPlanLogs]=useState([]);
   const[pilots,setPilots]=useState([]);
 
-  useEffect(()=>{ supabase.from('profiles').select('id,full_name,code').order('full_name').then(({data})=>setPilots(data||[])); },[]);
+  useEffect(()=>{ let q=supabase.from('profiles').select('id,full_name,code').order('full_name'); if(customerId){q=q.eq('customer_id',customerId);} q.then(({data})=>setPilots(data||[])); },[customerId]);
   useEffect(()=>{ setDetailTab('details'); },[selected]);
 
   const pilotName = id => { if (!id) return '—'; const p = pilots.find(x=>x.id===id); return p ? `${p.code} — ${p.full_name}` : id.slice(0,8)+'...'; };
 
   const load=useCallback(async()=>{
     setLoading(true);
-    const{data,error}=await supabase.from('archived_flights').select('*,plans(dep,dest,date,reg,ac_type,dispatch_no,pf_pilot,pm_pilot)').order('archived_at',{ascending:false,nullsFirst:false}).limit(200);
+    // archived_flights'ta customer_id YOK — sirket bagi plan uzerinden kurulur.
+    // Kapsam modunda join'i !inner yapiyoruz ki filtre uygulanabilsin; boylece
+    // plani silinmis YETIM arsivler de kapsamli gorunumden duser (dogrusu bu:
+    // sahibi bilinmeyen kayit bir sirkete ait gibi gosterilemez).
+    const join = customerId ? 'plans!inner' : 'plans';
+    let q=supabase.from('archived_flights').select(`*,${join}(dep,dest,date,reg,ac_type,dispatch_no,pf_pilot,pm_pilot)`).order('archived_at',{ascending:false,nullsFirst:false}).limit(200);
+    if(customerId){ q=q.eq('plans.customer_id',customerId); }
+    const{data,error}=await q;
     if(error)console.error('ArchivedFlts:',error);
     setFlights(data||[]);setLoading(false);
-  },[]);
+  },[customerId]);
   useEffect(()=>{load();},[load]);
 
   useEffect(()=>{
@@ -794,7 +803,13 @@ function ArchivedFlts({toast,user}){
           subtitle={`${sel.plans?.date||'—'} · ${sel.plans?.reg||'—'} · Archived ${sel.archived_at?new Date(sel.archived_at).toLocaleString('en-GB'):'—'}`}
           onClose={()=>setSelected(null)}
           width={640}
-          footer={
+          footer={ customerId ? (
+            // SALT OKUNUR (super admin baska sirketi izliyor). UI'da gizlemek
+            // burada SUS DEGIL: REGEN REPORT bir edge function cagirir ve edge
+            // function SERVICE KEY ile calisir, yani RLS onu DURDURMAZ.
+            // Musterinin raporunu yeniden uretmek de bir degisikliktir.
+            <div style={{flex:1,textAlign:'center',fontSize:11,color:C.t3,letterSpacing:1,fontFamily:'var(--mono)'}}>READ ONLY — SUPER ADMIN VIEW</div>
+          ) : (
             <>
               <button style={{...S.btnPrimary,flex:1}} onClick={()=>openEdit(sel)}>EDIT ALL FIELDS</button>
               {/* RAPORU YENIDEN URET (6 Agu 2026, Serkan: "raporlarda geriye
@@ -813,7 +828,7 @@ function ArchivedFlts({toast,user}){
               }}>{regen?'REGENERATING…':'REGEN REPORT'}</button>
               <button style={S.btnDanger} onClick={()=>setDeleteModal(true)}>DELETE RECORD</button>
             </>
-          }>
+          )}>
           <div style={{display:'flex',borderBottom:`1px solid ${C.border}`,background:C.bg3,position:'sticky',top:0,zIndex:2}}>
             {DETAIL_TABS.map(tab=>(
               <div key={tab.id} onClick={()=>setDetailTab(tab.id)} style={{flex:1,padding:'10px',textAlign:'center',cursor:'pointer',fontFamily:'var(--mono)',fontSize:11,fontWeight:700,letterSpacing:1,color:detailTab===tab.id?C.accent:C.t3,borderBottom:detailTab===tab.id?`2px solid ${C.accent}`:'2px solid transparent',background:detailTab===tab.id?`var(--accent-soft)`:'transparent'}}>
@@ -1261,7 +1276,7 @@ const NAV=[
 // DOGRULANMIS olanlar asagida sayilidir; digerleri kapsam modunda ACIKCA
 // "henuz kapsama alinmadi" der. Baslikta GO2Demo yazarken REC'in ucuslarini
 // gostermek Ilke 1'in ihlalidir — bos birakmak degil, SEBEBINI yazmak dogrudur.
-const SCOPED_TABS = ['crews', 'aircrafts'];
+const SCOPED_TABS = ['active', 'archived', 'crews', 'aircrafts'];
 
 // Kapsama alinmamis panel: BOS birakilmaz, sebebi yazilir (Ilke 1).
 function NotScopedYet({ tab, companyName }) {
@@ -1419,8 +1434,8 @@ export default function AdminPanel({onBack, customerId=null, companyName=null}){
             {customerId && !SCOPED_TABS.includes(tab) && tab !== 'help' ? (
               <NotScopedYet tab={tab} companyName={companyName} />
             ) : (<>
-              {tab==='active'    && <ActiveFlts   toast={showToast}/>}
-              {tab==='archived'  && <ArchivedFlts toast={showToast} user={user}/>}
+              {tab==='active'    && <ActiveFlts   toast={showToast} customerId={customerId}/>}
+              {tab==='archived'  && <ArchivedFlts toast={showToast} user={user} customerId={customerId}/>}
               {tab==='aircrafts' && <Aircrafts    toast={showToast} myProfile={myProfile} customerId={customerId}/>}
               {tab==='crews'     && <Crews        toast={showToast} myProfile={myProfile} customerId={customerId}/>}
               {tab==='ftl'       && <FTLPanel     toast={showToast} myProfile={myProfile}/>}
