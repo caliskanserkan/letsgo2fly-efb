@@ -21,7 +21,7 @@ function applyFont(size) {
   document.documentElement.style.zoom = (size / FONT_DEF).toString();
   localStorage.setItem(FONT_KEY, size);
 }
-function FontControls() {
+export function FontControls() {
   const [size, setSize] = React.useState(() => parseInt(localStorage.getItem(FONT_KEY) || FONT_DEF));
   const change = (d) => { const n = Math.min(FONT_MAX, Math.max(FONT_MIN, size + d)); setSize(n); applyFont(n); };
   return (

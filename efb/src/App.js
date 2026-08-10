@@ -383,13 +383,54 @@ function Dashboard({ user, myProfile, onLogout, onAdmin, onActivate, onDeactivat
   const [showUpload, setShowUpload]         = useState(false);
   const [loading, setLoading]               = useState(false);
 
+  // SUPER ADMIN FILTRELERI (10 Agu 2026, Serkan).
+  // Super adminin plan okumasi COK KIRACILIDIR: filtresiz sorgu butun
+  // sirketlerin planlarini getirir. Musteri "su ucusta sorun var" dediginde
+  // sirket + tarih araligiyla bulunabilsin; normal kullanicida bu cubuk YOKTUR
+  // ve sorgular aynen eskisi gibi calisir (RLS zaten kendi sirketine kisitlar).
+  const isSA = !!myProfile?.is_super_admin;
+  const [companies, setCompanies]   = useState([]);
+  const [fCustomer, setFCustomer]   = useState('');
+  const [fFrom, setFFrom]           = useState('');
+  const [fTo, setFTo]               = useState('');
+
+  useEffect(() => {
+    if (!isSA) return;
+    supabase.from('customers').select('id,company_name,icao_code').order('company_name')
+      .then(({ data }) => setCompanies(data || []));
+  }, [isSA]);
+
+  const companyOf = (p) => companies.find(c => c.id === p.customer_id);
+
+  // Super adminde her kartin ustunde SAHIBI yazar — hangi ucus kimin, bakar
+  // bakmaz gorunsun. Sirket cozulemezse "UNKNOWN COMPANY" der, bos birakmaz.
+  const CompanyTag = ({ p }) => {
+    if (!isSA) return null;
+    const c = companyOf(p);
+    return (
+      <div style={{ fontSize:9, color:'var(--amber)', fontWeight:700, letterSpacing:1, margin:'0 0 3px 4px' }}>
+        {c ? `${c.company_name.toUpperCase()} · ${c.icao_code || '—'}` : 'UNKNOWN COMPANY'}
+      </div>
+    );
+  };
+
   const loadPlans = async () => {
     setLoading(true);
     try {
+      const scoped = (q) => {
+        if (isSA && fCustomer) q = q.eq('customer_id', fCustomer);
+        return q;
+      };
+      let archQ = supabase.from('plans').select('*').eq('status', 'archived')
+        .order('archived_at', { ascending: false, nullsFirst: false }).limit(100);
+      archQ = scoped(archQ);
+      if (isSA && fFrom) archQ = archQ.gte('date', fFrom);
+      if (isSA && fTo)   archQ = archQ.lte('date', fTo);
+
       const [avail, active, archived] = await Promise.all([
-        supabase.from('plans').select('*').eq('status', 'available').order('created_at', { ascending: false }),
-        supabase.from('plans').select('*').eq('status', 'active').order('created_at', { ascending: false }),
-        supabase.from('plans').select('*').eq('status', 'archived').order('archived_at', { ascending: false, nullsFirst: false }).limit(100),
+        scoped(supabase.from('plans').select('*').eq('status', 'available').order('created_at', { ascending: false })),
+        scoped(supabase.from('plans').select('*').eq('status', 'active').order('created_at', { ascending: false })),
+        archQ,
       ]);
       setAvailablePlans(avail.data || []);
       setActivePlans(active.data || []);
@@ -497,7 +538,10 @@ function Dashboard({ user, myProfile, onLogout, onAdmin, onActivate, onDeactivat
     archived_at: p.archived_at,
   });
 
-  useEffect(() => { loadPlans(); }, []);
+  // Filtreler degisince yeniden yukle (normal kullanicida bu degerler hep bos,
+  // yani davranis eskisiyle ayni).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadPlans(); }, [fCustomer, fFrom, fTo]);
 
   return (
     <>
@@ -533,6 +577,32 @@ function Dashboard({ user, myProfile, onLogout, onAdmin, onActivate, onDeactivat
         ))}
       </div>
 
+      {/* SUPER ADMIN FILTRE CUBUGU — yalnizca app sahibinde gorunur. */}
+      {isSA && (
+        <div style={{ display:'flex', flexWrap:'wrap', alignItems:'center', gap:8, padding:'8px 10px', background:'var(--bg2)', borderBottom:'1px solid var(--border)' }}>
+          <span style={{ fontSize:9, color:'var(--amber)', fontWeight:700, letterSpacing:1 }}>OWNER FILTER</span>
+          <select value={fCustomer} onChange={e => setFCustomer(e.target.value)}
+            style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:6, padding:'6px 9px', fontSize:11, color:'var(--t1)', fontFamily:'inherit' }}>
+            <option value="">All companies</option>
+            {companies.map(c => <option key={c.id} value={c.id}>{c.company_name} ({c.icao_code || '—'})</option>)}
+          </select>
+          {tab === 'archive' && (
+            <>
+              <span style={{ fontSize:10, color:'var(--t3)' }}>DATE</span>
+              <input type="date" value={fFrom} onChange={e => setFFrom(e.target.value)}
+                style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:6, padding:'5px 8px', fontSize:11, color:'var(--t1)', fontFamily:'inherit' }} />
+              <span style={{ fontSize:10, color:'var(--t3)' }}>→</span>
+              <input type="date" value={fTo} onChange={e => setFTo(e.target.value)}
+                style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:6, padding:'5px 8px', fontSize:11, color:'var(--t1)', fontFamily:'inherit' }} />
+            </>
+          )}
+          {(fCustomer || fFrom || fTo) && (
+            <button onClick={() => { setFCustomer(''); setFFrom(''); setFTo(''); }}
+              style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:6, padding:'5px 10px', fontSize:10, color:'var(--t2)', cursor:'pointer', fontFamily:'inherit' }}>CLEAR</button>
+          )}
+        </div>
+      )}
+
       <div style={{ flex:1, overflowY:'auto', padding:10 }}>
         {tab === 'available' && (
           <>
@@ -544,10 +614,13 @@ function Dashboard({ user, myProfile, onLogout, onAdmin, onActivate, onDeactivat
               <div style={{ textAlign:'center', color:'var(--t3)', fontSize:12, padding:20 }}>No available plans.<br />Upload a PDF to get started.</div>
             )}
             {availablePlans.map((p, i) => (
-              <PlanCard key={i} plan={planCard(p)} active={false} archived={false}
-                onOpen={() => activatePlan(p.id)}
-                onDelete={() => deletePlan(p.id)}
-              />
+              <div key={i}>
+                <CompanyTag p={p} />
+                <PlanCard plan={planCard(p)} active={false} archived={false}
+                  onOpen={() => activatePlan(p.id)}
+                  onDelete={() => deletePlan(p.id)}
+                />
+              </div>
             ))}
           </>
         )}
@@ -558,9 +631,12 @@ function Dashboard({ user, myProfile, onLogout, onAdmin, onActivate, onDeactivat
               <div style={{ textAlign:'center', color:'var(--t3)', fontSize:12, padding:20 }}>No active plans.<br />Activate a plan from Available Plans.</div>
             )}
             {activePlans.map((p, i) => (
-              <PlanCard key={i} plan={planCard(p)} active={true} archived={false}
-                onDeactivate={() => deactivatePlan(p.id)}
-              />
+              <div key={i}>
+                <CompanyTag p={p} />
+                <PlanCard plan={planCard(p)} active={true} archived={false}
+                  onDeactivate={() => deactivatePlan(p.id)}
+                />
+              </div>
             ))}
           </>
         )}
@@ -572,9 +648,12 @@ function Dashboard({ user, myProfile, onLogout, onAdmin, onActivate, onDeactivat
               <div style={{ textAlign:'center', color:'var(--t3)', fontSize:12, padding:20 }}>No archived flights.</div>
             )}
             {archivedPlans.map((p, i) => (
-              <PlanCard key={i} plan={planCard(p)} active={false} archived={true}
-                onReport={() => setReportPlan(planCard(p))}
-              />
+              <div key={i}>
+                <CompanyTag p={p} />
+                <PlanCard plan={planCard(p)} active={false} archived={true}
+                  onReport={() => setReportPlan(planCard(p))}
+                />
+              </div>
             ))}
           </>
         )}

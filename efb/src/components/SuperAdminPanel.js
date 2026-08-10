@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import AdminPanel from './AdminPanel';
+import AdminPanel, { FontControls } from './AdminPanel';
+import ThemeToggle from './ThemeToggle';
 import { FEATURE_KEYS, isEnabled, catalogTree, affectsOf } from './featureCatalog';
 
 const C = {
@@ -21,11 +22,20 @@ const S = {
   td:{padding:'9px 12px',fontSize:12,color:C.t2,borderBottom:`1px solid ${C.border}`},
 };
 
-// Settings artik ust seviyede DEGIL: sirkete tiklaninca acilan iki basliktan biri
-// (SETTINGS | DASHBOARD). Konfigurasyon her zaman bir sirkete aittir.
-const NAV = [
-  { id:'companies', icon:'⌂', label:'Companies' },
-];
+// TASARIM BIRLIGI (10 Agu 2026, Serkan: "tasarim ogeleri her yerde hissedilsin").
+// Super admin ekranlari admin panelin diliyle kurulur: ayni ust bar, sol menu,
+// baslik seridi. Asagidaki uc yardimci admin panelin menu ogesiyle ayni gorunumu
+// uretir — kopyala-yapistir yerine tek yerden.
+const navRow = (on) => ({
+  padding:'10px 12px', margin:'2px 0', cursor:'pointer', display:'flex',
+  alignItems:'center', gap:10, borderRadius:8,
+  background: on ? 'var(--accent-soft)' : 'transparent',
+});
+const navIcon = (on) => ({ fontSize:15, width:20, textAlign:'center', color: on ? C.accent : C.t3 });
+const navText = (on) => ({
+  fontSize:12, fontWeight: on ? 700 : 500, color: on ? C.accent : C.t2,
+  letterSpacing:0.5, fontFamily:'var(--mono)', textTransform:'uppercase',
+});
 
 function Toast({ msg, type }) {
   if (!msg) return null;
@@ -36,13 +46,13 @@ function Toast({ msg, type }) {
   );
 }
 
-function Companies({ toast, myProfile, onOpenDashboard }) {
+// Sirket LISTESI. Secim ust bilesende tutulur — sol menu secili sirketi
+// gostermek zorunda, o yuzden durum yukarida yasar.
+function Companies({ toast, onSelect, reloadKey }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [selected, setSelected] = useState(null);
-  const [subTab, setSubTab] = useState('settings');
   const [form, setForm] = useState({ company_name:'', icao_code:'', contact_email:'', plan_type:'standard', max_users:10 });
 
   const load = useCallback(async () => {
@@ -51,7 +61,7 @@ function Companies({ toast, myProfile, onOpenDashboard }) {
     setList(data || []);
     setLoading(false);
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, reloadKey]);
 
   const handleAdd = async () => {
     if (!form.company_name || !form.icao_code) { toast('Company name and ICAO code required.', 'error'); return; }
@@ -79,28 +89,6 @@ function Companies({ toast, myProfile, onOpenDashboard }) {
     load();
   };
 
-  if (selected) {
-    return (
-      <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-        <div style={{ padding:'10px 16px', borderBottom:`1px solid ${C.border}`, background:C.bg3, display:'flex', alignItems:'center', gap:12 }}>
-          <button style={S.btnSecondary} onClick={() => { setSelected(null); setSubTab('settings'); }}>← ALL COMPANIES</button>
-          <span style={{ fontSize:13, fontWeight:700, color:C.accent }}>{selected.company_name}</span>
-          <span style={{ fontSize:10, color:C.t3 }}>{selected.icao_code}</span>
-          <div style={{ display:'flex', gap:4, marginLeft:12 }}>
-            <div onClick={() => setSubTab('settings')} style={{ padding:'5px 12px', fontSize:11, fontWeight:700, cursor:'pointer', color: subTab==='settings' ? C.accent : C.t3, borderBottom: subTab==='settings' ? `2px solid ${C.accent}` : '2px solid transparent' }}>
-              ⚙ SETTINGS
-            </div>
-            {/* DASHBOARD ic ice degil TAM EKRAN acilir — musterinin admini gibi gezilsin. */}
-            <div onClick={() => onOpenDashboard(selected)} style={{ padding:'5px 12px', fontSize:11, fontWeight:700, cursor:'pointer', color:C.t3 }}>
-              ▤ DASHBOARD
-            </div>
-          </div>
-        </div>
-        <Settings customer={selected} toast={toast} myProfile={myProfile} onSaved={(row) => { setSelected(row); load(); }} />
-      </div>
-    );
-  }
-
   return (
     <div style={{ flex:1, overflowY:'auto' }}>
       <div style={{ padding:'10px 16px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -112,7 +100,7 @@ function Companies({ toast, myProfile, onOpenDashboard }) {
         <thead><tr>{['COMPANY','ICAO','EMAIL','PLAN','MAX USERS','STATUS'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
         <tbody>
           {list.map(c => (
-            <tr key={c.id} onClick={() => setSelected(c)} style={{ cursor:'pointer' }}>
+            <tr key={c.id} onClick={() => onSelect(c)} style={{ cursor:'pointer' }}>
               <td style={{ ...S.td, color:C.accent, fontWeight:700 }}>{c.company_name}</td>
               <td style={S.td}>{c.icao_code || '—'}</td>
               <td style={S.td}>{c.contact_email || '—'}</td>
@@ -340,9 +328,11 @@ function Settings({ customer, toast, myProfile, onSaved }) {
 }
 
 export default function SuperAdminPanel({ onBack }) {
-  const [tab, setTab] = useState('companies');
   const [ready, setReady] = useState(false);
   const [dashCompany, setDashCompany] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [email, setEmail] = useState('');
   const [myProfile, setMyProfile] = useState(null);
   const [toast, setToast] = useState({ msg:'', type:'success' });
   const showToast = useCallback((msg, type='success') => {
@@ -356,6 +346,7 @@ export default function SuperAdminPanel({ onBack }) {
       if (!session) { onBack(); return; }
       const { data: prof } = await supabase.from('profiles').select('id,role,customer_id,is_super_admin').eq('id', session.user.id).single();
       if (!prof?.is_super_admin) { onBack(); return; }
+      setEmail(session.user.email || '');
       setMyProfile(prof);
       setReady(true);
     })();
@@ -381,21 +372,73 @@ export default function SuperAdminPanel({ onBack }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:C.bg, fontFamily:'var(--mono)' }}>
       <Toast msg={toast.msg} type={toast.type} />
-      <div style={{ background:C.bg2, borderBottom:`1px solid ${C.border}`, padding:'0 16px', height:44, display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-          <span style={{ fontSize:12, fontWeight:700, color:'var(--amber)', letterSpacing:2 }}>SUPER ADMIN</span>
-          <div style={{ display:'flex', gap:4 }}>
-            {NAV.map(n => (
-              <div key={n.id} onClick={() => setTab(n.id)} style={{ padding:'6px 12px', fontSize:11, fontWeight:700, cursor:'pointer', color: tab===n.id ? C.accent : C.t3, borderBottom: tab===n.id ? `2px solid ${C.accent}` : '2px solid transparent' }}>
-                {n.icon} {n.label}
-              </div>
-            ))}
+      {/* UST BAR — admin panelin birebir dili (GO2 | baslik | rozet ... sag: eposta, tema, punto, cikis) */}
+      <div style={{ background:C.bg2, borderBottom:`1px solid ${C.border}`, padding:'0 16px', height:50, display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0, zIndex:100 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <span style={{ fontSize:12, color:C.accent, fontWeight:700, letterSpacing:3 }}>GO2</span>
+          <span style={{ width:1, height:18, background:C.border }} />
+          <span style={{ fontSize:10, color:C.t3, letterSpacing:2 }}>SUPER ADMIN</span>
+          <span style={{ display:'inline-block', padding:'3px 9px', fontSize:9, letterSpacing:1, fontWeight:700, fontFamily:'var(--mono)', borderRadius:5, background:'var(--amber-soft)', color:'var(--amber)', border:'1px solid var(--line-soft)' }}>OWNER MODE</span>
+          {selected && (
+            <>
+              <span style={{ width:1, height:18, background:C.border }} />
+              <span style={{ fontSize:11, color:C.accent, fontWeight:700, letterSpacing:1 }}>{selected.company_name}</span>
+              <span style={{ fontSize:10, color:C.t3 }}>{selected.icao_code}</span>
+            </>
+          )}
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <span style={{ fontSize:10, color:C.t3 }}>{email}</span>
+          <ThemeToggle />
+          <FontControls />
+          <button onClick={onBack} style={S.btnSecondary}>← DASHBOARD</button>
+        </div>
+      </div>
+
+      <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
+        {/* SOL MENU */}
+        <div style={{ width:250, borderRight:`1px solid ${C.border}`, background:C.bg2, display:'flex', flexDirection:'column', flexShrink:0 }}>
+          <div style={{ flex:1, overflowY:'auto', padding:'10px 8px' }}>
+            <div onClick={() => setSelected(null)} style={navRow(!selected)}>
+              <span style={navIcon(!selected)}>⌂</span>
+              <span style={navText(!selected)}>Companies</span>
+            </div>
+
+            {selected && (
+              <>
+                <div style={{ ...S.label, margin:'20px 10px 6px' }}>{selected.company_name}</div>
+                <div style={navRow(true)}>
+                  <span style={navIcon(true)}>⚙</span>
+                  <span style={navText(true)}>Settings</span>
+                </div>
+                {/* DASHBOARD ic ice degil TAM EKRAN acilir — musterinin admini gibi gezilsin. */}
+                <div onClick={() => setDashCompany(selected)} style={navRow(false)}>
+                  <span style={navIcon(false)}>▤</span>
+                  <span style={navText(false)}>Dashboard</span>
+                </div>
+              </>
+            )}
+          </div>
+          <div style={{ padding:'14px 16px', borderTop:`1px solid ${C.border}` }}>
+            <div style={{ fontSize:10, color:C.t2, fontWeight:700, letterSpacing:1 }}>{email.split('@')[0].toUpperCase()}</div>
+            <div style={{ fontSize:9, color:C.t3, letterSpacing:1, marginTop:3 }}>APP OWNER</div>
           </div>
         </div>
-        <button onClick={onBack} style={S.btnSecondary}>← BACK</button>
-      </div>
-      <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
-        {tab === 'companies' && <Companies toast={showToast} myProfile={myProfile} onOpenDashboard={setDashCompany} />}
+
+        {/* ICERIK */}
+        <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', minWidth:0 }}>
+          <div style={{ padding:'10px 16px', borderBottom:`1px solid ${C.border}`, background:C.bg3, flexShrink:0 }}>
+            <span style={{ fontSize:10, color:C.accent, fontWeight:700, letterSpacing:3 }}>
+              {selected ? `${selected.company_name.toUpperCase()} — SETTINGS` : 'COMPANIES'}
+            </span>
+          </div>
+          <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
+            {selected
+              ? <Settings customer={selected} toast={showToast} myProfile={myProfile}
+                          onSaved={(row) => { setSelected(row); setReloadKey(k => k + 1); }} />
+              : <Companies toast={showToast} onSelect={setSelected} reloadKey={reloadKey} />}
+          </div>
+        </div>
       </div>
     </div>
   );
