@@ -6,6 +6,7 @@
 // Yeni ozellik eklenince BURASI da guncellenir (felsefe: is ya TAM ya HIC).
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useMemo } from 'react';
+import { isEnabled } from './featureCatalog';
 
 const CHAPTERS = [
   {
@@ -257,22 +258,32 @@ const C = {
   border: 'var(--bg3)', bg2: 'var(--bg2)', bg3: 'var(--bg3)',
 };
 
-export default function AdminHelp() {
+// Kapali modulun YARDIMI da gorunmez (tasarim: yedi dusme noktasindan biri).
+// Yoksa pilot/admin elinde olmayan bir modulun kilavuzunu okur.
+const CH_FEATURE = { ftl: 'admin.ftl', stations: 'admin.raaq' };
+
+export default function AdminHelp({ features = {} }) {
   const [chapter, setChapter] = useState('overview');
   const [search, setSearch] = useState('');
 
+  const chapters = useMemo(
+    () => CHAPTERS.filter(c => !CH_FEATURE[c.id] || isEnabled(features, CH_FEATURE[c.id])),
+    [features]
+  );
+
   const active = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return CHAPTERS.find(c => c.id === chapter);
-    // Arama: tum chapter'larda soru+cevap metninde gecenler tek listede
+    // Kapali bolum secili kalmissa ilk bolume dus (bos ekran birakma).
+    if (!q) return chapters.find(c => c.id === chapter) || chapters[0];
+    // Arama: acik chapter'larda soru+cevap metninde gecenler tek listede
     const hits = [];
-    CHAPTERS.forEach(c => c.sections.forEach(sec => sec.qa.forEach(([qq, aa]) => {
+    chapters.forEach(c => c.sections.forEach(sec => sec.qa.forEach(([qq, aa]) => {
       if (qq.toLowerCase().includes(q) || aa.toLowerCase().includes(q)) {
         hits.push({ chapter: c.title, h: sec.h, qa: [qq, aa] });
       }
     })));
     return { search: true, hits };
-  }, [chapter, search]);
+  }, [chapter, search, chapters]);
 
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -281,7 +292,7 @@ export default function AdminHelp() {
         <input placeholder="Search help..." value={search} onChange={e => setSearch(e.target.value)}
           style={{ width: '100%', boxSizing: 'border-box', background: C.bg2, border: `1px solid ${C.border}`,
                    color: C.t1, fontSize: 11, padding: '8px 10px', borderRadius: 6, fontFamily: 'var(--mono)', marginBottom: 10 }} />
-        {CHAPTERS.map(c => (
+        {chapters.map(c => (
           <div key={c.id} onClick={() => { setChapter(c.id); setSearch(''); }}
             style={{ padding: '9px 10px', margin: '2px 0', cursor: 'pointer', display: 'flex', gap: 9, alignItems: 'center',
                      borderRadius: 7, background: (!search && chapter === c.id) ? 'var(--accent-soft)' : 'transparent' }}>

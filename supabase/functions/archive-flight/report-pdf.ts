@@ -264,6 +264,8 @@ export interface ReportInput {
   // pilot_id -> 14. adimin sonucu ("no_duty_found" / "match_review" / ...).
   // Gorev baglanamadiginda raporda SEBEBI yazabilmek icin (Ilke 1).
   ftlStatus?: Record<string, string>;
+  // false ise FTL bolumu RAPORDA HIC CIZILMEZ (musteride admin.ftl kapali).
+  ftlEnabled?: boolean;
 }
 
 export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
@@ -784,6 +786,11 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   // O deger gorevin KENDI ruleset_snapshot'iyla, nobet (Md.17) ve SKPK (Md.12)
   // etkileri islenmis halde panel/motor tarafindan yazildi. Rapor onun aynasidir.
   // Gorev kaydi yoksa SAYI UYDURULMAZ — neden basilamadigi yazilir (Ilke 1).
+  // MODUL KAPALIYSA BOLUM HIC CIZILMEZ (10 Agu 2026, super admin settings).
+  // Serkan: "calismayan bir modul nasil hesap yapsin" — kapali FTL'de gorev
+  // kaydi zaten uretilmez; "kayit yok" diye bir uyari basmak da yanlis olurdu,
+  // cunku eksiklik degil, o operatorde boyle bir modul YOK.
+  if (input.ftlEnabled !== false) {
   const duties = input.duties ?? {};
   const ftlStatus = input.ftlStatus ?? {};
   const OPS: Record<string, string> = {
@@ -863,6 +870,7 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
   txt(c, "Values above are the RECORDED duty values (crew_duties) computed under that duty's own ruleset snapshot - this report does not recompute limits.",
     M + 6, c.y - 8.5, 5.5, c.mono, C.label);
   c.y -= 12;
+  } // <- FTL bolumu sonu (input.ftlEnabled)
 
   // ── 10) AMENDMENTS ANNEX ──────────────────────────────────────────────────
   // Tum duzeltme zinciri (ayni alanda coklu duzeltme dahil) sirali listelenir.

@@ -123,6 +123,15 @@ Deno.serve(async (req) => {
     const { data: plan } = await admin.from("plans").select("*").eq("id", planId).single();
     if (!plan) return json({ error: "Plan not found" }, 404);
     if (plan.customer_id !== callerCustomerId) return json({ error: "Forbidden" }, 403);
+
+    // MODUL KONFIGURASYONU (10 Agu 2026, super admin settings).
+    // Kapali modul ARKA PLANDA DA CALISMAZ: FTL kapaliysa crew_duties satiri
+    // uretilmez ve raporda FTL bolumu cizilmez.
+    // Okunamazsa {} kalir -> ACIK kabul edilir (Kural 8: belirsizlik = acik;
+    // kapaliya dusmek burada sessizce FTL takibini durdururdu).
+    const { data: custCfg } = await admin.from("customers")
+      .select("features").eq("id", plan.customer_id).single();
+    const ftlEnabled = (custCfg?.features ?? {})["admin.ftl"] !== false;
     if (!regenOnly && plan.status === "archived") {
       // IDEMPOTENT (31 Tem 2026, PLAN DOWNLOAD Faz 3 — Serkan karari):
       // TEK PLAN TEK ARSIV. Ikinci tabletin (offline kuyruktan geç gelen)
@@ -746,11 +755,11 @@ Deno.serve(async (req) => {
 
         // FTL PROPAGASYONU RAPORDAN ONCE (6 Agu 2026) — bkz. 14. adimdaki not.
         // Rapor kayitli degeri bastigi icin once kayit guncel olmali.
-        ftlResult = await propagateFtl();
+        ftlResult = ftlEnabled ? await propagateFtl() : { ftlUpdate: {}, dutyRows: {} };
 
         const pdfBytes = await buildReportPdf({
           fr: frRow, plan, signatures: sigs, attachments: atts, amendments, photos,
-          duties: ftlResult.dutyRows, ftlStatus: ftlResult.ftlUpdate,
+          duties: ftlResult.dutyRows, ftlStatus: ftlResult.ftlUpdate, ftlEnabled,
         });
 
         const fname = `GO2_FltReport_${plan.reg ?? "AC"}_${plan.dep ?? ""}-${destIcao ?? ""}_${isoDate}.pdf`
@@ -1297,7 +1306,7 @@ Deno.serve(async (req) => {
     }
     // Rapor uretilmediyse (flt_report yok) burada kosar — FTL guncellemesi
     // raporun varligina bagli olamaz.
-    if (!ftlResult) ftlResult = await propagateFtl();
+    if (!ftlResult) ftlResult = ftlEnabled ? await propagateFtl() : { ftlUpdate: {}, dutyRows: {} };
 
     return json({
       ok: true,

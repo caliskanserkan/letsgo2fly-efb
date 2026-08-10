@@ -9,6 +9,7 @@ import { RiskSurvey, AssessmentHistory } from './RiskSurvey';
 import PlanDocuments from './PlanDocuments';
 import Drawer from './Drawer';
 import AdminHelp from './AdminHelp';
+import { isEnabled } from './featureCatalog';
 import ThemeToggle from './ThemeToggle';
 
 // ─── Font Controls ────────────────────────────────────────────
@@ -1278,14 +1279,16 @@ function EditReports({customerId=null}){
 }
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
+// feature: bu sekmeyi acan/kapatan katalog anahtari. Anahtari OLMAYAN sekme
+// CEKIRDEKTIR, kapatilamaz (katalogda olan = kapatilabilir olan).
 const NAV=[
   {id:'active',   icon:'●', label:'Active FLTs'},
   {id:'archived', icon:'◎', label:'Archived FLTs'},
   {id:'aircrafts',icon:'✈', label:'Aircrafts'},
   {id:'crews',    icon:'◈', label:'Crews'},
-  {id:'ftl',      icon:'⏱', label:'FTL'},
+  {id:'ftl',      icon:'⏱', label:'FTL',    feature:'admin.ftl'},
   {id:'stats',    icon:'▦', label:'Statistics'},
-  {id:'stations', icon:'◉', label:'RAAQ'},
+  {id:'stations', icon:'◉', label:'RAAQ',   feature:'admin.raaq'},
   {id:'logs',     icon:'≡', label:'FLTs Logs & Times'},
   {id:'reports',  icon:'R', label:'Edit Reports'},
 ];
@@ -1324,11 +1327,38 @@ export default function AdminPanel({onBack, customerId=null, companyName=null}){
   const [ready,       setReady]       = useState(false);
   const [user,        setUser]        = useState(null);
   const [myProfile,   setMyProfile]   = useState(null);
+  const [features,    setFeatures]    = useState({});
   const [toast,       setToast]       = useState({msg:'',type:'success'});
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile,    setIsMobile]    = useState(window.innerWidth < 900);
 
   const showToast = useCallback((msg,type='success') => setToast({msg,type}), []);
+
+  // KAPSAM TEK YERDE HESAPLANIR ve HER ZAMAN doludur.
+  // customerId = "baska sirketi izliyorum" (banner + salt okunur icin)
+  // scopeId    = sorgularin filtresi; izleme yoksa kullanicinin kendi sirketi
+  // Filtreyi RLS'e birakmak super admin icin SESSIZCE bozuluyor: super adminin
+  // okuma politikalari cok kiracilidir, filtresiz sorgu butun sirketleri getirir.
+  const scopeId = customerId || myProfile?.customer_id || null;
+
+  // Sirketin ozellik konfigurasyonu. Okunamazsa {} kalir -> isEnabled her seye
+  // ACIK der (Kural 8: belirsizlik = acik; kapaliya dusmek kapi kaldirmaktir).
+  useEffect(() => {
+    if (!scopeId) return;
+    let alive = true;
+    supabase.from('customers').select('features').eq('id', scopeId).single()
+      .then(({ data }) => { if (alive) setFeatures(data?.features || {}); });
+    return () => { alive = false; };
+  }, [scopeId]);
+
+  const navItems = NAV.filter(n => !n.feature || isEnabled(features, n.feature));
+
+  // Acik sekme kapatildiysa ilk acik sekmeye dus (bos ekranda kalma).
+  useEffect(() => {
+    if (tab !== 'help' && !navItems.some(n => n.id === tab)) {
+      setTab(navItems[0]?.id || 'help');
+    }
+  }, [navItems, tab]);
 
   // Resize dinle
   useEffect(() => {
@@ -1364,13 +1394,6 @@ export default function AdminPanel({onBack, customerId=null, companyName=null}){
   );
 
   const tabTitle = NAV.find(n => n.id === tab)?.label || '';
-
-  // KAPSAM TEK YERDE HESAPLANIR ve HER ZAMAN doludur.
-  // customerId  = "baska sirketi izliyorum" (banner + salt okunur icin)
-  // scopeId     = sorgularin filtresi; izleme yoksa kullanicinin kendi sirketi
-  // Filtreyi RLS'e birakmak super admin icin SESSIZCE bozuluyor: super adminin
-  // okuma politikalari cok kiracilidir, filtresiz sorgu butun sirketleri getirir.
-  const scopeId = customerId || myProfile?.customer_id || null;
 
   return (
     <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:C.bg, fontFamily:'var(--mono)' }}>
@@ -1431,7 +1454,7 @@ export default function AdminPanel({onBack, customerId=null, companyName=null}){
           } : {})
         }}>
           <div style={{ flex:1, overflowY:'auto', padding:'8px 8px' }}>
-            {NAV.map(n => (
+            {navItems.map(n => (
               <div key={n.id} className="adm-nav-item"
                 style={{ padding:'10px 12px', margin:'2px 0', cursor:'pointer', display:'flex', alignItems:'center', gap:10, borderRadius:8, background:tab===n.id?'var(--accent-soft)':'transparent' }}
                 onClick={() => { setTab(n.id); setSidebarOpen(false); }}>
@@ -1469,12 +1492,14 @@ export default function AdminPanel({onBack, customerId=null, companyName=null}){
               {tab==='archived'  && <ArchivedFlts toast={showToast} user={user} customerId={scopeId} readOnly={!!customerId}/>}
               {tab==='aircrafts' && <Aircrafts    toast={showToast} myProfile={myProfile} customerId={scopeId}/>}
               {tab==='crews'     && <Crews        toast={showToast} myProfile={myProfile} customerId={scopeId}/>}
-              {tab==='ftl'       && <FTLPanel     toast={showToast} myProfile={myProfile} customerId={scopeId} readOnly={!!customerId}/>}
+              {/* Kapali modul menude gizlenmekle kalmaz, ICERIGI de acilmaz —
+                  yoksa bir sekme URL'i ya da eski state onu geri getirebilir. */}
+              {tab==='ftl'       && isEnabled(features,'admin.ftl')  && <FTLPanel toast={showToast} myProfile={myProfile} customerId={scopeId} readOnly={!!customerId}/>}
               {tab==='stats'     && <Statistics    customerId={scopeId}/>}
-              {tab==='stations'  && <StationInfo   toast={showToast} customerId={scopeId} readOnly={!!customerId}/>}
+              {tab==='stations'  && isEnabled(features,'admin.raaq') && <StationInfo toast={showToast} customerId={scopeId} readOnly={!!customerId}/>}
               {tab==='logs'      && <FltLogsAndTimes customerId={scopeId}/>}
               {tab==='reports'   && <EditReports   customerId={scopeId}/>}
-              {tab==='help'      && <AdminHelp/>}
+              {tab==='help'      && <AdminHelp features={features}/>}
             </>)}
           </div>
         </div>
