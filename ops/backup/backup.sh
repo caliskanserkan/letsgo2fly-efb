@@ -8,6 +8,16 @@
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/opt/homebrew/opt/libpq/bin:/usr/bin:/bin:$PATH"
 
+# 10 Agu 2026 (ilk GitHub Actions kosusu): Debian'da /usr/bin/pg_dump bir
+# SARMALAYICI ve surumu kendi seciyor -> 17 istemcisi kurulu olsa bile 16'ya
+# cozup "server version mismatch" verdi (sunucu 17.6). Surumlu bin klasorleri
+# PATH'in ONUNE alinir; glob artan sirali oldugu icin en yuksek surum en one
+# gecer. macOS'ta bu klasorler yok, dongu bos gecer.
+for _pgbin in /usr/lib/postgresql/*/bin; do
+  if [[ -d "$_pgbin" ]]; then PATH="$_pgbin:$PATH"; fi
+done
+unset _pgbin
+
 DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$DIR/backup.env"
 

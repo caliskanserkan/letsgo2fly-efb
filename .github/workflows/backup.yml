@@ -26,7 +26,10 @@ jobs:
           sudo apt-get install -y -qq postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+          # Dogrulama SURUMLU YOLDAN yapilir: /usr/bin/pg_dump bir sarmalayici ve
+          # 16'ya cozulebiliyor (10 Agu 2026, ilk kosu boyle patladi). Bu satir
+          # 17 gercekten kurulmadiysa adimi burada, gurultuyle dusurur.
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: backup.env olustur
         # Sirlar dosyaya %q ile yazilir (parola icinde ozel karakter olsa da
