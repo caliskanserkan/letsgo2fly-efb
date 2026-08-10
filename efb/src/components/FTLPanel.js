@@ -93,8 +93,14 @@ const newUuid = () => {
 const fmtDT = (iso) => iso ? new Date(iso).toLocaleString('en-GB', { timeZone:'UTC', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }).toUpperCase() : '—';
 const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-GB', { timeZone:'UTC', day:'2-digit', month:'short' }).toUpperCase() : '—';
 
-export default function FTLPanel({ toast, myProfile }) {
-  const [view, setView] = useState('assign'); // assign | history | ruleset
+// scopeCustomerId: super admin BASKA bir sirketi izliyorsa dolu gelir. Panelin
+// tamami tek bir customerId uzerinden calistigi icin bu tek nokta yetiyor.
+export default function FTLPanel({ toast, myProfile, customerId: scopeCustomerId = null, readOnly = false }) {
+  // readOnly: super admin BASKA sirketi izliyor. Yazan gorunumler (gorev atama,
+  // SKPK, ruleset) hic acilmaz — acilsalardi RLS yazmayi reddederdi ve kullanici
+  // ham veritabani hatasi gorurdu. Salt okunurken denetim icin gereken zaten
+  // GOREV GECMISI ve DUZELTME RAPORU'dur, ikisi de yazmaz.
+  const [view, setView] = useState(readOnly ? 'history' : 'assign');
   const [pilots, setPilots] = useState([]);
   const [duties, setDuties] = useState([]);
   const [baselines, setBaselines] = useState([]); // en güncel satır / pilot
@@ -104,18 +110,24 @@ export default function FTLPanel({ toast, myProfile }) {
   const [homeBases, setHomeBases] = useState({});
   const [loading, setLoading] = useState(true);
 
-  const customerId = myProfile?.customer_id;
+  const customerId = scopeCustomerId || myProfile?.customer_id;
 
   const load = useCallback(async () => {
     setLoading(true);
+    // ŞİRKET FİLTRESİ AÇIKÇA YAZILIYOR (10 Ağu 2026).
+    // Eskiden tenant ayrımını tamamen RLS yapıyordu ve bu, süper admin için
+    // sessizce bozuluyordu: süper adminin okuma politikaları çok kiracılıdır,
+    // filtresiz sorgu BÜTÜN şirketlerin görevlerini getirir. Serkan hem süper
+    // admin hem REC admini olduğu için bu, kendi panelinde başka şirketin
+    // verisini görmesi demekti. Filtre artık koda yazılı.
     const [{ data: p }, { data: d }, { data: b }, { data: cust }, { data: ot }, { data: hb }, { data: ed }] = await Promise.all([
-      supabase.from('profiles').select('id,code,full_name,role').order('full_name'),
-      supabase.from('crew_duties').select('*').order('report_time', { ascending: true }),
-      supabase.from('ftl_pilot_baselines').select('*').order('created_at', { ascending: false }),
+      supabase.from('profiles').select('id,code,full_name,role').eq('customer_id', customerId).order('full_name'),
+      supabase.from('crew_duties').select('*').eq('customer_id', customerId).order('report_time', { ascending: true }),
+      supabase.from('ftl_pilot_baselines').select('*').eq('customer_id', customerId).order('created_at', { ascending: false }),
       supabase.from('customers').select('id,ftl_ruleset_id').eq('id', customerId).single(),
-      supabase.from('ftl_off_types').select('*').eq('active', true).order('code'),
+      supabase.from('ftl_off_types').select('*').eq('customer_id', customerId).eq('active', true).order('code'),
       supabase.from('home_bases').select('pilot_id,icao'),
-      supabase.from('ftl_duty_edits').select('*').order('created_at', { ascending: false }),
+      supabase.from('ftl_duty_edits').select('*').eq('customer_id', customerId).order('created_at', { ascending: false }),
     ]);
     setPilots(p || []); setDuties(d || []); setOffTypes(ot || []); setEdits(ed || []);
     setHomeBases(Object.fromEntries((hb || []).map(h => [h.pilot_id, h.icao])));
@@ -154,27 +166,30 @@ export default function FTLPanel({ toast, myProfile }) {
   return (
     <div style={{ flex:1, overflowY:'auto', minWidth:0 }}>
       <div style={{ display:'flex', borderBottom:`1px solid ${C.border}`, background:C.bg2 }}>
-        <div style={tabS('assign')} onClick={() => setView('assign')}>Assign Duty</div>
+        {!readOnly && <div style={tabS('assign')} onClick={() => setView('assign')}>Assign Duty</div>}
         <div style={tabS('history')} onClick={() => setView('history')}>Duty History</div>
-        <div style={tabS('skpk')} onClick={() => setView('skpk')}>
-          SKPK{skpkOverdue > 0 && <span style={{ ...badge('red'), marginLeft:6 }}>{skpkOverdue}</span>}
-        </div>
+        {!readOnly && (
+          <div style={tabS('skpk')} onClick={() => setView('skpk')}>
+            SKPK{skpkOverdue > 0 && <span style={{ ...badge('red'), marginLeft:6 }}>{skpkOverdue}</span>}
+          </div>
+        )}
         <div style={tabS('edits')} onClick={() => setView('edits')}>Edit Report</div>
-        <div style={tabS('ruleset')} onClick={() => setView('ruleset')}>Ruleset</div>
+        {!readOnly && <div style={tabS('ruleset')} onClick={() => setView('ruleset')}>Ruleset</div>}
         <div style={{ flex:1 }} />
         <div style={{ alignSelf:'center', paddingRight:16, fontSize:9, color:C.t3, letterSpacing:1, fontFamily:'var(--mono)' }}>
+          {readOnly && <span style={{ color:C.red, marginRight:10 }}>READ ONLY</span>}
           {ruleset.name} · ALL TIMES UTC
         </div>
       </div>
       <div style={{ padding:18 }}>
-        {view === 'assign' && <>
+        {!readOnly && view === 'assign' && <>
           <DutyRoster {...{ toast, myProfile, pilots, duties, baselines, homeBases, offTypes, reload: load }} />
           <AssignDuty {...{ toast, myProfile, pilots, duties, baselines, ruleset, offTypes, homeBases, reload: load }} />
         </>}
         {view === 'history' && <DutyHistory {...{ pilots, duties, baselines, offTypes, ruleset, homeBases }} />}
-        {view === 'skpk' && <SkpkTracker {...{ toast, myProfile, pilots, duties, reload: load }} />}
+        {!readOnly && view === 'skpk' && <SkpkTracker {...{ toast, myProfile, pilots, duties, reload: load }} />}
         {view === 'edits' && <EditReport {...{ pilots, edits, duties }} />}
-        {view === 'ruleset' && <RulesetSettings {...{ toast, myProfile, ruleset, offTypes, reload: load }} />}
+        {!readOnly && view === 'ruleset' && <RulesetSettings {...{ toast, myProfile, ruleset, offTypes, reload: load }} />}
       </div>
     </div>
   );

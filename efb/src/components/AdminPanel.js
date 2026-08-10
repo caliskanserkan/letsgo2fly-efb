@@ -631,7 +631,9 @@ function EF({label,k,type='text',form,setForm}){
   );
 }
 
-function ArchivedFlts({toast,user,customerId=null}){
+// customerId : sorgu kapsami (her zaman dolu — kendi sirketin ya da izlenen sirket)
+// readOnly   : YALNIZ super admin baska sirketi izlerken true
+function ArchivedFlts({toast,user,customerId=null,readOnly=false}){
   const[flights,setFlights]=useState([]);
   const[loading,setLoading]=useState(true);
   const[selected,setSelected]=useState(null);
@@ -654,16 +656,21 @@ function ArchivedFlts({toast,user,customerId=null}){
   const load=useCallback(async()=>{
     setLoading(true);
     // archived_flights'ta customer_id YOK — sirket bagi plan uzerinden kurulur.
-    // Kapsam modunda join'i !inner yapiyoruz ki filtre uygulanabilsin; boylece
-    // plani silinmis YETIM arsivler de kapsamli gorunumden duser (dogrusu bu:
-    // sahibi bilinmeyen kayit bir sirkete ait gibi gosterilemez).
-    const join = customerId ? 'plans!inner' : 'plans';
-    let q=supabase.from('archived_flights').select(`*,${join}(dep,dest,date,reg,ac_type,dispatch_no,pf_pilot,pm_pilot)`).order('archived_at',{ascending:false,nullsFirst:false}).limit(200);
-    if(customerId){ q=q.eq('plans.customer_id',customerId); }
-    const{data,error}=await q;
+    // Filtre ISTEMCIDE yapiliyor, PostgREST'in !inner join'iyle DEGIL: inner join
+    // plani silinmis YETIM arsivleri de listeden dusururdu (bugun REC'te oyle
+    // kayitlar var, bilinen acik madde). Kendi sirketini izlerken yetimler
+    // gorunmeye devam etsin; BASKA sirketi izlerken dusurulsunler, cunku sahibi
+    // bilinmeyen kayit bir sirkete aitmis gibi gosterilemez.
+    const{data,error}=await supabase.from('archived_flights')
+      .select('*,plans(customer_id,dep,dest,date,reg,ac_type,dispatch_no,pf_pilot,pm_pilot)')
+      .order('archived_at',{ascending:false,nullsFirst:false}).limit(200);
     if(error)console.error('ArchivedFlts:',error);
-    setFlights(data||[]);setLoading(false);
-  },[customerId]);
+    const rows=(data||[]).filter(f=>{
+      if(!f.plans) return !readOnly;                 // yetim kayit
+      return !customerId || f.plans.customer_id===customerId;
+    });
+    setFlights(rows);setLoading(false);
+  },[customerId,readOnly]);
   useEffect(()=>{load();},[load]);
 
   useEffect(()=>{
@@ -803,7 +810,7 @@ function ArchivedFlts({toast,user,customerId=null}){
           subtitle={`${sel.plans?.date||'—'} · ${sel.plans?.reg||'—'} · Archived ${sel.archived_at?new Date(sel.archived_at).toLocaleString('en-GB'):'—'}`}
           onClose={()=>setSelected(null)}
           width={640}
-          footer={ customerId ? (
+          footer={ readOnly ? (
             // SALT OKUNUR (super admin baska sirketi izliyor). UI'da gizlemek
             // burada SUS DEGIL: REGEN REPORT bir edge function cagirir ve edge
             // function SERVICE KEY ile calisir, yani RLS onu DURDURMAZ.
@@ -1089,10 +1096,21 @@ export function Crews({toast,myProfile,customerId}){
 }
 
 // ─── 5. Statistics ────────────────────────────────────────────────────────────
-function Statistics(){
+function Statistics({customerId=null}){
   const[flights,setFlights]=useState([]);const[pilots,setPilots]=useState([]);const[aircraft,setAircraft]=useState([]);
   const[loading,setLoading]=useState(true);const[filterReg,setFilterReg]=useState('');const[filterCrew,setFilterCrew]=useState('');
-  useEffect(()=>{ (async()=>{ setLoading(true); const[{data:f},{data:p},{data:a}]=await Promise.all([supabase.from('archived_flights').select('*,plans(dep,dest,reg,ac_type,pf_pilot,pm_pilot)').order('archived_at',{ascending:false}),supabase.from('profiles').select('id,full_name,code').in('role',['pilot','admin_pilot']).order('full_name'),supabase.from('aircraft').select('registration').order('registration')]); setFlights(f||[]);setPilots(p||[]);setAircraft(a||[]); setLoading(false); })(); },[]);
+  // Sirket filtresi ACIKCA yaziliyor — RLS'e birakmak super admin icin bozuluyor.
+  // archived_flights'ta customer_id yok, bag plan uzerinden; filtre istemcide.
+  useEffect(()=>{ (async()=>{ setLoading(true);
+    let pq=supabase.from('profiles').select('id,full_name,code').in('role',['pilot','admin_pilot']).order('full_name');
+    let aq=supabase.from('aircraft').select('registration').order('registration');
+    if(customerId){ pq=pq.eq('customer_id',customerId); aq=aq.eq('customer_id',customerId); }
+    const[{data:f},{data:p},{data:a}]=await Promise.all([
+      supabase.from('archived_flights').select('*,plans(customer_id,dep,dest,reg,ac_type,pf_pilot,pm_pilot)').order('archived_at',{ascending:false}),
+      pq, aq,
+    ]);
+    setFlights((f||[]).filter(x=>!customerId||!x.plans||x.plans.customer_id===customerId));
+    setPilots(p||[]);setAircraft(a||[]); setLoading(false); })(); },[customerId]);
   const fmt=m=>m?`${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`:'0:00';
   const filtered=flights.filter(f=>{ const reg=f.plans?.reg||''; const pfId=f.plans?.pf_pilot||f.pf_id||''; const pmId=f.plans?.pm_pilot||f.sic_id||''; return(!filterReg||reg===filterReg)&&(!filterCrew||(pfId===filterCrew||pmId===filterCrew)); });
   const calcStats=arr=>({total:arr.length,totalFlightMins:arr.reduce((s,f)=>s+(f.airborne_minutes||0),0),totalBlockMins:arr.reduce((s,f)=>s+(f.block_minutes||0),0),totalLandings:arr.reduce((s,f)=>s+(f.landing_count||0),0),nightLandings:arr.filter(f=>f.is_night_landing).length});
@@ -1129,12 +1147,16 @@ function SortableTable({flights, fmt}){
 }
 
 // ─── 6. RASS ──────────────────────────────────────────────────────────────────
-function StationInfo({toast}){
+// readOnly: super admin baska sirketi izliyor. ADD AIRPORT'u GIZLEMEK SART —
+// addAirport() hedefi rpc('my_customer_id') ile buluyor, yani GO2Demo izlenirken
+// eklenen meydan SESSIZCE REC'e yazilirdi. RLS bunu engellemez (kendi sirketine
+// yazmak mesrudur); tek kapi arayuzdur.
+function StationInfo({toast,customerId=null,readOnly=false}){
   const [airports,setAirports]=useState([]);const [loading,setLoading]=useState(true);
   const [search,setSearch]=useState('');const [selected,setSelected]=useState(null);
   const [riskModal,setRiskModal]=useState(null);const [showAddAirport,setShowAddAirport]=useState(false);
   const [newAirport,setNewAirport]=useState({icao:'',name:'',category:'B'});
-  useEffect(()=>{ setLoading(true); supabase.from('airport_risks').select('icao,name,country,category,base_score,risk_level,ops_approval,ad_elev_ft,max_s,max_l,mitigation').order('icao').then(({data})=>{setAirports(data||[]);setLoading(false);}); },[]);
+  useEffect(()=>{ setLoading(true); let q=supabase.from('airport_risks').select('icao,name,country,category,base_score,risk_level,ops_approval,ad_elev_ft,max_s,max_l,mitigation').order('icao'); if(customerId){q=q.eq('customer_id',customerId);} q.then(({data})=>{setAirports(data||[]);setLoading(false);}); },[customerId]);
   const filtered=airports.filter(a=>!search||a.icao.toLowerCase().includes(search.toLowerCase())||(a.name||'').toLowerCase().includes(search.toLowerCase()));
   const sel=airports.find(a=>a.icao===selected);
   const riskBadge=(level)=>{ const textColors={LOW:'var(--accent)',MEDIUM:'var(--amber)',HIGH:'var(--orange)',EXTREME:'var(--red)'}; return(<span style={{fontSize:11,fontWeight:700,padding:'2px 8px',background:level==='LOW'?C.blueDim:level==='MEDIUM'?'var(--amber-soft)':level==='HIGH'?'var(--amber-soft)':'var(--red-soft)',color:textColors[level]||'var(--t2)',border:`1px solid ${textColors[level]||'var(--t3)'}`}}>{level||'—'}</span>); };
@@ -1148,11 +1170,11 @@ function StationInfo({toast}){
   return(
     <div style={{display:'flex',flex:1,overflow:'hidden'}}>
       <div style={{flex:1,overflowY:'auto'}}>
-        <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',gap:10,alignItems:'center'}}><input placeholder="ICAO veya havalimanı adı..." value={search} onChange={e=>setSearch(e.target.value.toUpperCase())} style={{...S.input,width:260}}/><button style={S.btnPrimary} onClick={()=>setShowAddAirport(true)}>+ ADD AIRPORT</button><span style={{...S.label,marginLeft:'auto'}}>{filtered.length} AIRPORTS</span></div>
+        <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',gap:10,alignItems:'center'}}><input placeholder="ICAO veya havalimanı adı..." value={search} onChange={e=>setSearch(e.target.value.toUpperCase())} style={{...S.input,width:260}}/>{!readOnly&&<button style={S.btnPrimary} onClick={()=>setShowAddAirport(true)}>+ ADD AIRPORT</button>}{readOnly&&<span style={{fontSize:10,color:C.red,letterSpacing:1,fontFamily:'var(--mono)'}}>READ ONLY</span>}<span style={{...S.label,marginLeft:'auto'}}>{filtered.length} AIRPORTS</span></div>
         {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}
         <table style={S.table}><thead><tr>{['ICAO','AIRPORT NAME','CAT','ELEV FT','BASE SCORE','RISK LEVEL','OPS APPROVAL'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead><tbody>{filtered.map(a=>(<tr key={a.icao} onClick={()=>setSelected(a.icao===selected?null:a.icao)} style={{cursor:'pointer',background:selected===a.icao?`var(--accent-soft)`:'transparent'}}><td style={{...S.td,color:C.accent,fontWeight:700}}>{a.icao}</td><td style={S.td}>{(a.name||'—').toUpperCase()}</td><td style={S.td}><span style={S.badge('blue')}>{a.category||'B'}</span></td><td style={S.td}>{a.ad_elev_ft||'—'}</td><td style={{...S.td,color:C.accent,fontWeight:700}}>{a.base_score||0}</td><td style={S.td}>{riskBadge(a.risk_level)}</td><td style={{...S.td,fontSize:11,color:C.t3}}>{a.ops_approval||'—'}</td></tr>))}</tbody></table>
       </div>
-      {sel&&(<DetailPanel title={sel.icao} onClose={()=>setSelected(null)} width={360}><DetailRow label="ICAO" value={sel.icao} accent/><DetailRow label="Name" value={sel.name?sel.name.toUpperCase():sel.name}/><DetailRow label="Category" value={sel.category||'B'}/><DetailRow label="Elevation" value={sel.ad_elev_ft?`${sel.ad_elev_ft} ft`:'—'}/><DetailRow label="Base Score" value={sel.base_score||0}/><DetailRow label="Risk Level" value={sel.risk_level||'—'}/><DetailRow label="Max S" value={sel.max_s||1}/><DetailRow label="Max L" value={sel.max_l||1}/>{sel.mitigation&&(<div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`,fontSize:10,color:C.t3,lineHeight:1.7}}>{sel.mitigation}</div>)}<div style={{padding:'12px 16px'}}><button style={{...S.btnPrimary,width:'100%'}} onClick={()=>setRiskModal(sel.icao)}>RISK ASSESSMENT MATRIX</button></div></DetailPanel>)}
+      {sel&&(<DetailPanel title={sel.icao} onClose={()=>setSelected(null)} width={360}><DetailRow label="ICAO" value={sel.icao} accent/><DetailRow label="Name" value={sel.name?sel.name.toUpperCase():sel.name}/><DetailRow label="Category" value={sel.category||'B'}/><DetailRow label="Elevation" value={sel.ad_elev_ft?`${sel.ad_elev_ft} ft`:'—'}/><DetailRow label="Base Score" value={sel.base_score||0}/><DetailRow label="Risk Level" value={sel.risk_level||'—'}/><DetailRow label="Max S" value={sel.max_s||1}/><DetailRow label="Max L" value={sel.max_l||1}/>{sel.mitigation&&(<div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`,fontSize:10,color:C.t3,lineHeight:1.7}}>{sel.mitigation}</div>)}{!readOnly&&<div style={{padding:'12px 16px'}}><button style={{...S.btnPrimary,width:'100%'}} onClick={()=>setRiskModal(sel.icao)}>RISK ASSESSMENT MATRIX</button></div>}</DetailPanel>)}
       {showAddAirport&&(<Modal title="ADD AIRPORT" onClose={()=>setShowAddAirport(false)} width={420}><div style={S.formGroup}><label style={S.formLabel}>ICAO CODE *</label><input style={S.input} placeholder="LTFM" maxLength={4} value={newAirport.icao} onChange={e=>setNewAirport(p=>({...p,icao:e.target.value.toUpperCase()}))}/></div><div style={S.formGroup}><label style={S.formLabel}>AIRPORT NAME</label><input style={S.input} placeholder="ISTANBUL AIRPORT" value={newAirport.name} onChange={e=>setNewAirport(p=>({...p,name:up(e.target.value)}))}/></div><div style={S.formGroup}><label style={S.formLabel}>CATEGORY</label><select style={S.select} value={newAirport.category} onChange={e=>setNewAirport(p=>({...p,category:e.target.value}))}><option value="A">A</option><option value="B">B</option><option value="C">C</option></select></div><div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:16}}><button style={S.btnSecondary} onClick={()=>setShowAddAirport(false)}>CANCEL</button><button style={S.btnPrimary} onClick={addAirport}>ADD</button></div></Modal>)}
       {riskModal&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.9)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300,padding:20}}><div style={{background:'var(--bg3)',border:'1px solid var(--bg3)',width:'100%',maxWidth:640,maxHeight:'90vh',overflowY:'auto',borderRadius:8}}><RiskAssessmentInline icao={riskModal} onClose={()=>setRiskModal(null)}/></div></div>)}
     </div>
@@ -1220,9 +1242,9 @@ function RiskAssessmentInline({icao, onClose}){
 }
 
 // ─── 7. FLT Logs & Times ─────────────────────────────────────────────────────
-function FltLogsAndTimes(){
+function FltLogsAndTimes({customerId=null}){
   const[plans,setPlans]=useState([]);const[selected,setSelected]=useState(null);const[filter,setFilter]=useState({dep:'',dest:''});const[loadingP,setLoadingP]=useState(true);
-  useEffect(()=>{(async()=>{setLoadingP(true);const{data}=await supabase.from('plans').select('id,dep,dest,date,dispatch_no,reg,status,created_at').in('status',['active','archived']).order('created_at',{ascending:false}).limit(200);setPlans(data||[]);setLoadingP(false);})();},[]);
+  useEffect(()=>{(async()=>{setLoadingP(true);let q=supabase.from('plans').select('id,dep,dest,date,dispatch_no,reg,status,created_at').in('status',['active','archived']).order('created_at',{ascending:false}).limit(200); if(customerId){q=q.eq('customer_id',customerId);} const{data}=await q;setPlans(data||[]);setLoadingP(false);})();},[customerId]);
   const filteredPlans=plans.filter(p=>(!filter.dep||(p.dep||'').toLowerCase().includes(filter.dep.toLowerCase()))&&(!filter.dest||(p.dest||'').toLowerCase().includes(filter.dest.toLowerCase())));
   const selectedPlan=plans.find(p=>p.id===selected);
   return(
@@ -1240,9 +1262,10 @@ function FltLogsAndTimes(){
 }
 
 // ─── 8. Edit Reports ──────────────────────────────────────────────────────────
-function EditReports(){
+function EditReports({customerId=null}){
   const[reports,setReports]=useState([]);const[loading,setLoading]=useState(true);const[filter,setFilter]=useState('');
-  useEffect(()=>{ (async()=>{ setLoading(true); const{data}=await supabase.from('admin_edits').select('id,created_at,edit_type,field_name,old_value,new_value,reason,plan_id,plans:plan_id(dep,dest,date)').order('created_at',{ascending:false}).limit(500); setReports(data||[]); setLoading(false); })(); },[]);
+  // admin_edits'te customer_id yok, bag plan uzerinden -> filtre istemcide.
+  useEffect(()=>{ (async()=>{ setLoading(true); const{data}=await supabase.from('admin_edits').select('id,created_at,edit_type,field_name,old_value,new_value,reason,plan_id,plans:plan_id(customer_id,dep,dest,date)').order('created_at',{ascending:false}).limit(500); setReports((data||[]).filter(r=>!customerId||!r.plans||r.plans.customer_id===customerId)); setLoading(false); })(); },[customerId]);
   const filtered=reports.filter(r=>!filter||r.field_name?.toLowerCase().includes(filter.toLowerCase())||r.reason?.toLowerCase().includes(filter.toLowerCase())||`${r.plans?.dep}${r.plans?.dest}`.toLowerCase().includes(filter.toLowerCase()));
   return(
     <div style={{flex:1,overflowY:'auto'}}>
@@ -1276,7 +1299,8 @@ const NAV=[
 // DOGRULANMIS olanlar asagida sayilidir; digerleri kapsam modunda ACIKCA
 // "henuz kapsama alinmadi" der. Baslikta GO2Demo yazarken REC'in ucuslarini
 // gostermek Ilke 1'in ihlalidir — bos birakmak degil, SEBEBINI yazmak dogrudur.
-const SCOPED_TABS = ['active', 'archived', 'crews', 'aircrafts'];
+// 10 Agu 2026: on panelin tamami kapsama alindi.
+const SCOPED_TABS = ['active', 'archived', 'crews', 'aircrafts', 'ftl', 'stats', 'stations', 'logs', 'reports'];
 
 // Kapsama alinmamis panel: BOS birakilmaz, sebebi yazilir (Ilke 1).
 function NotScopedYet({ tab, companyName }) {
@@ -1340,6 +1364,13 @@ export default function AdminPanel({onBack, customerId=null, companyName=null}){
   );
 
   const tabTitle = NAV.find(n => n.id === tab)?.label || '';
+
+  // KAPSAM TEK YERDE HESAPLANIR ve HER ZAMAN doludur.
+  // customerId  = "baska sirketi izliyorum" (banner + salt okunur icin)
+  // scopeId     = sorgularin filtresi; izleme yoksa kullanicinin kendi sirketi
+  // Filtreyi RLS'e birakmak super admin icin SESSIZCE bozuluyor: super adminin
+  // okuma politikalari cok kiracilidir, filtresiz sorgu butun sirketleri getirir.
+  const scopeId = customerId || myProfile?.customer_id || null;
 
   return (
     <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh', background:C.bg, fontFamily:'var(--mono)' }}>
@@ -1434,15 +1465,15 @@ export default function AdminPanel({onBack, customerId=null, companyName=null}){
             {customerId && !SCOPED_TABS.includes(tab) && tab !== 'help' ? (
               <NotScopedYet tab={tab} companyName={companyName} />
             ) : (<>
-              {tab==='active'    && <ActiveFlts   toast={showToast} customerId={customerId}/>}
-              {tab==='archived'  && <ArchivedFlts toast={showToast} user={user} customerId={customerId}/>}
-              {tab==='aircrafts' && <Aircrafts    toast={showToast} myProfile={myProfile} customerId={customerId}/>}
-              {tab==='crews'     && <Crews        toast={showToast} myProfile={myProfile} customerId={customerId}/>}
-              {tab==='ftl'       && <FTLPanel     toast={showToast} myProfile={myProfile}/>}
-              {tab==='stats'     && <Statistics/>}
-              {tab==='stations'  && <StationInfo  toast={showToast}/>}
-              {tab==='logs'      && <FltLogsAndTimes/>}
-              {tab==='reports'   && <EditReports/>}
+              {tab==='active'    && <ActiveFlts   toast={showToast} customerId={scopeId}/>}
+              {tab==='archived'  && <ArchivedFlts toast={showToast} user={user} customerId={scopeId} readOnly={!!customerId}/>}
+              {tab==='aircrafts' && <Aircrafts    toast={showToast} myProfile={myProfile} customerId={scopeId}/>}
+              {tab==='crews'     && <Crews        toast={showToast} myProfile={myProfile} customerId={scopeId}/>}
+              {tab==='ftl'       && <FTLPanel     toast={showToast} myProfile={myProfile} customerId={scopeId} readOnly={!!customerId}/>}
+              {tab==='stats'     && <Statistics    customerId={scopeId}/>}
+              {tab==='stations'  && <StationInfo   toast={showToast} customerId={scopeId} readOnly={!!customerId}/>}
+              {tab==='logs'      && <FltLogsAndTimes customerId={scopeId}/>}
+              {tab==='reports'   && <EditReports   customerId={scopeId}/>}
               {tab==='help'      && <AdminHelp/>}
             </>)}
           </div>

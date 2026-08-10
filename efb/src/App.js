@@ -724,8 +724,11 @@ function App() {
     </div>
   );
 
-  // Hedefi Login degil, oturum dinleyicisi secer (super admin -> sirket listesi).
-  if (page === 'login') return <Login onLogin={() => setPage('loading')} />;
+  // Yonlendirmenin TEK SAHIBI oturum dinleyicisidir (super admin -> sirket
+  // listesi, digerleri -> dashboard). Login BURADA sayfa DEGISTIRMEZ: degistirse
+  // dinleyiciyle yarisa girer ve sirasi ters donerse kullanici 'loading'
+  // ekraninda asili kalir (baska auth olayi gelmez).
+  if (page === 'login') return <Login onLogin={() => {}} />;
   if (page === 'admin') return <AdminPanel onBack={() => setPage('dashboard')} />;
   if (page === 'superadmin') return <SuperAdminPanel onBack={() => setPage('dashboard')} />;
 
