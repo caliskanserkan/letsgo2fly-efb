@@ -681,16 +681,22 @@ function App() {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session) {
-        setUser(session.user);
+    // 🔴 GERI CAGIRMA ASENKRON OLMAMALI (10 Agu 2026, saha: sayfa 'loading'
+    // ekraninda asili kaldi). supabase-js v2'de onAuthStateChange geri cagirmasi
+    // AUTH KILIDININ ICINDE kosar; icinde await ile baska bir supabase cagrisi
+    // yapilirsa getSession() ayni kilidi bekler ve uygulama hic acilmaz.
+    // Cozum: geri cagirma ANINDA doner, is setTimeout(...,0) ile kilidin
+    // DISINA atilir. Bu, Supabase'in kendi belgelenmis kuralidir.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) { setUser(null); setMyProfile(null); setPage('login'); return; }
+      setUser(session.user);
+      setTimeout(async () => {
         const prof = await loadProfile(session.user);
         // YALNIZ giristen sonra yonlendir. Bu dinleyici token yenilemede de
         // tetikleniyor; kosulsuz setPage yazarsak kullanici calisirken sayfa
         // kendiliginden basa doner.
         setPage(p => (p === 'login' || p === 'loading') ? landing(prof) : p);
-      }
-      else { setUser(null); setMyProfile(null); setPage('login'); }
+      }, 0);
     });
     return () => subscription.unsubscribe();
   }, []);
