@@ -1016,6 +1016,7 @@ export function Crews({toast,myProfile,customerId}){
   // kutu kapaninca state temizlenir, ize yalnizca OLAYIN oldugu yazilir.
   const[pwdTarget,setPwdTarget]=useState(null);
   const[newPwd,setNewPwd]=useState('');
+  const[pwdReason,setPwdReason]=useState('');
   const[addForm,setAddForm]=useState({full_name:'',code:'',email:'',role:'pilot',password:''});
   const[qualForm,setQualForm]=useState({ac_type:'',seat:'CPT',hand:'BOTH',landing_cat:'CAT1',valid_from:'',valid_until:''});
   const[efbForm,setEfbForm]=useState({efb_training_date:'',efb_training_valid_until:'',efb_training_type:'Initial',efb_trained_by:''});
@@ -1028,9 +1029,10 @@ export function Crews({toast,myProfile,customerId}){
   const efbRecord=selQuals.find(q=>q.efb_training_date);
   const handleAddCrew=async()=>{ if(!addForm.full_name||!addForm.code||!addForm.email||!addForm.password){toast('All fields required.','error');return;} if(myProfile?.is_super_admin&&!customerId){toast('Please select a company first.','error');return;} setSaving(true); try{ const{data:{session}}=await supabase.auth.getSession(); if(!session){toast('Session expired, please log in again.','error');setSaving(false);return;} const payload={action:'create',email:addForm.email,password:addForm.password,full_name:addForm.full_name,code:addForm.code,role:addForm.role}; if(myProfile?.is_super_admin){payload.target_customer_id=customerId;} const res=await fetch(`${process.env.REACT_APP_SUPABASE_URL}/functions/v1/manage-user`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`},body:JSON.stringify(payload)}); const result=await res.json(); if(!res.ok){toast(result.error||'User creation failed','error');setSaving(false);return;} toast(`${addForm.full_name} added successfully.`,'success'); setShowAdd(false); setAddForm({full_name:'',code:'',email:'',role:'pilot',password:''}); load(); }catch(e){toast(e.message,'error');} setSaving(false); };
   const handleDeleteStep1=(pilot)=>{setDeleteTarget(pilot);setDeleteModal(true);setDeleteConfirm(false);};
-  const closePwd=()=>{ setPwdTarget(null); setNewPwd(''); };
+  const closePwd=()=>{ setPwdTarget(null); setNewPwd(''); setPwdReason(''); };
   const handleSetPwd=async()=>{
     if(newPwd.length<8){ toast('Password must be at least 8 characters.','error'); return; }
+    if(pwdReason.trim().length<3){ toast('A reason is required.','error'); return; }
     setSaving(true);
     try{
       const{data:{session}}=await supabase.auth.getSession();
@@ -1038,7 +1040,7 @@ export function Crews({toast,myProfile,customerId}){
       const res=await fetch(`${process.env.REACT_APP_SUPABASE_URL}/functions/v1/manage-user`,{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`},
-        body:JSON.stringify({action:'set_password',target_user_id:pwdTarget.id,password:newPwd}),
+        body:JSON.stringify({action:'set_password',target_user_id:pwdTarget.id,password:newPwd,reason:pwdReason.trim()}),
       });
       const result=await res.json();
       if(!res.ok){ toast(result.error||'Could not set password','error'); setSaving(false); return; }
@@ -1123,10 +1125,15 @@ export function Crews({toast,myProfile,customerId}){
           <input style={S.input} type="password" autoComplete="new-password" value={newPwd}
                  onChange={e=>setNewPwd(e.target.value)} />
         </div>
+        <div style={S.formGroup}>
+          <label style={S.formLabel}>REASON * (goes to the audit trail)</label>
+          <input style={S.input} value={pwdReason} onChange={e=>setPwdReason(e.target.value)}
+                 placeholder="e.g. demo account handover" />
+        </div>
         <div style={{fontSize:10,color:C.t3,marginBottom:4}}>{pwdTarget.email||'no e-mail on file'}</div>
         <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:16}}>
           <button style={S.btnSecondary} onClick={closePwd}>CANCEL</button>
-          <button style={S.btnPrimary} onClick={handleSetPwd} disabled={saving||newPwd.length<8}>
+          <button style={S.btnPrimary} onClick={handleSetPwd} disabled={saving||newPwd.length<8||pwdReason.trim().length<3}>
             {saving?'SAVING...':'SET PASSWORD'}
           </button>
         </div>

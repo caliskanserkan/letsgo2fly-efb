@@ -170,11 +170,18 @@ Deno.serve(async (req) => {
     if (action === "set_password") {
       const target_user_id = body.target_user_id;
       const password = body.password;
+      const reason = String(body.reason ?? "").trim();
       if (!target_user_id || !password) {
         return json({ error: "target_user_id and password required" }, 400);
       }
       if (String(password).length < 8) {
         return json({ error: "Password must be at least 8 characters" }, 400);
+      }
+      // GEREKCE ZORUNLU (Serkan kurali): "bir degisiklik yapacaksa rapor
+      // yazmadan kapatamaz." Kapi FONKSIYONDA, arayuzde degil — baska bir
+      // istemci gerekcesiz cagirirsa da reddedilir.
+      if (reason.length < 3) {
+        return json({ error: "A reason is required for setting a password" }, 400);
       }
 
       const { data: targetProfile } = await admin
@@ -203,7 +210,7 @@ Deno.serve(async (req) => {
           customer_id: targetProfile.customer_id,
           type: "password_reset",
           field: target_user_id,
-          reason: String(body.reason ?? "").trim() || "password set by app owner",
+          reason,
         });
       }
 
