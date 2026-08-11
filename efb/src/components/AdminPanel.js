@@ -220,9 +220,21 @@ const ACTION_MODULE = {
 function logModule(l){
   const d = l.details || {};
   if (l.action === 'FIELD_ENTRY')     return d.module || 'OTHER';
-  if (l.action === 'MODULE_COMPLETE') return MODULE_KEY_MAP[d.module] || 'OTHER';
+  // MODULE_ENTRIES (iOS, 9 Agu: modulden CIKISTA tek satir) MODULE_COMPLETE ile
+  // ayni yoldan gecer — ikisi de details.module icinde ModuleKey rawValue tasir.
+  if (l.action === 'MODULE_COMPLETE' ||
+      l.action === 'MODULE_ENTRIES')  return MODULE_KEY_MAP[d.module] || 'OTHER';
   if (l.action === 'SYNC_SENT')       return d.type === 'NAVLOG' ? 'NAV LOG' : d.type === 'ENDFLIGHT' ? 'END FLT' : 'ACCEPT & SIGN';
   return ACTION_MODULE[l.action] || 'OTHER';
+}
+
+// Detay dokumu. `platform`/`timestamp_utc` her zaman elenir; cagiran ayrica
+// kendi ic anahtarlarini eleyebilir (ornek MODULE_ENTRIES -> `module`, o zaten
+// satirin hangi grupta durdugunu belirliyor, denetciye tekrar gosterilmez).
+function detailText(d, skip = []){
+  return Object.entries(d)
+    .filter(([k]) => !['platform','timestamp_utc', ...skip].includes(k))
+    .map(([k,v]) => `${k}: ${v}`).join(' · ');
 }
 
 // Her satir icin insan cumlesi: {label, value?, tone?}
@@ -274,9 +286,11 @@ function logRow(l, who = () => null){
     case 'LANDING':                return { label:'Landing', value:d.time };
     case 'ON_BLOCKS':              return { label:'On blocks', value:d.time };
     case 'FUEL_REMAINING':         return { label:'Fuel remaining', value:d.fuel_lb ? `${d.fuel_lb} lb` : undefined };
+    // Modulden cikista girilenler/degisenler (eski → yeni). `module` elenir.
+    case 'MODULE_ENTRIES':         return { label:'Entries', value:detailText(d, ['module']) || undefined };
     default: {
       const meta = ACTION_META[l.action];
-      const detail = Object.entries(d).filter(([k]) => !['platform','timestamp_utc'].includes(k)).map(([k,v]) => `${k}: ${v}`).join(' · ');
+      const detail = detailText(d);
       return { label: meta ? meta.label : l.action.replace(/_/g,' '), value: detail || undefined };
     }
   }
