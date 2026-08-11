@@ -10,7 +10,7 @@ import PlanDocuments from './PlanDocuments';
 import Drawer from './Drawer';
 import AdminHelp from './AdminHelp';
 import { isEnabled } from './featureCatalog';
-import { askReason } from '../editReason';
+import { askReason, setReasonOpener } from '../editReason';
 import ThemeToggle from './ThemeToggle';
 
 // ─── Font Controls ────────────────────────────────────────────
@@ -69,6 +69,55 @@ function Toast({msg,type,onClose}){
   if(!msg)return null;
   return <div style={S.toast(type)}>{type==='error'?'! ':'OK '}{msg}</div>;
 }
+// SUPER ADMIN EDIT GEREKCESI — kendi tasarim dilimizle (11 Agu 2026).
+// Once tarayicinin window.prompt kutusu kullaniliyordu; Serkan: "acilan hucre
+// bizim tasarim ogelerimize uygun degil", "tek satir degil bir hucre acilmali",
+// "renk kodlari da uygun olmali, butunluk ariyoruz".
+// Bu yuzden: uygulamanin kendi Modal'i, kendi S/C stilleri, COK SATIRLI hucre.
+// Hicbir renk elle yazilmaz — hepsi C/S uzerinden gelir.
+//
+// Promise ile calisir: cagri yerleri `const sb = await askReason(...)` seklinde
+// AYNEN kalir; bu bilesen yalnizca kutuyu acip gerekceyi dondurur.
+function EditReasonGate(){
+  const [ask,setAsk]=useState(null);      // {what, resolve}
+  const [text,setText]=useState('');
+
+  useEffect(()=>{
+    setReasonOpener((what)=>new Promise(resolve=>{ setText(''); setAsk({what,resolve}); }));
+    return ()=>setReasonOpener(null);
+  },[]);
+
+  if(!ask) return null;
+  const close=(v)=>{ ask.resolve(v); setAsk(null); setText(''); };
+  const ok = text.trim().length>=3;
+
+  return (
+    <Modal title="CHANGE REPORT — REQUIRED" onClose={()=>close(null)} width={520}>
+      <div style={{fontSize:11,color:C.t2,lineHeight:1.8,marginBottom:14}}>
+        You are about to change <span style={{color:C.accent,fontWeight:700}}>{ask.what}</span> in a
+        customer's data. Write what you are doing and why.
+        <div style={{color:C.t3,marginTop:6}}>
+          This report is stored in the customer's own log records — they will see that the app owner made this change.
+        </div>
+      </div>
+      <div style={S.formGroup}>
+        <label style={S.formLabel}>REASON *</label>
+        <textarea
+          style={{...S.input, minHeight:110, resize:'vertical', lineHeight:1.7, padding:'10px 12px'}}
+          value={text} onChange={e=>setText(e.target.value)} autoFocus
+          placeholder="e.g. Fleet setup for the demo tenant — aircraft added at the operator's request."/>
+        <div style={{fontSize:10,color:ok?C.t3:C.red,marginTop:6}}>
+          {ok ? `${text.trim().length} characters` : 'At least 3 characters — without a reason the change will not be applied.'}
+        </div>
+      </div>
+      <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:18}}>
+        <button style={S.btnSecondary} onClick={()=>close(null)}>CANCEL</button>
+        <button style={S.btnPrimary} disabled={!ok} onClick={()=>close(text.trim())}>SAVE CHANGE</button>
+      </div>
+    </Modal>
+  );
+}
+
 function Modal({title,children,onClose,width}){
   return(
     <div style={S.modal} onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -1558,6 +1607,9 @@ export default function AdminPanel({onBack, customerId=null, companyName=null}){
       </div>
 
       {toast.msg && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast({msg:'',type:'success'})}/>}
+      {/* Gerekce hucresi — panelde TEK yerde durur, butun yazma yollari onu kullanir. */}
+      <EditReasonGate />
+
     </div>
   );
 }

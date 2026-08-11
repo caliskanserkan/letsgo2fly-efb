@@ -50,9 +50,17 @@ export async function withReason(reason) {
  * Sonra o handler icindeki YAZMA cagrilarinda `supabase` yerine `sb` kullanilir.
  * (Okumalar normal `supabase` ile kalir — kural yalnizca yazmayi ilgilendirir.)
  */
+// Gerekce kutusunu ACAN bilesen kendini buraya kaydeder (AdminPanel icindeki
+// EditReasonGate). Boylece cagri yerleri degismeden kaliyor: `await askReason()`
+// hem modal'la hem de (kayit yoksa) tarayici kutusuyla calisir.
+let _opener = null;
+export function setReasonOpener(fn) { _opener = fn; }
+
 export async function askReason(what = 'this change') {
-  const r = window.prompt(`Reason for ${what} (required — it is stored in the customer's log):`, '');
-  if (r === null) return null;
+  const r = _opener
+    ? await _opener(what)                       // kendi tasarimimiz (cok satirli hucre)
+    : window.prompt(`Reason for ${what}:`, ''); // yedek yol
+  if (r === null || r === undefined) return null;
   try {
     return await withReason(r);
   } catch (e) {
