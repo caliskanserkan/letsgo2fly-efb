@@ -10,7 +10,7 @@ import PlanDocuments from './PlanDocuments';
 import Drawer from './Drawer';
 import AdminHelp from './AdminHelp';
 import { isEnabled } from './featureCatalog';
-import { askReason, setReasonOpener } from '../editReason';
+import { askReason, withReason, setReasonOpener } from '../editReason';
 import ThemeToggle from './ThemeToggle';
 
 // ─── Font Controls ────────────────────────────────────────────
@@ -422,6 +422,8 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
   const openEdit = () => { const init = {}; (fields||[]).forEach(f => { let val = flight[f.key]; if (f.type === 'time' && val) val = new Date(val).toISOString().slice(11,16); init[f.key] = val != null ? String(val) : ''; }); setForm(init); setReason(''); setEditing(true); };
   const handleSave = async () => {
     if (!reason.trim()) { toast('Reason is mandatory.', 'error'); return; }
+    // Gerekce ZATEN alindi — istege baslikla tasinir, tekrar sorulmaz.
+    const sb = await withReason(reason);
     if (!fields || !fields.length) return;
     setSaving(true);
     // Saatler HH:MM olarak karsilastirilir ve timestamptz'ye cevrilerek yazilir
@@ -439,9 +441,9 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
         updateObj[f.key] = iso;
       } else updateObj[f.key] = form[f.key] || null;
     }
-    const { error: upErr } = await supabase.from('archived_flights').update(updateObj).eq('id', flight.id);
+    const { error: upErr } = await sb.from('archived_flights').update(updateObj).eq('id', flight.id);
     if (upErr) { toast(`Update failed: ${upErr.message}`, 'error'); setSaving(false); return; }
-    for (const f of changes) { await supabase.from('admin_edits').insert({ archived_flight_id: flight.id, plan_id: flight.plan_id, field_name: f.key, old_value: String(cur(f)), new_value: String(form[f.key]||''), reason, edit_type: 'EDIT', edited_by: user?.id ?? null }); }
+    for (const f of changes) { await sb.from('admin_edits').insert({ archived_flight_id: flight.id, plan_id: flight.plan_id, field_name: f.key, old_value: String(cur(f)), new_value: String(form[f.key]||''), reason, edit_type: 'EDIT', edited_by: user?.id ?? null }); }
     toast(`${changes.length} field(s) updated.`, 'success'); setSaving(false); setEditing(false); onSave();
     // TEK RAPOR: duzeltme sonrasi arsiv PDF'i duzeltme isaretleriyle yeniden uretilir
     supabase.functions.invoke('archive-flight',{body:{plan_id:flight.plan_id,regenerate_pdf:true}})
@@ -796,10 +798,11 @@ function ArchivedFlts({toast,user,customerId=null,readOnly=false}){
         updateObj[k]=mins;
       } else updateObj[k]=v;
     }
-    const{error:upErr}=await supabase.from('archived_flights').update(updateObj).eq('id',sel.id);
+    const sb=await withReason(reason);
+    const{error:upErr}=await sb.from('archived_flights').update(updateObj).eq('id',sel.id);
     if(upErr){toast(`Update failed: ${upErr.message}`,'error');setSaving(false);return;}
     // Denetim izine OKUNABILIR deger yazilir: saatler HH:MM, tam ISO damga degil.
-    for(const[k,v]of changes){ await supabase.from('admin_edits').insert({archived_flight_id:sel.id,plan_id:sel.plan_id,field_name:k,old_value:String(cur(k)),new_value:String(v==null?'':v),reason,edit_type:'EDIT',edited_by:user?.id??null}); }
+    for(const[k,v]of changes){ await sb.from('admin_edits').insert({archived_flight_id:sel.id,plan_id:sel.plan_id,field_name:k,old_value:String(cur(k)),new_value:String(v==null?'':v),reason,edit_type:'EDIT',edited_by:user?.id??null}); }
     toast(`${changes.length} field(s) updated and logged.`,'success');
     // TEK RAPOR: duzeltme sonrasi arsiv PDF'i duzeltme isaretleriyle yeniden uretilir
     supabase.functions.invoke('archive-flight',{body:{plan_id:sel.plan_id,regenerate_pdf:true}})
@@ -809,14 +812,15 @@ function ArchivedFlts({toast,user,customerId=null,readOnly=false}){
 
   const handleDelete=async()=>{
     if(!deleteReason){toast('Reason is mandatory.','error');return;}
+    const sb=await withReason(deleteReason);
     setSaving(true);
-    await supabase.from('admin_edits').insert({archived_flight_id:sel.id,plan_id:sel.plan_id,field_name:'RECORD_DELETED',old_value:String(sel.id),new_value:'DELETED',reason:deleteReason,edit_type:'DELETE',edited_by:user?.id??null});
-    await supabase.from('archived_flights').delete().eq('id',sel.id);
+    await sb.from('admin_edits').insert({archived_flight_id:sel.id,plan_id:sel.plan_id,field_name:'RECORD_DELETED',old_value:String(sel.id),new_value:'DELETED',reason:deleteReason,edit_type:'DELETE',edited_by:user?.id??null});
+    await sb.from('archived_flights').delete().eq('id',sel.id);
     // SOFT DELETE KALIR (Serkan kurali, 1 Agu 2026): admin bir plani ASLA kalici
     // silmez — mezar tasi denetim izinin parcasidir. Tekrar-yukleme sorunu burada
     // DEGIL, parse-plan'da cozuldu: dedup artik yalniz CANLI (available/active)
     // planlarla eslesir, 'deleted' bir kayit yeni yuklemeyi engellemez.
-    if(sel.plan_id) await supabase.from('plans').update({status:'deleted'}).eq('id',sel.plan_id);
+    if(sel.plan_id) await sb.from('plans').update({status:'deleted'}).eq('id',sel.plan_id);
     toast('Record deleted and logged.','success');
     setDeleteModal(false);setSelected(null);setDeleteReason('');setSaving(false);load();
   };
@@ -1024,7 +1028,7 @@ function Aircrafts({toast,myProfile,customerId}){
   const handleAdd=async()=>{ if(!form.registration||!form.ac_type){toast('Registration and type required.','error');return;} const sb=await askReason('adding an aircraft'); if(!sb)return; const targetCustomer=myProfile?.is_super_admin?customerId:myProfile?.customer_id; if(!targetCustomer){toast('No company context for aircraft.','error');return;} const{registration,manufacturer,model,ac_type,landing_cat,total_hours,total_cycles}=form; const{error}=await sb.from('aircraft').insert({registration,manufacturer,model,ac_type,landing_cat,total_hours:parseFloat(total_hours)||0,total_cycles:parseInt(total_cycles)||0,customer_id:targetCustomer}); if(error){toast(error.message,'error');return;} toast('Aircraft added.','success'); setShowAdd(false); setForm({registration:'',manufacturer:'',model:'',ac_type:'',landing_cat:'CAT1',total_hours:0,total_cycles:0}); load(); };
   const openEdit=()=>{ if(!sel)return; setEditForm({registration:sel.registration||'',manufacturer:sel.manufacturer||'',model:sel.model||'',ac_type:sel.ac_type||'',landing_cat:sel.landing_cat||'CAT1',total_hours:sel.total_hours||0,total_cycles:sel.total_cycles||0}); setEditing(true); };
   const handleSaveEdit=async()=>{ if(!editForm.registration||!editForm.ac_type){toast('Registration and type required.','error');return;} const sb=await askReason('editing this aircraft'); if(!sb)return; setSaving(true); const{registration,manufacturer,model,ac_type,landing_cat,total_hours,total_cycles}=editForm; const{error}=await sb.from('aircraft').update({registration,manufacturer,model,ac_type,landing_cat,total_hours:parseFloat(total_hours)||0,total_cycles:parseInt(total_cycles)||0}).eq('id',sel.id); if(error){toast(error.message,'error');}else{toast('Aircraft updated.','success');setEditing(false);load();} setSaving(false); };
-  const handleToggleActive=async()=>{ if(!sel)return; const next=!sel.active; const verb=next?'reactivate':'retire from the fleet'; if(!window.confirm(`Are you sure you want to ${verb} ${sel.registration}? Historical flight records are always preserved.`))return; setSaving(true); const{error}=await supabase.from('aircraft').update({active:next}).eq('id',sel.id); if(error){toast(error.message,'error');}else{toast(next?`${sel.registration} reactivated.`:`${sel.registration} retired from fleet.`,'success');load();} setSaving(false); };
+  const handleToggleActive=async()=>{ const sb=await askReason('toggle active'); if(!sb)return; if(!sel)return; const next=!sel.active; const verb=next?'reactivate':'retire from the fleet'; if(!window.confirm(`Are you sure you want to ${verb} ${sel.registration}? Historical flight records are always preserved.`))return; setSaving(true); const{error}=await sb.from('aircraft').update({active:next}).eq('id',sel.id); if(error){toast(error.message,'error');}else{toast(next?`${sel.registration} reactivated.`:`${sel.registration} retired from fleet.`,'success');load();} setSaving(false); };
   return(
     <div style={{display:'flex',flex:1,overflow:'hidden'}}>
       <div style={{flex:1,overflowY:'auto'}}>
@@ -1101,7 +1105,7 @@ export function Crews({toast,myProfile,customerId}){
   };
 
   const handleDeleteConfirm=async()=>{ if(!deleteTarget)return; setSaving(true); try{ const{data:{session}}=await supabase.auth.getSession(); if(!session){toast('Session expired, please log in again.','error');setSaving(false);return;} const res=await fetch(`${process.env.REACT_APP_SUPABASE_URL}/functions/v1/manage-user`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action:'delete',target_user_id:deleteTarget.id})}); const result=await res.json(); if(!res.ok){toast(result.error||'Delete failed','error');setSaving(false);return;} toast(`${deleteTarget.full_name} deleted.`,'success'); setDeleteModal(false);setDeleteTarget(null);setSelected(null);load(); }catch(e){toast(e.message,'error');} setSaving(false); };
-  const handleAddQual=async()=>{ if(!qualForm.ac_type){toast('Aircraft type required.','error');return;} const{error}=await supabase.from('crew_qualifications').upsert({pilot_id:selected,...qualForm}); if(error){toast(error.message,'error');return;} toast('Qualification saved.','success');setShowQual(false);load(); };
+  const handleAddQual=async()=>{ const sb=await askReason('add qual'); if(!sb)return; if(!qualForm.ac_type){toast('Aircraft type required.','error');return;} const{error}=await sb.from('crew_qualifications').upsert({pilot_id:selected,...qualForm}); if(error){toast(error.message,'error');return;} toast('Qualification saved.','success');setShowQual(false);load(); };
   const handleSaveCrew=async()=>{ if(!crewEditForm.full_name||!crewEditForm.code){toast('Name and code required.','error');return;} const sb=await askReason('editing this crew member'); if(!sb)return; const{error}=await sb.from('profiles').update({full_name:crewEditForm.full_name,code:crewEditForm.code.toUpperCase(),role:crewEditForm.role}).eq('id',sel.id); if(error){toast(error.message,'error');return;} if(crewEditForm.home_base){await sb.from('home_bases').upsert({pilot_id:sel.id,icao:crewEditForm.home_base.toUpperCase(),reg:'TC-REC'},{onConflict:'pilot_id'});}else{await sb.from('home_bases').delete().eq('pilot_id',sel.id);} toast('Crew updated.','success');setEditingCrew(false);load(); };
   const handleSaveEfb=async()=>{ if(!efbForm.efb_training_date){toast('Training date required.','error');return;} const sb=await askReason('this EFB training record'); if(!sb)return; const existing=selQuals[0]; if(existing){await sb.from('crew_qualifications').update(efbForm).eq('id',existing.id);}else{await sb.from('crew_qualifications').insert({pilot_id:selected,ac_type:'EFB',seat:'BOTH',hand:'BOTH',landing_cat:'CAT1',...efbForm});} toast('EFB training record saved.','success');setShowEfb(false);load(); };
   const efbStatus=rec=>{ if(!rec?.efb_training_date)return{color:'var(--red)',label:'NO RECORD'}; if(!rec.efb_training_valid_until)return{color:'var(--green)',label:'CURRENT'}; const d=Math.floor((new Date(rec.efb_training_valid_until)-new Date())/86400000); if(d<0)return{color:'var(--red)',label:'EXPIRED'}; if(d<30)return{color:'var(--orange)',label:`${d}d LEFT`}; return{color:'var(--green)',label:'CURRENT'}; };
@@ -1160,7 +1164,8 @@ export function Crews({toast,myProfile,customerId}){
               duty_7d_min:ftlToMin(baseForm.duty_7d)||0,duty_14d_min:ftlToMin(baseForm.duty_14d)||0,
               duty_28d_min:ftlToMin(baseForm.duty_28d)||0,duty_cal_year_min:ftlToMin(baseForm.duty_cal_year)||0,
               off_days_month:Number(baseForm.off_days_month)||0,off_days_cal_year:Number(baseForm.off_days_cal_year)||0};
-            const{error}=await supabase.from('ftl_pilot_baselines').insert([row]);
+            const sb=await askReason('this FTL baseline'); if(!sb)return;
+            const{error}=await sb.from('ftl_pilot_baselines').insert([row]);
             if(error){toast(error.message,'error');}else{toast('Baseline saved (new audit row).','success');setShowBase(false);load();}
             setSaving(false);
           }}>{saving?'SAVING...':'SAVE BASELINE'}</button>
@@ -1268,7 +1273,8 @@ function StationInfo({toast,customerId=null,readOnly=false}){
     // paylodda YOKTU (Ilke 5 ihlali). RiskSurvey'deki dogru desen buraya alindi.
     const { data: myCid } = await supabase.rpc('my_customer_id');
     if(!myCid){ alert('Şirket bilgisi alınamadı (customer_id boş).'); return; }
-    const{error}=await supabase.from('airport_risks').upsert({customer_id:myCid,icao:newAirport.icao,name:newAirport.name,category:newAirport.category,base_score:0,max_s:1,max_l:1,s_scores:'[]',l_scores:'[]'},{onConflict:'icao,customer_id'}); if(error){alert(error.message);return;} setShowAddAirport(false);setNewAirport({icao:'',name:'',category:'B'}); supabase.from('airport_risks').select('icao,name,country,category,base_score,risk_level,ops_approval,ad_elev_ft,max_s,max_l,mitigation').order('icao').then(({data})=>setAirports(data||[])); };
+    const sb=await askReason('adding this airport'); if(!sb)return;
+    const{error}=await sb.from('airport_risks').upsert({customer_id:myCid,icao:newAirport.icao,name:newAirport.name,category:newAirport.category,base_score:0,max_s:1,max_l:1,s_scores:'[]',l_scores:'[]'},{onConflict:'icao,customer_id'}); if(error){alert(error.message);return;} setShowAddAirport(false);setNewAirport({icao:'',name:'',category:'B'}); supabase.from('airport_risks').select('icao,name,country,category,base_score,risk_level,ops_approval,ad_elev_ft,max_s,max_l,mitigation').order('icao').then(({data})=>setAirports(data||[])); };
   return(
     <div style={{display:'flex',flex:1,overflow:'hidden'}}>
       <div style={{flex:1,overflowY:'auto'}}>
@@ -1315,7 +1321,7 @@ function RiskAssessmentInline({icao, onClose}){
   const topicScores=sArr.map((sv,i)=>sv*(lArr[i]||0));const baseScore=editing?Math.max(...topicScores,0):(ap.base_score||0);
   const maxSVal=editing?(sArr.reduce((a,b)=>Math.max(a,b),1)):(ap.max_s||1);const maxLVal=editing?(lArr.reduce((a,b)=>Math.max(a,b),1)):(ap.max_l||1);
   const adPts=ADDONS_LIST.reduce((s,a)=>s+(addons[a.key]?a.pts:0),0);const total=baseScore+adPts;const rl=getRisk(total);const rc=RISK_C[rl]||RISK_C.LOW;
-  const handleSave=async()=>{ setSaving(true); const newBase=Math.max(...topicScores,0);const newMaxS=sEdit.reduce((a,b)=>Math.max(a,b),1);const newMaxL=lEdit.reduce((a,b)=>Math.max(a,b),1);const newRL=getRisk(newBase);const newOps=getOps(newRL,catEdit); const{error}=await supabase.from('airport_risks').update({s_scores:JSON.stringify(sEdit),l_scores:JSON.stringify(lEdit),base_score:newBase,max_s:newMaxS,max_l:newMaxL,risk_level:newRL,ops_approval:newOps,category:catEdit,mitigation:mitEdit,updated_at:new Date().toISOString()}).eq('icao',icao); if(error){alert(error.message);}else{const{data}=await supabase.from('airport_risks').select('*').eq('icao',icao).single();setAp(data);setEditing(false);} setSaving(false); };
+  const handleSave=async()=>{ const sb=await askReason('save'); if(!sb)return; setSaving(true); const newBase=Math.max(...topicScores,0);const newMaxS=sEdit.reduce((a,b)=>Math.max(a,b),1);const newMaxL=lEdit.reduce((a,b)=>Math.max(a,b),1);const newRL=getRisk(newBase);const newOps=getOps(newRL,catEdit); const{error}=await sb.from('airport_risks').update({s_scores:JSON.stringify(sEdit),l_scores:JSON.stringify(lEdit),base_score:newBase,max_s:newMaxS,max_l:newMaxL,risk_level:newRL,ops_approval:newOps,category:catEdit,mitigation:mitEdit,updated_at:new Date().toISOString()}).eq('icao',icao); if(error){alert(error.message);}else{const{data}=await supabase.from('airport_risks').select('*').eq('icao',icao).single();setAp(data);setEditing(false);} setSaving(false); };
   const tabS=(t)=>({flex:1,padding:'8px 4px',textAlign:'center',cursor:'pointer',fontFamily:'var(--mono)',fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:tab===t?'var(--accent)':'var(--t3)',borderBottom:tab===t?'2px solid var(--accent)':'2px solid transparent',background:'transparent',border:'none'});
   return(
     <div style={{fontFamily:'var(--mono)',color:'var(--t1)'}}>
