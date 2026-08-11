@@ -157,6 +157,59 @@ Deno.serve(async (req) => {
       return json({ ok: true, deleted: target_user_id });
     }
 
+    // ───────── SET PASSWORD ─────────
+    // 10 Agu 2026 (saha): eskiden panel "RESET PWD" ile Supabase'in SIFIRLAMA
+    // MAILI yolunu kullaniyordu. Teslim edilemeyen adresi olan hesaplarda
+    // ("email address invalid") calismiyordu — demo pilotlarda oldugu gibi.
+    // Bu yalniz demoya ozgu degil: adresi olmayan/yanlis olan her musteride
+    // ayni duvara carpilir. Sifre artik DOGRUDAN atanir, mail devrede degil.
+    //
+    // YETKI: create/delete ile AYNI kurallar — company_admin yalnizca kendi
+    // sirketinden, super-admin her sirketten. Super-admin'in sifresi ise
+    // hicbir sekilde buradan degistirilemez (kendi hesabi dahil).
+    if (action === "set_password") {
+      const target_user_id = body.target_user_id;
+      const password = body.password;
+      if (!target_user_id || !password) {
+        return json({ error: "target_user_id and password required" }, 400);
+      }
+      if (String(password).length < 8) {
+        return json({ error: "Password must be at least 8 characters" }, 400);
+      }
+
+      const { data: targetProfile } = await admin
+        .from("profiles")
+        .select("id, customer_id, is_super_admin")
+        .eq("id", target_user_id)
+        .single();
+      if (!targetProfile) return json({ error: "Target user not found" }, 404);
+
+      // Super-admin hesabinin sifresi bu yoldan degistirilemez.
+      if (targetProfile.is_super_admin) {
+        return json({ error: "Cannot set the password of a super-admin" }, 403);
+      }
+      if (!isSuper && targetProfile.customer_id !== callerProfile.customer_id) {
+        return json({ error: "Company admin cannot change users of another company" }, 403);
+      }
+
+      const { error: pwErr } = await admin.auth.admin.updateUserById(target_user_id, { password });
+      if (pwErr) return json({ error: pwErr.message }, 400);
+
+      // IZ: sifrenin KENDISI hicbir yere yazilmaz, yalnizca olayin oldugu.
+      // Super-admin yaptiysa superadmin_log'a duser (Ilke 3: iz silinemez).
+      if (isSuper) {
+        await admin.from("superadmin_log").insert({
+          actor_id: callerId,
+          customer_id: targetProfile.customer_id,
+          type: "password_reset",
+          field: target_user_id,
+          reason: String(body.reason ?? "").trim() || "password set by app owner",
+        });
+      }
+
+      return json({ ok: true, updated: target_user_id });
+    }
+
     return json({ error: "Unknown action" }, 400);
   } catch (e) {
     return json({ error: String(e?.message ?? e) }, 500);
