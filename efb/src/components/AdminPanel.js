@@ -215,6 +215,33 @@ const ACTION_MODULE = {
   LND_RWY_SELECTED:'LND DATA', LND_ATIS_ENTERED:'LND DATA', LND_QNH_ENTERED:'LND DATA', LND_PERF_DATA:'LND DATA',
   FLIGHT_ARCHIVED:'END FLT',
   DOC_UPLOADED:'DOC UPLOAD', DOC_DELETED:'DOC UPLOAD',
+  // 11 Agu 2026 — iOS'un urettigi 41 eylemin 22'si buraya hic yazilmamisti ve
+  // OTHER'a dusuyordu; emniyetle ilgili olanlar da (RVSM/LMC/rejected) dahil.
+  // Cogu 9 Agu'da iOS'a eklendi, okuyucu guncellenmedi.
+  DIRECT_TO_SET:'NAV LOG', DIRECT_TO_CLEARED:'NAV LOG',
+  WPT_ADDED:'NAV LOG', WPT_DELETED:'NAV LOG',
+  NAVLOG_ATA_AUTO:'NAV LOG', NAVLOG_ATA_AUTO_REJECTED:'NAV LOG',
+  NAVLOG_ATA_AHEAD_CONFIRMED:'NAV LOG', NAVLOG_ENTRY_REJECTED:'NAV LOG',
+  NAVLOG_CHECK_ALARM:'NAV LOG', NAVLOG_LEG_LEAK_REPAIRED:'NAV LOG',
+  ROUTE_ADDED_FROM_FMS:'NAV LOG', ROUTE_FMS_PHOTO_READ:'NAV LOG',
+  RVSM_DIFF_EXCEEDED:'NAV LOG',   // NavLogView.swift:1812 — ucus ici. Yerdeki karsiligi TKOF_RVSM_GROUND.
+  OEO_DP_LOADED:'T/O DATA', LMC_LIMIT_EXCEEDED:'T/O DATA',
+  ARCHIVE_ALREADY_ON_SERVER:'END FLT', ARCHIVE_WB_WARNING_ACCEPTED:'END FLT',
+  SYNC_ARCHIVE_NOTICE:'END FLT',   // olayin kendisi arsiv bildirimi; tipe bakmaya gerek yok
+};
+
+// iOS SyncType (SyncModels.swift:36) -> ekran adi. Serkan kurali (11 Agu):
+// "sync hangi modul icinde atildiysa orda gorunebilir".
+// TAM eslesme: bes degerin besi de yazili. Eskiden yalniz NAVLOG ve ENDFLIGHT
+// taniniyor, GERI KALAN HEPSI ternary'nin else'i ile sessizce ACCEPT & SIGN'a
+// yaziliyordu — ARCHIVED ve SIDEBAR yanlis modulde gorunuyordu (Ilke 1: bilmedigini
+// biliyormus gibi yazma). Yeni bir SyncType eklenirse burada yoktur, OTHER'a duser.
+const SYNC_TYPE_MODULE = {
+  HANDOFF:  'ACCEPT & SIGN',
+  NAVLOG:   'NAV LOG',
+  ENDFLIGHT:'END FLT',
+  ARCHIVED: 'END FLT',
+  SIDEBAR:  'OTHER',   // sol menuden atilir, bir modulun ICINDEN degil — dogru yeri OTHER
 };
 
 function logModule(l){
@@ -224,7 +251,12 @@ function logModule(l){
   // ayni yoldan gecer — ikisi de details.module icinde ModuleKey rawValue tasir.
   if (l.action === 'MODULE_COMPLETE' ||
       l.action === 'MODULE_ENTRIES')  return MODULE_KEY_MAP[d.module] || 'OTHER';
-  if (l.action === 'SYNC_SENT')       return d.type === 'NAVLOG' ? 'NAV LOG' : d.type === 'ENDFLIGHT' ? 'END FLT' : 'ACCEPT & SIGN';
+  // SYNC_SENT gonderende, SYNC_APPLIED alicida; ikisi de yukunde `type` tasir.
+  // SYNC_DECLINED / SYNC_APPLIED_WITH_LOSS / SYNC_FAILED tasimiyor -> ACTION_MODULE'de
+  // de yoklar, OTHER'da kalirlar. Uydurulmaz: reddetme aninda iOS yalnizca
+  // SyncInvite'i goruyor, o da `kind` olarak "SYNC"|"ARCHIVED" tasiyor, modulu bilmiyor.
+  if (l.action === 'SYNC_SENT' ||
+      l.action === 'SYNC_APPLIED')    return SYNC_TYPE_MODULE[d.type] || 'OTHER';
   return ACTION_MODULE[l.action] || 'OTHER';
 }
 
@@ -236,6 +268,26 @@ function detailText(d, skip = []){
     .filter(([k]) => !['platform','timestamp_utc', ...skip].includes(k))
     .map(([k,v]) => `${k}: ${v}`).join(' · ');
 }
+
+// Insan cumlesi olmayan olaylar: [etiket, ton?]. Deger her zaman TAM detay
+// dokumudur — denetim izinden alan kirpilmaz, yalniz basligi Turkcelestirilir.
+// `tone:'warn'` olanlar emniyet olaylari: denetci turuncuyu tarayarak bulabilmeli.
+const SIMPLE_LABEL = {
+  DIRECT_TO_SET:['Direct to'],                  DIRECT_TO_CLEARED:['Direct to cleared'],
+  WPT_ADDED:['Waypoint added'],                 WPT_DELETED:['Waypoint deleted'],
+  NAVLOG_ATA_AUTO:['ATA auto'],                 NAVLOG_ATA_AUTO_REJECTED:['ATA auto rejected','warn'],
+  NAVLOG_ATA_AHEAD_CONFIRMED:['ATA ahead of plan — confirmed','warn'],
+  NAVLOG_ENTRY_REJECTED:['Entry rejected','warn'],
+  NAVLOG_CHECK_ALARM:['Check alarm'],           NAVLOG_LEG_LEAK_REPAIRED:['Leg repaired'],
+  ROUTE_ADDED_FROM_FMS:['Route added from FMS'],ROUTE_FMS_PHOTO_READ:['FMS photo read'],
+  RVSM_DIFF_EXCEEDED:['RVSM difference exceeded','warn'],
+  OEO_DP_LOADED:['OEO DP loaded'],              LMC_LIMIT_EXCEEDED:['LMC limit exceeded','warn'],
+  ARCHIVE_ALREADY_ON_SERVER:['Archive already on server'],
+  ARCHIVE_WB_WARNING_ACCEPTED:['Archived without W&B — accepted','warn'],
+  SYNC_APPLIED:['Sync applied'],                SYNC_APPLIED_WITH_LOSS:['Sync applied with loss','warn'],
+  SYNC_ARCHIVE_NOTICE:['Archive notice from other tablet'],
+  SYNC_DECLINED:['Sync declined'],              SYNC_FAILED:['Sync failed','warn'],
+};
 
 // Her satir icin insan cumlesi: {label, value?, tone?}
 // tone: 'ok' yesil, 'warn' turuncu, 'accept' vurgulu yesil
@@ -289,8 +341,10 @@ function logRow(l, who = () => null){
     // Modulden cikista girilenler/degisenler (eski → yeni). `module` elenir.
     case 'MODULE_ENTRIES':         return { label:'Entries', value:detailText(d, ['module']) || undefined };
     default: {
-      const meta = ACTION_META[l.action];
       const detail = detailText(d);
+      const simple = SIMPLE_LABEL[l.action];
+      if (simple) return { label: simple[0], value: detail || undefined, tone: simple[1] };
+      const meta = ACTION_META[l.action];
       return { label: meta ? meta.label : l.action.replace(/_/g,' '), value: detail || undefined };
     }
   }
