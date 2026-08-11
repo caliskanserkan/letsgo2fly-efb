@@ -1373,14 +1373,34 @@ function FltLogsAndTimes({customerId=null}){
 function EditReports({customerId=null}){
   const[reports,setReports]=useState([]);const[loading,setLoading]=useState(true);const[filter,setFilter]=useState('');
   // admin_edits'te customer_id yok, bag plan uzerinden -> filtre istemcide.
-  useEffect(()=>{ (async()=>{ setLoading(true); const{data}=await supabase.from('admin_edits').select('id,created_at,edit_type,field_name,old_value,new_value,reason,plan_id,plans:plan_id(customer_id,dep,dest,date)').order('created_at',{ascending:false}).limit(500); setReports((data||[]).filter(r=>!customerId||!r.plans||r.plans.customer_id===customerId)); setLoading(false); })(); },[customerId]);
+  // IKI KAYNAK TEK LISTEDE (11 Agu 2026 — Serkan'in mimari kurali, md.6):
+  // musterinin KENDI duzeltmeleri (admin_edits) + APP SAHIBININ o sirkette
+  // yaptigi HER SEY (superadmin_log). Serkan: "super admin kime edit yaparsa
+  // O GORMELI, yoksa cok buyuk sorun."
+  // Kapsam: superadmin_log'un RLS'i sirket adminini kendi satirlariyla
+  // sinirlar; super admin izlerken de customerId ile suzulur. Yani kural
+  // butun musteriler icin ayni sekilde isler, demoya ozel bir sey yok.
+  useEffect(()=>{ (async()=>{ setLoading(true);
+    const flat=(v)=>v==null?'':(typeof v==='object'?JSON.stringify(v):String(v)).replace(/^"|"$/g,'');
+    const [ae,sa]=await Promise.all([
+      supabase.from('admin_edits').select('id,created_at,edit_type,field_name,old_value,new_value,reason,plan_id,plans:plan_id(customer_id,dep,dest,date)').order('created_at',{ascending:false}).limit(500),
+      supabase.from('superadmin_log').select('id,at,type,table_name,op,field,old_value,new_value,reason,customer_id').order('at',{ascending:false}).limit(500),
+    ]);
+    const own=(ae.data||[]).filter(r=>!customerId||!r.plans||r.plans.customer_id===customerId);
+    const sup=(sa.data||[]).filter(r=>!customerId||r.customer_id===customerId).map(r=>({
+      id:'sa_'+r.id, created_at:r.at, edit_type:'GO2 SUPPORT', _go2:true,
+      _table:r.table_name, _op:r.op, _kind:r.type,
+      field_name:r.field, old_value:flat(r.old_value), new_value:flat(r.new_value), reason:r.reason,
+    }));
+    setReports([...own,...sup].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)));
+    setLoading(false); })(); },[customerId]);
   const filtered=reports.filter(r=>!filter||r.field_name?.toLowerCase().includes(filter.toLowerCase())||r.reason?.toLowerCase().includes(filter.toLowerCase())||`${r.plans?.dep}${r.plans?.dest}`.toLowerCase().includes(filter.toLowerCase()));
   return(
     <div style={{flex:1,overflowY:'auto'}}>
       <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,display:'flex',gap:10,alignItems:'center'}}><input placeholder="Search by route, field, reason..." value={filter} onChange={e=>setFilter(e.target.value)} style={{...S.input,width:300}}/><span style={{...S.label,marginLeft:'auto'}}>{filtered.length} REPORTS</span></div>
       {loading&&<div style={{padding:32,textAlign:'center',color:C.t3,fontSize:11}}>LOADING...</div>}
       {!loading&&filtered.length===0&&<div style={{padding:48,textAlign:'center',color:C.t3,fontSize:11,letterSpacing:2}}>NO REPORTS</div>}
-      <table style={S.table}><thead><tr>{['DATE','TYPE','FLIGHT','FIELD','OLD VALUE','NEW VALUE','REASON'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead><tbody>{filtered.map(r=>(<tr key={r.id}><td style={{...S.td,fontSize:11,whiteSpace:'nowrap'}}>{new Date(r.created_at).toLocaleString('en-GB')}</td><td style={S.td}><span style={S.badge(r.edit_type==='DELETE'?'red':'')}>{r.edit_type||'EDIT'}</span></td><td style={{...S.td,color:C.accent,fontWeight:700}}>{r.plans?`${r.plans.dep} → ${r.plans.dest}`:r.plan_id?.slice(0,8)||'—'}</td><td style={{...S.td,color:C.accent}}>{r.field_name||'—'}</td><td style={{...S.td,color:C.t3,fontSize:12}}>{String(r.old_value||'—').slice(0,30)}</td><td style={{...S.td,color:'var(--green)',fontSize:12}}>{String(r.new_value||'—').slice(0,30)}</td><td style={{...S.td,color:C.t2,maxWidth:320,fontSize:12}}>{r.reason||'—'}</td></tr>))}</tbody></table>
+      <table style={S.table}><thead><tr>{['DATE','TYPE','FLIGHT','FIELD','OLD VALUE','NEW VALUE','REASON'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead><tbody>{filtered.map(r=>(<tr key={r.id}><td style={{...S.td,fontSize:11,whiteSpace:'nowrap'}}>{new Date(r.created_at).toLocaleString('en-GB')}</td><td style={S.td}><span style={S.badge(r._go2?'amber':(r.edit_type==='DELETE'?'red':''))}>{r._go2?'GO2 SUPPORT':(r.edit_type||'EDIT')}</span>{r._go2&&<div style={{fontSize:9,color:C.t3,marginTop:3}}>{r._table} · {r._op||r._kind}</div>}</td><td style={{...S.td,color:C.accent,fontWeight:700}}>{r.plans?`${r.plans.dep} → ${r.plans.dest}`:(r._go2?(r._table||'—'):(r.plan_id?.slice(0,8)||'—'))}</td><td style={{...S.td,color:C.accent}}>{r.field_name||'—'}</td><td style={{...S.td,color:C.t3,fontSize:12}}>{String(r.old_value||'—').slice(0,30)}</td><td style={{...S.td,color:'var(--green)',fontSize:12}}>{String(r.new_value||'—').slice(0,30)}</td><td style={{...S.td,color:C.t2,maxWidth:320,fontSize:12}}>{r.reason||'—'}</td></tr>))}</tbody></table>
     </div>
   );
 }
