@@ -162,6 +162,15 @@ function parseAllSectors(text: string): any[] {
       const fplFull = fbText.match(/\(FPL-[\s\S]*?\)/);
       sector.atc_fpl = fplFull ? fplFull[0].trim() : fbText.trim();
 
+      // TESCIL — ATC FPL'in REG/ alanindan, OLDUGU GIBI (11 Agu 2026, Serkan:
+      // "tescili ATC FPL'den okuyalim cunku o resmi bir paragraf").
+      // REG/ ICAO ucus planinin 18. alanidir, bicimi standarttir; OFP tablosunun
+      // duzeni ise dispatcher'a gore degisir. Ayrica burada TC- UYDURULMAZ —
+      // tablo yolundaki `TC-${...}` kalibi yabanci tescilli musteride yanlis
+      // tescil ureten bir tuzaktir (ayri madde, bkz. CLAUDE.md).
+      const regFpl = fbText.match(/REG\/([A-Z0-9-]{3,10})/)?.[1] || '';
+      if (regFpl) sector.fpl_reg = regFpl.trim();
+
       // ── FAALIYET TIPI PLANDAN (6 Agu 2026, Serkan): ucusun niteligi ATC
       // FPL'inde zaten yazili — elle secime bagli kalmayalim.
       // MANTIK BURADA DEGIL: `efb/src/components/planOps.js` TEK KAYNAK; sinama
@@ -261,6 +270,58 @@ Deno.serve(async (req) => {
     const pdfText = await extractPdfText(bytes);
     const sectors = parseAllSectors(pdfText);
     if (sectors.length === 0) return json({ error: "No flight sectors found in PDF." }, 422);
+
+    // 4b) TESCIL ↔ SIRKET KAPISI (11 Agu 2026, Serkan: "buyuk kusur")
+    //
+    // SORUN: plan kime ait sorusunun cevabi YALNIZCA yukleyenin profilinden
+    // geliyordu; OFP'deki tescil hic kontrol edilmiyordu. Serkan'in senaryosu:
+    // "herkese hizmet veren bir dispatch yanlislikla REC planini AAA veya XXX
+    // sirketine verir ve pilotlar fark etmez." Sessiz cok-kiracili bulasma.
+    //
+    // KURAL (Serkan): SIRKET + UCAK + PILOT eslesirse kacak olmaz.
+    //   - pilot ayagi zaten var (callerCustomerId yoksa yukarida reddediliyor)
+    //   - eklenen ayak: tescil, YUKLEYENIN filosunda kayitli olmali
+    //   - eslesme TESCIL uzerinden yapilir, UCAK TIPI uzerinden DEGIL
+    //   - eslesme yoksa plan HIC OLUSMAZ, yani pilot onu hicbir zaman gormez
+    //
+    // KARSILASTIRMA NORMALLESTIRILMIS: "TCREC" ile "TC-REC" ayni sayilir.
+    // Yazim farki yuzunden DOGRU planin reddedilmesi en kotu sonuc olurdu.
+    const normReg = (v: string) => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+    // TUM filo tek seferde okunur (uygulama olcegi kucuk) — hem yukleyenin
+    // ucaklari hem de "bu tescil kimin?" sorusunun cevabi buradan cikar.
+    const { data: allAc, error: fleetErr } = await admin
+      .from("aircraft").select("registration, customer_id, customers(company_name)");
+    if (fleetErr) return json({ error: `Fleet lookup failed: ${fleetErr.message}` }, 500);
+    const fleetSet = new Set(
+      (allAc ?? []).filter((a: any) => a.customer_id === callerCustomerId).map((a: any) => normReg(a.registration))
+    );
+    const ownerOf = (k: string) => (allAc ?? []).find((a: any) => normReg(a.registration) === k) as any;
+
+    for (const s of sectors) {
+      // Once ATC FPL'deki REG/ (resmi alan), yoksa tablodan cikan tescil.
+      const planReg = s.fpl_reg || s.reg || "";
+      const key = normReg(planReg);
+
+      // Tescil hic okunamadiysa sahiplik DOGRULANAMAZ -> gecirmeyiz (Ilke 1).
+      if (!key) {
+        return json({ error: "Registration could not be read from the flight plan (ATC FPL REG/ missing). The plan was not uploaded." }, 422);
+      }
+      if (!fleetSet.has(key)) {
+        // Baska sirkete mi ait, hic kayitli mi degil — sebebi AYRI AYRI yazilir.
+        // "Bulunamadi" ile "baskasinin" ayni sey degildir; ikincisi kacak,
+        // birincisi eksik kurulum.
+        const owner = ownerOf(key);
+        if (owner) {
+          return json({
+            error: `This flight plan belongs to another operator. ${planReg} is registered to ${owner.customers?.company_name ?? "another company"}, not to your company. The plan was not uploaded.`,
+          }, 403);
+        }
+        return json({
+          error: `${planReg} is not in your company's fleet. Add the aircraft under AIRCRAFTS first, then upload the plan again.`,
+        }, 422);
+      }
+    }
 
     // 5) Her sektoru yaz (multi-leg)
     const results: any[] = [];

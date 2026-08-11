@@ -113,8 +113,15 @@ function Login({ onLogin }) {
   const handleLogin = async () => {
     setLoading(true);
     setError('');
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password: pass });
-    if (authError) setError('Invalid email or password.');
+    // E-posta bosluk/buyuk-kucuk harf yuzunden eslesmesin diye normallestirilir
+    // (Supabase e-postayi kucuk harfte tutar). Sifreye DOKUNULMAZ.
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(), password: pass,
+    });
+    // 11 Agu 2026: eskiden HER hata "Invalid email or password." diye
+    // gosteriliyordu; gercek sebep (onaylanmamis e-posta, hiz siniri, ag hatasi)
+    // gizleniyordu ve saha teshisi imkansizdi. Sistem bildigi seyi soyler.
+    if (authError) setError(authError.message || 'Sign-in failed.');
     else onLogin();
     setLoading(false);
   };
