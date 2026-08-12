@@ -253,10 +253,15 @@ function logModule(l){
   if (l.action === 'MODULE_COMPLETE' ||
       l.action === 'MODULE_ENTRIES')  return MODULE_KEY_MAP[d.module] || 'OTHER';
   // SYNC_SENT gonderende, SYNC_APPLIED alicida; ikisi de yukunde `type` tasir.
-  // SYNC_DECLINED / SYNC_APPLIED_WITH_LOSS / SYNC_FAILED tasimiyor -> ACTION_MODULE'de
-  // de yoklar, OTHER'da kalirlar. Uydurulmaz: reddetme aninda iOS yalnizca
-  // SyncInvite'i goruyor, o da `kind` olarak "SYNC"|"ARCHIVED" tasiyor, modulu bilmiyor.
+  // SYNC_FAILED de 12 Agu 2026'dan (iOS build 43) itibaren tasiyor. Eski
+  // tabletlerden gelen ve gecmiste yazilmis kayitlarda `type` YOKTUR:
+  // SYNC_TYPE_MODULE[undefined] -> undefined -> 'OTHER'. Yani bu satir geriye
+  // donuk guvenlidir; eski kayitlar bugunku yerlerinde kalir.
+  // SYNC_DECLINED / SYNC_APPLIED_WITH_LOSS hala tasimiyor -> OTHER'da kalirlar.
+  // Uydurulmaz: reddetme aninda iOS yalnizca SyncInvite'i goruyor, o da `kind`
+  // olarak "SYNC"|"ARCHIVED" tasiyor, modulu bilmiyor (Ilke 1).
   if (l.action === 'SYNC_SENT' ||
+      l.action === 'SYNC_FAILED' ||
       l.action === 'SYNC_APPLIED')    return SYNC_TYPE_MODULE[d.type] || 'OTHER';
   return ACTION_MODULE[l.action] || 'OTHER';
 }

@@ -71,6 +71,21 @@ function hhmm(mins?: number | null): string {
   if (mins === null || mins === undefined) return "—";
   return `${Math.floor(mins/60)}:${String(mins%60).padStart(2,"0")}`;
 }
+// ─── Modul konfigurasyonu (12 Agu 2026, build 43) ────────────────────────────
+// iPad'in gonderdigi donmus kopya GUVENILMEZ GIRDIDIR: sadece `string -> boolean`
+// ciftleri alinir, gerisi atilir. Tek bir bozuk deger raporun bir bolumunu
+// sessizce budayabilirdi.
+// Bos nesne KABUL EDILMEZ (null doner): bos map "hepsi acik" demektir, oysa
+// gonderilmemis olmak "bilmiyorum" demektir — ikisi ayni sey degil (Ilke 1).
+function sanitizeFeatures(v: unknown): Record<string, boolean> | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const out: Record<string, boolean> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof k === "string" && k.length <= 64 && typeof val === "boolean") out[k] = val;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 // DEST koordinati (raw_text'ten) — is_night_landing hesabi ileride buna dayanir
 function parseDestCoords(raw?: string | null): { lat: number|null; lon: number|null } {
   if (!raw) return { lat: null, lon: null };
@@ -131,7 +146,26 @@ Deno.serve(async (req) => {
     // kapaliya dusmek burada sessizce FTL takibini durdururdu).
     const { data: custCfg } = await admin.from("customers")
       .select("features").eq("id", plan.customer_id).single();
-    const ftlEnabled = (custCfg?.features ?? {})["admin.ftl"] !== false;
+    const liveFeatures = (custCfg?.features ?? {}) as Record<string, boolean>;
+    const ftlEnabled = liveFeatures["admin.ftl"] !== false;
+
+    // ── RAPORUN KONFIGURASYONU — UCUSUN KENDI HALI (12 Agu 2026, build 43) ───
+    // Buraya kadar okunan `liveFeatures` BUGUNKU ayardir. Rapor bunu kullanamaz:
+    //   (a) ucus acikken anahtar kapatilirsa tablette kaydedilen QNH/VREF
+    //       satirlari rapora hic girmiyordu (iPad donmus kopyayla dogru
+    //       davraniyor, rapor yeni ayarla budaniyordu),
+    //   (b) REGEN REPORT eski bir ucusun raporunu bugunku ayarla yeniden
+    //       uretiyor, aradan gecen surede kapatilan modulun satirlari GECMIS
+    //       RAPORDAN dusuyordu.
+    // Ikisi de Ilke 3 ihlali. Artik konfigurasyon ILK ARSIVDE DONAR ve
+    // `flt_report.features_snapshot`ta yasar; REGEN onu geri okur.
+    const snapFromDevice = sanitizeFeatures(body.features_snapshot);
+    // iPad 10 `ui.*` anahtarini ACIKCA yollar; `admin.*` sapmalarini bilmez,
+    // onlari sunucu arsiv anindaki halinden altina serer. Cihaz USTTE kazanir:
+    // ucusun fiilen yurudugu ayar odur.
+    const featuresAtArchive: Record<string, boolean> =
+      { ...liveFeatures, ...(snapFromDevice ?? {}) };
+    const featuresSource: "device" | "server" = snapFromDevice ? "device" : "server";
     if (!regenOnly && plan.status === "archived") {
       // IDEMPOTENT (31 Tem 2026, PLAN DOWNLOAD Faz 3 — Serkan karari):
       // TEK PLAN TEK ARSIV. Ikinci tabletin (offline kuyruktan geç gelen)
@@ -504,7 +538,7 @@ Deno.serve(async (req) => {
 
     // regen modunda ARSIV VERISI DEGISMEZ (EASA) — sadece PDF yeniden uretilir
     if (!regenOnly) {
-    const { error: frErr } = await admin.from("flt_report").upsert({
+    const frBody: Record<string, unknown> = {
       plan_id: String(planId),
       pf_id: pfPilot, pm_id: pmPilot,
       pf_name: crew.pf.name, pm_name: crew.pm.name,
@@ -532,8 +566,33 @@ Deno.serve(async (req) => {
       } : null,
       documents: docRows.length ? docRows : null,
       ac_hours: acHours,
+      // UCUSUN MODUL KONFIGURASYONU — ILK ARSIVDE DONAR, REGEN BUNU OKUR.
+      // iPad kopya gondermediyse (eski surum) arsiv anindaki canli ayar
+      // dondurulur: o an ucus zaten o ayarla bitmistir, yarin degisse bile
+      // rapor artik kaymaz. `features_source` hangisinin oldugunu soyler.
+      features_snapshot: featuresAtArchive,
+      features_source: featuresSource,
       archived_at: new Date().toISOString(),
-    }, { onConflict: "plan_id" });
+    };
+
+    let { error: frErr } = await admin.from("flt_report")
+      .upsert(frBody, { onConflict: "plan_id" });
+
+    // GOC KOSULMADAN DEPLOY EDILDIYSE: `flt_report` satiri HIC yazilmaz, 11b
+    // raporu bulamaz ve PDF URETILMEZ. Daha kotusu kalicidir — REGEN de
+    // `flt_report`a yazmaz, yani o ucusun raporu bir daha uretilemez.
+    // Rapor kaybetmektense konfigurasyon kaydini kaybederiz: iki yeni kolon
+    // dusurulup tekrar denenir. SESSIZ DEGIL — hem sunucu logunda hata olarak
+    // gorunur hem de raporun alt bilgisinde "config not recorded" yazar (kaynak
+    // NULL kalir), yani kagit uzerinde de belli olur (Ilke 1).
+    if (frErr && /features_snapshot|features_source/.test(frErr.message ?? "")) {
+      console.error("[archive] MIGRATION MISSING (20260812_flt_report_features_snapshot):",
+                    frErr.message, "— retrying without config columns");
+      delete frBody.features_snapshot;
+      delete frBody.features_source;
+      ({ error: frErr } = await admin.from("flt_report")
+        .upsert(frBody, { onConflict: "plan_id" }));
+    }
     if (frErr) console.warn("[archive] flt_report:", frErr.message);
     }
 
@@ -700,6 +759,23 @@ Deno.serve(async (req) => {
         .select("*").eq("plan_id", planId).single();
 
       if (frRow) {
+        // ── RAPORUN KONFIGURASYONU ────────────────────────────────────────
+        // ILK ARSIV: yukarida upsert edildigi icin `frRow` zaten donmus kopyayi
+        // tasir. REGEN: upsert atlanir, kayittaki eski kopya okunur — raporun
+        // bugunku ayardan ETKILENMEMESININ tek sebebi budur.
+        //
+        // KAYIT YOKSA (bu gocten once arsivlenmis ucus) rapor HICBIR bolumu
+        // budamaz — canliya DUSULMEZ. Sebep: canliya dusmek REGEN'de gecmis
+        // rapordan satir dusurmek demektir, duzeltmeye calistigimiz kusurun ta
+        // kendisi. Budamamak en fazla bos bir satir bastirir; budamak denetim
+        // izinden veri siler (Ilke 3 + Kural 8: belirsizlik = ACIK).
+        const featForReport: Record<string, boolean> =
+          (frRow.features_snapshot as Record<string, boolean> | null) ?? {};
+        const featSourceForReport: string | null = frRow.features_source ?? null;
+        if (regenOnly && !featSourceForReport) {
+          console.warn("[archive] regen without recorded config — nothing pruned:", planId);
+        }
+
         // Imza PNG'lerini indir
         const sigs: Record<string, Uint8Array> = {};
         for (const sp of [frRow.mandatory?.signature_url, frRow.accept?.signature_url]) {
@@ -760,7 +836,7 @@ Deno.serve(async (req) => {
         const pdfBytes = await buildReportPdf({
           fr: frRow, plan, signatures: sigs, attachments: atts, amendments, photos,
           duties: ftlResult.dutyRows, ftlStatus: ftlResult.ftlUpdate, ftlEnabled,
-          features: (custCfg?.features ?? {}) as Record<string, boolean>,
+          features: featForReport, featuresSource: featSourceForReport,
         });
 
         const fname = `GO2_FltReport_${plan.reg ?? "AC"}_${plan.dep ?? ""}-${destIcao ?? ""}_${isoDate}.pdf`
