@@ -12,6 +12,7 @@ import AdminHelp from './AdminHelp';
 import { isEnabled } from './featureCatalog';
 import { askReason, withReason, setReasonOpener } from '../editReason';
 import ThemeToggle from './ThemeToggle';
+import OpsCalculator from './OpsCalculator';
 
 // ─── Font Controls ────────────────────────────────────────────
 const FONT_KEY = 'efb_font_size';
@@ -1483,6 +1484,7 @@ const NAV=[
   {id:'crews',    icon:'◈', label:'Crews'},
   {id:'ftl',      icon:'⏱', label:'FTL',    feature:'admin.ftl'},
   {id:'stats',    icon:'▦', label:'Statistics'},
+  {id:'opscalc',  icon:'∑', label:'Ops Calculator'},
   {id:'stations', icon:'◉', label:'RAAQ',   feature:'admin.raaq'},
   {id:'logs',     icon:'≡', label:'FLTs Logs & Times'},
   {id:'reports',  icon:'R', label:'Edit Reports'},
@@ -1498,7 +1500,7 @@ const NAV=[
 // "henuz kapsama alinmadi" der. Baslikta GO2Demo yazarken REC'in ucuslarini
 // gostermek Ilke 1'in ihlalidir — bos birakmak degil, SEBEBINI yazmak dogrudur.
 // 10 Agu 2026: on panelin tamami kapsama alindi.
-const SCOPED_TABS = ['active', 'archived', 'crews', 'aircrafts', 'ftl', 'stats', 'stations', 'logs', 'reports'];
+const SCOPED_TABS = ['active', 'archived', 'crews', 'aircrafts', 'ftl', 'stats', 'stations', 'logs', 'reports', 'opscalc'];
 
 // Kapsama alinmamis panel: BOS birakilmaz, sebebi yazilir (Ilke 1).
 function NotScopedYet({ tab, companyName }) {
@@ -1692,6 +1694,7 @@ export default function AdminPanel({onBack, customerId=null, companyName=null}){
               {tab==='ftl'       && isEnabled(features,'admin.ftl')  && <FTLPanel toast={showToast} myProfile={myProfile} customerId={scopeId} readOnly={!!customerId}/>}
               {tab==='stats'     && <Statistics    customerId={scopeId}/>}
               {tab==='stations'  && isEnabled(features,'admin.raaq') && <StationInfo toast={showToast} customerId={scopeId} readOnly={!!customerId}/>}
+              {tab==='opscalc'   && <OpsCalculator toast={showToast} customerId={scopeId} readOnly={!!customerId}/>}
               {tab==='logs'      && <FltLogsAndTimes customerId={scopeId}/>}
               {tab==='reports'   && <EditReports   customerId={scopeId}/>}
               {tab==='help'      && <AdminHelp features={features}/>}
