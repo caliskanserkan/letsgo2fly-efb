@@ -181,6 +181,10 @@ export function computeTrip({
   outLeg, retLeg,
   outDepartUTC, outArriveUTC, retDepartUTC,
   crewCount = 2,
+  // TANKERING (Serkan, 12 Agu): "sadece DEP meydaninda yakit alip DEST'te
+  // ikmal yapmadan donusler oluyor". Acikken gidis-donus yakitinin TAMAMI
+  // DEP fiyatindan hesaplanir, DEST fiyati kullanilmaz.
+  tankering = false,
   fuelPriceDepPerTonne = 0,   // gidis bacaginin yakiti DEP'ten alinir
   fuelPriceDestPerTonne = 0,  // donus bacaginin yakiti DEST'ten alinir
   hotelNightly = 0,
@@ -194,9 +198,11 @@ export function computeTrip({
   const nights = hotelNights(outArriveUTC, retDepartUTC);
   const pdDays = perDiemDays(groundHours);
 
-  const fuelCost =
-    outLeg.fuelTonnes * fuelPriceDepPerTonne +
-    retLeg.fuelTonnes * fuelPriceDestPerTonne;
+  const fuelTonnes = outLeg.fuelTonnes + retLeg.fuelTonnes;
+  const fuelCost = tankering
+    ? fuelTonnes * fuelPriceDepPerTonne                      // hepsi DEP'ten
+    : outLeg.fuelTonnes * fuelPriceDepPerTonne +
+      retLeg.fuelTonnes * fuelPriceDestPerTonne;
   const hotelCost   = nights * crewCount * hotelNightly;
   const perDiemCost = pdDays * crewCount * perDiemDaily;
   const docCost     = (outLeg.docH + retLeg.docH) * docHourly;
@@ -208,6 +214,7 @@ export function computeTrip({
   return {
     groundHours, nights, perDiemDays: pdDays,
     totalFlightH, totalDocH: outLeg.docH + retLeg.docH,
+    tankering, fuelTonnes,
     fuelCost, hotelCost, perDiemCost, docCost, handling, catering,
     total,
     // Serkan: "bir deger cikar ortalama, buna gore fiyat verilir"

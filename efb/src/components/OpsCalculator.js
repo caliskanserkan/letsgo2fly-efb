@@ -109,6 +109,7 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
   const [crew, setCrew]     = useState(2);
 
   // "Any conflict on the route?" — her bacak icin ayri (Serkan, 12 Agu)
+  const [tankering, setTankering] = useState(false);
   const [outConflict, setOutConflict] = useState(false);
   const [retConflict, setRetConflict] = useState(false);
   const [outExtra, setOutExtra] = useState('');
@@ -184,6 +185,7 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
         outArriveUTC: outArrive,
         retDepartUTC: new Date(retAt).toISOString(),
         crewCount: +crew || 2,
+        tankering,
         fuelPriceDepPerTonne: +c.fuelDep || 0,
         fuelPriceDestPerTonne: +c.fuelDest || 0,
         hotelNightly: +c.hotel || 0,
@@ -199,7 +201,7 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
       setErr(e.message || 'Calculation failed.');
     }
     setBusy(false);
-  }, [acParams, ac, dep, dest, outAt, retAt, crew, c, outConflict, retConflict, outExtra, retExtra]);
+  }, [acParams, ac, dep, dest, outAt, retAt, crew, c, tankering, outConflict, retConflict, outExtra, retExtra]);
 
   const money = (n) => `$${(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
@@ -272,9 +274,26 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
 
       {/* ── MALIYET GIRDILERI ── */}
       <div style={card}>
-        <div style={h2}>COSTS (USD)</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ ...h2, marginBottom: 0 }}>COSTS (USD)</div>
+          {/* TANKERING: DEP'te yakit alip DEST'te ikmal yapmadan donus.
+              Acikken gidis-donus yakitinin TAMAMI tek meydanin fiyatindan. */}
+          <button onClick={() => setTankering(v => !v)} disabled={readOnly}
+            style={{ padding: '5px 14px', borderRadius: 6, fontSize: 10, fontWeight: 700, letterSpacing: 1, cursor: 'pointer',
+                     border: `1px solid ${tankering ? 'var(--amber)' : 'var(--border)'}`,
+                     background: tankering ? 'var(--amber-soft)' : 'transparent', color: 'inherit' }}>
+            TANKERING {tankering ? 'ON' : 'OFF'}
+          </button>
+        </div>
+        {tankering && (
+          <div style={{ fontSize: 11, color: 'var(--amber)', marginBottom: 10 }}>
+            All round-trip fuel uplifted at {dep || 'DEP'} — no refuelling at {dest || 'DEST'}.
+          </div>
+        )}
         <div style={grid(4)}>
-          {[['fuelDep', `FUEL ${dep || 'DEP'} / TONNE`], ['fuelDest', `FUEL ${dest || 'DEST'} / TONNE`],
+          {[...(tankering
+              ? [['fuelDep', `FUEL ${dep || 'DEP'} / TONNE — ALL UPLIFT`]]
+              : [['fuelDep', `FUEL ${dep || 'DEP'} / TONNE`], ['fuelDest', `FUEL ${dest || 'DEST'} / TONNE`]]),
             ['hDep', `HANDLING ${dep || 'DEP'}`], ['hDest', `HANDLING ${dest || 'DEST'}`],
             ['catering', 'CATERING'], ['hotel', 'HOTEL / NIGHT / PERSON'],
             ['perDiem', 'PER DIEM / DAY / PERSON'], ['doc', `DOC / HOUR${ac?.ops_doc_hourly ? ` (${ac.ops_doc_hourly})` : ''}`]].map(([k, l]) => (
@@ -338,7 +357,7 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
           )}
 
           <div style={{ ...grid(4), marginTop: 14 }}>
-            {[['FUEL', res.trip.fuelCost], ['HANDLING', res.trip.handling], ['CATERING', res.trip.catering],
+            {[[res.trip.tankering ? 'FUEL (TANKERING)' : 'FUEL', res.trip.fuelCost], ['HANDLING', res.trip.handling], ['CATERING', res.trip.catering],
               ['HOTEL', res.trip.hotelCost], ['PER DIEM', res.trip.perDiemCost], ['DOC', res.trip.docCost]].map(([t, v]) => (
               <div key={t}>
                 <label style={lbl}>{t}</label>
