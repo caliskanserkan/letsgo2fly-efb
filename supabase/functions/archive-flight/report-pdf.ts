@@ -478,13 +478,28 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
     // NOT: ±1000 lb VURGUSU kumulatif farkta kalir (fuel_actual − fuel_plan) —
     // o bir yakit DURUMU isareti, bacak VERIMI degil. Ikisi ayri sorudur.
     const hasActual = (r: any) => r && !(r.ata == null && r.fuel_actual == null);
+    // 🔴 SINIR KURALI (13 Agu 2026 saha). FMS fotografindan ice aktarilan
+    // noktanin `eta`/`fuel_plan` degerleri OFP'den DEGIL, FMS'in tahmininden
+    // gelir ve gercegiyle AYNIDIR (pilot ayni FMS'i okuyup giriyor). O yuzden
+    // formul sadelesip capadaki BIRIKMIS FARKIN NEGATIFINE donusuyordu:
+    //   F-DEV = (planCapa − plan) − (gercekCapa − gercek) = planCapa − gercekCapa
+    // 13 Agu ucusu: ATVEP'te birikmis arti +813 lb, rapor BA355'e `−813` yazdi.
+    // Yani ne kadar yakit BIRIKTIRILDIYSE o kadar buyuk kirmizi "fazla yaktin".
+    // Zamanda ayni: `+6m`. Ikisi de UYDURMA ve arsiv raporuna basiliyordu.
+    //
+    // Serkan'in kurali: OFP'nin hesapladigi iki nokta ARASI olculur; planin
+    // disina cikilinca (rota degisti, FMS'ten alindi) bacak karsilastirmasi
+    // YAPILMAZ, yalnizca inis saati ve inis yakiti karsilastirilir.
+    const fromOfp = (r: any) => r?.from_fms !== true;
+
     const legDev = (idx: number): { t: number | null; f: number | null; multi: boolean } => {
       const row = nav[idx];
-      if (!hasActual(row)) return { t: null, f: null, multi: false };
+      if (!hasActual(row) || !fromOfp(row)) return { t: null, f: null, multi: false };
       let ai = -1;
       for (let i = idx - 1; i >= 0; i--) if (hasActual(nav[i])) { ai = i; break; }
       if (ai < 0) return { t: null, f: null, multi: false };
       const anc = nav[ai];
+      if (!fromOfp(anc)) return { t: null, f: null, multi: false };
       let t: number | null = null;
       const pN = toMins(row.eta), pA = toMins(anc.eta);
       const aN = toMins(row.ata), aA = toMins(anc.ata);

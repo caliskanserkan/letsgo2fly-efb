@@ -484,6 +484,13 @@ Deno.serve(async (req) => {
       const e = entries[w.uid] ?? {};
       return {
         seq: i, wpt: w.name, type: w.type, custom: w.custom === true,
+        // FMS FOTOGRAFINDAN GELEN NOKTA (13 Agu 2026). Bu noktanin `eta` ve
+        // `fuel_plan` degerleri OFP'den DEGIL, FMS'in yeniden rotalama
+        // tahmininden gelir — OFP planiyla karsilastirilamaz, cunku iki AYRI
+        // REFERANS SISTEMI. Rapor T-DEV/F-DEV'i bu bayrakla susturur.
+        // Bugune kadar gonderilmiyordu: rapor yalniz `custom` goruyor ve
+        // FMS'ten geleni pilotun elle ekledginden ayirt edemiyordu.
+        from_fms: (w as any).fromFMS === true,
         eta: (w.eta && w.eta !== "—") ? w.eta : null,
         ata: e.ata ?? (w.type === "dep" ? e.toTime : null)
                    ?? ((w.type === "dest" || w.type === "divert-arpt") ? e.lndTime : null) ?? null,
