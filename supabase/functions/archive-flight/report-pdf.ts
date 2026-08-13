@@ -435,17 +435,32 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
     // FL KOLONU EKLENDI (9 Agu 2026 saha, Serkan): ucus FL430'da gecti, rapor
     // seviyeyi HIC gostermiyordu. Genislikler yeniden dengelendi; RVSM son
     // kolon oldugu icin artan genisligi o alir (fitSize zaten tasmayi onler).
+    // KOLON DUZENI (13 Agu 2026 saha, Serkan). Uc ayri zaman vardi ama iki
+    // kolon: plan (ETA) ve gercek (ATA). Ucuncusu — "gercek kalkisa gore
+    // BEKLENEN gecis" — hicbir yerde gorunmuyordu, oysa pilotun kafasinda
+    // karsilastirdigi sayi o. Serkan'in KONAN ornegi: plan 06:24, kalkis 8 dk
+    // gec oldugu icin beklenen 06:32, fiilen 06:28 gecildi -> +4 dk onde.
+    //
+    // ISIM: `E ATA` = "estimated ATA". `ATA` GERCEK anlaminda KALIYOR — bugune
+    // kadar arsivlenmis butun raporlarla ayni. Once `ATA`yi tahmine, gercegi
+    // `ATO`ya kaydirmak konusulmustu; o, mevcut bir basligin anlamini
+    // degistirirdi ve eski bir raporun REGEN'i ayni baslik altinda baska bir sey
+    // yazardi (denetci icin tuzak). Serkan'in `E ATA` onerisi bunu cozdu.
+    //
+    // YER: RVSM kolonu kalkti (85 pt), yerine `E ATA` (42 pt) girdi.
+    // RVSM artik GIRIS YAPILAN SATIRIN ALTINA ikinci satir olarak yazilir —
+    // iOS NavLog'da zaten oyle gorunuyor, rapor onunla tutarli oldu.
     const cols = [
       { t: "WPT",   w: 70 },
       { t: "TYPE",  w: 44 },
       { t: "FL",    w: 44 },
       { t: "ETA",   w: 42 },
+      { t: "E ATA", w: 42 },
       { t: "ATA",   w: 42 },
       { t: "T-DEV", w: 42 },
       { t: "PLN FUEL", w: 56 },
       { t: "ACT FUEL", w: 56 },
-      { t: "F-DEV", w: 50 },
-      { t: "RVSM",  w: CONTENT_W - 446 },
+      { t: "F-DEV", w: CONTENT_W - 438 },
     ];
     const toMins = (s: unknown): number | null => {
       if (typeof s !== "string" || !/^\d{1,2}:\d{2}/.test(s)) return null;
@@ -529,12 +544,49 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
       return { t, f, multi: idx - ai > 1 };
     };
 
+    // ── E ATA (13 Agu 2026, Serkan) ────────────────────────────────────────
+    // "Gercek kalkisa gore BEKLENEN gecis saati". Uc ayri zaman vardi ama iki
+    // kolon: plan (ETA) ve gercek (ATA). Ucuncusu hicbir yerde gorunmuyordu,
+    // oysa pilotun kafasinda karsilastirdigi sayi o.
+    //
+    // KURAL — iOS `NavLogEngine.autoATA` ile AYNI, oran/katsayi YOK
+    // (Serkan: *"yapilan girdi neyse o olmali, herhangi bir oran uygulama"*):
+    //     beklenen = bu noktanin PLANI + (son gercek giris − o noktanin plani)
+    // Kalkista actual take-off girilince butun kolon dolar; sonraki her gercek
+    // giris capayi tazeler.
+    //
+    // OFP plani olmayan satirda (rota degisti, FMS'ten alindi) beklenen de
+    // YOKTUR -> `−`. Uydurulmaz (Ilke 1).
+    const hhmmOf = (mins: number): string => {
+      const m = ((mins % 1440) + 1440) % 1440;
+      return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+    };
+    const expectedAta = (idx: number): string | null => {
+      const pN = toMins(nav[idx].eta);
+      if (pN === null) return null;
+      for (let i = idx - 1; i >= 0; i--) {
+        const a = toMins(nav[i].ata), p = toMins(nav[i].eta);
+        if (a !== null && p !== null) return hhmmOf(pN + (a - p));
+      }
+      return null;
+    };
+
     nav.forEach((row, idx) => {
       const notFlown = divertIdx >= 0 && idx > divertIdx;
       const isDiv = row.type === "divert-arpt";
-      const isPlt = row.custom === true && !isDiv;
+      const isFms = row.from_fms === true && !isDiv;
+      const isPlt = row.custom === true && !isDiv && !isFms;
 
-      if (c.y - 13 < M) { newPage(c); drawNavHead(); }
+      // RVSM ARTIK KOLON DEGIL, SATIR ALTI (13 Agu 2026, Serkan). Kolon 85 pt
+      // yer kapliyordu ama satirlarin cogunda bostu; yerini `E ATA` aldi.
+      // Giris yapilan satirin ALTINA ikinci satir olarak yazilir — iOS NavLog'da
+      // zaten oyle gorunuyor (GOLVA'nin altinda "RVSM PRI1 ... SBY ... PRI2 ...").
+      // "HER SATIR TEK SATIR" kurali bozulmuyor: bu ek satir bir VERI satiri
+      // degil, o satira ait bir dipnot — goz kaydirmaz cunku girintili ve soluk.
+      const rvsmTxt = V(row.rvsm) === DASH ? "" : String(row.rvsm).trim();
+      const rowH = 13 + (rvsmTxt ? 9 : 0);
+
+      if (c.y - rowH < M) { newPage(c); drawNavHead(); }
 
       const bg = notFlown ? C.rowGrey
         : isDiv ? C.rowDiv
@@ -550,8 +602,8 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
         : row.type === "dest" ? C.dest
         : C.wpt;
 
-      fill(c, M, c.y - 13, CONTENT_W, 13, bg);
-      box(c, M, c.y - 13, CONTENT_W, 13);
+      fill(c, M, c.y - rowH, CONTENT_W, rowH, bg);
+      box(c, M, c.y - rowH, CONTENT_W, rowH);
 
       const ty = c.y - 9.5;
       let x = M;
@@ -567,13 +619,16 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
         txt(c, s, cx + 4, ty, fitSize(s, font, size, colW - 8), font, color);
 
       // WPT + rozet (rozet ayni kolonu paylasir -> WPT'ye kalan genislik dusulur)
-      const badge = isDiv ? "[DIVERT]" : isPlt ? "[+PLT]" : "";
+      // ROZET: FMS fotografindan gelen nokta artik `[FMS]` (13 Agu 2026).
+      // Eskiden hepsi `[+PLT]` idi ve denetci degerin FMS'ten mi geldigini
+      // pilotun elle mi girdigini ayirt edemiyordu — `from_fms` artik
+      // gonderildigi icin ayirabiliyoruz (Ilke 1: kaynak gizlenmez).
+      const badge = isDiv ? "[DIVERT]" : isFms ? "[FMS]" : isPlt ? "[+PLT]" : "";
       const badgeW = badge ? c.monoBold.widthOfTextAtSize(badge, 5.5) + 2 : 0;
       const wptSize = fitSize(V(row.wpt), c.monoBold, 7.5, cols[0].w - 8 - badgeW);
       txt(c, V(row.wpt), x + 4, ty, wptSize, c.monoBold, fg);
       const wptW = c.monoBold.widthOfTextAtSize(V(row.wpt), wptSize);
-      if (isDiv)  txt(c, "[DIVERT]", x + 6 + wptW, ty, 5.5, c.monoBold, C.divert);
-      if (isPlt)  txt(c, "[+PLT]",   x + 6 + wptW, ty, 5.5, c.monoBold, C.plt);
+      if (badge) txt(c, badge, x + 6 + wptW, ty, 5.5, c.monoBold, isDiv ? C.divert : C.plt);
       // uculmayan satirlarin uzeri cizili
       if (notFlown) {
         c.page.drawLine({
@@ -598,23 +653,32 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
       x += cols[2].w;
       navCell(V(row.eta), x, cols[3].w, 7, c.mono, notFlown ? C.label : C.muted);
       x += cols[3].w;
-      navCell(V(row.ata), x, cols[4].w, 7, c.monoBold, notFlown ? C.label : C.text);
+      // E ATA — gercek kalkisa/son gercek girise gore BEKLENEN gecis saati.
+      // Bugune kadar hicbir kolonda yoktu, oysa pilotun kafasinda karsilastirdigi
+      // sayi bu (Serkan'in KONAN ornegi: plan 06:24, kalkis 8 dk gec, beklenen
+      // 06:32, fiilen 06:28 -> +4 onde).
+      {
+        const ea = notFlown ? null : expectedAta(idx);
+        navCell(ea ?? DASH, x, cols[4].w, 7, c.mono, ea === null ? C.label : C.muted);
+      }
       x += cols[4].w;
+      navCell(V(row.ata), x, cols[5].w, 7, c.monoBold, notFlown ? C.label : C.text);
+      x += cols[5].w;
       // T-DEV: BU BACAKTA kazanilan dakika (plan bacak − gercek bacak).
       // + = erken vardin (kazanc). |>=15 dk| vurgulu.
       {
         const td = notFlown ? null : legDev(idx).t;
         const tStr = td === null ? DASH : (td > 0 ? "+" : "") + td + "m";
-        navCell(tStr, x, cols[5].w, 7, Math.abs(td ?? 0) >= 15 ? c.monoBold : c.mono,
+        navCell(tStr, x, cols[6].w, 7, Math.abs(td ?? 0) >= 15 ? c.monoBold : c.mono,
                 td === null ? C.label : (Math.abs(td) >= 15 ? C.divert : C.muted));
       }
-      x += cols[5].w;
-      navCell(row.fuel_plan != null ? fmtLb(row.fuel_plan) : DASH, x, cols[6].w, 7, c.mono,
-              notFlown ? C.label : C.muted);
       x += cols[6].w;
-      navCell(row.fuel_actual != null ? fmtLb(row.fuel_actual) : DASH, x, cols[7].w, 7, c.monoBold,
-              notFlown ? C.label : C.text);
+      navCell(row.fuel_plan != null ? fmtLb(row.fuel_plan) : DASH, x, cols[7].w, 7, c.mono,
+              notFlown ? C.label : C.muted);
       x += cols[7].w;
+      navCell(row.fuel_actual != null ? fmtLb(row.fuel_actual) : DASH, x, cols[8].w, 7, c.monoBold,
+              notFlown ? C.label : C.text);
+      x += cols[8].w;
       // F-DEV: BU BACAKTA kazanilan lb (plan yanma − gercek yanma). + = az yaktin.
       // VURGU ise KUMULATIF yakit durumuna bakar (actual − plan >= 1000 lb) —
       // bacak kucuk olsa da toplam yakit durumu bozulmus olabilir.
@@ -624,13 +688,15 @@ export async function buildReportPdf(input: ReportInput): Promise<Uint8Array> {
           ? Number(row.fuel_actual) - Number(row.fuel_plan) : null;
         const hot = Math.abs(cum ?? 0) >= 1000;
         const fStr = fd === null ? DASH : (fd > 0 ? "+" : "") + fd.toLocaleString("en-US");
-        navCell(fStr, x, cols[8].w, 7, hot ? c.monoBold : c.mono,
+        navCell(fStr, x, cols[9].w, 7, hot ? c.monoBold : c.mono,
                 fd === null ? C.label : (hot ? C.divert : C.muted));
       }
-      x += cols[8].w;
-      navCell(V(row.rvsm), x, cols[9].w, 6.5, c.mono, C.muted);
 
-      c.y -= 13;
+      // RVSM DIPNOT SATIRI — yalniz giris yapilan satirin altinda.
+      if (rvsmTxt) {
+        txt(c, `RVSM  ${rvsmTxt}`, M + 12, c.y - 21.5, 6, c.mono, C.label);
+      }
+      c.y -= rowH;
     });
 
     // TANIM SATIRI: denetci hangi tanimi okudugunu bilmeli. "+ = kazanc"
