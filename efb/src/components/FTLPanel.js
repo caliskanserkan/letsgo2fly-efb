@@ -2402,6 +2402,36 @@ function DutyHistory({ pilots, duties, baselines, offTypes, ruleset, homeBases }
   const baseline = baselines[pilotId];
   const pilot = pilots.find(p => p.id === pilotId);
 
+  // ── KESINTISIZ TAKVIM (13 Agu 2026, Serkan) ────────────────────────
+  // Eskiden yalniz GOREVLI gunler listeleniyordu; iki ucus arasindaki bos
+  // gunler hic gorunmuyordu ve denetci "bu adam 4 gun ne yapti" sorusunu
+  // listeden cevaplayamiyordu. Artik araliktaki HER GUN bir satir: gorev
+  // varsa gorev, yoksa bos gun satiri.
+  // NOT: bos gun "OFF" DEGILDIR — OFF ayrica kaydedilen bir gorev tipidir
+  // (Md.5 sayimina girer). Kayitsiz gun yalnizca "kayit yok" demektir ve
+  // oyle gosterilir; ikisini karistirmak izni kirletirdi (Ilke 1).
+  const timeline = useMemo(() => {
+    if (!from || !to || to < from) return rows.map(d => ({ kind:'duty', d }));
+    const byDay = new Map();
+    rows.forEach(d => {
+      const k = d.duty_date || '';
+      if (!byDay.has(k)) byDay.set(k, []);
+      byDay.get(k).push(d);
+    });
+    const out = [];
+    const cur = new Date(from + 'T00:00:00Z');
+    const end = new Date(to + 'T00:00:00Z');
+    let guard = 0;
+    while (cur <= end && guard++ < 800) {          // 800 gun: kaza donguse karsi
+      const key = cur.toISOString().slice(0, 10);
+      const ds = byDay.get(key);
+      if (ds && ds.length) ds.forEach(d => out.push({ kind:'duty', d }));
+      else out.push({ kind:'empty', date: key });
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return out;
+  }, [rows, from, to]);
+
   // Kümülatif özet — PLN (planned) satırlar toplamlara girmez
   const summary = useMemo(() => {
     const s = { pfCount:0, pfMin:0, pmCount:0, pmMin:0, fltDays:0, gndDays:0, offDays:0, dutyMin:0 };
@@ -2573,7 +2603,19 @@ function DutyHistory({ pilots, duties, baselines, offTypes, ruleset, homeBases }
                   <td style={S.td}><span style={badge('green')}>ACT</span></td>
                 </tr>
               )}
-              {rows.map(d => {
+              {timeline.map((item, ti) => {
+                if (item.kind === 'empty') {
+                  return (
+                    <tr key={`e${item.date}`} style={{ borderBottom:`1px solid ${C.border}` }}>
+                      <td style={{ ...S.td, color:C.t3 }}>{fmtD(item.date)}</td>
+                      <td style={S.td}><span style={badge('dim')}>—</span></td>
+                      <td style={{ ...S.td, color:C.t3, fontStyle:'italic' }}>no record</td>
+                      {Array.from({ length:7 }).map((_, i) =>
+                        <td key={i} style={{ ...S.td, color:C.t3 }}>—</td>)}
+                    </tr>
+                  );
+                }
+                const d = item.d;
                 const legs = d.sectors || [];
                 const isPln = d.status === 'planned';
                 const dimC = { color: isPln ? C.t3 : 'var(--t1)' };
