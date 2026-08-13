@@ -110,14 +110,36 @@ notify() {                      # SNS_TOPIC_ARN backup.env'de tanimliysa mail at
 }
 
 # 2) Storage bucket'ları
+#
+# 🔴 13 AGU 2026 — KOR DUSUS. `efb-documents` kovasi HIC cikti uretmeden dustu;
+# ~145 MB (rapor PDF'leri, imzalar, ATIS/DCL fotolari, makbuzlar) yedege girmedi
+# ve elimizde SEBEBI GOSTEREN TEK SATIR YOKTU. Iki kusur birden:
+#   ① `| tee` yalnizca STDOUT'u kaydeder — Python'un traceback'i STDERR'e gider
+#     ve loga hic ugramaz. Sonradan okunsun diye tuttugumuz log, tam da okumak
+#     istedigimiz seyi tutamiyordu. Cozum: `2>&1`.
+#   ② Mesaj "indirilemeyen dosya var (yukarida listelendi)" diyordu; oysa hicbir
+#     sey listelenmemisti, cunku betik daha listeyi alamadan olmustu. Yani
+#     BILMEDIGI bir seyi biliyormus gibi yaziyordu (Ilke 1). Cozum: cikis kodu
+#     ayirt edilir — 2 = bazi dosyalar atlandi (liste yukarida), digeri = kova
+#     HIC OKUNAMADI.
+STORAGE_REPORT=""      # durum dosyasina ve mesaja giren kova basi ozet
 log "[2/3] Storage indiriliyor..."
 for b in $STORAGE_BUCKETS; do
-  if ! SUPABASE_URL="$SUPABASE_URL" SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY" \
-       python3 "$DIR/storage_download.py" "$b" "$WORK/storage/$b" | tee -a "$LOG"; then
-    INCOMPLETE=1
-    log "  UYARI: '$b' kovasinda indirilemeyen dosya var (yukarida listelendi)."
-  fi
+  rc=0
+  SUPABASE_URL="$SUPABASE_URL" SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY" \
+    python3 "$DIR/storage_download.py" "$b" "$WORK/storage/$b" 2>&1 | tee -a "$LOG" || rc=$?
+  n=$(find "$WORK/storage/$b" -type f 2>/dev/null | wc -l | tr -d ' ')
+  case "$rc" in
+    0) STORAGE_REPORT="${STORAGE_REPORT}${b}=tam(${n}) " ;;
+    2) INCOMPLETE=1
+       STORAGE_REPORT="${STORAGE_REPORT}${b}=eksik(${n}) "
+       log "  UYARI: '$b' kovasinda indirilemeyen dosya var — ATLANDI satirlari yukarida." ;;
+    *) INCOMPLETE=1
+       STORAGE_REPORT="${STORAGE_REPORT}${b}=OKUNAMADI(${n}) "
+       log "  HATA: '$b' kovasi HIC OKUNAMADI (cikis $rc) — indirici hata izi yukarida." ;;
+  esac
 done
+log "  Storage ozeti: ${STORAGE_REPORT:-yok}"
 tar -czf "$WORK/storage.tar.gz" -C "$WORK" storage
 rm -rf "$WORK/storage"
 
@@ -131,21 +153,52 @@ for url in $GIT_REPOS; do
   log "  $name.tar.gz: $(du -h "$WORK/$name.tar.gz" | cut -f1)"
 done
 
-# S3'e yükle (tarih damgalı klasör)
-log "S3'e yukleniyor: s3://$S3_BUCKET/daily/$STAMP/"
-aws s3 cp "$WORK/" "s3://$S3_BUCKET/daily/$STAMP/" --recursive --only-show-errors
-aws s3 ls "s3://$S3_BUCKET/daily/$STAMP/" | tee -a "$LOG"
+# YAZICI KIMLIGI (13 Agu 2026 — Serkan'in tespiti).
+# Mac kosusu ve GitHub kosusu AYNI klasore yaziyordu (`daily/<tarih>/`) ve
+# `aws s3 cp` uzerine yazar. Yani bunlar iki kopya degil, TEK HEDEFE YAZAN IKI
+# YAZICI idi: eksik bir paket tam olanin uzerine yazabiliyordu ve S3'e bakan
+# kimse farki anlayamiyordu. Artik her yazici kendi klasorune yazar — birbirine
+# dokunamazlar, gercekten iki bagimsiz kopya olur.
+# `daily/` onekinin altinda kaldigi icin 90 gunluk yasam kurali aynen isler.
+if [[ -n "${GITHUB_ACTIONS:-}" ]]; then WRITER="github"; else WRITER="mac"; fi
+WRITER="${BACKUP_WRITER:-$WRITER}"
+DEST="s3://$S3_BUCKET/daily/$STAMP/$WRITER"
+
+# DOGRULUK BEYANI YEDEGIN YANINDA DURUR (13 Agu 2026).
+# Bugune kadar "bu gunun yedegi TAM mi" bilgisi yalnizca yaziciNIN MAKINESINDE
+# (`.last_success`) duruyordu; GitHub'da her kosu temiz checkout aldigi icin
+# orada hic kalmiyordu bile. Yani felaket aninda S3'teki klasoru acip geri
+# yuklersin, tam mi eksik mi BILMEDEN. 13 Agu'da tam bu oldu: 158 MB'lik paketin
+# dunkunun yarisi oldugunu ancak elle karsilastirinca gorduk.
+if [[ "$INCOMPLETE" == "1" ]]; then _ok="false"; else _ok="true"; fi
+cat > "$WORK/_STATUS.json" <<JSON
+{
+  "date": "$STAMP",
+  "writer": "$WRITER",
+  "finished_at": "$(date -u +%FT%TZ)",
+  "complete": $_ok,
+  "storage": "${STORAGE_REPORT% }",
+  "db_dump_bytes": $(wc -c < "$WORK/db.dump" | tr -d ' ')
+}
+JSON
+
+log "S3'e yukleniyor: $DEST/"
+aws s3 cp "$WORK/" "$DEST/" --recursive --only-show-errors
+aws s3 ls "$DEST/" | tee -a "$LOG"
 
 if [[ "$INCOMPLETE" == "1" ]]; then
   # DIKKAT: .last_success YAZILMAZ. Isaret "o gun TAM yedek alindi" demektir;
   # eksik kosu icin yazilirsa bir daha denenmez ve eksiklik kalicilasir.
   log "=== YEDEK EKSIK — dosyalar S3'e yuklendi ama BASARILI SAYILMADI ==="
-  log "    Ayrinti: $LOG (ATLANDI satirlari)"
+  log "    Storage: ${STORAGE_REPORT:-yok}"
+  log "    Ayrinti: $LOG (ATLANDI satirlari / indirici hata izi)"
   notify "GO2eFB YEDEK EKSIK — $STAMP" \
 "GO2eFB gunluk yedegi EKSIK tamamlandi.
 
 Tarih   : $STAMP
-Konum   : s3://$S3_BUCKET/daily/$STAMP/
+Yazici  : $WRITER
+Konum   : $DEST/
+Storage : ${STORAGE_REPORT:-yok}
 Durum   : Storage'dan indirilemeyen dosya(lar) var — yedek EKSIK.
 Log     : $LOG  (ATLANDI satirlarina bak)
 

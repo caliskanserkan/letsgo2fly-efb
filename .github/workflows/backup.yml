@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: PostgreSQL 17 istemcisi kur
         # Supabase sunucusu 17.6; ubuntu-latest 16 ile geliyor, pg_dump 16 ile
@@ -64,7 +64,7 @@ jobs:
 
       - name: Log'u sakla
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: yedek-log
           path: ops/backup/backup.log
