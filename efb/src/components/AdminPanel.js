@@ -1054,7 +1054,7 @@ function ArchivedFlts({toast,user,customerId=null,readOnly=false}){
 const AIRCRAFT_DB = {
   'Gulfstream': [{model:'G200',ac_type:'G200'},{model:'G280',ac_type:'G280'},{model:'G300',ac_type:'GLF3'},{model:'G350',ac_type:'GLF4'},{model:'G400',ac_type:'GLF4'},{model:'G450',ac_type:'GLF4'},{model:'G500',ac_type:'GLF5'},{model:'G550',ac_type:'GLF5'},{model:'G600',ac_type:'GLF6'},{model:'G650',ac_type:'GLF6'},{model:'G700',ac_type:'G700'}],
   'Falcon (Dassault)': [{model:'Falcon 6X',ac_type:'F6X'},{model:'Falcon 7X',ac_type:'F7X'},{model:'Falcon 8X',ac_type:'F8X'},{model:'Falcon 900',ac_type:'F900'},{model:'Falcon 2000',ac_type:'F2TH'},{model:'Falcon 2000S',ac_type:'F2TH'},{model:'Falcon 2000LX',ac_type:'F2TH'}],
-  'Bombardier': [{model:'Challenger 300',ac_type:'CL30'},{model:'Challenger 350',ac_type:'CL35'},{model:'Challenger 604',ac_type:'CL60'},{model:'Challenger 605',ac_type:'CL60'},{model:'Challenger 650',ac_type:'CL60'},{model:'Global 5000',ac_type:'GL5T'},{model:'Global 6000',ac_type:'GL6T'},{model:'Global 7500',ac_type:'GL7T'},{model:'Learjet 45',ac_type:'LJ45'},{model:'Learjet 75',ac_type:'LJ75'}],
+  'Bombardier': [{model:'Challenger 300',ac_type:'CL30'},{model:'Challenger 350',ac_type:'CL35'},{model:'Challenger 604',ac_type:'CL60'},{model:'Challenger 605',ac_type:'CL60'},{model:'Challenger 650',ac_type:'CL60'},{model:'Global Express',ac_type:'GLEX'},{model:'Global Express XRS',ac_type:'GLEX'},{model:'Global 5000',ac_type:'GL5T'},{model:'Global 6000',ac_type:'GL6T'},{model:'Global 7500',ac_type:'GL7T'},{model:'Learjet 45',ac_type:'LJ45'},{model:'Learjet 75',ac_type:'LJ75'}],
   'Hawker': [{model:'Hawker 400XP',ac_type:'BE40'},{model:'Hawker 750',ac_type:'H25B'},{model:'Hawker 800XP',ac_type:'H25B'},{model:'Hawker 900XP',ac_type:'H25B'},{model:'Hawker 4000',ac_type:'HA4T'}],
   'Embraer': [{model:'Phenom 100',ac_type:'E50P'},{model:'Phenom 300',ac_type:'E55P'},{model:'Legacy 450',ac_type:'E45X'},{model:'Legacy 500',ac_type:'E50P'},{model:'Legacy 600',ac_type:'E135'},{model:'Legacy 650',ac_type:'E135'},{model:'Praetor 500',ac_type:'E55P'},{model:'Praetor 600',ac_type:'E50P'}],
 };
@@ -1062,20 +1062,41 @@ const AIRCRAFT_DB = {
 function AircraftForm({form, setForm, onSave, onCancel, saveLabel='SAVE'}){
   const manufacturers = Object.keys(AIRCRAFT_DB);
   const models = form.manufacturer && AIRCRAFT_DB[form.manufacturer] ? AIRCRAFT_DB[form.manufacturer] : null;
-  const handleManufacturer = (mfr) => { setForm(p=>({...p, manufacturer:mfr, model:'', ac_type:''})); };
-  const handleModel = (modelStr) => { const entry = models?.find(m=>m.model===modelStr); setForm(p=>({...p, model:modelStr, ac_type:entry?.ac_type||p.ac_type})); };
+  // ── TEK HARF YAZINCA KUTU KAPANIYORDU (15 Agu 2026, Serkan) ─────────────
+  // "1 harf yaziyorum hucre kapaniyor, aciyorum yazdigim harfle geliyor, bir
+  //  harf daha yaziyorum kapaniyor."
+  //
+  // KOK NEDEN: kutunun GORUNME SARTI ile kutunun YAZDIGI alan ayniydi.
+  //   {form.manufacturer==='__other__' && <input onChange=...manufacturer:deger />}
+  // "B" yazilinca manufacturer artik '__other__' degil 'B' oluyor, sart
+  // bozuluyor ve kutu EKRANDAN SILINIYORDU. Ikinci harfte ayni dongu.
+  //
+  // COZUM: gorunurluk AYRI bir bayrakta (_mfrOther/_modelOther) tutulur; kutu
+  // yalniz kendi alanina yazar. Yazmak artik kutuyu yok edemez.
+  // Bu form hem EKLEME hem DUZENLEME ekraninda kullanildigi icin ikisi de duzeldi.
+  const handleManufacturer = (mfr) => {
+    const other = mfr === '__other__';
+    setForm(p=>({...p, _mfrOther:other, manufacturer: other ? '' : mfr,
+                 model:'', ac_type:'', _modelOther:false}));
+  };
+  const handleModel = (modelStr) => {
+    const other = modelStr === '__other__';
+    const entry = models?.find(m=>m.model===modelStr);
+    setForm(p=>({...p, _modelOther:other, model: other ? '' : modelStr,
+                 ac_type: other ? p.ac_type : (entry?.ac_type || p.ac_type)}));
+  };
   return (
     <div>
       <div style={S.formGroup}><label style={S.formLabel}>REGISTRATION *</label><input style={S.input} placeholder="TC-REC" value={form.registration||''} onChange={e=>setForm(p=>({...p,registration:e.target.value.toUpperCase()}))}/></div>
       <div style={S.formGroup}><label style={S.formLabel}>MANUFACTURER</label>
-        <select style={S.select} value={form.manufacturer||''} onChange={e=>handleManufacturer(e.target.value)}>
+        <select style={S.select} value={form._mfrOther ? '__other__' : (form.manufacturer||'')} onChange={e=>handleManufacturer(e.target.value)}>
           <option value="">— Select —</option>{manufacturers.map(m=><option key={m} value={m}>{m}</option>)}<option value="__other__">Other</option>
         </select>
-        {form.manufacturer==='__other__'&&(<input style={{...S.input,marginTop:8}} placeholder="Manufacturer name" value={form._mfrCustom||''} onChange={e=>setForm(p=>({...p,_mfrCustom:e.target.value,manufacturer:e.target.value}))}/>)}
+        {form._mfrOther&&(<input style={{...S.input,marginTop:8}} placeholder="Manufacturer name" autoFocus value={form.manufacturer||''} onChange={e=>setForm(p=>({...p,manufacturer:e.target.value}))}/>)}
       </div>
       <div style={S.formGroup}><label style={S.formLabel}>MODEL</label>
-        {models?(<select style={S.select} value={form.model||''} onChange={e=>handleModel(e.target.value)}><option value="">— Select model —</option>{models.map(m=><option key={m.model} value={m.model}>{m.model}</option>)}<option value="__other__">Other</option></select>):(<input style={S.input} placeholder="Model name" value={form.model||''} onChange={e=>setForm(p=>({...p,model:e.target.value}))}/>)}
-        {form.model==='__other__'&&(<input style={{...S.input,marginTop:8}} placeholder="Model name" value={form._modelCustom||''} onChange={e=>setForm(p=>({...p,_modelCustom:e.target.value,model:e.target.value}))}/>)}
+        {models?(<select style={S.select} value={form._modelOther ? '__other__' : (form.model||'')} onChange={e=>handleModel(e.target.value)}><option value="">— Select model —</option>{models.map(m=><option key={m.model} value={m.model}>{m.model}</option>)}<option value="__other__">Other</option></select>):(<input style={S.input} placeholder="Model name" value={form.model||''} onChange={e=>setForm(p=>({...p,model:e.target.value}))}/>)}
+        {form._modelOther&&(<input style={{...S.input,marginTop:8}} placeholder="Model name" autoFocus value={form.model||''} onChange={e=>setForm(p=>({...p,model:e.target.value}))}/>)}
       </div>
       <div style={S.formGroup}><label style={S.formLabel}>ICAO TYPE CODE *</label><input style={S.input} placeholder="e.g. GLF4" value={form.ac_type||''} onChange={e=>setForm(p=>({...p,ac_type:e.target.value.toUpperCase()}))}/>{form.ac_type&&<div style={{fontSize:10,color:C.t3,marginTop:4,fontFamily:'var(--mono)'}}>Auto-filled from model selection. Edit if needed.</div>}</div>
       <div style={S.formGroup}><label style={S.formLabel}>LANDING CATEGORY</label><select style={S.select} value={form.landing_cat||'CAT1'} onChange={e=>setForm(p=>({...p,landing_cat:e.target.value}))}><option value="CAT1">CAT I</option><option value="CAT2">CAT II</option><option value="CAT3">CAT III</option></select></div>
@@ -1100,7 +1121,18 @@ function Aircrafts({toast,myProfile,customerId}){
   const sel=list.find(a=>a.id===selected);
   const getTotals=(a)=>{ const s=acStats[a.registration]||{mins:0,cycles:0}; const baseMins=Math.round((parseFloat(a.total_hours)||0)*60); const totalMins=baseMins+s.mins; const totalHours=totalMins/60; const totalCycles=(a.total_cycles||0)+s.cycles; return{ hours: totalMins>0?`${Math.floor(totalHours)}:${String(Math.round((totalHours%1)*60)).padStart(2,'0')}`:'0:00', cycles:totalCycles, appMins:s.mins, appCycles:s.cycles }; };
   const handleAdd=async()=>{ if(!form.registration||!form.ac_type){toast('Registration and type required.','error');return;} const sb=await askReason('adding an aircraft'); if(!sb)return; const targetCustomer=myProfile?.is_super_admin?customerId:myProfile?.customer_id; if(!targetCustomer){toast('No company context for aircraft.','error');return;} const{registration,manufacturer,model,ac_type,landing_cat,total_hours,total_cycles}=form; const{error}=await sb.from('aircraft').insert({registration,manufacturer,model,ac_type,landing_cat,total_hours:parseFloat(total_hours)||0,total_cycles:parseInt(total_cycles)||0,customer_id:targetCustomer}); if(error){toast(error.message,'error');return;} toast('Aircraft added.','success'); setShowAdd(false); setForm({registration:'',manufacturer:'',model:'',ac_type:'',landing_cat:'CAT1',total_hours:0,total_cycles:0}); load(); };
-  const openEdit=()=>{ if(!sel)return; setEditForm({registration:sel.registration||'',manufacturer:sel.manufacturer||'',model:sel.model||'',ac_type:sel.ac_type||'',landing_cat:sel.landing_cat||'CAT1',total_hours:sel.total_hours||0,total_cycles:sel.total_cycles||0}); setEditing(true); };
+  // DUZENLEMEDE "OTHER" HATIRLANIR: listede olmayan bir uretici/model ile
+  // kaydedilmis ucak acildiginda secici bos gorunur ve girilmis ad EKRANDAN
+  // KAYBOLURDU (Ilke 1: kaydedilmis bir deger gizlenmez). Bayraklar kayitli
+  // degerden turetiliyor — kutu aciliyor ve ad iceride duruyor.
+  const openEdit=()=>{ if(!sel)return;
+    const mfr=sel.manufacturer||''; const mdl=sel.model||'';
+    const mfrKnown = !!AIRCRAFT_DB[mfr];
+    const mdlKnown = mfrKnown && (AIRCRAFT_DB[mfr]||[]).some(m=>m.model===mdl);
+    setEditForm({registration:sel.registration||'',manufacturer:mfr,model:mdl,ac_type:sel.ac_type||'',landing_cat:sel.landing_cat||'CAT1',total_hours:sel.total_hours||0,total_cycles:sel.total_cycles||0,
+                 _mfrOther: !!mfr && !mfrKnown,
+                 _modelOther: mfrKnown && !!mdl && !mdlKnown});
+    setEditing(true); };
   const handleSaveEdit=async()=>{ if(!editForm.registration||!editForm.ac_type){toast('Registration and type required.','error');return;} const sb=await askReason('editing this aircraft'); if(!sb)return; setSaving(true); const{registration,manufacturer,model,ac_type,landing_cat,total_hours,total_cycles}=editForm; const{error}=await sb.from('aircraft').update({registration,manufacturer,model,ac_type,landing_cat,total_hours:parseFloat(total_hours)||0,total_cycles:parseInt(total_cycles)||0}).eq('id',sel.id); if(error){toast(error.message,'error');}else{toast('Aircraft updated.','success');setEditing(false);load();} setSaving(false); };
   const handleToggleActive=async()=>{ const sb=await askReason('toggle active'); if(!sb)return; if(!sel)return; const next=!sel.active; const verb=next?'reactivate':'retire from the fleet'; if(!window.confirm(`Are you sure you want to ${verb} ${sel.registration}? Historical flight records are always preserved.`))return; setSaving(true); const{error}=await sb.from('aircraft').update({active:next}).eq('id',sel.id); if(error){toast(error.message,'error');}else{toast(next?`${sel.registration} reactivated.`:`${sel.registration} retired from fleet.`,'success');load();} setSaving(false); };
   return(
