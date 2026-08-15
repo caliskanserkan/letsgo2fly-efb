@@ -16,12 +16,13 @@
 // isteği bloke ediyor ("Failed to fetch"). curl CORS uygulamaz, tarayıcı
 // uygular; o yüzden komut satırında geçen bir servis panelde patlayabiliyor.
 // Open-Meteo `allow-origin: *` gönderiyor, o yüzden rüzgâr web'den geliyor.
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import { up } from './inputFormat';
 import {
   greatCircleNM, initialBearing, intermediatePoint, windComponentKt,
   computeLeg, computeTrip, hhmm, KMH_PER_KT, AC_GLF4,
+  LEVELS, HPA_FOR_FL, profileForLevel,
 } from './OpsCalcEngine';
 
 const WIND_SAMPLES = 5;      // büyük daire üzerinde örneklenecek nokta sayısı
@@ -50,7 +51,7 @@ async function fetchCoords(icaos) {
  * her noktada yerel rota açısına göre bileşen alınır, ortalanır.
  * Hata olursa null döner — çağıran "sakin hava" der, SESSİZ KALMAZ.
  */
-async function fetchWindComponent(a, b, whenISO) {
+async function fetchWindComponent(a, b, whenISO, flLevel = 400) {
   try {
     const pts = [];
     for (let i = 1; i <= WIND_SAMPLES; i++) {
@@ -61,8 +62,13 @@ async function fetchWindComponent(a, b, whenISO) {
     }
     const lat = pts.map(p => p.lat.toFixed(3)).join(',');
     const lon = pts.map(p => p.lon.toFixed(3)).join(',');
+    // RUZGAR SECILEN SEVIYEDEN (15 Agu 2026): eskiden sabit 200 hPa (~FL385)
+    // cekiliyordu — FL150'de ucan bir bacak icin FL385 ruzgari kullanmak
+    // hesabi sessizce bozardi. Seviye -> basinc yuzeyi eslesmesi ISA basinc
+    // irtifasindan (HPA_FOR_FL), API'nin sundugu yuzeylerden en yakini.
+    const hpa = HPA_FOR_FL[flLevel] ?? 200;
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-                `&hourly=wind_speed_200hPa,wind_direction_200hPa&forecast_days=7&timezone=UTC`;
+                `&hourly=wind_speed_${hpa}hPa,wind_direction_${hpa}hPa&forecast_days=7&timezone=UTC`;
     const r = await fetch(url);
     if (!r.ok) return null;
     const data = await r.json();
@@ -79,8 +85,8 @@ async function fetchWindComponent(a, b, whenISO) {
         if (diff < bestDiff) { bestDiff = diff; best = k; }
       });
       if (best < 0) return;
-      const spdKt = h.wind_speed_200hPa[best] / KMH_PER_KT;   // API km/h verir
-      const dir = h.wind_direction_200hPa[best];
+      const spdKt = h[`wind_speed_${hpa}hPa`]?.[best] / KMH_PER_KT;   // API km/h verir
+      const dir = h[`wind_direction_${hpa}hPa`]?.[best];
       if (spdKt == null || dir == null) return;
       sum += windComponentKt(dir, spdKt, pts[i].course);
       n++;
@@ -107,6 +113,10 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
   const [outAt, setOutAt]   = useState('');   // datetime-local, UTC kabul edilir
   const [retAt, setRetAt]   = useState('');
   const [crew, setCrew]     = useState(2);
+  // SEVIYE + YOLCU (15 Agu 2026, Serkan): "sadece seviye girecez" ve
+  // "payload kisi basina 240 lb, ekrana yolcu sayisini da girelim".
+  const [fl, setFl]         = useState(400);
+  const [pax, setPax]       = useState(0);
 
   // "Any conflict on the route?" — her bacak icin ayri (Serkan, 12 Agu)
   const [tankering, setTankering] = useState(false);
@@ -135,14 +145,20 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
   const ac = fleet.find(a => String(a.id) === acId);
 
   /** Uçağın performans katsayıları — girilmemişse hesap YAPILMAZ, söylenir. */
-  const acParams = ac && ac.ops_cruise_tas && ac.ops_cruise_ff ? {
+  const acParams = useMemo(() => (ac && ac.ops_cruise_tas && ac.ops_cruise_ff ? {
     label: ac.registration,
     cruiseTAS: ac.ops_cruise_tas, cruiseFF: ac.ops_cruise_ff,
     climbMin: AC_GLF4.climbMin, descMin: AC_GLF4.descMin,   // 25/25 STANDART (sirket usulu, ucaga bagli degil)
     climbNM: ac.ops_climb_nm ?? 0, climbFuel: ac.ops_climb_fuel ?? 0,
     descNM: ac.ops_desc_nm ?? 0,  descFuel: ac.ops_desc_fuel ?? 0,
     groundFuel: ac.ops_ground_fuel ?? 0, groundMin: ac.ops_ground_min ?? 0,
-  } : null;
+  } : null), [ac]);
+
+  /** Secili seviyenin profili: tirmanma/alcalma sureleri, seyir TAS'i ve
+   *  safha yakit oranlari. `acParams` ucagin KENDI olculen degerlerini tasir;
+   *  seviye onun uzerine biner. */
+  const levelProfile = useMemo(
+    () => (acParams ? profileForLevel(fl, acParams) : null), [acParams, fl]);
 
   const calculate = useCallback(async () => {
     setErr(''); setRes(null);
@@ -166,17 +182,17 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
 
       // Rüzgâr, uçuşun ORTA anındaki tahminden alınır. Süre rüzgâra bağlı
       // olduğu için önce sakin havayla kabaca hesaplanıp bir kez düzeltilir.
-      const rough = (extra) => computeLeg({ distanceNM: gc, extraNM: extra, ac: acParams }).flightH;
+      const rough = (extra) => computeLeg({ distanceNM: gc, extraNM: extra, ac: levelProfile ?? acParams }).flightH;
       const outMid = new Date(new Date(outAt).getTime() + rough(outX) / 2 * 3600000).toISOString();
       const retMid = new Date(new Date(retAt).getTime() + rough(retX) / 2 * 3600000).toISOString();
 
       const [wOut, wRet] = await Promise.all([
-        fetchWindComponent(A, B, outMid),
-        fetchWindComponent(B, A, retMid),
+        fetchWindComponent(A, B, outMid, fl),
+        fetchWindComponent(B, A, retMid, fl),
       ]);
 
-      const outLeg = computeLeg({ distanceNM: gc, extraNM: outX, windCompKt: wOut ?? 0, ac: acParams });
-      const retLeg = computeLeg({ distanceNM: gc, extraNM: retX, windCompKt: wRet ?? 0, ac: acParams });
+      const outLeg = computeLeg({ distanceNM: gc, extraNM: outX, windCompKt: wOut ?? 0, ac: levelProfile ?? acParams });
+      const retLeg = computeLeg({ distanceNM: gc, extraNM: retX, windCompKt: wRet ?? 0, ac: levelProfile ?? acParams });
 
       const outArrive = new Date(new Date(outAt).getTime() + outLeg.flightMin * 60000).toISOString();
       const trip = computeTrip({
@@ -201,7 +217,7 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
       setErr(e.message || 'Calculation failed.');
     }
     setBusy(false);
-  }, [acParams, ac, dep, dest, outAt, retAt, crew, c, tankering, outConflict, retConflict, outExtra, retExtra]);
+  }, [acParams, levelProfile, fl, ac, dep, dest, outAt, retAt, crew, c, tankering, outConflict, retConflict, outExtra, retExtra]);
 
   const money = (n) => `$${(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
@@ -240,6 +256,39 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
           <div>
             <label style={lbl}>RETURN (UTC)</label>
             <input style={inp} type="datetime-local" value={retAt} onChange={e => setRetAt(e.target.value)} disabled={readOnly} />
+          </div>
+        </div>
+
+        <div style={{ ...grid(5), marginTop: 10 }}>
+          <div>
+            {/* Tirmanma/alcalma sureleri ve seyir TAS'i BUNDAN turer; ruzgar da
+                bu seviyenin basinc yuzeyinden canli cekilir. */}
+            <label style={lbl}>CRUISE LEVEL</label>
+            <select style={inp} value={fl} onChange={e => setFl(+e.target.value)} disabled={readOnly}>
+              {LEVELS.map(l => <option key={l} value={l}>FL{l}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>PAX</label>
+            <input style={inp} value={pax} onChange={e => setPax(e.target.value.replace(/\D/g, ''))} disabled={readOnly} />
+          </div>
+          <div>
+            <label style={lbl}>PAYLOAD (240 lb / PAX)</label>
+            <input style={{ ...inp, opacity: .7 }} value={`${((+pax || 0) * 240).toLocaleString()} lb`} readOnly />
+          </div>
+          <div>
+            <label style={lbl}>ZFW (BOW + PAYLOAD)</label>
+            <input style={{ ...inp, opacity: .7 }} readOnly
+                   value={ac?.ops_bow_lb
+                     ? `${(ac.ops_bow_lb + (+pax || 0) * 240).toLocaleString()} lb`
+                     : 'BOW not set'} />
+          </div>
+          <div>
+            <label style={lbl}>PROFILE</label>
+            <input style={{ ...inp, opacity: .7 }} readOnly
+                   value={levelProfile
+                     ? `CLB ${levelProfile.climbMin}′ · DES ${levelProfile.descMin}′ · ${levelProfile.cruiseTAS} kt`
+                     : '—'} />
           </div>
         </div>
 

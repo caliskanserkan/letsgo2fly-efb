@@ -31,10 +31,19 @@ export const AC_GLF4 = {
   cruiseFF:   2727,  // lb/h
   climbMin:   25,    // dk  (standart; olculen 23)
   climbNM:    162,   // NM  (olculen)
-  climbFuel:  2589,  // lb  (olculen)
+  climbFuel:  2589,  // lb  (olculen — 23 dk'lik tirmanmanin TOPLAMI)
   descMin:    25,    // dk  (standart; olculen 23)
   descNM:     115,   // NM  (olculen)
-  descFuel:   224,   // lb  (olculen)
+  descFuel:   224,   // lb  (olculen — 23 dk'lik alcalmanin TOPLAMI)
+  // ── ORANSAL YAKIT (15 Agu 2026, Serkan) ────────────────────────────────
+  // "Tirmanista oransal yakit; gazlar hep ilerde, saatte kac yakiyorsa yarim
+  //  saatte yarisini yakar."
+  // Seviye girdisi gelince tirmanma suresi 5-30 dk arasinda degisiyor; sabit
+  // 2589 lb yazmak FL150'ye tirmanan ucaga FL400'un yakitini yuklerdi.
+  // Oran KODA GOMULMEZ: `profileForLevel` her ucagin KENDI saklanan
+  // toplam/sure ciftinden turetir (GLF4 icin 2589 lb / 25 dk -> 6214 lb/h,
+  // 224 lb / 25 dk -> 538 lb/h). Boylece filodaki her ucak kendi olculen
+  // degeriyle calisir, ikinci bir katsayi listesi olusmaz.
   // Serkan: "her zaman 1000 lb ekle, hem taksiler hem yerde beklemeler icin".
   // OFP'nin taksi yakiti 400 lb (~15 dk), yani 1000 lb ~35 dk yer calismasi.
   groundFuel: 1000,  // lb/bacak
@@ -98,6 +107,84 @@ export function windComponentKt(windDirDeg, windKt, courseDeg) {
 // ============================================================================
 // BACAK HESABI
 // ============================================================================
+// SEVIYEYE BAGLI PROFIL (15 Agu 2026, Serkan)
+// ============================================================================
+// Serkan: "G450 FL100 ve altinda 250 kt, ustunde 300/0.8M default ucus
+//  yapiyoruz. FL100/150/200/250/300/350/400/450 seviye girelim, sen ruzgari
+//  canli al ve bu seviyeye gore tirmanma soyle olsun 5/7/10/13/15/20/25/30 dk,
+//  alcalmalar ise 5/10/15/20/25/30/35/40 dk. Sadece seviye girecez."
+//
+// NEDEN GEREKTI: tek profil (OMAA-LTAC, FL400) kisa sektorde cokuyordu.
+// Tirmanma 162 + alcalma 115 = 277 NM oldugu icin 277 NM'nin ALTINDAKI HER
+// sektor ayni sonucu veriyordu: 0:50 ve 3813 lb — mesafe ve ruzgar sonuca hic
+// girmiyordu (Serkan yakaladi: "bodrum mikonos 111 nm 50 dk normal mi?").
+// Seviye girdi olunca tirmanma/alcalma gercege oturuyor ve seyir dilimi
+// olustugu icin RUZGAR da fiilen hesaba giriyor.
+export const CLIMB_MIN = { 100:5, 150:7,  200:10, 250:13, 300:15, 350:20, 400:25, 450:30 };
+export const DESC_MIN  = { 100:5, 150:10, 200:15, 250:20, 300:25, 350:30, 400:35, 450:40 };
+export const LEVELS = [100, 150, 200, 250, 300, 350, 400, 450];
+
+// ── STANDART ATMOSFER ────────────────────────────────────────────────────
+// Hiz kurali Serkan'in: FL100 ve alti 250 KIAS, ustu 300 KIAS / M0.80.
+// TAS bundan TUREVLENIR — uydurma katsayi yok, ISA formulu.
+// Yuksekte M0.80, alcakta 300 KIAS baglar; ikisinden KUCUGU gecerlidir
+// (ucagin fiilen uctugu profil).
+const T0 = 288.15, A0 = 661.4788;              // K, kt (deniz seviyesi ses hizi)
+function isa(altFt) {
+  const t = altFt < 36089 ? T0 - 0.0019812 * altFt : 216.65;   // K
+  const theta = t / T0;
+  const delta = altFt < 36089
+    ? Math.pow(theta, 5.2559)
+    : 0.223361 * Math.exp(-(altFt - 36089) / 20806);
+  return { theta, delta, sigma: delta / theta, a: A0 * Math.sqrt(theta) };
+}
+/** KIAS -> TAS (sikistirilabilirlik ihmal; teklif hesabi icin yeterli). */
+function tasFromKias(kias, altFt) { return kias / Math.sqrt(isa(altFt).sigma); }
+/** Mach -> TAS. */
+function tasFromMach(mach, altFt) { return mach * isa(altFt).a; }
+
+/** Serkan'in hiz kuralinin verdigi TAS — belirtilen irtifada. */
+export function profileTAS(altFt) {
+  if (altFt <= 10000) return tasFromKias(250, altFt);
+  return Math.min(tasFromKias(300, altFt), tasFromMach(0.80, altFt));
+}
+
+/// Tirmanma/alcalmada KAT EDILEN MESAFE: sure Serkan'in tablosundan, hiz yine
+/// Serkan'in kuralindan — dilimin ORTA irtifasinda. Ayri bir mesafe tablosu
+/// istemeye gerek yok, iki girdi zaten yeterli.
+function phaseNM(minutes, cruiseAltFt) {
+  return profileTAS(cruiseAltFt / 2) * (minutes / 60);
+}
+
+/** Seviyeye gore profil — computeLeg'in `ac` yerine kullandigi sekil. */
+export function profileForLevel(fl, base = AC_GLF4) {
+  const alt = fl * 100;
+  const climbMin = CLIMB_MIN[fl], descMin = DESC_MIN[fl];
+  if (climbMin == null || descMin == null) return null;   // tanimsiz seviye: uydurma yok
+  // ORAN, UCAGIN KENDI OLCUMUNDEN: saklanan safha TOPLAMI, saklanan safha
+  // SURESINE bolunur. Serkan: "gazlar hep ilerde, saatte kac yakiyorsa yarim
+  // saatte yarisini yakar; 15 dk'da 1/4 yakar." Yani safha yakiti sureyle
+  // DOGRU ORANTILI — tek gereken lb/h.
+  const rate = (total, minutes) => (minutes > 0 ? total / (minutes / 60) : 0);
+  return {
+    ...base,
+    fl,
+    cruiseTAS: Math.round(profileTAS(alt)),
+    climbFF: rate(base.climbFuel ?? 0, base.climbMin),
+    descFF:  rate(base.descFuel  ?? 0, base.descMin),
+    climbMin, descMin,
+    climbNM: Math.round(phaseNM(climbMin, alt)),
+    descNM:  Math.round(phaseNM(descMin, alt)),
+  };
+}
+
+/// FL -> Open-Meteo basinc seviyesi. Standart atmosfer basinc irtifasi;
+/// API'nin sundugu seviyelerden EN YAKINI secilir (uydurma yok, ISA tablosu).
+///   FL100 697 hPa -> 700 · FL150 572 -> 600 · FL200 466 -> 500 · FL250 376 -> 400
+///   FL300 301 -> 300 · FL350 238 -> 250 · FL400 188 -> 200 · FL450 148 -> 150
+export const HPA_FOR_FL = { 100:700, 150:600, 200:500, 250:400, 300:300, 350:250, 400:200, 450:150 };
+
+// ============================================================================
 
 /**
  * Tek bacak: sure (dk), yakit (lb), DOC saati.
@@ -130,7 +217,11 @@ export function computeLeg({ distanceNM, windCompKt = 0, extraNM = 0, ac = AC_GL
   const cruiseH = cruiseNM / gs;
 
   const flightMin = ac.climbMin + cruiseH * 60 + ac.descMin;
-  const fuelLb = ac.groundFuel + ac.climbFuel + cruiseH * ac.cruiseFF + ac.descFuel;
+  // Her safha KENDI akisiyla: sure x lb/h. Sabit toplam yazmak, seviyeye gore
+  // degisen tirmanma suresini yok sayardi (15 Agu kurali).
+  const climbFuel = (ac.climbFF ?? 0) * (ac.climbMin / 60);
+  const descFuel  = (ac.descFF  ?? 0) * (ac.descMin  / 60);
+  const fuelLb = ac.groundFuel + climbFuel + cruiseH * ac.cruiseFF + descFuel;
 
   return {
     gcNM: distanceNM,    // buyuk daire — ekranda referans olarak kalir
@@ -141,6 +232,13 @@ export function computeLeg({ distanceNM, windCompKt = 0, extraNM = 0, ac = AC_GL
     windCompKt,
     flightMin,
     flightH: flightMin / 60,
+    // Safha kirilimi — ekranda "neden bu sayi" sorusunun cevabi.
+    climbMin: ac.climbMin, descMin: ac.descMin,
+    cruiseMin: cruiseH * 60,
+    climbFuelLb: climbFuel, descFuelLb: descFuel,
+    cruiseFuelLb: cruiseH * ac.cruiseFF,
+    cruiseTASKt: ac.cruiseTAS,
+    fl: ac.fl ?? null,
     docH: (flightMin + ac.groundMin) / 60,   // motor calistirma -> kapatma
     fuelLb,
     fuelTonnes: fuelLb / LB_PER_TONNE,
