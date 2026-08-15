@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import AdminPanel, { FontControls } from './AdminPanel';
 import ThemeToggle from './ThemeToggle';
 import { FEATURE_KEYS, isEnabled, catalogTree, affectsOf } from './featureCatalog';
+import SystemMonitoring from './SystemMonitoring';
 
 const C = {
   bg:'var(--bg)', bg2:'var(--bg2)', bg3:'var(--bg3)', border:'var(--border)',
@@ -331,6 +332,8 @@ export default function SuperAdminPanel({ onBack }) {
   const [ready, setReady] = useState(false);
   const [dashCompany, setDashCompany] = useState(null);
   const [selected, setSelected] = useState(null);
+  // Secili sirketin hangi bolumu acik: ayarlar mi, izleme mi.
+  const [section, setSection] = useState('settings');
   const [reloadKey, setReloadKey] = useState(0);
   const [email, setEmail] = useState('');
   const [myProfile, setMyProfile] = useState(null);
@@ -407,14 +410,20 @@ export default function SuperAdminPanel({ onBack }) {
             {selected && (
               <>
                 <div style={{ ...S.label, margin:'20px 10px 6px' }}>{selected.company_name}</div>
-                <div style={navRow(true)}>
-                  <span style={navIcon(true)}>⚙</span>
-                  <span style={navText(true)}>Settings</span>
+                <div onClick={() => setSection('settings')} style={navRow(section === 'settings')}>
+                  <span style={navIcon(section === 'settings')}>⚙</span>
+                  <span style={navText(section === 'settings')}>Settings</span>
                 </div>
                 {/* DASHBOARD ic ice degil TAM EKRAN acilir — musterinin admini gibi gezilsin. */}
                 <div onClick={() => setDashCompany(selected)} style={navRow(false)}>
                   <span style={navIcon(false)}>▤</span>
                   <span style={navText(false)}>Dashboard</span>
+                </div>
+                {/* 15 Agu 2026, Serkan: pilotun rapor ettigi an + o ucusun tum
+                    olay cizelgesi + taramadan cikan bulgular. */}
+                <div onClick={() => setSection('monitoring')} style={navRow(section === 'monitoring')}>
+                  <span style={navIcon(section === 'monitoring')}>◉</span>
+                  <span style={navText(section === 'monitoring')}>Monitoring & Event Log</span>
                 </div>
               </>
             )}
@@ -429,14 +438,18 @@ export default function SuperAdminPanel({ onBack }) {
         <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', minWidth:0 }}>
           <div style={{ padding:'10px 16px', borderBottom:`1px solid ${C.border}`, background:C.bg3, flexShrink:0 }}>
             <span style={{ fontSize:10, color:C.accent, fontWeight:700, letterSpacing:3 }}>
-              {selected ? `${selected.company_name.toUpperCase()} — SETTINGS` : 'COMPANIES'}
+              {selected
+                ? `${selected.company_name.toUpperCase()} — ${section === 'monitoring' ? 'SYSTEM MONITORING & EVENT LOG' : 'SETTINGS'}`
+                : 'COMPANIES'}
             </span>
           </div>
           <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
             {selected
-              ? <Settings customer={selected} toast={showToast} myProfile={myProfile}
-                          onSaved={(row) => { setSelected(row); setReloadKey(k => k + 1); }} />
-              : <Companies toast={showToast} onSelect={setSelected} reloadKey={reloadKey} />}
+              ? (section === 'monitoring'
+                  ? <SystemMonitoring customer={selected} />
+                  : <Settings customer={selected} toast={showToast} myProfile={myProfile}
+                              onSaved={(row) => { setSelected(row); setReloadKey(k => k + 1); }} />)
+              : <Companies toast={showToast} onSelect={(c) => { setSelected(c); setSection('settings'); }} reloadKey={reloadKey} />}
           </div>
         </div>
       </div>
