@@ -507,9 +507,50 @@ function fmtNotamTime(s) {
   return `${s.slice(4,6)}/${s.slice(2,4)} ${s.slice(6,8)}:${s.slice(8,10)}Z`;
 }
 
+// ── NOTAM GECERLILIGI (15 Agu 2026, Serkan) ────────────────────────────
+// "Sik uculan meydanlarda bazen cok sayida kapanmis, aktif olmayan NOTAM
+//  oluyor — onu da kapatiriz." iOS NOTAMParser ile AYNI kurallar.
+const notamDate = (s) => {
+  if (!s || s.length !== 10 || !/^\d{10}$/.test(s)) return null;
+  const n = (a, b) => Number(s.slice(a, b));
+  const d = new Date(Date.UTC(2000 + n(0, 2), n(2, 4) - 1, n(4, 6), n(6, 8), n(8, 10)));
+  return isNaN(d) ? null : d;
+};
+// Tarihi OKUNAMAYAN NOTAM gizlenmez: okuyamadigimiz bir NOTAM'i pilottan
+// saklamak, onu gostermekten tehlikelidir.
+const notamActive = (n, ref) => {
+  const from = notamDate(n.from);
+  const to = n.to === 'PERM' ? null : notamDate(n.to);
+  if (!from && !to) return true;
+  if (from && ref < from) return false;
+  if (to && ref > to) return false;
+  return true;
+};
+const notamSortKey = (n) => (notamDate(n.from) || new Date(0)).getTime();
+
 function NOTAMView({ rawText }) {
-  const airports = useMemo(() => parseNotamsByAirport(rawText), [rawText]);
+  const parsed = useMemo(() => parseNotamsByAirport(rawText), [rawText]);
+  // ACTIVE ve tarih TEK mekanizma: bir REFERANS AN secilir, ACTIVE o anda
+  // yururlukte olanlari birakir. Tarihi ileri alinca yarinki ucusun
+  // NOTAM'lari gorunur.
+  const [activeOnly, setActiveOnly] = useState(true);
+  const [refDay, setRefDay] = useState(() => new Date().toISOString().slice(0, 10));
+  const [newestFirst, setNewestFirst] = useState(true);
+  const isToday = refDay === new Date().toISOString().slice(0, 10);
+  const refDate = useMemo(
+    () => (isToday ? new Date() : new Date(`${refDay}T12:00:00Z`)), [refDay, isToday]);
+
+  const airports = useMemo(() => parsed.map(apt => {
+    let items = apt.notams;
+    if (activeOnly) items = items.filter(n => notamActive(n, refDate));
+    items = [...items].sort((a, b) => newestFirst
+      ? notamSortKey(b) - notamSortKey(a) : notamSortKey(a) - notamSortKey(b));
+    return { ...apt, notams: items };
+  }).filter(a => a.notams.length), [parsed, activeOnly, refDate, newestFirst]);
+
+  const parsedTotal = useMemo(() => parsed.reduce((s, a) => s + a.notams.length, 0), [parsed]);
   const totalNotams = useMemo(() => airports.reduce((s, a) => s + a.notams.length, 0), [airports]);
+  const hidden = parsedTotal - totalNotams;
 
   if (!rawText) {
     return (
@@ -523,9 +564,39 @@ function NOTAMView({ rawText }) {
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', background:'#0f172a' }}>
       <div style={{ background:'#0f172a', borderBottom:'1px solid #1e293b', padding:'8px 14px', flexShrink:0 }}>
-        <div style={{ fontSize:11, fontWeight:600, color:'#94a3b8', fontFamily:'monospace' }}>
-          NOTAM · <span style={{ color:'#38bdf8' }}>{airports.length} airports</span>
-          <span style={{ color:'#334155', marginLeft:6 }}>{totalNotams} notams</span>
+        <div style={{ fontSize:11, fontWeight:600, color:'#94a3b8', fontFamily:'monospace',
+                      display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+          <span>NOTAM · <span style={{ color:'#38bdf8' }}>{airports.length} airports</span>
+            <span style={{ color:'#334155', marginLeft:6 }}>{totalNotams} notams</span></span>
+          {/* GIZLENEN SAYISI HEP GORUNUR: kac tanesini sakladigini soylemeyen
+              bir filtre okuyucuyu kor birakir. */}
+          {hidden > 0 && <span style={{ color:'#fbbf24' }}>{hidden} hidden</span>}
+          <span style={{ marginLeft:'auto', display:'flex', gap:6, alignItems:'center' }}>
+            <button onClick={() => setActiveOnly(v => !v)}
+                    style={{ fontSize:10, fontWeight:700, fontFamily:'monospace', cursor:'pointer',
+                             padding:'3px 9px', borderRadius:5, border:'1px solid #38bdf899',
+                             background: activeOnly ? '#38bdf8' : 'transparent',
+                             color: activeOnly ? '#0f172a' : '#38bdf8' }}>
+              {activeOnly ? 'ACTIVE' : 'ALL'}
+            </button>
+            <span style={{ fontSize:9, color:'#475569' }}>ON</span>
+            <input type="date" value={refDay} disabled={!activeOnly}
+                   onChange={e => setRefDay(e.target.value)}
+                   style={{ fontSize:10, fontFamily:'monospace', padding:'2px 6px', borderRadius:5,
+                            border:'1px solid #1e293b', background:'#111827', color:'#94a3b8',
+                            opacity: activeOnly ? 1 : .35 }} />
+            {!isToday && (
+              <button onClick={() => setRefDay(new Date().toISOString().slice(0, 10))}
+                      style={{ fontSize:9, fontWeight:700, fontFamily:'monospace', cursor:'pointer',
+                               background:'none', border:'none', color:'#38bdf8' }}>NOW</button>
+            )}
+            <button onClick={() => setNewestFirst(v => !v)}
+                    style={{ fontSize:10, fontWeight:700, fontFamily:'monospace', cursor:'pointer',
+                             padding:'3px 9px', borderRadius:5, border:'1px solid #38bdf899',
+                             background:'transparent', color:'#38bdf8' }}>
+              {newestFirst ? 'NEWEST FIRST' : 'OLDEST FIRST'}
+            </button>
+          </span>
         </div>
         <div style={{ fontSize:9, color:'#475569', marginTop:3, display:'flex', gap:10, flexWrap:'wrap' }}>
           <span style={{ color:'#ef4444' }}>● Closed/US</span>
@@ -536,8 +607,20 @@ function NOTAMView({ rawText }) {
         </div>
       </div>
       <div style={{ flex:1, overflowY:'auto', padding:'12px 16px' }}>
-        {airports.length === 0 && (
+        {airports.length === 0 && parsedTotal === 0 && (
           <div style={{ color:'#334155', fontSize:13, textAlign:'center', marginTop:40 }}>No NOTAMs found in plan data</div>
+        )}
+        {airports.length === 0 && parsedTotal > 0 && (
+          <div style={{ color:'#94a3b8', fontSize:13, textAlign:'center', marginTop:40, fontFamily:'monospace' }}>
+            NO ACTIVE NOTAM ON THIS DATE
+            <div style={{ color:'#fbbf24', fontSize:11, marginTop:6 }}>{parsedTotal} NOTAM hidden by the filter</div>
+            <button onClick={() => setActiveOnly(false)}
+                    style={{ marginTop:10, fontSize:11, fontWeight:700, fontFamily:'monospace',
+                             cursor:'pointer', padding:'6px 14px', borderRadius:6,
+                             border:'1px solid #38bdf899', background:'transparent', color:'#38bdf8' }}>
+              SHOW ALL
+            </button>
+          </div>
         )}
         {airports.map((apt) => (
           <div key={apt.icao} style={{ marginBottom:28 }}>
@@ -550,6 +633,13 @@ function NOTAMView({ rawText }) {
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
                   <span style={{ fontSize:12, fontWeight:700, color:'#38bdf8', fontFamily:'monospace' }}>{n.notamNo}</span>
                   {n.tag && <span style={{ fontSize:9, color:'#64748b', background:'#1e293b', padding:'2px 6px', borderRadius:4 }}>{n.tag}</span>}
+                  {/* ALL modunda yururlukte OLMAYAN NOTAM ayirt edilebilir olmali. */}
+                  {!notamActive(n, refDate) && (
+                    <span style={{ fontSize:9, fontWeight:700, color:'#64748b', fontFamily:'monospace',
+                                   border:'1px solid #33415580', borderRadius:3, padding:'1px 5px' }}>
+                      {notamDate(n.to) && notamDate(n.to) < refDate ? 'EXPIRED' : 'NOT YET'}
+                    </span>
+                  )}
                   {(n.from || n.to) && (
                     <span style={{ fontSize:9, color:'#475569', marginLeft:'auto', fontFamily:'monospace' }}>
                       {fmtNotamTime(n.from)} → {fmtNotamTime(n.to)}

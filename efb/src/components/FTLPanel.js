@@ -186,7 +186,8 @@ export default function FTLPanel({ toast, myProfile, customerId: scopeCustomerId
           <DutyRoster {...{ toast, myProfile, pilots, duties, baselines, homeBases, offTypes, reload: load }} />
           <AssignDuty {...{ toast, myProfile, pilots, duties, baselines, ruleset, offTypes, homeBases, reload: load }} />
         </>}
-        {view === 'history' && <DutyHistory {...{ pilots, duties, baselines, offTypes, ruleset, homeBases }} />}
+        {view === 'history' && <DutyHistory {...{ pilots, duties, baselines, offTypes, ruleset, homeBases,
+                                                 toast, myProfile, reload: load, readOnly }} />}
         {!readOnly && view === 'skpk' && <SkpkTracker {...{ toast, myProfile, pilots, duties, reload: load }} />}
         {view === 'edits' && <EditReport {...{ pilots, edits, duties }} />}
         {!readOnly && view === 'ruleset' && <RulesetSettings {...{ toast, myProfile, ruleset, offTypes, reload: load }} />}
@@ -2370,10 +2371,347 @@ const nextDay = (dateStr) => {
   return d.toISOString().slice(0, 10);
 };
 
+// ═══ 2a) PLANLANDI — GERCEKLESTI MI? ══════════════════════════════
+// 15 Agu 2026, Serkan: "son iki ucusu iOS'ta kosturamadik, app'te ucus
+// kosulmadi ama PLANLANAN UCUS GERCEKLESTI. PLN'ye tiklayalim, bize sorsun:
+// bu plan gerceklesti mi? YES ise OFF BLOCK, T/O, LND ve ON BLOCK saatlerini
+// sorsun, uculdu olarak sisteme girsin. NO dersek gerceklestirilmemis
+// planlama olarak silinsin, o gun bos gune donsun — hatta BOS gun mu STBY mi
+// OFF mu sorsun, niteligini biz girelim ki RULE SET duzgun calissin."
+//
+// VERI SOZLESMESI (archive-flight zaten boyle bekliyor): elle girilen sektore
+// `plan_id` YAZILMAZ. Boylece ucus kaydi sonradan gelirse OLCULEN degerler
+// elle girilenin ustune yazar ("gerceklesen ucus her zaman ustune yazar");
+// hic gelmezse elle girilen kayit olarak kalir.
+//
+// SILME = IPTAL (status='cancelled'). Kalici silme YOK: gorev listeden duser,
+// KAYITTAN DUSMEZ ve gerekce denetim izine yazilir.
+function PlannedOutcomeModal({ duty, rows, myProfile, offTypes, toast, onClose, onSaved }) {
+  const isFlight = duty.duty_type === 'flight';
+  const legs = duty.sectors || [];
+  const [step, setStep] = useState('ask');          // ask | flown | notflown
+  const [times, setTimes] = useState(() => legs.map(l => ({
+    off_block: l.off_block || '', takeoff_time: l.takeoff_time || '',
+    landing_time: l.landing_time || '', on_block: l.on_block || '',
+  })));
+  const [nature, setNature] = useState('empty');    // empty | stby | off
+  const [sbKind, setSbKind] = useState('airport_standby');
+  const [sbStart, setSbStart] = useState('');
+  const [sbEnd, setSbEnd] = useState('');
+  const [offSubtype, setOffSubtype] = useState(() => (offTypes || [])[0]?.code || 'OFF');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const setT = (i, k, v) => setTimes(t => t.map((x, j) => j === i ? { ...x, [k]: v } : x));
+  const hhmmOK = (v) => /^\d{1,2}:\d{2}$/.test(v) && toMin(v) != null;
+  const timeStr = (arr) => arr.map((t, i) =>
+    `${legs[i]?.dep || '?'}-${legs[i]?.dest || '?'} ${t.off_block || '—'}/${t.on_block || '—'}`).join(' · ');
+
+  // Denetim izi satiri — CANCEL yolundaki bicimin aynisi.
+  const auditRow = (d, field, oldV, newV, type, why) => ({
+    duty_id: d.id, customer_id: d.customer_id, pilot_id: d.pilot_id,
+    assignment_id: d.assignment_id || null, edit_type: type,
+    field_name: field, old_value: oldV == null ? null : String(oldV),
+    new_value: newV == null ? null : String(newV),
+    reason: why, edited_by: myProfile?.id ?? null,
+  });
+
+  // ── YES: UCULDU ────────────────────────────────────────────────────
+  // FTL penceresi archive-flight'in kullandigi FORMULLE birebir yeniden kurulur
+  // (tek kaynak: `ruleset_snapshot.company` — sunucunun okudugu ham alanlar).
+  const saveFlown = async () => {
+    for (let i = 0; i < legs.length; i++) {
+      const t = times[i];
+      if (!hhmmOK(t.off_block) || !hhmmOK(t.on_block)) {
+        toast(`Sector ${i + 1}: OFF BLOCK and ON BLOCK are required (HH:MM).`, 'error'); return;
+      }
+      if (t.takeoff_time && !hhmmOK(t.takeoff_time)) { toast(`Sector ${i + 1}: T/O must be HH:MM.`, 'error'); return; }
+      if (t.landing_time && !hhmmOK(t.landing_time)) { toast(`Sector ${i + 1}: LND must be HH:MM.`, 'error'); return; }
+    }
+    if (!reason.trim()) { toast('Reason is mandatory.', 'error'); return; }
+    setBusy(true);
+    try {
+      const sectors = legs.map((l, i) => ({
+        ...l,
+        off_block: times[i].off_block, on_block: times[i].on_block,
+        ...(times[i].takeoff_time ? { takeoff_time: times[i].takeoff_time } : {}),
+        ...(times[i].landing_time ? { landing_time: times[i].landing_time } : {}),
+        // plan_id BILEREK yazilmaz — sonradan gelen arsiv bu sektoru bulup
+        // olculen degerleri ustune yazabilsin diye (archive-flight kurali).
+        // Alan adi GECMIS TARIHLI GOREV yolundakiyle ayni: `entered_manually`.
+        entered_manually: true, entered_by: myProfile?.id ?? null,
+        entered_at: new Date().toISOString(),
+      }));
+
+      // GUN DEVRI: saatler HH:MM'dir; geriye giden her saat ertesi gundur.
+      let day = duty.duty_date, prev = null, lastOnISO = null;
+      for (const s of sectors) {
+        for (const key of ['off_block', 'on_block']) {
+          const m = toMin(s[key]);
+          if (prev != null && m < prev) day = nextDay(day);
+          prev = m;
+          if (key === 'on_block') lastOnISO = utcISO(day, s[key]);
+        }
+      }
+
+      const snap = duty.ruleset_snapshot?.company || {};
+      const postMin = snap.post_flight_duty_minutes ?? 30;
+      const repHours = snap.mandatory_report_hours ?? 72;
+      const upd = { sectors, status: 'actual', duty_finished: true };
+      if (lastOnISO && duty.report_time) {
+        const endMs = new Date(lastOnISO).getTime() + postMin * 60000;
+        const fdpMin = Math.round((new Date(lastOnISO).getTime()
+                                   - new Date(duty.report_time).getTime()) / 60000);
+        const effMax = duty.max_fdp_minutes;
+        const fdpExceeded = effMax != null && fdpMin > effMax;
+        const minRest = Math.max(duty.min_rest_minutes ?? 0, fdpMin + postMin);
+        upd.duty_end = new Date(endMs).toISOString();
+        upd.fdp_minutes = fdpMin;
+        upd.fdp_exceeded = fdpExceeded;
+        upd.min_rest_minutes = minRest;
+        upd.earliest_next_report = new Date(endMs + minRest * 60000).toISOString();
+        if (fdpExceeded) upd.mandatory_report_due = new Date(endMs + repHours * 3600000).toISOString();
+      }
+
+      // Iz ONCE (CANCEL yolundaki ilke): yazma reddedilse bile niyet kayitli.
+      const why = `Manual actual entry (EFB record missing): ${reason.trim()}`;
+      const { error: eErr } = await supabase.from('ftl_duty_edits').insert([
+        auditRow(duty, 'status', duty.status, 'actual', 'EDIT', why),
+        auditRow(duty, 'sectors', routeOf(duty), timeStr(times), 'EDIT', why),
+      ]);
+      if (eErr) { toast(`Audit write failed: ${eErr.message}`, 'error'); setBusy(false); return; }
+
+      const { error } = await supabase.from('crew_duties').update(upd).eq('id', duty.id);
+      if (error) throw error;
+      toast('Duty recorded as flown.', 'success');
+      onSaved();
+    } catch (e) { toast(String(e.message || e), 'error'); }
+    setBusy(false);
+  };
+
+  // ── NO: GERCEKLESMEDI ──────────────────────────────────────────────
+  const saveNotFlown = async () => {
+    if (!reason.trim()) { toast('Reason is mandatory.', 'error'); return; }
+    if (nature === 'stby') {
+      // SURESIZ NOBET OLMAZ (Serkan, 15 Agu) — saatler zorunlu.
+      if (!hhmmOK(sbStart) || !hhmmOK(sbEnd)) {
+        toast('Standby start and end are required (HH:MM). A standby without hours cannot be recorded.', 'error');
+        return;
+      }
+      if (toMin(sbStart) === toMin(sbEnd)) { toast('Standby start and end cannot be the same.', 'error'); return; }
+    }
+    setBusy(true);
+    try {
+      const why = `Planned duty did not take place: ${reason.trim()}`;
+      const ids = rows.map(r => r.id);
+      const { error: eErr } = await supabase.from('ftl_duty_edits')
+        .insert(rows.map(r => auditRow(r, 'status', r.status, 'cancelled', 'CANCEL', why)));
+      if (eErr) { toast(`Audit write failed: ${eErr.message}`, 'error'); setBusy(false); return; }
+      const { error } = await supabase.from('crew_duties')
+        .update({ status: 'cancelled' }).in('id', ids);
+      if (error) throw error;
+
+      // GUNUN NITELIGI — rule set'in dogru calismasi icin gun bos birakilmaz.
+      if (nature !== 'empty') {
+        const base = {
+          customer_id: duty.customer_id, pilot_id: duty.pilot_id,
+          created_by: myProfile?.id ?? null,
+          ruleset_id: duty.ruleset_id ?? null,
+          ruleset_snapshot: duty.ruleset_snapshot ?? null,
+          duty_date: duty.duty_date, status: 'actual',
+        };
+        let row;
+        if (nature === 'stby') {
+          const startISO = utcISO(duty.duty_date, sbStart);
+          const endISO = utcISO(toMin(sbEnd) < toMin(sbStart) ? nextDay(duty.duty_date) : duty.duty_date, sbEnd);
+          row = { ...base, duty_type: 'ground', ground_kind: sbKind,
+                  report_time: startISO, duty_end: endISO, fdp_minutes: null };
+        } else {
+          row = { ...base, duty_type: 'off', off_subtype: offSubtype };
+        }
+        const { error: iErr } = await supabase.from('crew_duties').insert([row]);
+        if (iErr) throw iErr;
+      }
+      toast(nature === 'empty' ? 'Duty cancelled — day is now empty.'
+            : `Duty cancelled — day recorded as ${nature === 'stby' ? 'STANDBY' : 'OFF'}.`, 'success');
+      onSaved();
+    } catch (e) { toast(String(e.message || e), 'error'); }
+    setBusy(false);
+  };
+
+  const box = { background:C.bg2, border:`1px solid ${C.border}`, borderRadius:10, width:640,
+                maxWidth:'94vw', maxHeight:'92vh', overflowY:'auto' };
+  const tIn = { ...S.input, width:88, textAlign:'center' };
+  const chip = (on) => ({ padding:'9px 18px', fontSize:11, fontWeight:700, letterSpacing:1.5,
+                          cursor:'pointer', fontFamily:'var(--mono)', borderRadius:6,
+                          border:`1px solid ${on ? C.accent : C.border2}`,
+                          background: on ? C.accent : 'transparent',
+                          color: on ? 'var(--bg)' : C.t3 });
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.6)', display:'flex',
+                  alignItems:'center', justifyContent:'center', zIndex:70 }}>
+      <div style={box}>
+        <div style={S.panelH}>
+          <span style={S.panelT}>
+            {step === 'ask' ? 'DID THIS PLANNED DUTY TAKE PLACE?'
+             : step === 'flown' ? 'ENTER THE ACTUAL TIMES' : 'WHAT WAS THIS DAY?'}
+          </span>
+          <span style={{ fontSize:9, color:C.t3, letterSpacing:1, fontFamily:'var(--mono)' }}>
+            {fmtD(duty.duty_date)} · {routeOf(duty)}
+          </span>
+        </div>
+
+        <div style={{ padding:16 }}>
+          {step === 'ask' && (
+            <>
+              <div style={S.note}>
+                This duty is still marked PLANNED. If it was flown but never archived from the
+                EFB (app failure, hard-copy flight), record the actual times here. If it never
+                happened, cancel it and say what the day actually was — the FTL rules need the
+                day to be something.
+              </div>
+              {isFlight && !!legs.length && (
+                <table style={{ ...S.table, marginTop:12 }}>
+                  <thead><tr><th style={S.th}>Sector</th><th style={S.th}>Planned ETD</th><th style={S.th}>Planned ETA</th></tr></thead>
+                  <tbody>{legs.map((l, i) => (
+                    <tr key={i}><td style={S.td}>{l.dep}–{l.dest}</td>
+                      <td style={S.td}>{l.etd || '—'}</td><td style={S.td}>{l.eta || '—'}</td></tr>
+                  ))}</tbody>
+                </table>
+              )}
+              <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:16 }}>
+                <button style={S.btnS} onClick={onClose}>CLOSE</button>
+                <button style={{ ...S.btnS, borderColor:C.red, color:C.red }}
+                        onClick={() => setStep('notflown')}>NO — IT DID NOT HAPPEN</button>
+                <button style={S.btnP} onClick={() => setStep(isFlight && legs.length ? 'flown' : 'notflown')}>
+                  YES — IT TOOK PLACE
+                </button>
+              </div>
+            </>
+          )}
+
+          {step === 'flown' && (
+            <>
+              <div style={S.note}>
+                All times UTC, HH:MM. OFF BLOCK and ON BLOCK are mandatory — the duty window,
+                FDP and the next earliest report are calculated from them. If the EFB archive
+                for this flight arrives later, its measured times replace what you enter here.
+              </div>
+              <table style={{ ...S.table, marginTop:12 }}>
+                <thead><tr>
+                  <th style={S.th}>Sector</th><th style={S.th}>OFF BLOCK *</th>
+                  <th style={S.th}>T/O</th><th style={S.th}>LND</th><th style={S.th}>ON BLOCK *</th>
+                </tr></thead>
+                <tbody>
+                  {legs.map((l, i) => (
+                    <tr key={i}>
+                      <td style={S.td}>{l.dep}–{l.dest}
+                        <div style={{ fontSize:9, color:C.t3 }}>PLN {l.etd || '—'}–{l.eta || '—'}</div></td>
+                      {['off_block', 'takeoff_time', 'landing_time', 'on_block'].map(k => (
+                        <td key={k} style={S.td}>
+                          <input style={tIn} placeholder="HH:MM" maxLength={5} value={times[i][k]}
+                                 onChange={e => setT(i, k, normTime(e.target.value))} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ marginTop:12 }}>
+                <span style={S.label}>Reason / report *</span>
+                <textarea style={{ ...S.input, minHeight:64, resize:'vertical' }} value={reason}
+                          onChange={e => setReason(e.target.value)}
+                          placeholder="Why are these times being entered by hand? (e.g. the EFB did not run this flight)" />
+              </div>
+              <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:14 }}>
+                <button style={S.btnS} onClick={() => setStep('ask')} disabled={busy}>BACK</button>
+                <button style={{ ...S.btnP, opacity: busy ? .45 : 1 }} disabled={busy}
+                        onClick={saveFlown}>{busy ? 'SAVING...' : 'SAVE AS FLOWN'}</button>
+              </div>
+            </>
+          )}
+
+          {step === 'notflown' && (
+            <>
+              <div style={{ ...S.note, borderLeftColor:C.red, color:C.red }}>
+                The planned duty will be CANCELLED. It stays in the record and in the audit
+                trail — it is not deleted — but it drops out of the roster and out of the FTL
+                totals.
+              </div>
+              <div style={{ marginTop:14 }}>
+                <span style={S.label}>What was this day? *</span>
+                <div style={{ display:'flex', gap:8, marginTop:6 }}>
+                  {[['empty', 'EMPTY DAY'], ['stby', 'STANDBY'], ['off', 'OFF']].map(([v, lb]) => (
+                    <div key={v} onClick={() => setNature(v)} style={chip(nature === v)}>{lb}</div>
+                  ))}
+                </div>
+              </div>
+
+              {nature === 'stby' && (
+                <div style={{ marginTop:14 }}>
+                  <span style={S.label}>Standby kind</span>
+                  <div style={{ display:'flex', gap:8, margin:'6px 0 12px' }}>
+                    {[['airport_standby', 'AIRPORT STANDBY · Md.17/1'],
+                      ['other_standby', 'OTHER STANDBY · Md.17/2']].map(([v, lb]) => (
+                      <div key={v} onClick={() => setSbKind(v)}
+                           style={{ padding:'8px 14px', fontSize:10, fontWeight:700, letterSpacing:1,
+                                    cursor:'pointer', fontFamily:'var(--mono)', borderRadius:6,
+                                    border:`1px solid ${sbKind === v ? C.accent : C.border2}`,
+                                    color: sbKind === v ? C.accent : C.t3 }}>{lb}</div>
+                    ))}
+                  </div>
+                  <div style={{ display:'flex', gap:14 }}>
+                    <div><span style={S.label}>Start (UTC) *</span>
+                      <input style={tIn} placeholder="HH:MM" maxLength={5} value={sbStart}
+                             onChange={e => setSbStart(normTime(e.target.value))} /></div>
+                    <div><span style={S.label}>End (UTC) *</span>
+                      <input style={tIn} placeholder="HH:MM" maxLength={5} value={sbEnd}
+                             onChange={e => setSbEnd(normTime(e.target.value))} /></div>
+                  </div>
+                  <div style={{ ...S.note, marginTop:10 }}>
+                    Hours are mandatory — a standby with no hours cannot be recorded, and without
+                    them the rules cannot reduce the maximum FDP (SHT-FTL/HG Md.17).
+                  </div>
+                </div>
+              )}
+
+              {nature === 'off' && (
+                <div style={{ marginTop:14, width:260 }}>
+                  <span style={S.label}>OFF type</span>
+                  <select style={S.input} value={offSubtype} onChange={e => setOffSubtype(e.target.value)}>
+                    {(offTypes || []).map(t => <option key={t.code} value={t.code}>{t.code}{t.label ? ` — ${t.label}` : ''}</option>)}
+                    {!(offTypes || []).length && <option value="OFF">OFF</option>}
+                  </select>
+                </div>
+              )}
+
+              <div style={{ marginTop:14 }}>
+                <span style={S.label}>Reason / report *</span>
+                <textarea style={{ ...S.input, minHeight:64, resize:'vertical' }} value={reason}
+                          onChange={e => setReason(e.target.value)}
+                          placeholder="Why did this duty not take place?" />
+              </div>
+              <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:14 }}>
+                <button style={S.btnS} onClick={() => setStep('ask')} disabled={busy}>BACK</button>
+                <button style={{ ...S.btnP, background:C.red, opacity: busy ? .45 : 1 }} disabled={busy}
+                        onClick={saveNotFlown}>{busy ? 'SAVING...' : 'CANCEL DUTY'}</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══ 2) DUTY HISTORY ══════════════════════════════════════════════
-function DutyHistory({ pilots, duties, baselines, offTypes, ruleset, homeBases }) {
+function DutyHistory({ pilots, duties, baselines, offTypes, ruleset, homeBases,
+                       toast, myProfile, reload, readOnly }) {
   const flyable = pilots.filter(p => ['pilot', 'admin_pilot'].includes(p.role));
   const [pilotId, setPilotId] = useState('');
+  // PLN rozetine tiklanan gorev — "gerceklesti mi?" penceresi.
+  const [resolving, setResolving] = useState(null);
   useEffect(() => { if (!pilotId && flyable.length) setPilotId(flyable[0].id); }, [flyable, pilotId]);
 
   // Secili pilotun ana us dilimi (yerel gece hesabi icin)
@@ -2462,9 +2800,20 @@ function DutyHistory({ pilots, duties, baselines, offTypes, ruleset, homeBases }
     return s;
   }, [rows, duties, pilotId, hbIcaoTz, ruleset, offTypes, from, to]);
 
-  const srcBadge = (d) => d.status === 'planned' ? <span style={badge('dim')}>PLN</span>
-    : d.status === 'open' ? <span style={badge('amber')}>OPEN</span>
-    : <span style={badge('green')}>ACT</span>;
+  // PLN ROZETI TIKLANIR (15 Agu 2026, Serkan): planlanan gorevin gerceklesip
+  // gerceklesmedigi buradan kapatilir. Salt-okunur gorunumde (pilot kendi
+  // raporuna bakiyor) rozet duz kalir — kayit degistirmek admin isidir.
+  const srcBadge = (d) => {
+    if (d.status !== 'planned') {
+      return d.status === 'open' ? <span style={badge('amber')}>OPEN</span>
+                                 : <span style={badge('green')}>ACT</span>;
+    }
+    if (readOnly) return <span style={badge('dim')}>PLN</span>;
+    return (
+      <span onClick={() => setResolving(d)} title="Did this planned duty take place?"
+            style={{ ...badge('dim'), cursor:'pointer', borderStyle:'dashed' }}>PLN ?</span>
+    );
+  };
 
   // Yazdırma: tüm sayfa yerine SADECE rapor içeriği — beyaz kâğıt formatında
   // ayrı pencerede kümülatif uçuş/görev süresi raporu üretir.
@@ -2687,11 +3036,28 @@ function DutyHistory({ pilots, duties, baselines, offTypes, ruleset, homeBases }
         </div>
         <div style={{ display:'flex', gap:20, flexWrap:'wrap', padding:'9px 14px', borderTop:`1px solid ${C.border}`, fontSize:9.5, color:C.t3, alignItems:'center', fontFamily:'var(--mono)' }}>
           <span><span style={badge('green')}>ACT</span> actual — auto-filled at archive</span>
-          <span><span style={badge('dim')}>PLN</span> planned — not yet flown</span>
+          <span><span style={{ ...badge('dim'), ...(readOnly ? {} : { borderStyle:'dashed' }) }}>
+            PLN{readOnly ? '' : ' ?'}</span> planned — not yet flown{readOnly ? '' : ' · click it to record what happened'}</span>
           <span><span style={badge('amber')}>OPEN</span> duty not finished at archive</span>
           <span><span style={badge('red')}>MATCH REVIEW</span> actual match ambiguous</span>
         </div>
       </div>
+
+      {resolving && (
+        <PlannedOutcomeModal
+          duty={resolving}
+          // Ayni atamanin ayni pilottaki TUM gunleri birlikte iptal edilir;
+          // tek gunluk gorevde bu yine tek satirdir.
+          rows={duties.filter(x => x.pilot_id === resolving.pilot_id
+            && x.status === 'planned'
+            && (resolving.assignment_id
+                ? x.assignment_id === resolving.assignment_id
+                : x.id === resolving.id))}
+          myProfile={myProfile} offTypes={offTypes} toast={toast}
+          onClose={() => setResolving(null)}
+          onSaved={() => { setResolving(null); reload && reload(); }}
+        />
+      )}
     </div>
   );
 }
