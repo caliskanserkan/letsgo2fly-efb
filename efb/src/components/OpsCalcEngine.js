@@ -349,3 +349,93 @@ export function hhmm(minutes) {
   const m = Math.round(minutes);
   return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// KENDI VERIMIZDEN YAKIT PROFILI (16 Agu 2026, Serkan)
+//
+// "Elimizde zaten OFP planlar var; her planda FL, trip time, trip fuel
+//  verileri var. PPS'in gonderdigi plana gore hareket edelim cunku gercege
+//  cok yakin veri tutuyor."  ·  "Bizim sabit degerler anlamsiz olur cunku
+//  elimizde veri var."  ·  "Veri arttikca dogruluk artacak."
+//
+// MODEL:  yakit = clbFF·(clb saat) + crzFF·(crz saat) + dscFF·(dsc saat)
+// Sabit terim YOKTUR: sure sifirsa yakit sifirdir. Uc bilinmeyen, N denklem
+// -> en kucuk kareler (3x3 normal denklemler, Gauss elemesi).
+//
+// 🔑 NEDEN TOPLAM SUREYE DEGIL SAFHA SURELERINE GORE: ilk denemede
+// `yakit = a + b·toplam sure` kurulmustu ve kisa ucuslarda `b` seyir sanilip
+// aslinda TIRMANMA sarfiyatini olcuyordu — 23 dakikalik ucusta seyir dilimi
+// yalnizca 3 DAKIKA (olculdu). Serkan yakaladi: "15 lb kac dakikada yakmis,
+// o sureyi saate cevirince ayni sarfiyat cikar" — ve oyle cikti: o gruptaki
+// regresyon egimi 3642 lb/h, ayni ucuslarin ortalama sarfiyati 3647 lb/h.
+// Yani sayi yanlis degildi, YORUMU yanlisti: seyir orani degil, ortalama.
+//
+// ⚠️ ALCALMA DILIMI SAF DEGILDIR (Serkan): "bazi alcalmalarda OFP irtifa
+// tahdidi varsa kademeli alcalis veriyor, onu descent saymiyor." Kot
+// kisitinda ucak duz ucar ve orada yakit seyir oraninda yanar, ama o dakikalar
+// bizim alcalma dilimimizin icindedir. Bu yuzden `dscFF` saf alcalma degil,
+// O DILIMIN ORTALAMASIDIR — toplami bozmaz, etiketi yaklasiktir. Ekranda
+// boyle yazilir (Ilke 1).
+// ════════════════════════════════════════════════════════════════════════
+
+/**
+ * Ornek havuzundan uc safha sarfiyatini cozer.
+ * @param {Array} samples `aircraft_perf_samples` satirlari
+ * @returns {{climbFF,cruiseFF,descFF,climbMin,descMin,n,nPhase,r2}|null}
+ */
+export function fitPhaseProfile(samples) {
+  const usable = (samples || []).filter(
+    (s) => s && s.ete_min > 0 && s.trip_fuel_lb > 0 &&
+           s.climb_min > 0 && s.desc_min > 0 &&
+           s.ete_min - s.climb_min - s.desc_min >= 0
+  );
+  if (usable.length < 3) return null;          // uc bilinmeyen, en az uc denklem
+
+  const A = [], y = [];
+  for (const s of usable) {
+    const c = s.climb_min / 60;
+    const d = s.desc_min / 60;
+    const z = (s.ete_min - s.climb_min - s.desc_min) / 60;
+    A.push([c, z, d]);
+    y.push(s.trip_fuel_lb);
+  }
+  // Normal denklemler (AᵀA)x = Aᵀy — 3x3, kismi pivotlu Gauss
+  const n = 3;
+  const M = [];
+  for (let i = 0; i < n; i++) {
+    const row = [];
+    for (let j = 0; j < n; j++) row.push(A.reduce((t, a) => t + a[i] * a[j], 0));
+    row.push(A.reduce((t, a, k) => t + a[i] * y[k], 0));
+    M.push(row);
+  }
+  for (let i = 0; i < n; i++) {
+    let p = i;
+    for (let r = i + 1; r < n; r++) if (Math.abs(M[r][i]) > Math.abs(M[p][i])) p = r;
+    [M[i], M[p]] = [M[p], M[i]];
+    if (Math.abs(M[i][i]) < 1e-9) return null;   // cozulemez (veri yetersiz)
+    for (let r = 0; r < n; r++) {
+      if (r === i) continue;
+      const f = M[r][i] / M[i][i];
+      for (let c = i; c <= n; c++) M[r][c] -= f * M[i][c];
+    }
+  }
+  const x = [M[0][3] / M[0][0], M[1][3] / M[1][1], M[2][3] / M[2][2]];
+  const [climbFF, cruiseFF, descFF] = x;
+  // Negatif sarfiyat fiziksel olarak imkansiz — veri yetersizse uydurma yapma.
+  if (!(climbFF > 0 && cruiseFF > 0 && descFF > 0)) return null;
+
+  const pred = A.map((a) => climbFF * a[0] + cruiseFF * a[1] + descFF * a[2]);
+  const my = y.reduce((t, v) => t + v, 0) / y.length;
+  const sst = y.reduce((t, v) => t + (v - my) ** 2, 0);
+  const ssr = y.reduce((t, v, k) => t + (v - pred[k]) ** 2, 0);
+
+  const avg = (f) => usable.reduce((t, s) => t + f(s), 0) / usable.length;
+  return {
+    climbFF, cruiseFF, descFF,
+    climbMin: Math.round(avg((s) => s.climb_min)),
+    descMin:  Math.round(avg((s) => s.desc_min)),
+    n: (samples || []).length,        // havuzdaki TOPLAM ornek
+    nPhase: usable.length,            // safha olcumu OLAN ornek
+    r2: sst > 0 ? 1 - ssr / sst : 0,
+  };
+}

@@ -22,7 +22,7 @@ import { up, normTime } from './inputFormat';
 import {
   greatCircleNM, initialBearing, intermediatePoint, windComponentKt,
   computeLeg, computeTrip, hhmm, KMH_PER_KT, AC_GLF4,
-  LEVELS, HPA_FOR_FL, profileForLevel,
+  LEVELS, HPA_FOR_FL, profileForLevel, fitPhaseProfile,
 } from './OpsCalcEngine';
 
 const WIND_SAMPLES = 5;      // büyük daire üzerinde örneklenecek nokta sayısı
@@ -168,15 +168,57 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
 
   const ac = fleet.find(a => String(a.id) === acId);
 
-  /** Uçağın performans katsayıları — girilmemişse hesap YAPILMAZ, söylenir. */
-  const acParams = useMemo(() => (ac && ac.ops_cruise_tas && ac.ops_cruise_ff ? {
-    label: ac.registration,
-    cruiseTAS: ac.ops_cruise_tas, cruiseFF: ac.ops_cruise_ff,
-    climbMin: AC_GLF4.climbMin, descMin: AC_GLF4.descMin,   // 25/25 STANDART (sirket usulu, ucaga bagli degil)
-    climbNM: ac.ops_climb_nm ?? 0, climbFuel: ac.ops_climb_fuel ?? 0,
-    descNM: ac.ops_desc_nm ?? 0,  descFuel: ac.ops_desc_fuel ?? 0,
-    groundFuel: ac.ops_ground_fuel ?? 0, groundMin: ac.ops_ground_min ?? 0,
-  } : null), [ac]);
+  // ── KENDI VERIMIZDEN PROFIL (16 Agu 2026, Serkan) ───────────────────────
+  // "Sistemde yuklenmis ucuslardan kendi veri tabanimizi tutsak, tirmanis/duz
+  //  ucus/alcalis yakit profilimizi ciksak."  ·  "Veri arttikca dogruluk
+  //  artacak."
+  // Havuz `aircraft_perf_samples` — plan silinse bile duran olcum kayitlari.
+  // TESCIL BAZLI: her sirket yalniz kendi ucaginin verisini kullanir
+  // (Serkan: "o baska sirketin ucagi").
+  const [samples, setSamples] = useState([]);
+  useEffect(() => {
+    if (!ac?.registration) { setSamples([]); return; }
+    (async () => {
+      const { data } = await supabase.from('aircraft_perf_samples')
+        .select('ete_min,trip_fuel_lb,cruise_fl,climb_min,desc_min')
+        .eq('reg', ac.registration);
+      setSamples(data || []);
+    })();
+  }, [ac?.registration]);
+
+  /** Havuzdan cozulen uc safha profili. Veri yetersizse `null` — o zaman
+   *  asagida OFP'den olculen sabit katsayilara DUSULUR (uydurma yok). */
+  const measured = useMemo(() => fitPhaseProfile(samples), [samples]);
+
+  /** Uçağın performans katsayıları — girilmemişse hesap YAPILMAZ, söylenir.
+   *  Oncelik: OLCULEN profil > uçağa girilmis sabit katsayilar. */
+  const acParams = useMemo(() => {
+    if (!ac) return null;
+    if (measured) {
+      return {
+        label: ac.registration,
+        // Seyir TAS'i seviyeden turer (`profileForLevel`), sarfiyat HAVUZDAN.
+        cruiseTAS: ac.ops_cruise_tas ?? AC_GLF4.cruiseTAS,
+        cruiseFF: measured.cruiseFF,
+        climbMin: measured.climbMin, descMin: measured.descMin,
+        climbFF: measured.climbFF,   descFF: measured.descFF,
+        climbNM: ac.ops_climb_nm ?? 0, descNM: ac.ops_desc_nm ?? 0,
+        climbFuel: measured.climbFF * (measured.climbMin / 60),
+        descFuel:  measured.descFF  * (measured.descMin  / 60),
+        groundFuel: ac.ops_ground_fuel ?? AC_GLF4.groundFuel,
+        groundMin:  ac.ops_ground_min  ?? AC_GLF4.groundMin,
+      };
+    }
+    if (!(ac.ops_cruise_tas && ac.ops_cruise_ff)) return null;
+    return {
+      label: ac.registration,
+      cruiseTAS: ac.ops_cruise_tas, cruiseFF: ac.ops_cruise_ff,
+      climbMin: AC_GLF4.climbMin, descMin: AC_GLF4.descMin,   // 25/25 STANDART (sirket usulu, ucaga bagli degil)
+      climbNM: ac.ops_climb_nm ?? 0, climbFuel: ac.ops_climb_fuel ?? 0,
+      descNM: ac.ops_desc_nm ?? 0,  descFuel: ac.ops_desc_fuel ?? 0,
+      groundFuel: ac.ops_ground_fuel ?? 0, groundMin: ac.ops_ground_min ?? 0,
+    };
+  }, [ac, measured]);
 
   /** Secili seviyenin profili: tirmanma/alcalma sureleri, seyir TAS'i ve
    *  safha yakit oranlari. `acParams` ucagin KENDI olculen degerlerini tasir;
@@ -335,11 +377,42 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
           <div>
             <label style={lbl}>PROFILE</label>
             <input style={{ ...inp, opacity: .7 }} readOnly
-                   value={levelProfile
-                     ? `CLB ${levelProfile.climbMin}′ · DES ${levelProfile.descMin}′ · ${levelProfile.cruiseTAS} kt`
+                   value={outProfile
+                     ? `CLB ${outProfile.climbMin}′ · DES ${outProfile.descMin}′ · ${outProfile.cruiseTAS} kt`
                      : '—'} />
           </div>
         </div>
+
+        {/* ── KAYNAK SATIRI (16 Agu 2026, Serkan) ─────────────────────────
+            "TCREC ucagina ait xxx sayida ucusun CLB-CRZ-DSC profili
+             incelenerek ortalama fuel burn verileri elde edilmistir."
+            Kaynagini soylemeyen bir ortalama, uydurma katsayidan farksizdir:
+            ilk itirazda savunulamaz. Sayinin NEREDEN geldigi ekranda durur.
+            ⚠️ "UCUS PLANI" denir, "UCUS" DENMEZ — veri OFP'den gelir,
+            uculmus gercekten degil (Ilke 1). */}
+        {measured && (
+          <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 6,
+                        background: 'var(--accent-soft)', fontSize: 11, lineHeight: 1.5 }}>
+            <b>{ac?.registration}</b> · {measured.n} UÇUŞ PLANI (OFP) İNCELENEREK
+            {measured.nPhase < measured.n && <> · {measured.nPhase}'İNDE SAFHA ÖLÇÜMÜ</>}
+            <br />
+            TIRMANMA <b>{Math.round(measured.climbFF).toLocaleString()}</b> ·
+            {' '}SEYİR <b>{Math.round(measured.cruiseFF).toLocaleString()}</b> ·
+            {' '}ALÇALMA <b>{Math.round(measured.descFF).toLocaleString()}</b> lb/h
+            {' '}<span style={{ color: 'var(--t3)' }}>(uyum R²={measured.r2.toFixed(3)})</span>
+            <br />
+            <span style={{ color: 'var(--t3)' }}>
+              Alçalma dilimi, irtifa tahdidi olan planlarda kademeli iniş (düz uçuş)
+              içerebilir — safha etiketi yaklaşıktır, toplamı etkilemez. ESTIMATE ONLY
+            </span>
+          </div>
+        )}
+        {ac && !measured && acParams && (
+          <div style={{ marginTop: 10, fontSize: 11, color: 'var(--t3)' }}>
+            {ac.registration}: henüz yeterli plan ölçümü yok — OFP'den girilen sabit
+            katsayılar kullanılıyor. Her yeni plan yüklemesi profili iyileştirir.
+          </div>
+        )}
 
         {ac && !acParams && (
           <div style={{ marginTop: 10, fontSize: 11, color: 'var(--amber)' }}>
