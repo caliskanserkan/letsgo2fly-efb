@@ -18,7 +18,7 @@
 // Open-Meteo `allow-origin: *` gönderiyor, o yüzden rüzgâr web'den geliyor.
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { up } from './inputFormat';
+import { up, normTime } from './inputFormat';
 import {
   greatCircleNM, initialBearing, intermediatePoint, windComponentKt,
   computeLeg, computeTrip, hhmm, KMH_PER_KT, AC_GLF4,
@@ -110,8 +110,25 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
   const [acId, setAcId]     = useState('');
   const [dep, setDep]       = useState('');
   const [dest, setDest]     = useState('');
-  const [outAt, setOutAt]   = useState('');   // datetime-local, UTC kabul edilir
-  const [retAt, setRetAt]   = useState('');
+  // ── TARIH + SAAT AYRI (16 Agu 2026, Serkan) ─────────────────────────────
+  // *"Sistemde iOS ve web'de butun saatler 24 saatlik HH:MM olmali, tek tip
+  //   method — admin panelde bazi yerlerde AM/PM seklinde girisler var."*
+  //
+  // 🔑 Kaynak `<input type="datetime-local">` idi: bu eleman TARAYICININ bolge
+  // ayarina gore cizilir; 12 saatlik bolgede AM/PM cikar ve biz bunu koddan
+  // kontrol EDEMEYIZ. Etikette "(UTC)" yazmasi da bir sey degistirmiyordu.
+  // Saat artik uygulamanin kendi maskesinden geciyor (`normTime`, iOS'taki
+  // `TimeInput.mask`'in web karsiligi) — bolge ayari devre disi.
+  //
+  // Birlesik deger ASLA state'te tutulmaz, TUREVDIR: iki alan ile birlesik
+  // deger arasinda ikinci bir dogruluk kaynagi olusmasin (Ilke 2).
+  const [outDate, setOutDate] = useState('');
+  const [outTime, setOutTime] = useState('');
+  const [retDate, setRetDate] = useState('');
+  const [retTime, setRetTime] = useState('');
+  const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+  const outAt = outDate && HHMM.test(outTime) ? `${outDate}T${outTime}` : '';
+  const retAt = retDate && HHMM.test(retTime) ? `${retDate}T${retTime}` : '';
   const [crew, setCrew]     = useState(2);
   // SEVIYE + YOLCU (15 Agu 2026, Serkan): "sadece seviye girecez" ve
   // "payload kisi basina 240 lb, ekrana yolcu sayisini da girelim".
@@ -249,13 +266,25 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
             <input style={inp} value={dest} maxLength={4} placeholder="EGLF"
                    onChange={e => setDest(up(e.target.value))} disabled={readOnly} />
           </div>
+          {/* Tarih ve saat AYRI: saat uygulamanin kendi maskesinden gecer,
+              tarayicinin bolge ayari devrede degildir (AM/PM olusamaz). */}
           <div>
             <label style={lbl}>OUTBOUND (UTC)</label>
-            <input style={inp} type="datetime-local" value={outAt} onChange={e => setOutAt(e.target.value)} disabled={readOnly} />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input style={{ ...inp, flex: 1.5 }} type="date" value={outDate}
+                     onChange={e => setOutDate(e.target.value)} disabled={readOnly} />
+              <input style={{ ...inp, flex: 1 }} value={outTime} placeholder="HH:MM" maxLength={5}
+                     onChange={e => setOutTime(normTime(e.target.value))} disabled={readOnly} />
+            </div>
           </div>
           <div>
             <label style={lbl}>RETURN (UTC)</label>
-            <input style={inp} type="datetime-local" value={retAt} onChange={e => setRetAt(e.target.value)} disabled={readOnly} />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input style={{ ...inp, flex: 1.5 }} type="date" value={retDate}
+                     onChange={e => setRetDate(e.target.value)} disabled={readOnly} />
+              <input style={{ ...inp, flex: 1 }} value={retTime} placeholder="HH:MM" maxLength={5}
+                     onChange={e => setRetTime(normTime(e.target.value))} disabled={readOnly} />
+            </div>
           </div>
         </div>
 
