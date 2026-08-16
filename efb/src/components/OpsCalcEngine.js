@@ -122,7 +122,30 @@ export function windComponentKt(windDirDeg, windKt, courseDeg) {
 // olustugu icin RUZGAR da fiilen hesaba giriyor.
 export const CLIMB_MIN = { 100:5, 150:7,  200:10, 250:13, 300:15, 350:20, 400:25, 450:30 };
 export const DESC_MIN  = { 100:5, 150:10, 200:15, 250:20, 300:25, 350:30, 400:35, 450:40 };
-export const LEVELS = [100, 150, 200, 250, 300, 350, 400, 450];
+
+// SEVIYE LISTESI (16 Agu 2026, Serkan): yarim seviyeler de secilebilmeli.
+// "Ticari bir ucus hep iki bacak planlanir" ve dogu/bati kurali geregi gidis
+// FL400 ise donus FL410 olur — iki bacak AYRI seviye secer.
+export const LEVELS = [100, 110, 150, 160, 200, 210, 250, 260,
+                       300, 310, 350, 360, 400, 410, 430, 450];
+
+// Ara seviyelerin (110, 160, 210, 260, 310, 360, 410, 430) OLCUMU YOK.
+// Uydurmak yerine OLCULEN IKI NOKTA ARASINDA interpolasyon yapilir: deger
+// tablonun disina cikmaz, yalnizca mevcut egri okunur.
+//   FL430 -> 400'de 25 dk ile 450'de 30 dk arasindan 28 dk.
+// Tablonun DISINA (FL100 alti / FL450 ustu) tasilmaz: orada olcum yok, `null`
+// doner ve hesap "tanimsiz seviyede uydurma yok" kuralinca durur.
+function interp(table, fl) {
+  if (table[fl] != null) return table[fl];
+  const keys = Object.keys(table).map(Number).sort((a, b) => a - b);
+  if (fl < keys[0] || fl > keys[keys.length - 1]) return null;
+  let lo = keys[0], hi = keys[keys.length - 1];
+  for (const k of keys) { if (k <= fl) lo = k; if (k >= fl) { hi = k; break; } }
+  if (lo === hi) return table[lo];
+  return table[lo] + ((fl - lo) / (hi - lo)) * (table[hi] - table[lo]);
+}
+export const climbMinFor = (fl) => interp(CLIMB_MIN, fl);
+export const descMinFor  = (fl) => interp(DESC_MIN, fl);
 
 // ── STANDART ATMOSFER ────────────────────────────────────────────────────
 // Hiz kurali Serkan'in: FL100 ve alti 250 KIAS, ustu 300 KIAS / M0.80.
@@ -159,7 +182,8 @@ function phaseNM(minutes, cruiseAltFt) {
 /** Seviyeye gore profil — computeLeg'in `ac` yerine kullandigi sekil. */
 export function profileForLevel(fl, base = AC_GLF4) {
   const alt = fl * 100;
-  const climbMin = CLIMB_MIN[fl], descMin = DESC_MIN[fl];
+  // Yarim seviyelerde (FL410, FL430 ...) olculen iki nokta arasindan okunur.
+  const climbMin = climbMinFor(fl), descMin = descMinFor(fl);
   if (climbMin == null || descMin == null) return null;   // tanimsiz seviye: uydurma yok
   // ORAN, UCAGIN KENDI OLCUMUNDEN: saklanan safha TOPLAMI, saklanan safha
   // SURESINE bolunur. Serkan: "gazlar hep ilerde, saatte kac yakiyorsa yarim

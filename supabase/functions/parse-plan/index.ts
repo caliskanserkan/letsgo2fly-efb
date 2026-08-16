@@ -54,6 +54,57 @@ async function extractPdfText(bytes: Uint8Array): Promise<string> {
 }
 
 // ─── Parse helpers (App.js'ten birebir port) ──────────────────────────────────
+// ── PERFORMANS ORNEGI (16 Agu 2026, Serkan) ──────────────────────────────
+// "Bu yuklenenler bir istatistik icin tutuldugundan planin silinmesi veriyi
+//  silmesin."  ·  "Demo sureci bitince butun planlari silecegim (hard delete),
+//  ama bu sayisal veriler demo surecinde de GERCEK ucus verileri — uydurulmus
+//  planlar degil; bizim icin bir veri havuzu olustu, uzerine yazarak devam
+//  etmemiz lazim."
+//
+// Bu yuzden olcum `plans` satirindan AYRI bir tabloda da tutulur. Plan
+// silinse (hard delete dahil) ornek yerinde kalir — `plan_id` yalnizca bir
+// referanstir, FOREIGN KEY DEGILDIR.
+//
+// Havuza YALNIZ olculmus ucus girer: sure veya yakit okunamadiysa satir
+// yazilmaz. Eksik ornek, ortalamayi sessizce bozmaktan iyidir (Ilke 1).
+async function savePerfSample(admin: any, s: any, planId: string, customerId: string): Promise<string | null> {
+  const hhmmToMin = (v: string | null | undefined) => {
+    const m = String(v ?? '').match(/^(\d{1,2}):(\d{2})$/);
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const digits = (v: unknown) => {
+    const n = Number(String(v ?? '').replace(/[^\d]/g, ''));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const eteMin = hhmmToMin(s.ete);
+  const tripFuel = digits(s.trip_fuel);
+  if (!eteMin || !tripFuel) return null;             // olculmemis ucus havuza girmez
+
+  // Seviye: `cruise_fl` bos gelebiliyor (CRUISE: satiri olmayan OFP'ler);
+  // o zaman FPL'in `level_speed` alanindan okunur ("FL300 / 482 TAS").
+  const flNum = digits(s.cruise_fl) ?? digits(String(s.level_speed ?? '').match(/FL\s*(\d{2,3})/)?.[1]);
+
+  // 🔴 HATA SESSIZ KALMAZ (16 Agu 2026 dersi). Ilk surumde `catch` hatayi
+  // yutuyordu ve tablo BOS kaldi; sebebi ancak elle arayinca bulundu:
+  // `on_conflict` hedefi KISMI unique index'ti (`WHERE plan_id IS NOT NULL`)
+  // ve PostgREST onu kabul etmiyor. Supabase istemcisi hatayi FIRLATMAZ,
+  // `{ error }` olarak DONER — `try/catch` bu yuzden hicbir sey yakalamadi.
+  // Artik hata cagirana bildirilir; plan yuklemesi yine durmaz (istatistik
+  // ikincil bir istir) ama sessizce kaybolmaz da (Ilke 1).
+  const { error } = await admin.from("aircraft_perf_samples").upsert({
+    customer_id: customerId, reg: s.reg, plan_id: planId,
+    dep: s.dep, dest: s.dest, flight_date: s.date || null,
+    ete_min: eteMin, trip_fuel_lb: tripFuel, cruise_fl: flNum,
+    climb_min: s.climb_min ?? null, desc_min: s.desc_min ?? null,
+    zfw_lb: digits(s.zfw),
+  }, { onConflict: "plan_id" });
+  if (error) {
+    console.error("[parse-plan] perf sample FAILED:", error.message);
+    return error.message;
+  }
+  return null;
+}
+
 function parseDispatchNo(text: string): string | null {
   const match = text.match(/\[#(DISP\d+)#\]/);
   return match ? match[1] : null;
@@ -224,6 +275,75 @@ function parseAllSectors(text: string): any[] {
       const total = sh*60 + sm + eh*60 + em;
       sector.eta = `${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
     }
+
+    // ── SAFHA SURELERI (16 Agu 2026, Serkan) ────────────────────────────
+    // "Tirmanma ve alcalma sureleri de planda var, oradan da ortalama bir
+    //  tirmanis/alcalis suresi cikaralim; bizim sabit degerler anlamsiz olur
+    //  cunku elimizde veri var."  ·  "Veriyi bizim navlogdan oku, orda bacak
+    //  bacak ayri CLB ve DSC belli."
+    //
+    // Navlog satirinin FL kolonunda `CLB` / `DSC` yazar ve satir KUMULATIF
+    // sureyi tasir:  "23  CLB  406  306  VAR  0  9  0:01"
+    //   tirmanmanin bittigi an  = SON  CLB satirinin dakikasi
+    //   alcalmanin basladigi an = ILK  DSC satirinin dakikasi
+    //   alcalma suresi          = trip suresi - alcalma baslangici
+    //
+    // Ayni sayfa dongusu FIR taramasinda da kullaniliyor: `blockMap` yalniz
+    // 1. sayfayi tasir, navlog satirlari 2. sayfadan itibaren gelir.
+    // OLCULEMEYEN PLAN SESSIZ KALMAZ — sebebi `phase_parse`'a yazilir (Ilke 1).
+    {
+      // 🔑 IKI YAPISAL KURAL — ikisi de OLCULDU, esik UYDURULMADI:
+      //
+      // ① Safha isareti navlog satirinin 2. KOLONUNDA olmali (`MORA CLB ...`).
+      //    Ayni sayfada baska tablolar da var ve onlarin satirlarinda `CLB`
+      //    uctuncu kolonda gecebiliyor:
+      //        "52  CLB  348 186 VAR 0 1 0:00"        <- navlog (dogru)
+      //        "76  389.00  CLB  248 286 VAR 0 329 0:51" <- BASKA TABLO
+      //    Ikincisi 51 dakikalik kumulatif suresiyle olcumu bozuyordu.
+      //
+      // ② Tirmanma, ALCALMA BASLAMADAN once biter. Alcalma baslangicindan
+      //    sonra gelen bir `CLB` satiri tanim geregi baska bir tabloya aittir
+      //    (ornegin alternatif meydan rotasi: 354 NM / 0:57).
+      //
+      // Bu iki kuralla elimizdeki 5 OFP'nin 9 bacaginin 9'u okunuyor —
+      // TC-TSS (yeni lehce) dahil. Once yalnizca 4'u okunabiliyordu.
+      const CLB_ROW = /^\s*\d+\s+CLB\b/, DSC_ROW = /^\s*\d+\s+DSC\b/;
+      const clbAll: number[] = [], dsc: number[] = [];
+      for (const pb of text.matchAll(/FMS IDENT=\S+\s+Log Nr\.?:?\s*\d+\s+Page\s+\d+\s+([A-Z]{4}-[A-Z]{4})\s+[A-Z0-9]+([\s\S]*?)(?=FMS IDENT=|$)/g)) {
+        if (pb[1] !== routeKey) continue;
+        for (const line of pb[2].split('\n')) {
+          const tm = line.match(/\b(\d{1,2}):(\d{2})\b/);
+          if (!tm) continue;
+          const mins = Number(tm[1]) * 60 + Number(tm[2]);
+          if (CLB_ROW.test(line)) clbAll.push(mins);
+          if (DSC_ROW.test(line)) dsc.push(mins);
+        }
+      }
+      const descStart0 = dsc.length ? Math.min(...dsc) : null;
+      const clb = descStart0 == null ? clbAll : clbAll.filter(v => v < descStart0);
+      const tripMin = sector.ete
+        ? (Number(sector.ete.split(':')[0]) * 60 + Number(sector.ete.split(':')[1]))
+        : null;
+
+      if (!clb.length || !dsc.length) {
+        sector.phase_parse = 'no_phase_rows';
+      } else if (tripMin == null) {
+        sector.phase_parse = 'no_trip_time';
+      } else {
+        const climbEnd = Math.max(...clb);
+        const descStart = Math.min(...dsc);
+        // SIRA KONTROLU: alcalma tirmanmadan SONRA baslamali ve varistan ONCE
+        // bitmeli. Cok bacakli OFP'de bir bacagin tirmanisi otekinin alcalisiyla
+        // eslesirse burasi yakalar ve deger YAZILMAZ (uydurma sayi girmez).
+        if (descStart > climbEnd && descStart < tripMin && climbEnd > 0) {
+          sector.climb_min  = climbEnd;
+          sector.desc_min   = tripMin - descStart;
+          sector.phase_parse = 'ok';
+        } else {
+          sector.phase_parse = 'inconsistent';
+        }
+      }
+    }
   }
   // HAYALET SEKTOR FIX (1 Agu 2026): FPL- blogu PDF'te iki kez gecince fallback
   // regex AYNI bacagi iki sektor uretiyordu -> tek bacakli ucusta sahte "-S1"
@@ -359,24 +479,34 @@ Deno.serve(async (req) => {
           operation_type: s.operation_type, operation_type_source: s.operation_type_source,
           trip_fuel: s.trip_fuel, alternate_fuel: s.alternate_fuel, reserve_fuel: s.reserve_fuel,
           tow: s.tow, zfw: s.zfw, pax: s.pax, cruise_fl: s.cruise_fl, log_nr: s.log_nr,
+          // OFP'den olculen safha sureleri (OPS CALCULATOR yakit profili).
+          climb_min: s.climb_min ?? null, desc_min: s.desc_min ?? null,
+          phase_parse: s.phase_parse ?? null,
           status: "available", customer_id: callerCustomerId,
         }).select().single();
         if (insErr) return json({ error: `Insert failed: ${insErr.message}` }, 400);
 
         await admin.from("plan_versions").insert({ plan_id: plan.id, dispatch_no: dispatchNo, version_no: 1, raw_text: pdfText });
+        const sampleErr = await savePerfSample(admin, s, plan.id, callerCustomerId);
         // PDF'i Storage'a yukle (OFP viewer icin)
         try {
           await admin.storage.from("ofp-pdfs").upload(`active/${plan.id}.pdf`, bytes, { upsert: true, contentType: "application/pdf" });
         } catch (e) { console.warn("PDF storage upload failed:", e); }
-        results.push({ dep: s.dep, dest: s.dest, status: "created" });
+        results.push({ dep: s.dep, dest: s.dest, status: "created", ...(sampleErr ? { perf_sample: sampleErr } : {}) });
       } else {
         const { count } = await admin.from("plan_versions").select("*", { count: "exact", head: true }).eq("plan_id", existing.id);
         await admin.from("plan_versions").insert({ plan_id: existing.id, dispatch_no: dispatchNo, version_no: (count || 0) + 1, raw_text: pdfText });
         // Parser türevi alanlar yeniden yüklemede tazelenir (elle düzenlenen alanlara dokunulmaz)
         await admin.from("plans").update({ atc_fpl: s.atc_fpl, route_firs: s.route_firs,
           fpl_remark: s.fpl_remark, fpl_flight_type: s.fpl_flight_type,
-          operation_type: s.operation_type, operation_type_source: s.operation_type_source }).eq("id", existing.id);
-        results.push({ dep: s.dep, dest: s.dest, status: `updated v${(count || 0) + 1}` });
+          operation_type: s.operation_type, operation_type_source: s.operation_type_source,
+          // Safha olcumu de parser turevidir: yeniden yuklemede tazelenir.
+          // Ayrica GECMIS planlarin backfill'i bu yoldan yapilir (ayni OFP
+          // tekrar yuklenince olcum girer) — ayri bir tarama isine gerek yok.
+          climb_min: s.climb_min ?? null, desc_min: s.desc_min ?? null,
+          phase_parse: s.phase_parse ?? null }).eq("id", existing.id);
+        const sampleErr2 = await savePerfSample(admin, s, existing.id, callerCustomerId);
+        results.push({ dep: s.dep, dest: s.dest, status: `updated v${(count || 0) + 1}`, ...(sampleErr2 ? { perf_sample: sampleErr2 } : {}) });
       }
     }
 

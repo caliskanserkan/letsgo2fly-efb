@@ -132,7 +132,14 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
   const [crew, setCrew]     = useState(2);
   // SEVIYE + YOLCU (15 Agu 2026, Serkan): "sadece seviye girecez" ve
   // "payload kisi basina 240 lb, ekrana yolcu sayisini da girelim".
-  const [fl, setFl]         = useState(400);
+  // ── SEVIYE GIDIS/DONUS AYRI (16 Agu 2026, Serkan) ───────────────────────
+  // *"Ticari bir ucus hep iki bacak planlanir (donus yolcusuz da yapilabilir
+  //   ama parasi musteriden alinir); gidis ve donus seviyeleri farklidir."*
+  // Dogu/bati kurali geregi zaten farkli olmak ZORUNDA: gidis FL400 ise donus
+  // FL410. Tek seviye secildiginde iki bacak da yanlis fiyatlandiriliyordu —
+  // tirmanma/alcalma sureleri ve seyir TAS'i seviyeye bagli.
+  const [outFl, setOutFl]   = useState(400);
+  const [retFl, setRetFl]   = useState(410);
   const [pax, setPax]       = useState(0);
 
   // "Any conflict on the route?" — her bacak icin ayri (Serkan, 12 Agu)
@@ -174,8 +181,11 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
   /** Secili seviyenin profili: tirmanma/alcalma sureleri, seyir TAS'i ve
    *  safha yakit oranlari. `acParams` ucagin KENDI olculen degerlerini tasir;
    *  seviye onun uzerine biner. */
-  const levelProfile = useMemo(
-    () => (acParams ? profileForLevel(fl, acParams) : null), [acParams, fl]);
+  /** Her bacak KENDI seviyesinin profilini kullanir. */
+  const outProfile = useMemo(
+    () => (acParams ? profileForLevel(outFl, acParams) : null), [acParams, outFl]);
+  const retProfile = useMemo(
+    () => (acParams ? profileForLevel(retFl, acParams) : null), [acParams, retFl]);
 
   const calculate = useCallback(async () => {
     setErr(''); setRes(null);
@@ -199,17 +209,21 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
 
       // Rüzgâr, uçuşun ORTA anındaki tahminden alınır. Süre rüzgâra bağlı
       // olduğu için önce sakin havayla kabaca hesaplanıp bir kez düzeltilir.
-      const rough = (extra) => computeLeg({ distanceNM: gc, extraNM: extra, ac: levelProfile ?? acParams }).flightH;
-      const outMid = new Date(new Date(outAt).getTime() + rough(outX) / 2 * 3600000).toISOString();
-      const retMid = new Date(new Date(retAt).getTime() + rough(retX) / 2 * 3600000).toISOString();
+      // Her bacak kendi profilini ve KENDI SEVIYESININ ruzgarini kullanir —
+      // ruzgar basinc yuzeyinden cekiliyor, seviye degisince yuzey de degisir.
+      const outAc = outProfile ?? acParams;
+      const retAc = retProfile ?? acParams;
+      const rough = (extra, acP) => computeLeg({ distanceNM: gc, extraNM: extra, ac: acP }).flightH;
+      const outMid = new Date(new Date(outAt).getTime() + rough(outX, outAc) / 2 * 3600000).toISOString();
+      const retMid = new Date(new Date(retAt).getTime() + rough(retX, retAc) / 2 * 3600000).toISOString();
 
       const [wOut, wRet] = await Promise.all([
-        fetchWindComponent(A, B, outMid, fl),
-        fetchWindComponent(B, A, retMid, fl),
+        fetchWindComponent(A, B, outMid, outFl),
+        fetchWindComponent(B, A, retMid, retFl),
       ]);
 
-      const outLeg = computeLeg({ distanceNM: gc, extraNM: outX, windCompKt: wOut ?? 0, ac: levelProfile ?? acParams });
-      const retLeg = computeLeg({ distanceNM: gc, extraNM: retX, windCompKt: wRet ?? 0, ac: levelProfile ?? acParams });
+      const outLeg = computeLeg({ distanceNM: gc, extraNM: outX, windCompKt: wOut ?? 0, ac: outAc });
+      const retLeg = computeLeg({ distanceNM: gc, extraNM: retX, windCompKt: wRet ?? 0, ac: retAc });
 
       const outArrive = new Date(new Date(outAt).getTime() + outLeg.flightMin * 60000).toISOString();
       const trip = computeTrip({
@@ -234,7 +248,7 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
       setErr(e.message || 'Calculation failed.');
     }
     setBusy(false);
-  }, [acParams, levelProfile, fl, ac, dep, dest, outAt, retAt, crew, c, tankering, outConflict, retConflict, outExtra, retExtra]);
+  }, [acParams, outProfile, retProfile, outFl, retFl, ac, dep, dest, outAt, retAt, crew, c, tankering, outConflict, retConflict, outExtra, retExtra]);
 
   const money = (n) => `$${(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
@@ -291,11 +305,17 @@ export default function OpsCalculator({ toast, customerId = null, readOnly = fal
         <div style={{ ...grid(5), marginTop: 10 }}>
           <div>
             {/* Tirmanma/alcalma sureleri ve seyir TAS'i BUNDAN turer; ruzgar da
-                bu seviyenin basinc yuzeyinden canli cekilir. */}
-            <label style={lbl}>CRUISE LEVEL</label>
-            <select style={inp} value={fl} onChange={e => setFl(+e.target.value)} disabled={readOnly}>
-              {LEVELS.map(l => <option key={l} value={l}>FL{l}</option>)}
-            </select>
+                bu seviyenin basinc yuzeyinden canli cekilir. Iki bacak AYRI
+                secilir: dogu/bati kurali geregi gidis FL400 ise donus FL410. */}
+            <label style={lbl}>CRUISE LEVEL — OUT / RET</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select style={inp} value={outFl} onChange={e => setOutFl(+e.target.value)} disabled={readOnly}>
+                {LEVELS.map(l => <option key={l} value={l}>FL{l}</option>)}
+              </select>
+              <select style={inp} value={retFl} onChange={e => setRetFl(+e.target.value)} disabled={readOnly}>
+                {LEVELS.map(l => <option key={l} value={l}>FL{l}</option>)}
+              </select>
+            </div>
           </div>
           <div>
             <label style={lbl}>PAX</label>
