@@ -20,7 +20,7 @@
 // LIMITLER KODA GOMULU DEGIL: rules.cumulative_limits'ten okunur. Sirket
 // ruleset panelinden limiti sikilastirirsa esikler kendiliginden kayar.
 import React, { useMemo, useState } from 'react';
-import { cumulatives, effectiveRules, fmtMin, daysOffSummary } from './FTLEngine';
+import { cumulatives, cumulativesOutlook, effectiveRules, fmtMin, daysOffSummary } from './FTLEngine';
 
 const C = {
   bg2:'var(--bg2)', bg3:'var(--bg3)', border:'var(--border)', border2:'var(--border2)',
@@ -67,7 +67,7 @@ const stamp = (d) =>
 // ── Tek hucre: cubuk + sayi ─────────────────────────────────────────
 // usedAll = gerceklesen + planlanan · usedAct = yalniz gerceklesen.
 // Dolu kisim gerceklesen, TARALI kisim planlanan.
-function Cell({ usedAll, usedAct, limit, noBaseline }) {
+function Cell({ usedAll, usedAct, limit, noBaseline, worstAt }) {
   // Ilke 1: baseline yoksa cubuk CIZILMEZ. Sifirdan baslayan cubuk YESIL
   // gorunur — oysa pilot gercekte 90 saatte olabilir. Yesil gosterip
   // yaniltmak, hic gostermemekten kotudur.
@@ -117,6 +117,13 @@ function Cell({ usedAll, usedAct, limit, noBaseline }) {
           {fmtMin(usedAll)}<span style={{ color:C.t3 }}>/{fmtMin(limit)}</span>
         </span>
       </div>
+      {/* Tepe bugun degilse NE ZAMAN oldugunu yaz — "plan gerceklesirse
+          20 AGU'da bu seviyeye cikiyor" bilgisi planlamacinin isine yarar. */}
+      {worstAt && wPln > 0 && (
+        <div style={{ marginTop:2, fontSize:8.5, letterSpacing:.5, color:C.violet, fontFamily:'var(--mono)' }}>
+          → {stamp(new Date(worstAt)).slice(0, 6)}
+        </div>
+      )}
       {/* PLANNED EXCEEDS etiketi de MOR — tarali kisma isaret ediyor.
           LIMIT EXCEEDED kirmizi kalir: o olmus bir asimdir. */}
       {tag && (
@@ -171,12 +178,14 @@ export default function FTLLimitsBar({ pilots, duties, baselines, ruleset, offTy
   const cols = useMemo(() => crew.map(p => {
     const mine = (duties || []).filter(d => d.pilot_id === p.id);
     const base = (baselines || {})[p.id] || null;
-    // Iki kez kosuyoruz: hepsi (gerceklesen+planlanan) ve yalniz gerceklesen.
-    // Farki = planlanan pay -> cubugun tarali kismi.
-    const all = cumulatives(base, mine, asOf, rules);
+    // DOLU kisim: BUGUNE kadar FIILEN gerceklesen.
     const act = cumulatives(base, mine.filter(d => d.status === 'actual'), asOf, rules);
+    // TARALI kisim: plan gerceklesirse ulasilacak EN YUKSEK deger ile arasi.
+    // cumulatives() penceresi "su an"da bittigi icin gelecekteki planli
+    // gorevler ona hic girmiyordu; outlook degerlendirme anini kaydirir.
+    const look = cumulativesOutlook(base, mine, asOf, rules);
     const off = daysOffSummary(mine, rules, { year: asOf.getUTCFullYear(), offTypes });
-    return { pilot:p, all, act, off, noBaseline: !base };
+    return { pilot:p, look, act, off, noBaseline: !base };
   }), [crew, duties, baselines, rules, asOf, offTypes]);
 
   if (!ruleset || cols.length === 0) return null;
@@ -187,8 +196,12 @@ export default function FTLLimitsBar({ pilots, duties, baselines, ruleset, offTy
     <div style={S.wrap}>
       <div style={S.head}>
         <span style={S.title}>FTL Limits</span>
+        {/* Serkan (17 Agu): "alttaki bar bize gecmis ve gelecekteki gorevlerin
+            bizi NEREDE limitledigini gostermeli — olmus ve olacaklara karsi
+            farkindalik." Baslik bunu aynen soyler: deger bugunun degil, plan
+            gerceklesirse ulasilacak EN KOTU anin degeridir. */}
         <span style={S.meta}>
-          as of {stamp(asOf)} UTC · ACTUAL + PLANNED · independent of selected range
+          as of {stamp(asOf)} UTC · FLOWN + ROSTERED, worst point ahead · independent of selected range
         </span>
         <button style={S.toggle} onClick={() => setOpen(o => !o)}>
           {open ? 'HIDE' : 'SHOW'}
@@ -208,16 +221,25 @@ export default function FTLLimitsBar({ pilots, duties, baselines, ruleset, offTy
               ))}
             </tr>
 
-            {ROWS.map((r, i) => (
+            {/* HANGI SATIRLARIN GORUNECEGINI RULESET SOYLER, bu liste degil.
+                Ruleset'te tanimsiz limit = o mevzuatta O LIMIT YOKTUR.
+                Ornek: SHT-FTL/HG Md.13'te TAKVIM YILI UCUS limiti yoktur ve
+                `flt_cal_year_min` bilerek tanimlanmamistir (bkz. FTLPanel
+                ruleset editorundeki not). Bos satir gostermek, birinin gidip
+                "eksik" diye uydurma limit girmesine davetiye olurdu.
+                Baska musteri kendi ruleset'inde tanimlarsa satir kendiliginden
+                gorunur — liste veriden surulur (Ilke 6). */}
+            {ROWS.filter(r => lim[r.lim] != null).map((r, i, shown) => (
               <tr key={r.key}>
-                <td style={S.grp}>{ROWS[i - 1]?.grp === r.grp ? '' : r.grp}</td>
+                <td style={S.grp}>{shown[i - 1]?.grp === r.grp ? '' : r.grp}</td>
                 <td style={S.lbl}>
                   {r.label}{r.resets ? ` ${year}` : ''}
                   {r.resets && <span title="resets 1 JAN" style={{ marginLeft:5, color:C.t3 }}>⟲</span>}
                 </td>
                 {cols.map(c => (
                   <Cell key={c.pilot.id}
-                        usedAll={c.all[r.key]} usedAct={c.act[r.key]}
+                        usedAll={c.look[r.key].worst} usedAct={c.act[r.key]}
+                        worstAt={c.look[r.key].worstAt}
                         limit={lim[r.lim]} noBaseline={c.noBaseline} />
                 ))}
               </tr>
@@ -249,9 +271,11 @@ export default function FTLLimitsBar({ pilots, duties, baselines, ruleset, offTy
           <span style={{ display:'inline-block', width:14, height:7, marginLeft:14, marginRight:5, verticalAlign:'middle',
                          border:`1px solid ${C.border}`,
                          backgroundImage:`repeating-linear-gradient(135deg, ${PLANNED} 0 2px, transparent 2px 5px)` }} />
-          <span style={{ color:C.violet }}>planned</span>
+          <span style={{ color:C.violet }}>rostered ahead</span>
           <span style={{ marginLeft:18 }}>
-            Based on ACTUAL + PLANNED duties — changes in planning will move these bars.
+            Solid = already flown. Violet = where the roster takes you; each window is evaluated
+            at every future duty end and the worst point is shown, with its date. Change the
+            roster and these bars move.
           </span>
         </div>
       </>}

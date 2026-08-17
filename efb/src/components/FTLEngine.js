@@ -811,6 +811,57 @@ export function cumulatives(baseline, duties, asOf, rules = null) {
   };
 }
 
+// ── PLANLAMA GÖRÜNÜMÜ — "roster planlandığı gibi giderse ne olur?" ──
+//
+// Serkan (17 Ağu 2026): "Bu roster planlandığı gibi uçulursa, herhangi bir
+//  anda limit aşılıyor mu? Planlandığı gibi giderse durumunu görmeliyiz;
+//  planlama değişirse de değişim sonrasında tekrar güncellenmeli."
+//
+// SORUN: `cumulatives()` penceresi ŞU ANDA biter (`t <= asOfT`). Gelecekteki
+// planlı görevler hesaba HİÇ girmez — FTL LIMITS panelinde mor (planlanan)
+// pay bu yüzden hiç görünmüyordu. `fitness()` için doğru davranıştı (o,
+// denenen görevi ayrıca kendisi ekliyor) ama "ACTUAL + PLANNED" diyen bir
+// gösterge için yanlıştı.
+//
+// ÇÖZÜM — üst sınırı KALDIRMAK DEĞİL (o zaman [şimdi−28g, ∞) olurdu ve
+// pencere olmaktan çıkardı), DEĞERLENDİRME ANINI KAYDIRMAK:
+//   noktalar = şu an + gelecekteki her görevin BİTİŞİ
+//   her nokta X için cumulatives(..., X) → [X−28g, X] penceresi
+//   sonuç = noktaların EN BÜYÜĞÜ (en kötü an)
+// Kümülatif toplam bir görev biter bitmez tepe yapar; o yüzden değerlendirme
+// noktası `duty_end`tir.
+//
+// `cumulatives()` DEĞİŞTİRİLMEDİ — dolayısıyla `fitness()` kapısı aynı kaldı.
+//
+// Dönüş: { <anahtar>: { now, worst, worstAt } }
+//   now     bugünkü değer
+//   worst   plan gerçekleşirse ulaşılacak en yüksek değer
+//   worstAt o değerin oluştuğu an (ISO) — null ise tepe zaten bugün
+export function cumulativesOutlook(baseline, duties, asOf, rules = null) {
+  const asOfT = asOf.getTime();
+  const now = cumulatives(baseline, duties, asOf, rules);
+
+  const points = [...new Set(
+    (duties || [])
+      .filter(d => d.status !== 'cancelled')
+      .map(d => d.duty_end || d.report_time || d.duty_date)
+      .filter(Boolean)
+      .map(x => new Date(x).getTime())
+      .filter(t => Number.isFinite(t) && t > asOfT)
+  )].sort((a, b) => a - b);
+
+  const out = {};
+  Object.keys(now).forEach(k => { out[k] = { now: now[k], worst: now[k], worstAt: null }; });
+
+  for (const t of points) {
+    const c = cumulatives(baseline, duties, new Date(t), rules);
+    Object.keys(c).forEach(k => {
+      if (c[k] > out[k].worst) { out[k].worst = c[k]; out[k].worstAt = new Date(t).toISOString(); }
+    });
+  }
+  return out;
+}
+
 // ── Uygunluk (fitness) — "bu pilot bu görevi uçabilir mi?" ──────────
 // newDuty: {reportLocal, sectors:[{etd,eta}...], dutyDate}
 // Dönen: {legal, reasons:[...], checks:{...}}
