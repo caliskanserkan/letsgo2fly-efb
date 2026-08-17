@@ -741,6 +741,22 @@ export function standbyRef(standbyDuty, effect) {
 // asOf: Date — pencere sonu
 // Muhafazakâr devir: baseline penceresi, effective_date + pencere süresi boyunca TAM sayılır.
 export function cumulatives(baseline, duties, asOf, rules = null) {
+  // IPTAL EDILEN GOREV SAYILMAZ (17 Agu 2026, Serkan: "iptaller ve edit
+  // edilmisler guncellensin, sayilmasin — en guncel durumu takip etsin, aksi
+  // halde yanlis dag gibi buyur; orada zaten emniyet kapimiz EDIT REPORT").
+  //
+  // Once hicbir status filtresi YOKTU: PLN -> "gerceklesmedi" deyip iptal
+  // edilen bir gorev kumulatif toplamda durmaya devam ediyordu. Bu hem yeni
+  // FTL LIMITS panelini hem atama sihirbazinin NOT LEGAL kapisini olmayan
+  // saatlerle besliyordu. Yon emniyetli taraftaydi (fazla gosteriyordu) ama
+  // yanlisti ve her iptalde birikiyordu.
+  //
+  // 'planned' ve 'open' SAYILIR: biri henuz uculmamis ama planlanmis gorev
+  // (ORO.FTL.110 — limit planlama asamasinda da tutmali), digeri arsivde
+  // kapanmamis gercek gorev. Yalnizca 'cancelled' dusuyor.
+  // (daysOffSummary ayni filtreyi zaten uyguluyordu.)
+  duties = (duties || []).filter(d => d.status !== 'cancelled');
+
   const DAY = 86400000;
   const asOfT = asOf.getTime();
   const winStart = (days) => asOfT - days * DAY;

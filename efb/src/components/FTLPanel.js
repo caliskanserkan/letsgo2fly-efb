@@ -11,6 +11,8 @@ import {
   offDayRelease, offDayReleaseText, offPeriodStatuses,
 } from './FTLEngine';
 import { normTime, up } from './inputFormat';
+import FTLLimitsBar from './FTLLimitsBar';
+import TrainingPanel from './TrainingPanel';
 
 const C = {
   bg:'var(--bg)', bg2:'var(--bg2)', bg3:'var(--bg3)', border:'var(--border)', border2:'var(--border2)',
@@ -168,6 +170,7 @@ export default function FTLPanel({ toast, myProfile, customerId: scopeCustomerId
       <div style={{ display:'flex', borderBottom:`1px solid ${C.border}`, background:C.bg2 }}>
         {!readOnly && <div style={tabS('assign')} onClick={() => setView('assign')}>Assign Duty</div>}
         <div style={tabS('history')} onClick={() => setView('history')}>Duty History</div>
+        <div style={tabS('training')} onClick={() => setView('training')}>Training</div>
         {!readOnly && (
           <div style={tabS('skpk')} onClick={() => setView('skpk')}>
             SKPK{skpkOverdue > 0 && <span style={{ ...badge('red'), marginLeft:6 }}>{skpkOverdue}</span>}
@@ -188,10 +191,14 @@ export default function FTLPanel({ toast, myProfile, customerId: scopeCustomerId
         </>}
         {view === 'history' && <DutyHistory {...{ pilots, duties, baselines, offTypes, ruleset, homeBases,
                                                  toast, myProfile, reload: load, readOnly }} />}
+        {view === 'training' && <TrainingPanel {...{ toast, myProfile, pilots, customerId, readOnly }} />}
         {!readOnly && view === 'skpk' && <SkpkTracker {...{ toast, myProfile, pilots, duties, reload: load }} />}
         {view === 'edits' && <EditReport {...{ pilots, edits, duties }} />}
         {!readOnly && view === 'ruleset' && <RulesetSettings {...{ toast, myProfile, ruleset, offTypes, reload: load }} />}
       </div>
+      {/* Limit gostergesi TUM sekmelerde en altta sabit durur (Serkan, 17 Agu).
+          Ustteki FROM/TO araligina BAKMAZ — kayan pencereler "su an"a goredir. */}
+      <FTLLimitsBar {...{ pilots, duties, baselines, ruleset, offTypes }} />
     </div>
   );
 }

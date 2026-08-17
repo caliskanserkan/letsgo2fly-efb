@@ -15,6 +15,12 @@
   --orange: #f97316;
   --red:    #ef4444;
   --amber:  #fbbf24;
+  /* --violet: trafik isigi paletinin DISINDA kalan tek renk. FTL limit
+     cubuklarinda "planlanan pay" bununla cizilir: yesil/sari/kirmizi bir
+     SEVIYE anlatir, mor ise SEVIYE degil BOYUT anlatir (henuz ucul-madi).
+     Sari kullanildiginda %75 esiginde dolu kisim da sariya donuyor ve tarama
+     secilemez hale geliyordu. */
+  --violet: #a78bfa;
 
   --accent-soft: rgba(56, 189, 248, 0.12);
   --green-soft:  rgba(74, 222, 128, 0.12);
@@ -46,6 +52,7 @@
   --orange: #c2410c;
   --red:    #dc2626;
   --amber:  #b45309;
+  --violet: #6d28d9;   /* acik temada koyu ton — bkz. koyu tema notu */
 
   --accent-soft: rgba(3, 105, 161, 0.10);
   --green-soft:  rgba(21, 128, 61, 0.10);
