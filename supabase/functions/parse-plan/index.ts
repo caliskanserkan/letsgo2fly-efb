@@ -133,7 +133,7 @@ function parseAllSectors(text: string): any[] {
   }
 
   const ofpBlocks = [...text.matchAll(
-    /FMS IDENT=(\S+)\s+Log Nr\.?:?\s*\d+\s+Page\s+1\s+([A-Z]{4}-[A-Z]{4})\s+([A-Z0-9]+)([\s\S]*?)(?=FMS IDENT=|$)/g
+    /FMS\s+IDENT=(\S+)\s+Log\s+Nr\.?:?\s*\d+\s+Page\s+1\s+([A-Z]{4}-[A-Z]{4})\s+([A-Z0-9]+)([\s\S]*?)(?=FMS\s+IDENT=|$)/g
   )];
   const blockMap: Record<string,string> = {};
   const fmsMap: Record<string,string> = {};
@@ -170,11 +170,24 @@ function parseAllSectors(text: string): any[] {
     const block = blockMap[routeKey] || '';
     sector.trip_fuel      = block.match(/\bTRIP\s+([\d]+)/)?.[1] || '';
     sector.alternate_fuel = block.match(/\bALTERNATE\s+([\d]+)/)?.[1] || '';
-    sector.reserve_fuel   = block.match(/\bFINAL RESERVE\s+([\d]+)/)?.[1] || '';
-    sector.total_fob      = block.match(/\bTOTAL FOB\s+([\d]+)/)?.[1] || '';
+    sector.reserve_fuel   = block.match(/\bFINAL\s+RESERVE\s+([\d]+)/)?.[1] || '';
+    sector.total_fob      = block.match(/\bTOTAL\s+FOB\s+([\d]+)/)?.[1] || '';
     sector.fob            = sector.total_fob ? `${parseInt(sector.total_fob).toLocaleString()} lb` : '';
     sector.tow            = block.match(/\bTOW\s+([\d]+)\s*Lbs/i)?.[1] || '';
     sector.zfw            = block.match(/\bZFW\s+([\d]+)\s*Lbs/i)?.[1] || '';
+
+    // 🔴 SESSIZ DUSUS YOK (18 Agu 2026 saha bulgusu — Serkan):
+    // Cikarici etiketlerin arasina fazladan bosluk koydu ("FMS   IDENT="),
+    // blockMap kalibi tutmadi, blok BOS kaldi ve yukaridaki YEDI alan birden
+    // sessizce '' oldu. Plan "basariyla yuklendi" dedi; eksiklik UCUSTAN SONRA
+    // raporda goruldu (FOB Plan / vs OFP Plan bos). Ilke 2: sessiz basarisizlik
+    // yok. Artik ne olduguna dair BIR SATIR yaziliyor ve admin panelde gorunuyor.
+    // Ayrim onemli: blok hic bulunamadi mi (kalip/cikarici sorunu), yoksa blok
+    // var ama yakit satiri mi yok (belge farkli basilmis)?
+    sector.fuel_parse = !block            ? 'no_block'
+                      : !sector.total_fob ? 'no_total_fob'
+                      : !sector.trip_fuel ? 'no_trip'
+                      :                     'ok';
     // FPL (ICAO Field 15) — bu sector'e AIT FPL blogundan rota + seviye/hiz cek.
     // 🔴 3 Agu saha bulgusu (FF'e onceki bacagin noktasi push edildi — LEIB
     // kalkisinda IMR/Izmir): eski dep/dest kontrolleri YON KORUYDU. ICAO FPL'de
@@ -243,17 +256,17 @@ function parseAllSectors(text: string): any[] {
     // 4. kolon 6 haneli rüzgar, ardından TAS+MH kolonları GELMEK ZORUNDA.
     // (SIGMET başlığı "WS TU31 LTAC 110435" rüzgardan sonra bittiği için elenir.)
     const navFirs = new Set<string>();
-    for (const pb of text.matchAll(/FMS IDENT=\S+\s+Log Nr\.?:?\s*\d+\s+Page\s+\d+\s+([A-Z]{4}-[A-Z]{4})\s+[A-Z0-9]+([\s\S]*?)(?=FMS IDENT=|$)/g)) {
+    for (const pb of text.matchAll(/FMS\s+IDENT=\S+\s+Log\s+Nr\.?:?\s*\d+\s+Page\s+\d+\s+([A-Z]{4}-[A-Z]{4})\s+[A-Z0-9]+([\s\S]*?)(?=FMS\s+IDENT=|$)/g)) {
       if (pb[1] !== routeKey) continue;
       for (const fm of pb[2].matchAll(/^\s*\S+\s+\S+\s+([A-Z]{4})\s+\d{6}\s+\d{2,3}\s+\d/gm)) navFirs.add(fm[1]);
     }
     if (navFirs.size === 0) {
-      const sig = text.match(/SIGMET reports are searched for following FIR ICAO list:\s*([A-Z\s]+?)\./);
+      const sig = text.match(/SIGMET\s+reports\s+are\s+searched\s+for\s+following\s+FIR\s+ICAO\s+list:\s*([A-Z\s]+?)\./);
       if (sig) for (const f of sig[1].matchAll(/\b[A-Z]{4}\b/g)) navFirs.add(f[0]);
     }
     sector.route_firs = [...navFirs].sort();
     // Rota: FPL varsa onu kullan (temiz noktalar), yoksa ROUTE: fallback
-    sector.route          = fplRoute || (block.match(/ROUTE:\s*([\s\S]*?)(?=\n\s*FUEL\s+TIME|\n\s*1\s*ST\s+ALT|\n\s*Take Off|\n\s*\n|$)/)?.[1]?.replace(/\s+/g, ' ').trim() || '');
+    sector.route          = fplRoute || (block.match(/ROUTE:\s*([\s\S]*?)(?=\n\s*FUEL\s+TIME|\n\s*1\s*ST\s+ALT|\n\s*Take\s+Off|\n\s*\n|$)/)?.[1]?.replace(/\s+/g, ' ').trim() || '');
     sector.level_speed    = fplLevelSpeed;
     sector.fms_ident      = fmsMap[routeKey] || '';
     const alt1 = block.match(/1\s*ST\s+ALT\s+([A-Z]{4})/)?.[1];
@@ -309,7 +322,7 @@ function parseAllSectors(text: string): any[] {
       // TC-TSS (yeni lehce) dahil. Once yalnizca 4'u okunabiliyordu.
       const CLB_ROW = /^\s*\d+\s+CLB\b/, DSC_ROW = /^\s*\d+\s+DSC\b/;
       const clbAll: number[] = [], dsc: number[] = [];
-      for (const pb of text.matchAll(/FMS IDENT=\S+\s+Log Nr\.?:?\s*\d+\s+Page\s+\d+\s+([A-Z]{4}-[A-Z]{4})\s+[A-Z0-9]+([\s\S]*?)(?=FMS IDENT=|$)/g)) {
+      for (const pb of text.matchAll(/FMS\s+IDENT=\S+\s+Log\s+Nr\.?:?\s*\d+\s+Page\s+\d+\s+([A-Z]{4}-[A-Z]{4})\s+[A-Z0-9]+([\s\S]*?)(?=FMS\s+IDENT=|$)/g)) {
         if (pb[1] !== routeKey) continue;
         for (const line of pb[2].split('\n')) {
           const tm = line.match(/\b(\d{1,2}):(\d{2})\b/);
@@ -478,6 +491,7 @@ Deno.serve(async (req) => {
           fpl_remark: s.fpl_remark, fpl_flight_type: s.fpl_flight_type,
           operation_type: s.operation_type, operation_type_source: s.operation_type_source,
           trip_fuel: s.trip_fuel, alternate_fuel: s.alternate_fuel, reserve_fuel: s.reserve_fuel,
+          fuel_parse: s.fuel_parse ?? null,
           tow: s.tow, zfw: s.zfw, pax: s.pax, cruise_fl: s.cruise_fl, log_nr: s.log_nr,
           // OFP'den olculen safha sureleri (OPS CALCULATOR yakit profili).
           climb_min: s.climb_min ?? null, desc_min: s.desc_min ?? null,
@@ -504,7 +518,8 @@ Deno.serve(async (req) => {
           // Ayrica GECMIS planlarin backfill'i bu yoldan yapilir (ayni OFP
           // tekrar yuklenince olcum girer) — ayri bir tarama isine gerek yok.
           climb_min: s.climb_min ?? null, desc_min: s.desc_min ?? null,
-          phase_parse: s.phase_parse ?? null }).eq("id", existing.id);
+          phase_parse: s.phase_parse ?? null,
+          fuel_parse: s.fuel_parse ?? null }).eq("id", existing.id);
         const sampleErr2 = await savePerfSample(admin, s, existing.id, callerCustomerId);
         results.push({ dep: s.dep, dest: s.dest, status: `updated v${(count || 0) + 1}`, ...(sampleErr2 ? { perf_sample: sampleErr2 } : {}) });
       }

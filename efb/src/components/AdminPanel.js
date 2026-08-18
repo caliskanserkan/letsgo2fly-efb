@@ -618,6 +618,16 @@ function ActiveFlts({toast, customerId=null}){
         {plans.map(p=>(
           <div key={p.id} onClick={()=>handleSelect(p.id)} style={{padding:'14px 16px',borderBottom:`1px solid ${C.border}`,cursor:'pointer',background:selected===p.id?`var(--accent-soft)`:'transparent',borderLeft:selected===p.id?`3px solid ${C.accent}`:'3px solid transparent'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}><span style={{fontSize:14,fontWeight:700,color:C.accent,fontFamily:'var(--mono)',letterSpacing:1}}>{p.dep} → {p.dest}</span><span style={S.badge('green')}>ACTIVE</span></div>
+            {/* YAKIT AYRISTIRMASI DUSTUYSE SESSIZ KALMAZ (18 Agu 2026 saha bulgusu).
+                O gun OFP yuklendi, "basarili" dendi, ama fob/trip_fuel/tow/zfw bos
+                kaldi; eksiklik UCUSTAN SONRA raporda goruldu. Artik plani yukleyen
+                kisi O AN goruyor. NULL = goc oncesi plan, hicbir sey gosterilmez —
+                bilmedigimizi biliyormus gibi yapmayiz. */}
+            {p.fuel_parse && p.fuel_parse!=='ok' && (
+              <div style={{marginBottom:6,display:'inline-block',padding:'3px 9px',fontSize:9,letterSpacing:1,fontWeight:700,fontFamily:'var(--mono)',borderRadius:5,background:'var(--amber-soft)',color:'var(--amber)',border:'1px solid var(--line-soft)'}}>
+                ⚠ FUEL NOT PARSED — {({no_block:'OFP BLOCK NOT FOUND',no_total_fob:'TOTAL FOB MISSING',no_trip:'TRIP FUEL MISSING'})[p.fuel_parse]||p.fuel_parse.toUpperCase()}
+              </div>
+            )}
             <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>{[['REG',p.reg],['TYPE',p.ac_type],['STD',p.std],['ETA',p.eta],['DISP',p.dispatch_no]].map(([l,v])=>(<div key={l}><div style={S.label}>{l}</div><div style={{fontSize:11,color:C.t2,fontFamily:'var(--mono)'}}>{v||'—'}</div></div>))}</div>
           </div>
         ))}

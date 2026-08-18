@@ -1,0 +1,7561 @@
+CrewBriefing   Information Package 
+
+for   Flight TCREC-LTFE-LSGG (STD 18-AUG-26 07:00) 
+
+AIR SUPPORT   PPS - CrewBriefing 
+
+Notes: 
+
+- No messages found for • TCREC-LTFE-LSGG (STD 180700) 
+FMS   IDENT=S1498 Log Nr.: 5751 Page   1   LTFE-LSGG   TCREC 
+
+FLT   TCREC   LTFE-LSGG   BJV-GVA   ETD:07:00   ETA:09:47   GLF4   Lbs 
+
+REGN TCREC   CRUISE:M.80   18AUG26   WX   PROG   171800 
+
+WX   VALID   +36HRS 
+
+PIC   :   .......................... SIGN   : ........................... 
+
+DISP:EMRE   ERATIK   LICENSE   NO   :TR-D   09531   SIGN 
+
+DEPARTURE   ATIS:   ................................................... 
+
+ATC   CLRNC: SID:   ........   FL: ........   SQ:   ........ OTH:   .......... 
+
+ARRIVAL   ATIS: ..................................................... 
+
+RVSM CHECK   NO1   ALT ......   STBY ......   NO2   ALT ...... 
+
+DESTINATION   AERODROME IS   CATEGORY .... 
+
+SELF BRIEFING OF CATEGORY .... AERODROME   HAS   BEEN   PERFORMED 
+
+GC   DIST   1100   NM 
+
+GROUND   DIST   1153   NM 
+
+AIR   DIST   1228   NM AVG   W/C -27 FL400   MXSH   6/INVOP   ISA   DEV   8 
+
+FUEL   TIME   MAX   DESIGN   WTS   SPEEDS 
+
+TRIP   8388   2:47 ....... MDF   2765   MZFW   49000   V1   ...... 
+
+CONT   419   0:08 .......   MTOW   74600 
+
+ALTERNATE   1341   0:25 ....... LFLL   MLWT   66000   VR   ...... 
+
+FINAL   RESERVE   1424   0:30 ....... 
+
+ADDITIONAL FUEL   0   0:00 .......   V2   ...... 
+
+EXTRA   0   0:00 ....... 
+
+MIN   T/O   FUEL   11572   3:50 .......   VSE   ...... 
+
+TAXI   400   ....... 
+
+DISCRETIONARY   9028   3:48 .......   REQ RW   ...... 
+
+TOTAL   FOB   21000   7:38 ....... MAX   FUEL   29500 
+
+DETERMINE   FACTOR   MZFM   VREF   ...... 
+
+TOW   64593Lbs /   ZFW   43993Lbs   /   PLD   480   Lbs /   LWT   56205Lbs 
+
+LAND   REQ   ...... 
+
+TOW   CHANGE 1000   KG / 2205 LBS   FUEL   151 Lbs   TRIM   ...... 
+
+LTFE-LSGG   ROUTE:IMR   UN127 ADHOT   DCT   TALAS   DCT   MAVAR   DCT   IBENI   DCT   BAPLU DCT 
+
+INVOP   DCT   AOSTA   L615 BANKO 
+
+FUEL   TIME   FL   MTRK   DIST   MAC   A/D   CATEGORY 
+
+1ST   ALT   LFLL   1341   0:25   80   232   120   ...   A 
+
+2ND   ALT   0   0:00   0   0   0   ... 
+
+1ST   ALT   ROUTE:DEPUL   DCT AMKEN   DCT 
+
+2ND   ALT   ROUTE: 
+
+Take Off   Alternate: 
+
+FUEL T/O   ......   TIME: BLON   ......   LDG   ...... 
+
+LDG   FUEL   ......   BLOFF......   T/O   ...... 
+
+BURNOFF   ......   TIME   ......   TIME...... 
+
+LTFE ELEV   21FT 
+
+RVSM CLIMB CHECK ALT DIFF LH ______   FT   /   SB ______ FT /   RH   ______   FT 
+
+Page 2 of 25 Total Pages 
+FMS   IDENT=S1498 Log Nr.: 5751 Page   2   LTFE-LSGG   TCREC 
+
+AWY   WPT   FIR   WIND   TAS   MH   W/C   DIS   STM   ETA/ATA S/BURN   TFREM 
+
+MORA   LTFE   FL   G/S   MT   OAT   SHR   DTG   ATM   CORR   20600 
+
+21ft   ___/___ _____   _____ 
+
+IMR1V   FE071   LTBB 267009   404   282   H   7   11   2   ___/___   556   20444 
+
+76   CLB   397   282   VAR   2   11   0:02   ___/___ _____   _____ 
+
+IMR1V   FE095   LTBB 267009   404   310   H   7   14   2   ___/___   755   20245 
+
+76   CLB   397   311   VAR   2   25   0:04   ___/___ _____   _____ 
+
+IMR1V   FE096   LTBB 267009   404   346   H   7   20   3   ___/___   1040   19960 
+
+76   CLB   397   347   VAR   2   45   0:07   ___/___ _____   _____ 
+
+IMR1V   IMR   LTBB 267009   404   338   H   7   32   5   ___/___   1495   19505 
+
+76   113.70   CLB   397   339   VAR   2   77   0:12   ___/___ _____   _____ 
+
+UN127   NEMOH   LGGG 267009   404   301   H   7   42   6   ___/___   2092   18908 
+
+73   CLB   397   302   VAR   5   119   0:18   ___/___ _____   _____ 
+
+UN127   -TOC-   267009   404   301   H   7   31   5   ___/___   2532   18468 
+
+53   CLB   397   302   VAR   4   150   0:23   ___/___ _____   _____ 
+
+UN127   ADHOT   LGGG 245054   472   296   H   27   14   2   ___/___   2626   18374 
+
+34   400   445   302   -48   4   164   0:25   ___/___ _____   _____ 
+
+RVSM:   ALT DIFF LH ______ FT /   SB   ______   FT   / RH   ______   FT 
+
+DCT   TALAS   LGGG 253037   471   296   H   24   200   27   ___/___   3940   17060 
+
+116   400   447   299   -49   0   364   0:52   ___/___ _____   _____ 
+
+DCT   MAVAR   LYBA 290022   468   295   H   22   72   10   ___/___   4408   16592 
+
+111   400   446   295   -52   0   436   1:02   ___/___ _____   _____ 
+
+DCT   IBENI   LIMM 335036   464   296   H   29   323   45   ___/___   6493   14507 
+
+119   400   435   293   -56   0   759   1:47   ___/___ _____   _____ 
+
+RVSM:   ALT DIFF LH ______ FT /   SB   ______   FT   / RH   ______   FT 
+
+DCT   BAPLU   LIMM 328044   463   294   H   38   172   24   ___/___   7615   13385 
+
+113   400   425   290   -57   4   931   2:11   ___/___ _____   _____ 
+
+DCT   INVOP   LIRR 333041   461   295   H   33   95   13   ___/___   8223   12777 
+
+114   400   428   291   -59   6   1026   2:24   ___/___ _____   _____ 
+
+DCT   -TOD-   319048   461   271   H   33   9   2   ___/___   8285   12715 
+
+173   400   428   266   -59   2   1035   2:26   ___/___ _____   _____ 
+
+DCT   AOSTA   LIMM 320016   361   268   H   31   25   4   ___/___   8389   12611 
+
+173   DSC   328   266   VAR   3   1060   2:30   ___/___ _____   _____ 
+
+L615   BANKO   LIMM 320016   361   276   H   33   13   2   ___/___   8445   12555 
+
+173   DSC   328   274   VAR   4   1073   2:32   ___/___ _____   _____ 
+
+BANK3N   GG520   LSAS 320016   361   302   H   33   14   3   ___/___   8505   12495 
+
+178   DSC   328   301   VAR   4   1087   2:35   ___/___ _____   _____ 
+
+BANK3N   GOLEB   LFMM 320016   361   302   H   33   10   2   ___/___   8548   12452 
+
+178   DSC   328   301   VAR   5   1097   2:37   ___/___ _____   _____ 
+
+BANK3N   VALBU   LSAS 320016   361   302   H   33   4   1   ___/___   8565   12435 
+
+127   DSC   328   301   VAR   5   1101   2:38   ___/___ _____   _____ 
+
+BANK3N   SUVEL   LSAS 320016   361   302   H   33   7   1   ___/___   8595   12405 
+
+127   DSC   328   301   VAR   5   1108   2:39   ___/___ _____   _____ 
+
+FMS   IDENT=S1498 Log Nr.:5751   Page 2   PPS   12.   0.   4.   0 3   To   be   continued   next 
+
+Page 3 of 25 Total Pages 
+FMS   IDENT=S1498 Log Nr.: 5751 Page   3   LTFE-LSGG   TCREC 
+
+AWY   WPT   FIR   WIND   TAS   MH   W/C   DIS   STM   ETA/ATA S/BURN   TFREM 
+
+MORA   FREQ   FL   G/S   MT   OAT   SHR   DTG   ATM   CORR   CORR 
+
+___/___ _____   _____ 
+
+BANK3N   BIVLO   LSAS 320016   361   302   H   33   5   1   ___/___   8616   12384 
+
+127   DSC   328   301   VAR   5   1113   2:40   ___/___ _____   _____ 
+
+BANK3N   PITOM   LSAS 320016   361   226   H   33   9   2   ___/___   8655   12345 
+
+127   DSC   328   223   VAR   0   1122   2:42   ___/___ _____   _____ 
+
+BANK3N   GG502   LSAS 320016   361   225   H   33   12   2   ___/___   8706   12294 
+
+127   DSC   328   222   VAR   0   1134   2:44   ___/___ _____   _____ 
+
+DCT   LSGG   LSAS 320016   361   021   H   33   19   3   ___/___   8788   12212 
+
+127   1411ft   328   024   VAR   1153   2:47   ___/___ _____   _____ 
+
+Alternate   LFLL DEPUL DCT   AMKEN DCT   ___ 
+
+DEPU1T   DEPUL   LFMM 300011   289   58   5   ___/___   9583   11417 
+
+118   80   284   235   9   0   1211   2:58   ___/___ _____   _____ 
+
+DCT   AMKEN   LFMM 300011   289   17   4   ___/___   9779   11221 
+
+118   80   281   340   9   0   1228   3:02   ___/___ _____   _____ 
+
+DCT   LFLL   VARVAR   290   45   10   ___/___ 10129   10871 
+
+118   DSC   296   202   VAR   0   1273   3:12   ___/___ _____   _____ 
+
+Climb   :150   NM in   0:23   hrs   2532 Lbs   Descent:118   NM   in   0:21 hrs   503   Lbs 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+_________________________________________________________________________________ 
+
+FMS   IDENT=S1498 Log Nr.:5751   Page 3   PPS   12.   0.   4.   0 3   To   be   continued   next 
+
+Page 4 of 25 Total Pages 
+FMS   IDENT=S1498 Log Nr.: 5751 Page   4   LTFE-LSGG   TCREC 
+
+LSGG ELEV   1411FT 
+
+DEP   LTFE/BJV   MILAS/BODRUM   N37:15.0   E027:39.9 
+
+1   FE071   SID   WAYPOINT   N37:18.2   E027:26.9 
+
+2   FE095   SID   WAYPOINT   N37:28.3   E027:14.7 
+
+3   FE096   SID   WAYPOINT   N37:48.2   E027:11.4 
+
+4   IMR   SID   WAYPOINT   113.70   N38:19.0   E027:00.4 
+
+5   NEMOH   FIR   NEMOH   N38:44.8   E026:17.9 
+
+6   -TOC-   N39:03.7   E025:46.2 
+
+7   ADHOT   ADHOT   N39:12.2   E025:31.7 
+
+8   TALAS   FIR   TALAS   N41:04.6   E021:55.0 
+
+9   MAVAR   FIR   MAVAR   N41:40.2   E020:31.8 
+
+10   IBENI   FIR   IBENI   N44:00.9   E013:55.3 
+
+11   BAPLU   BAPLU   N45:09.3   E010:13.7 
+
+12   INVOP   FIR   INVOP   N45:48.2   E008:09.4 
+
+13   -TOD-   N45:48.1   E007:56.5 
+
+14   AOSTA   FIR   AOSTA   N45:47.8   E007:20.7 
+
+15   BANKO   BANKO   N45:49.2   E007:03.3 
+
+16   GG520   STAR WAYPOINT   N45:57.4   E006:46.1 
+
+17   GOLEB   STAR WAYPOINT   N46:03.1   E006:33.8 
+
+18   VALBU   STAR WAYPOINT   N46:05.2   E006:29.4 
+
+19   SUVEL   STAR WAYPOINT   N46:09.1   E006:21.1 
+
+20   BIVLO   STAR WAYPOINT   N46:11.8   E006:15.2 
+
+21   PITOM   STAR WAYPOINT   N46:05.7   E006:06.1 
+
+22   GG502   STAR WAYPOINT   N45:57.2   E005:53.9 
+
+DEST   LSGG/GVA   GENEVA   N46:14.3   E006:06.6 
+
+ALT   LFLL/LYS   LYON/SAINT   EXUP   N45:43.5   E005:04.9 
+
+EET/LGGG0018   LWSS0052 LAAA0102 LYBA0110 LDZO0115   LIMM0147 LFMM0233 
+
+LSAS0247 
+
+(FPL-TCREC-IG 
+
+-GLF4/M-SBDE2E3FGHIJ4J5RWXYZ/LB1D1 
+
+-LTFE0700 
+
+-N0472F400 IMR UN127 ADHOT DCT TALAS DCT   MAVAR DCT IBENI   DCT 
+
+BAPLU   DCT INVOP DCT AOSTA L615   BANKO 
+
+-LSGG0247   LFLL 
+
+-PBN/A1B1D1L1O1S2   COM/TCAS DAT/CPDLCX   DOF/260818   REG/TCREC 
+
+EET/LGGG0018 LWSS0052   LAAA0102   LYBA0110   LDZO0115   LIMM0147 
+
+LFMM0233   LSAS0247 SEL/FRBD   OPR/REC   HAVACILIK   RMK/PRIVATE 
+
+FLIGHT   GVA   PPR   081809306A 
+
+-E/0738   P/TBN R/VE S/M   J/JL 
+
+A/WHITE   WITH L   BLUE ST 
+
+C/ON   DUTY PIC) 
+
+IF   APPLICABLE; THE LOAD MANIFEST IS   AN   INTEGRATED   PART   OF THE   COMPUTERIZED 
+
+FLIGHT   PLAN   ASSEMBLED AS   PER OPERATOR'S REQUEST,ONLY   WITH THE   DATA   PROVIDED 
+
+BY   THE   OPERATOR   AND   AUTOMATICALLY GENERATED BY AIR SUPPORT   PPS8   SOFTWARE. 
+
+END   OF   FLIGHT PLAN PREPARED   BY GOZEN AIR   DISPATCH   DEPARTMENT. 
+
+Page 5 of 25 Total Pages 
+WX   for flight   TCREC-LTFE-LSGG   (STD 180700) 
+
+WX search performed 2026-08-18 04:58:53 UTC for active METAR, TAF and SIGMET messages. 
+
+TAF and METAR reports are searched for following airport ICAO list: 
+
+Departure airport: LTFE. 
+
+Destination airport: LSGG. 
+
+Alternate airport(s): LFLL. 
+
+Adequate airport(s): LGSM LTFB LTBJ LGMT LGLM LGSK LGTS LGKZ LWOH LAKU LYPG LYTV LDDU LQMO LDSB LDSP LDZD LIPY LIPR LIPC 
+
+LIPK LIPE LIPX LIMP LIPO LIPL LIME LIML LIMC LSGS LFLP. 
+
+SIGMET reports are searched for following FIR ICAO list: 
+
+LTBB LGGG LWSS LAAA LYBA LDZO LIMM LFMM LSAS. 
+
+Departure airport LTFE - BJV - MILAS/BODRUM   VAR E5   RWY 10L 10R 28L 28R 
+
+METAR   180450Z   13002KT CAVOK   21/17 Q1009 NOSIG= 
+
+METAR   180420Z   13003KT CAVOK   19/17 Q1009 NOSIG= 
+
+METAR   180350Z   12003KT CAVOK   18/16 Q1008 NOSIG= 
+
+TAF   172240Z   1800/1824 VRB02KT   CAVOK   BECMG   1808/1810   25015KT   FEW035   BECMG 
+
+1816/1818   VRB02KT   CAVOK= 
+
+Destination airport LSGG - GVA - GENEVA   VAR E3   RWY 04 22 
+
+METAR   180450Z   AUTO VRB02KT CAVOK 18/16   Q1017   NOSIG= 
+
+METAR   180420Z   AUTO 28002KT CAVOK 19/17   Q1017   NOSIG= 
+
+METAR   180350Z   AUTO 26002KT CAVOK 17/16   Q1017   NOSIG= 
+
+TAF   180225Z   1803/1909 VRB02KT   CAVOK   TX29/1815Z   TN17/1805Z   TN16/1905Z   TEMPO 
+
+1806/1812   9999 FEW040   BECMG   1809/1811 23008KT   BECMG   1817/1819   VRB02KT= 
+
+Alternate airport LFLL - LYS - LYON/SAINT EXUPERY   VAR E2   RWY 17L 17R 35L 35R 
+
+METAR   180430Z   15003KT CAVOK   20/17 Q1016 NOSIG= 
+
+METAR   180400Z   14005KT CAVOK   20/17 Q1016 NOSIG= 
+
+METAR   180330Z   15003KT CAVOK   20/17 Q1016 NOSIG= 
+
+TAF   172300Z   1800/1906 VRB03KT   CAVOK   BECMG   1807/1809   35006KT   BECMG   1819/1821 
+
+VRB03KT= 
+
+WX messages for adequate airports previously listed as departure, destination or alternate airport are not repeated. 
+
+Adequate airport LGSM - SMI - SAMOS/ARISTARCHOS OF SAMOS   VAR E5   RWY 09 27 
+
+METAR   180450Z   VRB01KT 9999 FEW030 22/17 Q1008= 
+
+METAR   180420Z   VRB01KT CAVOK   20/16 Q1008= 
+
+METAR   180350Z   VRB02KT CAVOK   19/16 Q1008= 
+
+TAF   180200Z   1803/1812 VRB03KT   9999 FEW025   BECMG   1807/1809 25010KT= 
+
+Adequate airport LTFB - [No IATA found] - IZMIR/SELCUK EFES   VAR E5   RWY 09 27 
+
+METAR   180450Z   VRB02KT 9999 FEW025 20/17 Q1009= 
+
+METAR   180350Z   00000KT 9999 FEW025 17/15 Q1009= 
+
+METAR   171450Z   23016KT CAVOK   27/18 Q1008= 
+
+TAF   180140Z   1803/1812 VRB02KT   CAVOK   BECMG   1806/1809   25013KT= 
+
+Adequate airport LTBJ - ADB - IZMIR/ADNAN MENDERES INTL   VAR E5   RWY 16L 16R 34L 34R 
+
+METAR   180450Z   VRB01KT CAVOK   21/17 Q1009 NOSIG= 
+
+METAR   180420Z   VRB01KT CAVOK   19/16 Q1009 NOSIG= 
+
+METAR   180350Z   00000KT CAVOK   18/15 Q1009 NOSIG= 
+
+TAF   172240Z   1800/1824 VRB02KT   CAVOK   BECMG   1806/1809   35012KT   FEW030   BECMG 
+
+1816/1818   CAVOK   BECMG   1819/1822   VRB02KT= 
+
+Adequate airport LGMT - MJT - MITILINI/ODYSSEAS ELYTIS   VAR E6   RWY 14 32 
+
+METAR   180450Z   VRB02KT CAVOK   23/18 Q1009= 
+
+METAR   180420Z   00000KT CAVOK   22/17 Q1009= 
+
+METAR   180350Z   VRB03KT CAVOK   21/16 Q1009= 
+
+TAF   180200Z   1803/1812 VRB03KT   CAVOK= 
+
+Adequate airport LGLM - LXS - LIMNOS/IFAISTOS   VAR E6   RWY 04L 04R 22L 22R 
+
+METAR   180450Z   00000KT CAVOK   21/19 Q1008= 
+
+METAR   180420Z   00000KT CAVOK   19/18 Q1008= 
+
+WX Page 1 of 5 
+
+Page 6 of 25 Total Pages 
+METAR   180350Z   00000KT CAVOK   19/17 Q1008= 
+
+TAF   180200Z   1803/1812 VRB03KT   CAVOK   BECMG   1807/1809   20008KT= 
+
+Adequate airport LGSK - JSI - SKIATHOS/ALEXANDROS PAPADIAMAN   VAR E5   RWY 01 19 
+
+METAR   180450Z   00000KT CAVOK   23/22 Q1008= 
+
+METAR   180420Z   VRB02KT CAVOK   21/20 Q1008= 
+
+METAR   180350Z   VRB02KT CAVOK   21/20 Q1008= 
+
+TAF   180200Z   1803/1812 VRB03KT   9999 FEW025= 
+
+Adequate airport LGTS - SKG - THESSALONIKI/MAKEDONIA   VAR E5   RWY 10 16 28 34 
+
+METAR   180450Z   11005KT 9999 FEW016 20/14 Q1009   NOSIG= 
+
+METAR   180420Z   VRB03KT 9999 FEW016 20/14 Q1009   NOSIG= 
+
+METAR   180350Z   12005KT 9999 FEW020 20/14 Q1009   NOSIG= 
+
+TAF   172300Z   1800/1824 VRB03KT   9999 FEW030   BECMG   1810/1812 16013KT= 
+
+Adequate airport LGKZ - KZI - KOZANI/FILIPPOS   VAR E4   RWY 14 32 
+
+METAR   180450Z   00000KT 9999 FEW025 19/13 Q1012= 
+
+METAR   180350Z   01004KT 9999 FEW025 17/12 Q1012= 
+
+METAR   180250Z   34005KT CAVOK   16/11 Q1012= 
+
+TAF   No   TAF   found. 
+
+Adequate airport LWOH - OHD - OHRID/ST PAUL THE APOSTLE   VAR E4   RWY 01 19 
+
+METAR   171820Z   06005KT 020V080   9999   FEW045   22/14   Q1013= 
+
+METAR   171750Z   21003KT 160V270   9999   FEW045   25/14   Q1013= 
+
+METAR   171720Z   VRB02KT 9999 FEW045 26/15 Q1013= 
+
+TAF   180220Z   1803/1903 VRB02KT   9999 FEW040 SCT080 PROB30   TEMPO   1812/1818 
+
+VRB15KT   TS RA FEW033 CB   BKN040= 
+
+Adequate airport LAKU - KFZ - KUKES   VAR E5   RWY 01 19 
+
+METAR   180450Z   AUTO VRB02KT CAVOK 19/10   Q1011= 
+
+METAR   180420Z   AUTO 02002KT CAVOK 18/10   Q1011= 
+
+METAR   180350Z   AUTO VRB02KT CAVOK 18/10   Q1011= 
+
+TAF   171500Z   AMD   1712/1812   CNL= 
+
+Adequate airport LYPG - TGD - PODGORICA   VAR E5   RWY 18 36 
+
+METAR   180430Z   35004KT CAVOK   23/18 Q1010 NOSIG= 
+
+METAR   180400Z   32004KT CAVOK   22/18 Q1010 NOSIG= 
+
+METAR   180330Z   36005KT CAVOK   23/18 Q1010 NOSIG= 
+
+TAF   172300Z   1800/1824 35006KT   9999 FEW050 TX34/1813Z   TN22/1804Z   BECMG 
+
+1808/1810   17010KT   TEMPO   1810/1815 VRB15 G25KT   TS RA   SCT030 CB   SCT040   BECMG 
+
+1815/1817 
+
+34012KT= 
+
+Adequate airport LYTV - TIV - TIVAT   VAR E5   RWY 14 32 
+
+METAR   180430Z   00000KT 9999 FEW043 20/17 Q1010   NOSIG= 
+
+METAR   180400Z   VRB01KT 9999 FEW043 19/17 Q1009   NOSIG= 
+
+METAR   180330Z   AUTO VRB01KT CAVOK 19/17   Q1009= 
+
+TAF   172300Z   1800/1824 VRB02KT   9999 FEW050 TX31/1813Z   TN19/1804Z   BECMG 
+
+1807/1809   17010KT   TEMPO   1809/1815 VRB15 G25KT   5000   TS RA SCT030 CB   SCT040   BECMG 
+
+1815/1817   32012KT= 
+
+Adequate airport LDDU - DBV - DUBROVNIK/RUDJER BOSKOVIC   VAR E4   RWY 11 29 
+
+METAR   180430Z   04006KT CAVOK   24/11 Q1010 NOSIG= 
+
+METAR   180400Z   06004KT CAVOK   22/17 Q1010 NOSIG= 
+
+METAR   180330Z   01003KT CAVOK   23/14 Q1010 NOSIG= 
+
+TAF   172325Z   1800/1824 VRB02KT   9999 FEW020 TX28/1810Z   TN21/1802Z   PROB30 
+
+TEMPO   1803/1806   TS RA FEW040 CB   PROB30   1810/1817 29010KT   PROB30   TEMPO   1810/1814 
+
+30020 G30KT   TS RA   SCT040 CB = 
+
+Adequate airport LQMO - OMO - MOSTAR INTL   VAR E5   RWY 15 33 
+
+METAR   180430Z   METAR   VRB02KT   9999   FEW050   23/19   Q1010= 
+
+METAR   180400Z   METAR   12004KT   9999   FEW045   22/19   Q1010= 
+
+METAR   180330Z   METAR   VRB01KT   9999   SCT060   23/19   Q1009= 
+
+TAF   172300Z   1800/1824 14005KT   9999 FEW045 TX32/1813Z   TN18/1804Z   PROB30 
+
+TEMPO   1800/1804 VRB15 G25KT   4000   TS RA   FEW040 CB   BKN050   PROB40   TEMPO   1809/1815 
+
+VRB15KT   4000   SHRA   FEW035TCU BKN050   TEMPO   1813/1820   35010KT= 
+
+WX Page 2 of 5 
+
+Page 7 of 25 Total Pages 
+Adequate airport LDSB - BWK - SUPETAR/BRAC ISLAND   VAR E4   RWY 03 21 
+
+METAR   171330Z   21006KT 150V250   CAVOK 30/10   Q1014= 
+
+METAR   171300Z   VRB06KT CAVOK   30/09 Q1014= 
+
+METAR   171230Z   20008KT 170V240   CAVOK 29/12   Q1014= 
+
+TAF   172325Z   1800/1824 32008KT   CAVOK   TX29/1812Z   TN21/1803Z   PROB30   TEMPO 
+
+1800/1805   31020 G30KT   TS RA FEW020 CB   BECMG   1806/1808   02010KT   PROB30 1810/1816 
+
+20008KT   PROB30   TEMPO   1813/1816   TS RA   FEW020 CB   BECMG   1816/1818   VRB02KT= 
+
+Adequate airport LDSP - SPU - SPLIT/SAINT JEROME   VAR E4   RWY 05 23 
+
+METAR   180430Z   35003KT 310V080   CAVOK 24/18   Q1009   NOSIG= 
+
+METAR   180400Z   33007KT CAVOK   25/18 Q1009 NOSIG= 
+
+METAR   180330Z   VRB02KT CAVOK   25/20 Q1009 NOSIG= 
+
+TAF   172325Z   1800/1824 31007KT   CAVOK   TX32/1812Z   TN23/1803Z   PROB30   TEMPO 
+
+1800/1805   31020 G30KT   TS RA FEW040 CB   BECMG   1809/1811   22008KT   PROB30   TEMPO 
+
+1813/1816 
+
+TS RA   FEW040 CB   BECMG   1816/1818 32006KT= 
+
+Adequate airport LDZD - ZAD - ZADAR/ZEMUNIK   VAR E4   RWY 04 13 22 31 
+
+METAR   180430Z   08008KT CAVOK   23/15 Q1011 NOSIG= 
+
+METAR   180400Z   07006KT CAVOK   23/16 Q1011 NOSIG= 
+
+METAR   180330Z   VRB01KT CAVOK   21/17 Q1010   BECMG   06010KT= 
+
+TAF   172325Z   1800/1824 28006KT   CAVOK   TX30/1812Z   TN19/1803Z   PROB40   TEMPO 
+
+1800/1804   31020 G30KT   TS RA SCT010   FEW040 CB   BECMG   1803/1805   06010KT   BECMG 
+
+1812/1814 
+
+30012KT   BECMG   1817/1819   VRB02KT= 
+
+Adequate airport LIPY - AOI - ANCONA/FALCONARA MIL   VAR E4   RWY 04 22 
+
+METAR   180450Z   AUTO 16003KT 9999   NCD 22/18   Q1011= 
+
+METAR   180420Z   AUTO 19002KT 9999   NCD 21/18   Q1011= 
+
+METAR   180350Z   AUTO 20003KT 9999   NCD 22/18   Q1011= 
+
+TAF   172300Z   1800/1824 25006KT   CAVOK   BECMG   1810/1812   04010KT   BECMG   1816/1818 
+
+VRB05KT= 
+
+Adequate airport LIPR - RMI - RIMINI MIRAMARE   VAR E3   RWY 12 30 
+
+METAR   180450Z   AUTO VRB02KT 9999   FEW060///   21/18   Q1011= 
+
+METAR   180420Z   AUTO 20002KT 9999   BKN058///   22/18   Q1011= 
+
+METAR   180350Z   AUTO 21003KT 9999   BKN059///   22/18   Q1011= 
+
+TAF   172300Z   1800/1824 VRB05KT   CAVOK   BECMG   1811/1813   06010KT   BECMG   1815/1817 
+
+14010KT   BECMG   1820/1822   VRB05KT= 
+
+Adequate airport LIPC - [No IATA found] - CERVIA   VAR E4   RWY 11 29 
+
+METAR   180355Z   24005KT CAVOK   21/18 Q1011= 
+
+METAR   180255Z   25004KT CAVOK   21/18 Q1011= 
+
+METAR   180155Z   23005KT CAVOK   22/18 Q1011= 
+
+TAF   180200Z   1803/1812 28007KT   CAVOK= 
+
+Adequate airport LIPK - FRL - FORLI   VAR E2   RWY 12 30 
+
+METAR   171950Z   VRB01KT CAVOK   26/17 Q1010= 
+
+METAR   171850Z   24005KT CAVOK   27/16 Q1009= 
+
+METAR   171750Z   24006KT CAVOK   28/17 Q1009= 
+
+TAF   172110Z   AMD   1718/1818   CNL= 
+
+Adequate airport LIPE - BLQ - BOLOGNA/BORGO PANIGALE   VAR E3   RWY 12 30 
+
+METAR   180450Z   19004KT 140V310   CAVOK 21/17   Q1011= 
+
+METAR   180420Z   22003KT CAVOK   20/17 Q1011= 
+
+METAR   180350Z   17003KT CAVOK   20/17 Q1011= 
+
+TAF   172300Z   1800/1824 VRB05KT   CAVOK= 
+
+Adequate airport LIPX - VRN - VERONA/VILLAFRANCA   VAR E3   RWY 04 22 
+
+METAR   180450Z   33003KT CAVOK   19/18 Q1012= 
+
+METAR   180420Z   VRB02KT CAVOK   18/17 Q1011= 
+
+METAR   180350Z   VRB01KT CAVOK   18/17 Q1011= 
+
+TAF   172300Z   1800/1824 VRB05KT   CAVOK= 
+
+Adequate airport LIMP - PMF - PARMA   VAR E1   RWY 02 20 
+
+METAR   171950Z   24008KT CAVOK   26/17 Q1009= 
+
+METAR   171850Z   22010KT CAVOK   26/17 Q1009= 
+
+WX Page 3 of 5 
+
+Page 8 of 25 Total Pages 
+METAR   171750Z   23012KT CAVOK   27/17 Q1008= 
+
+TAF   171700Z   1718/1818 23012KT   9999 FEW040   BECMG   1720/1722 VRB05KT= 
+
+Adequate airport LIPO - VBS - BRESCIA/MONTICHIARI   VAR E1   RWY 14 32 
+
+METAR   180450Z   AUTO 09003KT 010V130   9999 NCD 20/17   Q1012= 
+
+METAR   180420Z   AUTO 09005KT 030V120   9999 NCD 21/17   Q1011= 
+
+METAR   180350Z   AUTO 05006KT 9999   NCD 21/17   Q1011= 
+
+TAF   172300Z   1800/1824 03010KT   9999 FEW050   BECMG   1803/1805 VRB05KT   BECMG 
+
+1812/1814   25010KT   BECMG   1816/1818 VRB05KT= 
+
+Adequate airport LIPL - [No IATA found] - GHEDI   VAR E3   RWY 13L 13R 31L 31R 
+
+METAR   180355Z   METAR   09003KT   CAVOK 20/16   Q1010   RMK   SKC   VIS   MIN   9999   WIND 
+
+THR31 08005KT WIND THR13   /////KT   BLU= 
+
+METAR   180255Z   METAR   14002KT   CAVOK 19/16   Q1010   RMK   SKC   VIS   MIN   9999   WIND 
+
+THR31 12003KT WIND THR13   /////KT   BLU= 
+
+METAR   180155Z   METAR   07002KT   CAVOK 20/17   Q1010   RMK   SKC   VIS   MIN   9999   WIND 
+
+THR31 08003KT WIND THR13   /////KT   BLU= 
+
+TAF   No   TAF   found. 
+
+Adequate airport LIME - BGY - BERGAMO/ORIO AL SERIO   VAR E3   RWY 10 12 28 30 
+
+METAR   180450Z   06003KT 010V140   9999   FEW090   19/14   Q1012 NOSIG= 
+
+METAR   180420Z   VRB02KT 9999 SCT090 20/13 Q1012   NOSIG= 
+
+METAR   180350Z   VRB02KT CAVOK   20/14 Q1012 NOSIG= 
+
+TAF   172300Z   1800/1824 VRB05KT   9999 FEW060   BECMG   1811/1813 24010KT   BECMG 
+
+1815/1817   VRB05KT= 
+
+Adequate airport LIML - LIN - MILAN/LINATE   VAR E3   RWY 17 35 
+
+METAR   180450Z   VRB02KT CAVOK   21/18 Q1012 NOSIG= 
+
+METAR   180420Z   VRB01KT CAVOK   20/18 Q1011 NOSIG= 
+
+METAR   180350Z   VRB02KT CAVOK   20/19 Q1011 NOSIG= 
+
+TAF   172300Z   1800/1824 VRB05KT   CAVOK= 
+
+Adequate airport LIMC - MXP - MILAN/MALPENSA   VAR E3   RWY 17L 17R 35L 35R 
+
+METAR   180450Z   03004KT 020V080   CAVOK 19/14   Q1012   NOSIG= 
+
+METAR   180420Z   07003KT 040V110   CAVOK 19/14   Q1012   NOSIG= 
+
+METAR   180350Z   04005KT CAVOK   20/14 Q1012 NOSIG= 
+
+TAF   172300Z   1800/1906 VRB05KT   CAVOK   BECMG   1812/1814   23010KT   BECMG   1816/1818 
+
+VRB05KT= 
+
+Adequate airport LSGS - SIR - SION   VAR E3   RWY 07 25 
+
+METAR   180450Z   VRB01KT 9999 BKN090 16/16 Q1018= 
+
+METAR   180420Z   AUTO VRB02KT 9999   SCT095   17/16   Q1018= 
+
+METAR   180350Z   AUTO VRB01KT 9999   FEW085   17/17   Q1018= 
+
+TAF   180225Z   1803/1812 VRB02KT   9999 SCT090   BECMG   1809/1811 25010KT= 
+
+Adequate airport LFLP - NCY - ANNECY/MEYTHET   VAR E2   RWY 04 04R 22 22L 
+
+METAR   180430Z   AUTO 04004KT CAVOK 17/16   Q1017   NOSIG= 
+
+METAR   180400Z   AUTO 05005KT CAVOK 17/16   Q1017   NOSIG= 
+
+METAR   180330Z   AUTO 06005KT CAVOK 17/16   Q1018   NOSIG= 
+
+TAF   180200Z   1803/1903 VRB03KT   CAVOK   TEMPO   1808/1820   34005KT= 
+
+SIGMET(s) for LGGG FIR 
+
+WV GR31   L GAT   180305 
+
+L GGG   SI GMET   A04   VALID 180305/180600 L GAT - 
+
+L GGG   ATHINAI   FIR/UIR   CNL   SI GMET   A01 180000/180600= 
+
+WV GR31   L GAT   180300 
+
+L GGG   SI GMET   A03   VALID 180300/180900 L GAT - 
+
+L GGG   ATHINAI   FIR/UIR   VA ERUPTION MT ETNA   P SN   N3744   E01459   OBS VA   CLD   WI   N3640 E01900   - 
+
+N3630   E01900 -   N3420 E02335 -   N3520 E02315   -   N3640   E01900   FL050/200   MOV SE   20KT= 
+
+WV GR31   L GAT   180045 
+
+L GGG   SI GMET   A02   VALID 180300/180900 L GAT - 
+
+L GGG   ATHINAI   FIR/UIR   CNL   SI GMET   A07 180300/180900= 
+
+WX Page 4 of 5 
+
+Page 9 of 25 Total Pages 
+End of WX information 
+
+WX Page 5 of 5 
+
+Page 10 of 25 Total Pages 
+NOTAMs   for flight   GO2TCREC-LTFE-LSGG   (STD 180700) 
+
+(NOTAM search performed 2026-08-18 04:58:53 UTC. 
+
+Searched for NOTAMs with validity within time period: 2 hours before STD + EET + 3 hours 
+
+(between 2026-08-18 05:00 and 2026-08-18 12:47). 
+
+All NOTAMs with Q-code QKKKK (checklist) excluded. 
+
+NOTAMs are sorted by in effect time in descending order within each NOTAM series or type. 
+
+Details on any NOTAMs which may have been excluded in accordance with 
+
+company policy, and/or by user, listed at end of NOTAM search result. 
+
+NOTAM number within each section shown above each NOTAM followed by separation line. 
+
+If available, NOTAM uniform abbreviation for Q-code second and third letters signification 
+
+shown in sharp brackets on right top of each NOTAM. 
+
+In same sharp brackets, uniform abbreviation is followed by vertical line and number 
+
+of days since NOTAM in effect time, or text 'NEW TODAY' if it enters in force at the day of briefing generation. 
+
+Total number of NOTAMs: 27 
+
+NOTE: 
+
+- NOTAMs applicable to more than one FIR (FIR ICAO in Item Q) contains   ‘ XX ’   or   ‘ XXX ’ ) will appear under each relevant FIR header. 
+
+NOTAMs are presented for following ICAO list: 
+
+Departure airport: LTFE 
+
+Destination airport: LSGG 
+
+Alternate airport(s): LFLL 
+
+Departure airport LTFE - BJV - MILAS/BODRUM   RWY 10L 10R 28L 28R 
+
+|#1|--------------------------------------------------------------------------------- 
+
+D1468/26 NOTAMR D0637/26   [twy | 52] 
+
+Q)   LTBB/QMXLT/IV/M/A/000/999/3715N02740E005 
+
+A)   LTFE   B)   2606260631   C) 2609301400 
+
+E)   TWY   -M-   CLOSED   TO JET TRAFFICS 
+
+|#2|--------------------------------------------------------------------------------- 
+
+D1467/26 NOTAMR D0635/26   [rag | 52] 
+
+Q)   LTBB/QMHXX/IV/BO/A/000/999/3715N02740E005 
+
+A)   LTFE   B)   2606260629   C) 2609301400 
+
+E)   HOOK   BARRIER AVBL   PPR 15   MINUTES   AT WORKING HOURS,   PPR   3 HOURS 
+
+OUT   OF   WORKING   HOURS   .   NET BARRIER NOT AVBL. 
+
+|#3|--------------------------------------------------------------------------------- 
+
+D1466/26 NOTAMR D0636/26   [ad | 52] 
+
+Q)   LTBB/QFAAH/IV/NBO/A/000/999/3715N02740E005 
+
+A)   LTFE   B)   2606260628   C) 2609301400 
+
+E)   AD   OPERATING HOURS   OF MILITARY UNITS AS   FOLLOWS: 
+
+MON   TUE   WED THU FRI 0600-1300 
+
+SAT   SUN   AND HOLIDAYS   PPR 3 HOURS. 
+
+Destination airport LSGG - GVA - GENEVA   RWY 04 22 
+
+|#1|--------------------------------------------------------------------------------- 
+
+A0618/26 NOTAMN   [ils | 0] 
+
+Q)   LSAS/QICAS/I/NBO/A/000/999/4614N00607E005 
+
+A)   LSGG   B)   2608172130   C) 2608190100 
+
+D)   2130-0100 
+
+E)   RWY   04   ILS   INE   110.900   AND RWY 22 ILS   ISW 108.700 U/S 
+
+DUE   TO   MAINT.   AVBL   O/R   WI   15 MIN. 
+
+|#2|--------------------------------------------------------------------------------- 
+
+A0620/26 NOTAMN   [twy   cl lgt | 1] 
+
+Q)   LSAS/QLXAS/IV/M/A/000/999/4614N00607E005 
+
+A)   LSGG   B)   2608162100   C) 2609010400 
+
+E)   TWY   D CL LGT PARTLY   U/S DUE   TO   WIP . 
+
+|#3|--------------------------------------------------------------------------------- 
+
+A0619/26 NOTAMN   [twy | 1] 
+
+Q)   LSAS/QMXLC/IV/BO/A/000/999/4614N00607E005 
+
+A)   LSGG   B)   2608162100   C) 2608210330 
+
+D)   2100-0330 
+
+NOTAMs Page 1 of 5 
+
+E)   LINK   4, TWY D AND TWY   OUTER BTN   PRKG   PSN 125 AND   43   CLSD   DUE 
+
+TO   WIP . CLOSURE   AFT   LAST   ACFT   WITH   WINSPAN   CAT   D TO F. 
+
+|#4|--------------------------------------------------------------------------------- 
+
+A0572/26 NOTAMR A0548/26   [oca   och   | 27] 
+
+Q)   LSAS/QPOCH/I/NBO/A/000/999/4614N00607E005 
+
+A)   LSGG   B) 2607211502   C)   2608312100 
+
+E)   IAC RNP RWY 22: OCA(H)   LNAV/VNAV   MINIMA   WITH MISSED APCH 
+
+CLIMB GRADIENT 3.8 PCT   TO   4800 REVISED: 
+
+CAT A 1748FT   (383FT) 
+
+CAT B 1755FT   (390FT) 
+
+CAT C 1762FT   (397FT) 
+
+CAT D 1769FT   (404FT) 
+
+DUE TO CRANE   LCA 0.93NM FM THR RWY   22 ON R170,   ELEV   1656FT   AMSL. 
+
+REF AIP   LSGG   AD 2.24.10-7. 
+
+|#5|--------------------------------------------------------------------------------- 
+
+A0525/26 NOTAMN   [twy   | 35] 
+
+Q)   LSAS/QMXLT/IV/M/A/000/999/4614N00607E005 
+
+A)   LSGG   B) 2607132200   C)   2609260330 
+
+E)   TWY INNER, LINK 0,   LINK 1,   LINK   2, LINK   3,   LINK 4 AND   LINK 5 
+
+TWY CL LGT U/S DUE TO   WIP . 
+
+FOLLOW-ME GUIDANCE MANDATORY FOR   NGT OPS AND DRG   LVP. 
+
+|#6|--------------------------------------------------------------------------------- 
+
+A0517/26 NOTAMR A0477/26   [hel alighting area   | 46] 
+
+Q)   LSAS/QFHLT/IV/NBO/A/000/999/4614N00607E005 
+
+A)   LSGG   B) 2607021344   C)   2610130330 
+
+E)   HEL PSN H2   CLSD .   HEL STAND   NORTH:   MAX   ROTOR   DIAMETER 14M, 
+
+MAX OVERALL DIMENSION   17M. FOR ALL   OTHER HEL PPR   REQUIRED. 
+
+|#7|--------------------------------------------------------------------------------- 
+
+A0454/26 NOTAMR A0453/26   [obst   | 62] 
+
+Q)   LSAS/QOBCE/V/M/AE/000/015/4614N00606E001 
+
+A)   LSGG   B) 2606160730   C)   2609102359EST 
+
+E)   CRANE MARKED, LGTD,   461345N0060608E,   23.7M   / 77.8FT AGL, 
+
+447.3M / 1467.5FT   AMSL. 
+
+|#8|--------------------------------------------------------------------------------- 
+
+A0226/26 NOTAMN   [obst   | 148] 
+
+Q)   LSAS/QOBCE/V/M/AE/000/015/4614N00606E001 
+
+A)   LSGG   B) 2603230000   C)   PERM 
+
+E)   POLE   MARKED, 461351N0060546E,   2.0M /   6.6FT   AGL, 431.1M /   1414.4FT 
+
+AMSL. 
+
+|#9|--------------------------------------------------------------------------------- 
+
+V0552/26 NOTAMN   [instr   apch proc   | 34] 
+
+Q)   LSAS/QPICH/I/BO/A/000/999/4614N00606E5 
+
+A)   LSGG 
+
+B)   202607141647 
+
+C)   202609021001 
+
+E)   [US DOD PROCEDURAL   NOTAM] INSTRUMENT   APPROACH   PROCEDURE   AMENDMENT   RNP   RWY   22   AMEND 
+
+MINIMA LNAV/VNAV DA   (3.8%)** TO   READ: CAT   A 1748/1100M 383(400-1100M)   CAT   B   1755/1100M 
+
+390(400-1100M) CAT C 1762/1100M   397(400-1100M)   CAT D 1769/1200M 404(400-1200M)   AND ALS 
+
+INOP NOTE **WHEN ALS INOP, INCREASE   CAT   ABC RVR/VIS   TO 1800M; CAT   D RVR/VIS   TO   1900M.   DUE 
+
+TO   CRANE. ADD TO CIRCLING   NOTE:   MAX   180   KIAS.   ADD   TO CLIMB   TABLE:   3.3% CLIMB   TERMINATES AT 
+
+4300; 3.8% CLIMB TERMINATES   AT 4800. 
+
+Alternate airport LFLL - LYS - LYON/SAINT EXUPERY   RWY 17L 17R 35L 35R 
+
+|#1|--------------------------------------------------------------------------------- 
+
+A5319/26 NOTAMN   [fis   | NEW   TODAY] 
+
+Q)   LFMM/QSECF/IV/BO/AE/000/115/4535N00500E062 
+
+A)   LFLL   B) 2608180730   C)   2608181400 
+
+E)   RISK   OF FREQ SIGNAL   INTERRUPTION   (5   MIN   EXPECTED, TWICE)   ON   FREQ 
+
+''''LYON INFO EST''''   135.530MHZ   DUE TO   MAINTENANCE 
+
+NOTAMs Page 2 of 5 
+
+Page 11 of 25 Total Pages 
+IN   CASE   OF   INTERRUPTION, CONTACT   ''''LYON INFO OUEST'''' ON 135.200MHZ 
+
+|#2|--------------------------------------------------------------------------------- 
+
+A5289/26 NOTAMN   [ils   dme | NEW   TODAY] 
+
+Q)   LFMM/QIDAS/I/NBO/A/000/999/4544N00505E005 
+
+A)   LFLL   B)   2608180700   C) 2608181600 
+
+E)   LDG   DME   RWY35L   U/S   DUE   TO MAINT : 
+
+DO   NOT   USE, POSSIBLE   FALSE INDICATIONS 
+
+|#3|--------------------------------------------------------------------------------- 
+
+A5329/26 NOTAMN   [rwy | NEW   TODAY] 
+
+Q)   LFMM/QMRLC/IV/NBO/A/000/999/4544N00505E005 
+
+A)   LFLL   B)   2608180530   C) 2608181000 
+
+E)   RWY   17R/35L   CLOSED 
+
+|#4|--------------------------------------------------------------------------------- 
+
+A4620/26 NOTAMN   [app | 12] 
+
+Q)   LFMM/QSPTT/IV/BO/AE/000/145/4535N00446E058 
+
+A)   LFLL   B)   2608060000   C) 2608192359 
+
+E)   TRIGGER   NOTAM   -   PERM   AIRAC AIP AMDT 08/26 WEF   06 AUG 2026. 
+
+MODIFICATION   OF LATERAL   LIMITS   OF VW1 AND VW3   CTL SECTORS   MANAGED BY 
+
+LYON APP 
+
+|#5|--------------------------------------------------------------------------------- 
+
+A5188/26 NOTAMN   [instr apch proc | 12] 
+
+Q)   LFMM/QPICH/I/NBO/A/000/999/4544N00505E005 
+
+A)   LFLL   B)   2608051452   C) PERM 
+
+E)   ''''TF   ARBON''''   MODIFICATION : 
+
+READ :   ''''5000 MNM ALTITUDE (FL   OR   AMSL   FT)''''   INSTEAD OF : ''''5000 MAX 
+
+ALTITUDE (FL   OR AMSL   FT)'''' 
+
+REF   :   DATA   RWY17R   FNA   RNP   CODE 
+
+|#6|--------------------------------------------------------------------------------- 
+
+A5050/26 NOTAMN   [apron | 18] 
+
+Q)   LFMM/QMNHW/IV/BO/A/000/999/4544N00505E005 
+
+A)   LFLL   B)   2607301800   C) 2609111600 
+
+E)   AIRAC AIP   SUP   089/26   -   PHASE 2 ACT 
+
+|#7|--------------------------------------------------------------------------------- 
+
+A4971/26 NOTAMN   [acft   stand | 19] 
+
+Q)   LFMM/QMPXX/IV/BO/A/000/999/4544N00505E005 
+
+A)   LFLL   B)   2607291800   C) 2610291200 
+
+E)   ACFT   STAND   K52   RENAMED   IN E21 
+
+|#8|--------------------------------------------------------------------------------- 
+
+A4950/26 NOTAMN   [acft   stand | 20] 
+
+Q)   LFMM/QMPLC/IV/BO/A/000/999/4544N00505E005 
+
+A)   LFLL   B)   2607280500   C) 2609111600 
+
+E)   ACFT   STAND   E17   CLOSED . 
+
+|#9|--------------------------------------------------------------------------------- 
+
+A2931/26 NOTAMN   [apron | 57] 
+
+Q)   LFMM/QMNTT/IV/BO/A/000/999/4544N00505E005 
+
+A)   LFLL   B)   2606220000   C) 2610312359 
+
+E)   TRIGGER   NOTAM   -   AIRAC AIP SUP   089/26. 
+
+TAXIWAY   TL   REHABILITATION   WORKS ON THE AD. 
+
+WORKS   DATE   OF   PHASES   WILL   BE ANNOUNCED BY NOTAM. 
+
+THIS AIP SUP   IS AVBL   AT   WWW.SIA.AVIATION-CIVILE.GOUV.FR 
+
+|#10|-------------------------------------------------------------------------------- 
+
+A2512/26 NOTAMN   [star   | 118] 
+
+Q)   LFMM/QPACH/I/NBO/A/000/999/4544N00505E005 
+
+A)   LFLL   B)   2604220000   C) PERM 
+
+E)   MODIFICATION OF   INBOUND BRANCH DIRECTION FOR VOR-DME GOMET 
+
+HOLDING   : 
+
+READ ''''322   DEGREES   LEFT'''' (INSTEAD OF ''''342 DEGREES   LEFT'''') 
+
+REF: IAC RWY17L 17R INA   RNAV, IAC RWY35L   35R INA   RNAV, STAR 
+
+NOTAMs Page 3 of 5 
+
+RWY17L-17R RNAV, STAR   RWY35L-35R   RNAV 
+
+|#11|-------------------------------------------------------------------------------- 
+
+A2292/26 NOTAMN   [app   | 124] 
+
+Q)   LFMM/QSPXX/IV/BO/AE/000/145/4535N00446E058 
+
+A)   LFLL   B) 2604160000   C)   PERM 
+
+E)   MODIFICATION OF CTL   SECTORS MANAGED   BY   APP   : 
+
+APP LYON LFLLVW1 SECTOR :   READ 
+
+''''463000N 0044029E -   463000N 0050526E   -   454444N   0050526E 
+
+- 450400N 0052323E - 444000N 0050124E -   444007N 0044442E 
+
+- 445527N 0044253E - 451700N 0043700E -   460510N 0041213E 
+
+- 461213N 0043941E - 461305N 0044015E -   461826N 0044352E 
+
+- 463000N 0044029E'''' 
+
+APP LYON LFLLVW3 SECTOR :   READ 
+
+''''455810N 0035353E -   455526N 0041725E   -   454436N   0042259E 
+
+- 451700N 0043700E - 445527N 0044253E -   444007N 0044442E 
+
+- 444007N 0042717E - 445416N 0041018E -   450813N 0040232E 
+
+- 453454N 0040632E - 455619N 0035454E'''' 
+
+REF: ENR 2.2.4.2 
+
+|#12|-------------------------------------------------------------------------------- 
+
+A1135/26 NOTAMN   [a/g fac   | 152] 
+
+Q)   LFMM/QCACS/IV/BO/AE/000/025/4544N00506E011 
+
+A)   LFLL   B) 2603190000   C)   PERM 
+
+E)   FREQ   MODIFIED : 
+
+READ ''''133.155''''MHZ (INSTEAD   OF   ''''133.150''''MHZ) 
+
+REF: AD2.18,   COM 1 
+
+|#13|-------------------------------------------------------------------------------- 
+
+P2123/26 NOTAMN   [obst   | 63] 
+
+Q)   LFMM/QOBCE/IV/M/A/000/999/4544N00505E005 
+
+A)   LFLL   B) 2606150700   C)   2608311900 
+
+E)   OBST   : MOBILE CRANE   OPR RDL 181/1.7NM LFLL   AD 
+
+PSN : 454152N 0050447E 
+
+ELEV : 902FT 
+
+HGT : 79FT 
+
+LGT : DAY AND NGT. 
+
+|#14|-------------------------------------------------------------------------------- 
+
+P1448/26 NOTAMN   [obst   | 122] 
+
+Q)   LFMM/QOBCE/IV/M/A/000/999/4544N00505E005 
+
+A)   LFLL   B) 2604170700   C)   2609302000 
+
+E)   MOBILE CRANE -   RDL   173/1.2NM   LFLL AD   : 
+
+- PSN :   454218N 0050502E 
+
+- ELEV : 918FT 
+
+- HGT :   102FT 
+
+- LGT :   DAY AND NGT. 
+
+|#15|-------------------------------------------------------------------------------- 
+
+P0121/26 NOTAMN   [obst   | 214] 
+
+Q)   LFMM/QOBCE/IV/M/A/000/999/4544N00505E005 
+
+A)   LFLL   B) 2601151006   C)   2608311600 
+
+E)   CRANE OPR   NEAR   AD ''''LYON   ST   EXUPERY'''' : 
+
+- RDL 000/2.51NM ARP LFLL 
+
+- PSN :   454602.4N   0050453.1E 
+
+- HGT :   148FT 
+
+- ELEV : 820FT 
+
+- LIGHTING :   DAY AND NIGHT. 
+
+NOTAMs excluded in accordance with FSP GOZEN 2 company policy 
+
+Any NOTAMs for adequate airports excluded 
+
+NOTAMs excluded by user 
+
+Any NOTAMs for FIR(s) excluded 
+
+Key words highlighted 
+
+NOTAMs Page 4 of 5 
+
+Page 12 of 25 Total Pages 
+' CLOSED '   3 
+
+' CLSD '   2 
+
+' CUSTOMS '   0 
+
+' FORBIDDEN '   0 
+
+' FUEL '   0 
+
+' PROHIBITED '   0 
+
+' REQUESTED '   0 
+
+' RFF '   0 
+
+' WIP '   3 
+
+' CLOSED '   3 
+
+' CLSD '   2 
+
+' CUSTOMS '   0 
+
+' FORBIDDEN '   0 
+
+' FUEL '   0 
+
+' PROHIBITED '   0 
+
+' REQUESTED '   0 
+
+' RFF '   0 
+
+' WIP '   3 
+
+End of NOTAM information 
+
+NOTAMs Page 5 of 5 
+
+Page 13 of 25 Total Pages 
+Short ICAO ATC Flight Plan   for flight   TCREC-LTFE-LSGG   (STD 180700) 
+
+(FPL-TCREC-IG 
+
+-GLF4/M-SBDE2E3FGHIJ4J5RWXYZ/LB1D1 
+
+-LTFE0700 
+
+-N0472F400   IMR   UN127   ADHOT DCT TALAS   DCT   MAVAR   DCT   IBENI   DCT   BAPLU   DCT   INVOP DCT   AOSTA 
+
+L615 BANKO 
+
+-LSGG0247 LFLL 
+
+-PBN/A1B1D1L1O1S2   COM/TCAS DAT/CPDLCX DOF/260818 REG/TCREC EET/LGGG0018   LWSS0052   LAAA0102 
+
+LYBA0110   LDZO0115   LIMM0147 LFMM0233 LSAS0247 SEL/FRBD   OPR/REC   HAVACILIK   RMK/PRIVATE   FLIGHT 
+
+GVA   PPR   081809306A 
+
+-E/0738   P/TBN   R/VE S/M   J/JL 
+
+A/WHITE   WITH   L   BLUE ST 
+
+C/ON DUTY PIC) 
+
+End of Short ICAO ATC Flight Plan 
+
+Page 14 of 25 Total Pages 
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+
+28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N 
+
+30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N 
+
+32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N 
+
+34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N 
+
+36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N 
+
+38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N 
+
+40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N 
+
+42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N 
+
+44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N 
+
+46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N 
+
+48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N 
+
+50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N 
+
+52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N 
+
+55   53   53   51   51   50   49   48   47   47   47   47   47   47   47   47   46 
+
+46   46   46   46   47   48   49   49   50   50   51 
+
+57   57   56   55   53   52   51   50   49   48   47   47   47   47   47   47   47   47 
+
+47   46   47   47   48   49   49   50   51   50 
+
+60   59   58   58   57   56   54   53   51   50   49   48   48   48   48   48   48   48 
+
+47   47   47   48   48   49   49   50   51   51 
+
+61   61   61   60   59   58   58   56   55   53   52   50   50   49   49   49   49   48 
+
+48   48   47   47   49   49   50   50   51   51 
+
+62   62   62   61   61   61   59   58   58   56   55   53   52   51   51   51   50 
+
+50   49   48   48   49   49   50   51   51   51   50 
+
+63   63   63   63   62   62   61   60   59   58   57   56   55   54   53   52   53   52 
+
+51   50   50   50   50   51   51   51   51   51 
+
+62   63   63   63   63   62   62   62   61   60   59   58   57   57   56   56   55   54   53 
+
+52   51   51   51   52   51   51   51   51 
+
+62   62   63   62   62   62   62   61   62   61   60   60   58   58   57   57   56   55 
+
+54   53   52   51   51   51   51   51   51   51 
+
+61   62   62   62   62   62   61   61   61   60   60   60   59   58   58   57   56   55 
+
+54   53   52   52   52   52   52   52   52   52 
+
+61 
+
+61   61   62   61   61   61   61   61   60   61   60   59   59   58   56   55 
+
+54   53   52   52   52   52   52   52   53   53   53 
+
+59   59 
+
+60   60   60   61   61   60   60   60   60   59   58   58   56   55 
+
+54   53   53   52   52   52   53   53   53   54   54   54 
+
+58   58   58 
+
+59   59   59   59   59   59   59   58   57   57   56 
+
+55   54   53   53   52   52   53   54   54   54   54   55   55   56 
+
+57   57   57 
+
+58   58   58   58   58   58   57   57   56   55 
+
+54   53   54   53   52   53   54   54   54   54   55   55   56   56   57 
+
+57   58   58 
+
+58   58   57   57   57   56   56   55   54   53 
+
+53   53   54   54   53   54   54   54   55   55   56   56   57   57   57 
+
+59   59   59   58 
+
+58   58   57   57   57   56   55   55   54   54 
+
+54   55   55   55   55   55   55   56   56   57   57   58   58   58 
+
+60   60   60   60 
+
+59   59   59   58   58   57   57   56   56   56 
+
+56   56   56   56   56   56   56   56   57   57   58   58   58   58 
+
+61   61   61   61 
+
+61   60   60   59   59   59   59   58   57 
+
+57   57   57   57   56   56   57   57   57   57   58   58   59   59   58 
+
+61   62   62   62 
+
+62   61   61   60   60   59   59   59 
+
+58   58   58   58   58   57   58   58   58   58   58   59   59   59   59   59 
+
+62   63   63   62 
+
+62   61   61   61   60   60 
+
+60   60   60   60   59   59   59   58   58   59   59   60   60   60   60   60   60   59 
+
+63   63   63   62   62   62   62   62   62   61   61   61   61   60   60   60   60   60   60   60   60   60   60   60   60   60   60   59 
+
+LTFE 
+
+IMR 
+
+1 
+
+-TOC- 
+
+2 
+
+143NM TO TALAS 
+
+3 
+
+72NM TO TALAS 
+
+4 
+
+TALAS 
+
+5 
+
+MAVAR 
+
+6 
+
+242NM TO IBENI 
+
+7 
+
+161NM TO IBENI 
+
+8 
+
+80NM TO IBENI 
+
+9 
+
+IBENI 
+
+10 
+
+86NM TO BAPLU 
+
+11 
+
+BAPLU 
+
+12 
+
+INVOP 
+
+13 
+
+GG520 
+
+14 
+
+LSGG 
+
+WIND/TEMPERATURE 
+
+FL 440 
+
+PROGNOSTIC CHART 
+
+LTFE - LSGG 
+
+VALID 1247 UTC 18 AUG 2026 
+
+BASED ON WAFC LONDON DATA 
+
+00 UTC 18 AUG 2026 
+
+Processed by AIR SUPPORT Denmark 
+
+Generated: 18-08-26 04:58:53 UTC 
+
+Projection: Mercator 
+
+UNITS USED: KNOTS,DEGREES CELCIUS 
+
+TEMPERATURES ARE NEGATIVE 
+
+UNLESS PREFIXED BY 'PS' 
+
+LTFE 
+
+LSGG 
+
+LFLL 
+
+Page 15 of 25 Total Pages 
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+
+28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N 
+
+30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N 
+
+32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N 
+
+34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N 
+
+36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N 
+
+38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N 
+
+40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N 
+
+42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N 
+
+44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N 
+
+46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N 
+
+48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N 
+
+50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N 
+
+52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N 
+
+56   54   54   53   52   50   49   48   47   46   46   46   46   46   46   46   46   45 
+
+45   45   46   47   48   50   51   52   52   52 
+
+59   58   57   56   55   54   52   51   49   48   47   47   46   46   46   47   47   46 
+
+46   46   46   47   48   49   51   52   52   52 
+
+61   61   60   59   58   58   56   55   53   51   49   48   47   47   47   47   47   47 
+
+47   46   46   47   47   49   50   51   52   52 
+
+62   62   62   61   61   60   59   58   57   55   53   51   50   49   48   48   49   48 
+
+48   47   46   47   48   49   51   51   51   51 
+
+63   63   62   62   62   62   61   60   59   58   56   54   53   51   51   51   50   50   49 
+
+48   48   47   49   50   51   52   51   51 
+
+63   63   63   63   62   62   62   61   61   60   59   57   56   56   54   53   53   52   52 
+
+50   50   50   50   51   52   52   52   51 
+
+62   63   63   63   63   63   63   62   62   61   60   59   58   57   56   56   55   54   53   53 
+
+52   51   51   52   52   51   51   50 
+
+61   61   62   62   62   62   62   61   61   61   60   60   59   58   57   57   56   55   54   54 
+
+52   51   52   52   51   50   50   50 
+
+60   61   61   61   61   61   61   61   61   61   60   60   59   58   58   57   56   55   54 
+
+53   52   51   51   50   50   50   49   49 
+
+60 
+
+60   60   61   61   61   61   61   60   60   60   60   59   58   58   57   55   54 
+
+52   52   51   50   50   50   50   50   50   50 
+
+59   59   59 
+
+60   60   60   60   59   59   59   59   59   58   58   56   55   53 
+
+52   51   50   50   49   50   50   50   50   50   50 
+
+57   57   57   58 
+
+58   59   59   58   58   58   58   58   57   56   55 
+
+53   51   50   50   50   50   50   50   50   50   51   51   52 
+
+56   56   56 
+
+56   57   57   57   57   57   57   56   56   55   54 
+
+52   51   50   49   49   50   50   50   51   51   51   52   52   52 
+
+55   56   55 
+
+56   55   55   55   55   55   54   53   52   51 
+
+51   50   50   50   50   50   50   51   51   51   52   52   52   53   53 
+
+55   56   56 
+
+55   55   55   55   54   54   53   52   51   51 
+
+50   50   51   51   51   51   52   52   52   52   52   53   53   54   54 
+
+56   56   56 
+
+56   56   56   55   55   54   54   53   53   52 
+
+52   52   52   52   52   52   52   52   53   53   53   53   54   54   55 
+
+57   57   57 
+
+57   56   56   56   56   55   55   55   55   54 
+
+54   54   53   53   53   52   52   53   53   53   54   54   54   55   55 
+
+58   58   58   58 
+
+58   57   57   57   56   56   55   55 
+
+55   54   54   54   54   53   53   53   53   54   54   55   55   55   55   56 
+
+58   58   58   58 
+
+58   58   57   57   56   56   56 
+
+56   56   55   55   55   54   54   54   54   54   55   55   56   56   56   56   56 
+
+58   58   58   58   58   57   56   56   56   56   55   55   55   55   55   55   56   56   56   56   56   56   56   56 
+
+LTFE 
+
+IMR 
+
+1 
+
+-TOC- 
+
+2 
+
+143NM TO TALAS 
+
+3 
+
+72NM TO TALAS 
+
+4 
+
+TALAS 
+
+5 
+
+MAVAR 
+
+6 
+
+242NM TO IBENI 
+
+7 
+
+161NM TO IBENI 
+
+8 
+
+80NM TO IBENI 
+
+9 
+
+IBENI 
+
+10 
+
+86NM TO BAPLU 
+
+11 
+
+BAPLU 
+
+12 
+
+INVOP 
+
+13 
+
+GG520 
+
+14 
+
+LSGG 
+
+WIND/TEMPERATURE 
+
+FL 420 
+
+PROGNOSTIC CHART 
+
+LTFE - LSGG 
+
+VALID 1247 UTC 18 AUG 2026 
+
+BASED ON WAFC LONDON DATA 
+
+00 UTC 18 AUG 2026 
+
+Processed by AIR SUPPORT Denmark 
+
+Generated: 18-08-26 04:58:53 UTC 
+
+Projection: Mercator 
+
+UNITS USED: KNOTS,DEGREES CELCIUS 
+
+TEMPERATURES ARE NEGATIVE 
+
+UNLESS PREFIXED BY 'PS' 
+
+LTFE 
+
+LSGG 
+
+LFLL 
+
+Page 16 of 25 Total Pages 
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+
+28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N 
+
+30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N 
+
+32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N 
+
+34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N 
+
+36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N 
+
+38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N 
+
+40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N 
+
+42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N 
+
+44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N 
+
+46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N 
+
+48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N 
+
+50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N 
+
+52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N 
+
+57   55   55   54   52   51   50   48   47   46   46   46   46   46   46   46   46   45 
+
+45   45   46   47   50   53   54   55   55   55 
+
+59   58   57   57   56   55   53   52   50   48   47   47   46   46   46   47   47   46 
+
+45   45   46   47   49   52   54   55   55   55 
+
+60   60   59   59   59   58   57   56   54   52   50   49   48   47   47   47   47   47   46 
+
+46   46   47   49   51   53   54   55   54 
+
+60   60   60   60   60   60   59   58   58   56   55   53   51   50   49   48   48   48   47 
+
+47   46   47   49   51   53   54   54   53 
+
+60   60   60   60   60   60   60   60   60   59   57   56   54   52   52   51   50   50   49   48 
+
+47   47   50   52   53   54   53   53 
+
+60   60   60   60   60   60   60   60   60   60   59   57   56   56   55   54   53   52   52   51 
+
+50   50   51   52   53   53   53   52 
+
+60   60   60   61   61   61   61   61   61   60   60   59   58   57   56   55   55   54   53   53 
+
+54   52   53   53   53   52   52   51 
+
+59   59   60   60   60   60   60   60   60   60   59   59   59   58   57   56   56   55   54   54 
+
+54   53   53   52   51   50   49   49 
+
+58   59   59   59   60   60   60   60   60   59   59   59   59   58   57   56   55   55   54   53 
+
+52   52   51   50   49   48   47   47 
+
+58 
+
+58   58   59   59   59   59   59   58   58   58   58   58   57   57   56   55   53   52 
+
+51   50   49   48   48   47   47   46   46 
+
+57   58   58 
+
+58   58   58   58   57   57   57   58   57   57   56   56   54   53   51 
+
+50   49   48   47   47   46   46   46   46   46 
+
+55   56   56   57 
+
+57   57   57   57   57   57   57   57   56   55   54   52 
+
+51   49   48   47   46   46   46   47   47   46   47   47 
+
+54   54   54   55 
+
+55   56   56   56   56   56   56   56   55   53   52 
+
+50   48   47   46   46   46   46   47   47   47   47   48   48 
+
+53   53   53 
+
+53   53   53   54   54   54   53   52   51   50 
+
+49   48   47   46   46   46   47   47   47   48   48   48   48   48   49 
+
+52   52   52 
+
+52   52   52   52   52   51   50   49   48   47 
+
+47   46   47   47   47   47   48   48   48   48   48   48   48   49   50 
+
+52   52   52 
+
+52   52   52   51   51   51   50   50   49   48 
+
+48   48   48   48   48   48   48   48   48   48   49   49   49   50   51 
+
+53   53   53 
+
+53   52   52   52   52   51   51   51   51   50 
+
+50   50   49   49   49   49   48   49   49   49   49   49   50   51   51 
+
+53   53   53 
+
+53   53   53   53   52   52   52   51   51   51 
+
+50   50   50   50   49   49   49   49   49   49   50   50   51   51   51 
+
+54   54   54   54 
+
+54   54   53   53   52   52   52   51   51 
+
+51   50   50   50   50   50   50   49   50   50   51   51   51   51   52 
+
+54   54   54   54   51   51   51   51   51   51   51   52   52   52   52   51   51 
+
+LTFE 
+
+IMR 
+
+1 
+
+-TOC- 
+
+2 
+
+143NM TO TALAS 
+
+3 
+
+72NM TO TALAS 
+
+4 
+
+TALAS 
+
+5 
+
+MAVAR 
+
+6 
+
+242NM TO IBENI 
+
+7 
+
+161NM TO IBENI 
+
+8 
+
+80NM TO IBENI 
+
+9 
+
+IBENI 
+
+10 
+
+86NM TO BAPLU 
+
+11 
+
+BAPLU 
+
+12 
+
+INVOP 
+
+13 
+
+GG520 
+
+14 
+
+LSGG 
+
+WIND/TEMPERATURE 
+
+FL 400 
+
+PROGNOSTIC CHART 
+
+LTFE - LSGG 
+
+VALID 1247 UTC 18 AUG 2026 
+
+BASED ON WAFC LONDON DATA 
+
+00 UTC 18 AUG 2026 
+
+Processed by AIR SUPPORT Denmark 
+
+Generated: 18-08-26 04:58:53 UTC 
+
+Projection: Mercator 
+
+UNITS USED: KNOTS,DEGREES CELCIUS 
+
+TEMPERATURES ARE NEGATIVE 
+
+UNLESS PREFIXED BY 'PS' 
+
+LTFE 
+
+LSGG 
+
+LFLL 
+
+Page 17 of 25 Total Pages 
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+
+28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N 
+
+30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N 
+
+32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N 
+
+34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N 
+
+36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N 
+
+38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N 
+
+40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N 
+
+42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N 
+
+44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N 
+
+46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N 
+
+48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N 
+
+50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N 
+
+52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N 
+
+54   54   54   53   52   51   50   49   47   47   47   47   48   48   48   48   47   46 
+
+45   46   47   50   53   56   57   57   57   57 
+
+55   55   55   55   54   54   53   52   51   49   48   48   48   48   48   48   48   46   45 
+
+45   46   49   52   55   56   56   56   57 
+
+55   55   55   55   55   56   55   55   54   53   51   50   49   49   48   48   48   47   46 
+
+45   46   48   51   54   55   56   56   56 
+
+55   55   55   55   55   56   56   56   55   55   55   54   52   51   50   49   49   48   47 
+
+46   46   48   50   53   55   55   55   55 
+
+54   55   55   55   55   56   56   56   57   56   56   55   54   54   53   52   51   51   49   48 
+
+47   48   51   53   54   55   54 
+
+54 
+
+55   55   55   55   55   56   56   56   56   56   56   56   55   55   54   54   53   52   52   51 
+
+50   50   52   53   54   54   53   53 
+
+55   55   55   56   56   56   56   56   56   56   56   56   56   55   55   54   54   54   52   52 
+
+53   53   53   53   53   52   52   51 
+
+55   55   55   56   56   56   56   56   56   56   56   56   56   56   55   54   54   54   53   53 
+
+54   53   53   52   52   51   49   48 
+
+54   55   55   55   55   56   56   56   56   56   56   56   56   55   54   54   53   53   53   52 
+
+52   52   51   50   49   47   46   45 
+
+54 
+
+54   55   55   55   56   55   55   55   55   55   55   55   55   54   53   53   52   52 
+
+51   50   49   48   47   45   44   44   43 
+
+54   54   55 
+
+55   55   55   55   54   54   54   54   54   54   53   53   52   51   51   50 
+
+48   47   46   45   44   43   43   42   42 
+
+53   53   54   54 
+
+55   54   54   54   54   54   54   54   53   52   51   51   50   49 
+
+47   45   44   43   43   43   43   42   42   43 
+
+52   52   52   52   53 
+
+54   53   53   53   54   54   54   53   52   51   49 
+
+48   45   43   43   42   43   43   43   43   43   43   44 
+
+51   51   51 
+
+51   51   51   52   52   52   52   51   50   50   48 
+
+46   45   44   43   43   43   43   44   44   43   43   43   44   44 
+
+50   50   49 
+
+49   49   49   49   49   49   48   48   46   45 
+
+44   43   44   44   43   43   43   44   44   44   44   44   44   44   45 
+
+49   49   48 
+
+48   48   48   48   47   47   47   46   46   45 
+
+44   44   44   44   44   44   44   44   44   44   44   44   44   45   46 
+
+49   49   49 
+
+49   48   48   48   47   47   47   46   46   46   46 
+
+46   45   45   45   45   44   44   44   45   44   44   45   46   46 
+
+49   49   49 
+
+49   49   48   48   48   48   48   47   47   46   46 
+
+46   45   45   45   45   45   44   45   45   45   45   46   46   46 
+
+49   49   49   49 
+
+49   49   49   48   48   48   47   47   47   46   46 
+
+46   46   45   45   45   45   45   45   46   46   46   46   46 
+
+49   49   50   49   46   46   46   45   45   45   46   46   47   47   47   47   46 
+
+LTFE 
+
+IMR 
+
+1 
+
+-TOC- 
+
+2 
+
+143NM TO TALAS 
+
+3 
+
+72NM TO TALAS 
+
+4 
+
+TALAS 
+
+5 
+
+MAVAR 
+
+6 
+
+242NM TO IBENI 
+
+7 
+
+161NM TO IBENI 
+
+8 
+
+80NM TO IBENI 
+
+9 
+
+IBENI 
+
+10 
+
+86NM TO BAPLU 
+
+11 
+
+BAPLU 
+
+12 
+
+INVOP 
+
+13 
+
+GG520 
+
+14 
+
+LSGG 
+
+WIND/TEMPERATURE 
+
+FL 380 
+
+PROGNOSTIC CHART 
+
+LTFE - LSGG 
+
+VALID 1247 UTC 18 AUG 2026 
+
+BASED ON WAFC LONDON DATA 
+
+00 UTC 18 AUG 2026 
+
+Processed by AIR SUPPORT Denmark 
+
+Generated: 18-08-26 04:58:53 UTC 
+
+Projection: Mercator 
+
+UNITS USED: KNOTS,DEGREES CELCIUS 
+
+TEMPERATURES ARE NEGATIVE 
+
+UNLESS PREFIXED BY 'PS' 
+
+LTFE 
+
+LSGG 
+
+LFLL 
+
+Page 18 of 25 Total Pages 
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+  
+2W 
+
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+  
+-0- 
+
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+  
+2E 
+
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+  
+4E 
+
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+  
+6E 
+
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+  
+8E 
+
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+  
+10E 
+
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+  
+12E 
+
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+  
+28E 
+
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+  
+30E 
+
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+  
+32E 
+
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+  
+34E 
+
+28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N   28N 
+
+30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N   30N 
+
+32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N   32N 
+
+34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N   34N 
+
+36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N   36N 
+
+38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N   38N 
+
+40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N   40N 
+
+42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N   42N 
+
+44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N   44N 
+
+46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N   46N 
+
+48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N   48N 
+
+50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N   50N 
+
+52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N   52N 
+
+50   50   50   51   50   50   50   49   48   48   48   49   51   51   51   50   49   46 
+
+45   46   49   54   55   56   55   55   55   56 
+
+50   50   50   50   51   51   51   51   50   50   49   49   49   50   50   50   50   47   45 
+
+45   47   52   54   55   54   54   55   55 
+
+50   50   50   50   50   51   51   51   52   52   51   50   50   50   50   50   50   49   47 
+
+45   46   50   53   54   54   54   54   55 
+
+50   50   50   50   50   51   51   51   52   52   53   53   53   53   52   51   50   49   47   46 
+
+46   49   51   53   54   54   53   54 
+
+49   50   50   50   50   50   50   51   52   52   52   52   53   54   54   53   52   51   50   47 
+
+46   48   51   52   53   53   53 
+
+53 
+
+50   50   50   50   50   50   50   51   51   51   51   52   53   52   52   53   52   52   52   51   49 
+
+50   51   52   53   53   52 
+
+51 
+
+50   50   50   50   50   50   50   51   51   51   52   52   52   52   52   52   52   52   52   51   51 
+
+51   52   52   52   51   51 
+
+50 
+
+50   50   50   51   51   51   51   51   51   51   52   52   52   52   52   52   51   52   51   51 
+
+52   52   52   51   51   50   49   47 
+
+50   50   50   50   50   51   51   51   51   51   51   51   52   52   51   51   51   51   51   51 
+
+51   50   50   50   49   47   45   43 
+
+50   50 
+
+50   51   51   51   51   51   51   51   51   51   51   51   51   50   50   50   50   50 
+
+49   49   48   46   45   43   42   40 
+
+50   50   51 
+
+51   51   51   51   50   50   50   50   51   51   50   49   49   49   49   49   47 
+
+46   46   44   42   41   40   39   38 
+
+50   50   50   51 
+
+51   51   51   51   51   51   50   50   49   49   48   48   49   48   46 
+
+44   42   40   40   39   39   38   39   38 
+
+49   49   49   50   50 
+
+50   50   51   50   51   50   50   49   48   48   48   47   45 
+
+42   40   39   39   39   39   39   39   39   39 
+
+49   49   49 
+
+49   49   49   49   49   49   50   49   49   49   47   46 
+
+44   43   41   39   39   39   39   39   39   39   39   39   39 
+
+48   47 
+
+47   47   47   46   47   47   47   47   46   45   44   42 
+
+41   41   40   39   39   39   39   39   39   39   39   39   39   40 
+
+46   46 
+
+45   45   45   45   44   44   44   44   44   43   42   41 
+
+41   40   40   40   40   40   40   40   39   39   39   39   40   41 
+
+44   45 
+
+45   44   44   44   44   43   43   42   42   42   41   41 
+
+41   41   41   40   40   40   40   40   40   40   40   40   40   41 
+
+44   44 
+
+45   44   44   44   44   43   43   43   43   42   42   42   42 
+
+41   41   41   41   40   40   40   40   40   40   41   41   41 
+
+44   44   44 
+
+44   44   44   44   44   44   43   43   43   43   42   42   41 
+
+41   41   41   40   40   40   40   40   41   41   41   41 
+
+44   44   45   44   41   41   40   40   40   40   41   41   42   42   42   42 
+
+LTFE 
+
+IMR 
+
+1 
+
+-TOC- 
+
+2 
+
+143NM TO TALAS 
+
+3 
+
+72NM TO TALAS 
+
+4 
+
+TALAS 
+
+5 
+
+MAVAR 
+
+6 
+
+242NM TO IBENI 
+
+7 
+
+161NM TO IBENI 
+
+8 
+
+80NM TO IBENI 
+
+9 
+
+IBENI 
+
+10 
+
+86NM TO BAPLU 
+
+11 
+
+BAPLU 
+
+12 
+
+INVOP 
+
+13 
+
+GG520 
+
+14 
+
+LSGG 
+
+WIND/TEMPERATURE 
+
+FL 360 
+
+PROGNOSTIC CHART 
+
+LTFE - LSGG 
+
+VALID 1247 UTC 18 AUG 2026 
+
+BASED ON WAFC LONDON DATA 
+
+00 UTC 18 AUG 2026 
+
+Processed by AIR SUPPORT Denmark 
+
+Generated: 18-08-26 04:58:53 UTC 
+
+Projection: Mercator 
+
+UNITS USED: KNOTS,DEGREES CELCIUS 
+
+TEMPERATURES ARE NEGATIVE 
+
+UNLESS PREFIXED BY 'PS' 
+
+LTFE 
+
+LSGG 
+
+LFLL 
+
+Page 19 of 25 Total Pages 
+Units used: KNOTS, 
+
+DEGREES CELCIUS 
+
+Temperatures are negative 
+
+unless prefixed by 'PS' 
+
+VERTICAL CROSS SECTION ALONG THE ROUTE   LTFE - LSGG 
+
+WIND, TEMPERATURE,TROPOPAUSE, ICING AND TURBULENCE FORECAST 
+
+Based on London WAFC data 
+
+00 UTC 18 AUG 2026 
+
+Processed by 
+
+AIR SUPPORT Denmark 
+
+DEP: 08180700   ARR: 08180947 
+
+FL50   
+(PS6) 
+
+FL100   
+(5) 
+
+FL140   
+(12) 
+
+FL180   
+(21) 
+
+FL240   
+(32) 
+
+FL300   
+(44) 
+
+FL340   
+(52) 
+
+FL390   
+(56) 
+
+FL450   
+(56) 
+
+FL530   
+(56) 
+
+HEAD- AND 
+
+TAILWIND 
+
+COMPONENTS 
+
+IN KNOTS 
+
+H=HEAD 
+
+T=TAIL 
+
+M=MAX WIND 
+
+TROPOPAUSE: 
+
+FL/TEMPERATURE 
+
+ISA 
+
+LTFE 
+
+N 
+
+S 
+
+W 
+  
+E 
+
+PS17 
+
+FL50: T 001 
+
+FL80: T 005 
+
+PS7 
+
+FL100: T 002 
+
+0 
+
+FL140: H 004 
+
+9 
+
+FL180: H 003 
+
+FL210: H 005 
+
+21 
+
+FL240: H 002 
+
+FL270: 0 
+
+32 
+
+FL300: H 001 
+
+FL320: H 002 
+
+35 
+
+FL340: T 001 
+
+FL360: T 005 
+
+M FL361: T 003 
+
+45 
+
+FL390: 0 
+
+FL410: H 003 
+
+56 
+
+FL450: 0 
+
+FL480: T 004 
+
+65 
+
+FL530: T 006 
+
+TR: FL504/66 
+
+IMR 
+
+N 
+
+S 
+W 
+  
+E 
+
+PS17 
+
+FL50: H 002 
+
+FL80: H 003 
+
+PS7 
+
+FL100: H 003 
+
+0 
+
+FL140: H 004 
+
+9 
+
+FL180: H 005 
+
+FL210: H 004 
+
+22 
+
+FL240: H 003 
+
+FL270: H 001 
+
+35 
+
+FL300: H 004 
+
+FL320: H 010 
+
+39 
+
+FL340: H 017 
+
+FL360: H 021 
+
+M FL373: H 026 
+
+44 
+
+FL390: H 026 
+
+FL410: H 028 
+
+55 
+
+FL450: H 023 
+
+FL480: H 015 
+
+64 
+
+FL530: H 009 
+
+TR: FL500/64 
+
+-TOC- 
+
+N 
+
+S 
+W 
+  
+E 
+
+PS17 
+
+FL50: H 004 
+
+FL80: H 006 
+
+PS7 
+
+FL100: H 006 
+
+1 
+
+FL140: H 005 
+
+9 
+
+FL180: H 002 
+
+FL210: 0 
+
+22 
+
+FL240: H 002 
+
+FL270: H 002 
+
+36 
+
+FL300: H 004 
+
+FL320: H 007 
+
+42 
+
+FL340: H 013 
+
+FL360: H 019 
+
+M FL381: H 030 
+
+44 
+
+FL390: H 028 
+
+FL410: H 031 
+
+55 
+
+FL450: H 026 
+
+FL480: H 018 
+
+62 
+
+FL530: H 012 
+
+TR: FL460/59 
+
+143NM TO 
+
+TALAS 
+
+N 
+
+S 
+W 
+  
+E 
+
+PS17 
+
+FL50: H 005 
+
+FL80: H 005 
+
+PS6 
+
+FL100: H 005 
+
+1 
+
+FL140: H 001 
+
+9 
+
+FL180: T 001 
+
+FL210: 0 
+
+22 
+
+FL240: H 002 
+
+FL270: H 002 
+
+37 
+
+FL300: H 006 
+
+FL320: H 009 
+
+44 
+
+FL340: H 011 
+
+FL360: H 016 
+
+46 
+
+FL390: H 025 
+
+M FL395: H 031 
+
+FL410: H 031 
+
+53 
+
+FL450: H 027 
+
+FL480: H 021 
+
+60 
+
+FL530: H 011 
+
+TR: FL379/51 
+
+72NM TO TALAS 
+
+N 
+
+S 
+W 
+  
+E 
+
+PS18 
+
+FL50: H 003 
+
+FL80: H 004 
+
+PS6 
+
+FL100: H 002 
+
+2 
+
+FL140: 0 
+
+10 
+
+FL180: T 001 
+
+FL210: H 002 
+
+23 
+
+FL240: H 004 
+
+FL270: H 006 
+
+36 
+
+FL300: H 009 
+
+FL320: H 012 
+
+45 
+
+FL340: H 015 
+
+FL360: H 017 
+
+49 
+
+FL390: H 022 
+
+FL410: H 028 
+
+M FL412: H 030 
+
+53 
+
+FL450: H 027 
+
+FL480: H 022 
+
+59 
+
+FL530: H 012 
+
+TR: FL352/50 
+
+TALAS 
+
+N 
+
+S 
+
+W 
+  
+E 
+
+PS18 
+
+FL50: H 003 
+
+FL80: H 001 
+
+PS6 
+
+FL100: H 001 
+
+3 
+
+FL140: 0 
+
+10 
+
+FL180: H 001 
+
+FL210: H 004 
+
+22 
+
+FL240: H 007 
+
+FL270: H 011 
+
+36 
+
+FL300: H 014 
+
+FL320: H 017 
+
+45 
+
+FL340: H 019 
+
+FL360: H 021 
+
+52 
+
+FL390: H 025 
+
+M FL403: H 030 
+
+FL410: H 029 
+
+53 
+
+FL450: H 025 
+
+FL480: H 025 
+
+58 
+
+FL530: H 013 
+
+TR: FL363/54 
+
+MAVAR 
+
+N 
+
+S 
+
+W 
+  
+E 
+
+PS17 
+
+FL50: H 002 
+
+FL80: H 002 
+
+PS6 
+
+FL100: H 004 
+
+3 
+
+FL140: H 003 
+
+10 
+
+FL180: H 007 
+
+FL210: H 009 
+
+22 
+
+FL240: H 011 
+
+FL270: H 014 
+
+36 
+
+FL300: H 017 
+
+FL320: H 018 
+
+46 
+
+FL340: H 021 
+
+FL360: H 024 
+
+M FL388: H 030 
+
+53 
+
+FL390: H 023 
+
+FL410: H 027 
+
+53 
+
+FL450: H 027 
+
+FL480: H 026 
+
+57 
+
+FL530: H 013 
+
+TR: FL370/54 
+
+242NM TO IBENI 
+
+N 
+
+S 
+
+W 
+  
+E 
+
+PS17 
+
+FL50: H 001 
+
+FL80: H 006 
+
+PS4 
+
+FL100: H 008 
+
+3 
+
+FL140: H 011 
+
+10 
+
+FL180: H 011 
+
+FL210: H 011 
+
+21 
+
+FL240: H 014 
+
+FL270: H 015 
+
+37 
+
+FL300: H 013 
+
+FL320: H 014 
+
+47 
+
+FL340: H 018 
+
+M FL342: H 021 
+
+FL360: H 021 
+
+53 
+
+FL390: H 023 
+
+FL410: H 025 
+
+54 
+
+FL450: H 027 
+
+FL480: H 027 
+
+57 
+
+FL530: H 015 
+
+TR: FL381/54 
+
+161NM TO IBENI 
+
+N 
+
+S 
+
+W   
+E 
+
+PS15 
+
+FL50: 0 
+
+FL80: H 007 
+
+PS5 
+
+FL100: H 010 
+
+2 
+
+FL140: H 012 
+
+8 
+
+FL180: H 016 
+
+FL210: H 016 
+
+20 
+
+FL240: H 019 
+
+FL270: H 021 
+
+36 
+
+FL300: H 024 
+
+FL320: H 023 
+
+47 
+
+FL340: H 022 
+
+FL360: H 027 
+
+M FL363: H 032 
+
+56 
+
+FL390: H 029 
+
+FL410: H 024 
+
+56 
+
+FL450: H 027 
+
+FL480: H 023 
+
+56 
+
+FL530: H 016 
+
+TR: FL380/56 
+
+80NM TO IBENI 
+
+N 
+
+S 
+
+W   
+E 
+
+PS15 
+
+FL50: T 001 
+
+FL80: H 007 
+
+PS5 
+
+FL100: H 008 
+
+2 
+
+FL140: H 013 
+
+8 
+
+FL180: H 019 
+
+FL210: H 022 
+
+20 
+
+FL240: H 025 
+
+FL270: H 029 
+
+36 
+
+FL300: H 029 
+
+FL320: H 026 
+
+47 
+
+FL340: H 027 
+
+FL360: H 028 
+
+M FL371: H 037 
+
+56 
+
+FL390: H 033 
+
+FL410: H 026 
+
+58 
+
+FL450: H 026 
+
+FL480: H 022 
+
+56 
+
+FL530: H 018 
+
+TR: FL376/57 
+
+IBENI 
+
+N 
+
+S 
+
+W   
+E 
+
+PS15 
+
+FL50: T 001 
+
+FL80: H 006 
+
+PS5 
+
+FL100: H 010 
+
+2 
+
+FL140: H 019 
+
+7 
+
+FL180: H 025 
+
+FL210: H 026 
+
+20 
+
+FL240: H 029 
+
+FL270: H 029 
+
+35 
+
+FL300: H 030 
+
+FL320: H 030 
+
+46 
+
+FL340: H 030 
+
+FL360: H 032 
+
+M FL378: H 039 
+
+58 
+
+FL390: H 036 
+
+FL410: H 033 
+
+58 
+
+FL450: H 025 
+
+FL480: H 024 
+
+56 
+
+FL530: H 018 
+
+TR: FL380/59 
+
+86NM TO BAPLU 
+
+N 
+
+S 
+
+W   
+E 
+
+PS16 
+
+FL50: T 002 
+
+FL80: H 008 
+
+PS6 
+
+FL100: H 015 
+
+1 
+
+FL140: H 021 
+
+7 
+
+FL180: H 030 
+
+FL210: H 030 
+
+20 
+
+FL240: H 030 
+
+FL270: H 027 
+
+35 
+
+FL300: H 027 
+
+FL320: H 030 
+
+46 
+
+FL340: H 031 
+
+M FL349: H 037 
+
+FL360: H 031 
+
+58 
+
+FL390: H 035 
+
+FL410: H 037 
+
+59 
+
+FL450: H 029 
+
+FL480: H 025 
+
+56 
+
+FL530: H 020 
+
+TR: FL392/61 
+
+BAPLU 
+
+N 
+
+S 
+
+W   
+E 
+
+PS17 
+
+FL50: H 006 
+
+FL80: H 013 
+
+PS6 
+
+FL100: H 021 
+
+0 
+
+FL140: H 024 
+
+7 
+
+FL180: H 031 
+
+FL210: H 031 
+
+20 
+
+FL240: H 033 
+
+FL270: H 033 
+
+35 
+
+FL300: H 033 
+
+FL320: H 034 
+
+46 
+
+FL340: H 037 
+
+M FL345: H 043 
+
+FL360: H 038 
+
+58 
+
+FL390: H 039 
+
+FL410: H 041 
+
+60 
+
+FL450: H 030 
+
+FL480: H 032 
+
+56 
+
+FL530: H 022 
+
+TR: FL396/62 
+
+INVOP 
+
+N 
+
+S 
+
+W   
+E 
+
+PS16 
+
+FL50: H 001 
+
+FL80: H 008 
+
+PS6 
+
+FL100: H 014 
+
+1 
+
+FL140: H 020 
+
+7 
+
+FL180: H 025 
+
+FL210: H 030 
+
+19 
+
+FL240: H 035 
+
+FL270: H 036 
+
+35 
+
+FL300: H 034 
+
+FL320: H 034 
+
+46 
+
+FL340: H 033 
+
+M FL345: H 037 
+
+FL360: H 034 
+
+59 
+
+FL390: H 034 
+
+FL410: H 039 
+
+60 
+
+FL450: H 037 
+
+FL480: H 029 
+
+58 
+
+FL530: H 019 
+
+TR: FL395/63 
+
+GG520 
+
+N 
+
+S 
+
+W 
+  
+E 
+
+PS15 
+
+FL50: H 002 
+
+FL80: H 006 
+
+PS6 
+
+FL100: H 012 
+
+1 
+
+FL140: H 025 
+
+6 
+
+FL180: H 031 
+
+FL210: H 038 
+
+19 
+
+FL240: H 043 
+
+FL270: H 044 
+
+34 
+
+FL300: H 042 
+
+FL320: H 041 
+
+46 
+
+FL340: H 043 
+
+M FL352: H 048 
+
+FL360: H 045 
+
+59 
+
+FL390: H 046 
+
+FL410: H 046 
+
+61 
+
+FL450: H 040 
+
+FL480: H 034 
+
+58 
+
+FL530: H 020 
+
+TR: FL394/63 
+
+LSGG 
+
+N 
+
+S 
+
+W 
+  
+E 
+
+PS14 
+
+FL50: H 004 
+
+FL80: H 008 
+
+PS6 
+
+FL100: H 014 
+
+1 
+
+FL140: H 025 
+
+6 
+
+FL180: H 030 
+
+FL210: H 040 
+
+19 
+
+FL240: H 046 
+
+FL270: H 047 
+
+34 
+
+FL300: H 044 
+
+FL320: H 043 
+
+46 
+
+FL340: H 045 
+
+FL360: H 047 
+
+M FL379: H 048 
+
+59 
+
+FL390: H 048 
+
+FL410: H 048 
+
+60 
+
+FL450: H 042 
+
+FL480: H 035 
+
+58 
+
+FL530: H 022 
+
+TR: FL397/64 
+
+TROP 
+
+GRID MORA 
+
+Page 20 of 25 Total Pages 
+-0- 
+  
+-0- 
+
+5E 
+  
+5E 
+  
+5E 
+
+10E 
+  
+10E 
+  
+10E 
+
+15E 
+  
+15E 
+  
+15E 
+
+20E 
+  
+20E 
+  
+20E 
+
+25E 
+  
+25E 
+  
+25E 
+
+30E 
+  
+30E 
+  
+30E 
+
+35E 
+  
+35E 
+
+30N 
+
+30N 
+30N 
+
+30N 
+
+35N 
+
+35N 
+35N 
+
+35N 
+
+40N 
+
+40N 
+40N 
+
+40N 
+
+45N 
+
+45N 
+45N 
+
+45N 
+
+50N 
+
+50N 
+50N 
+
+50N 
+
+FL360 
+  
+FL360 
+
+FL300 
+
+ETNA 
+
+400 
+
+400 
+
+LTFE 
+
+LSGG 
+
+1 
+
+2 
+
+1 
+
+1   2 
+
+3 
+
+4 
+
+A 
+
+T 
+
+V 
+
+S 
+
+B 
+
+S 
+
+B 
+
+N 
+
+P 
+
+B 
+
+A 
+
+C 
+
+P 
+
+L 
+
+S 
+
+A 
+
+Z 
+
+B 
+
+R 
+
+P 
+
+V 
+
+T 
+
+M 
+
+C 
+
+P 
+
+S 
+
+V 
+
+W 
+
+B B 
+
+L 
+
+B 
+
+S 
+
+T 
+
+A 
+
+K 
+
+CB CLOUD AREAS 
+
+-Not expected on the chart 
+
+area at the forecast issue time 
+
+ICING AREAS 
+
+1   100/220 
+
+2   XXX/220 
+
+3   XXX/240 
+
+4   XXX/260 
+
+TURBULENCE AREAS 
+
+1   160/400 
+
+2   240/360 
+
+VOLCANIC ERUPTIONS & 
+
+TROPICAL CYCLONES 
+
+ETNA 37.7N 15.0E 
+
+SIGNIFICANT WEATHER 
+
+FIXED TIME PROGNOSTIC CHART 
+
+ROUTE LTFE - LSGG 
+
+FL 100-450 
+
+VALID 0600 UTC 18 AUG 2026 
+
+BASED ON WAFC LONDON DATA 
+
+0600 UTC 17 AUG 2026 
+
+Processed by AIR SUPPORT Denmark 
+
+Created: 18-08-26 04:58:53 UTC 
+
+Projection: Lambert 
+
+CB IMPLIES TS, GR, MOD OR SEV TURBULENCE AND ICE 
+
+UNITS USED: HEIGHT IN FLIGHT LEVELS 
+
+CHECK SIGMET, ADVISORIES, ASHTAM AND NOTAM 
+
+FOR VOLCANIC ASH AND TROPICAL CYCLONES 
+
+Page 21 of 25 Total Pages 
+-0- 
+  
+-0- 
+
+5E 
+  
+5E 
+  
+5E 
+
+10E 
+  
+10E 
+  
+10E 
+
+15E 
+  
+15E 
+  
+15E 
+
+20E 
+  
+20E 
+  
+20E 
+
+25E 
+  
+25E 
+  
+25E 
+
+30E 
+  
+30E 
+  
+30E 
+
+35E 
+  
+35E 
+
+30N 
+
+30N 
+30N 
+
+30N 
+
+35N 
+
+35N 
+35N 
+
+35N 
+
+40N 
+
+40N 
+40N 
+
+40N 
+
+45N 
+
+45N 
+45N 
+
+45N 
+
+50N 
+
+50N 
+50N 
+
+50N 
+
+FL360 
+  
+FL360 
+
+ETNA 
+
+400 
+
+400 
+
+LTFE 
+
+LSGG 
+
+1 
+
+2 
+
+1   
+2 
+
+3 
+
+3 
+
+4 
+
+5 
+
+6 
+
+A 
+
+T 
+
+V 
+
+S 
+
+B 
+
+S 
+
+B 
+
+N 
+
+P 
+
+B 
+
+A 
+
+C 
+
+P 
+
+L 
+
+S 
+
+A 
+
+Z 
+
+B 
+
+R 
+
+P 
+
+L 
+
+T 
+
+M 
+
+C 
+
+P 
+
+S 
+
+V 
+
+A 
+
+W 
+
+B B 
+
+L 
+
+B 
+
+S 
+
+T 
+
+A 
+
+K 
+
+CB CLOUD AREAS 
+
+-Not expected on the chart 
+
+area at the forecast issue time 
+
+ICING AREAS 
+
+1   100/220 
+
+2   XXX/220 
+
+3   XXX/260 
+
+4   140/180 
+
+5   120/240 
+
+6   XXX/240 
+
+TURBULENCE AREAS 
+
+1   160/380 
+
+2   160/400 
+
+VOLCANIC ERUPTIONS & 
+
+TROPICAL CYCLONES 
+
+ETNA 37.7N 15.0E 
+
+SIGNIFICANT WEATHER 
+
+FIXED TIME PROGNOSTIC CHART 
+
+ROUTE LTFE - LSGG 
+
+FL 100-450 
+
+VALID 1200 UTC 18 AUG 2026 
+
+BASED ON WAFC LONDON DATA 
+
+1200 UTC 17 AUG 2026 
+
+Processed by AIR SUPPORT Denmark 
+
+Created: 18-08-26 04:58:54 UTC 
+
+Projection: Lambert 
+
+CB IMPLIES TS, GR, MOD OR SEV TURBULENCE AND ICE 
+
+UNITS USED: HEIGHT IN FLIGHT LEVELS 
+
+CHECK SIGMET, ADVISORIES, ASHTAM AND NOTAM 
+
+FOR VOLCANIC ASH AND TROPICAL CYCLONES 
+
+Page 22 of 25 Total Pages 
+-0- 
+  
+-0- 
+
+5E 
+  
+5E 
+  
+5E 
+
+10E 
+  
+10E 
+  
+10E 
+
+15E 
+  
+15E 
+  
+15E 
+
+20E 
+  
+20E 
+  
+20E 
+
+25E 
+  
+25E 
+  
+25E 
+
+30E 
+  
+30E 
+  
+30E 
+
+35E 
+  
+35E 
+
+30N 
+
+30N 
+30N 
+
+30N 
+
+35N 
+
+35N 
+35N 
+
+35N 
+
+40N 
+
+40N 
+40N 
+
+40N 
+
+45N 
+
+45N 
+45N 
+
+45N 
+
+50N 
+
+50N 
+50N 
+
+50N 
+
+FL360 
+
+FL360 
+
+ETNA 
+
+400 
+
+400 
+
+LTFE 
+
+LSGG 
+
+1 
+
+1 
+
+2 
+
+2 
+
+3 
+
+A 
+
+T 
+
+V 
+
+S 
+
+B 
+
+S 
+
+B 
+
+N 
+
+P 
+
+B 
+
+A 
+
+C 
+
+P 
+
+L 
+
+S 
+
+A 
+
+B 
+
+R 
+
+P 
+
+V 
+
+L 
+
+T 
+
+M 
+
+C 
+
+P 
+
+S 
+
+V 
+
+A 
+
+W 
+
+B B 
+
+L 
+
+B 
+
+S 
+
+T 
+
+A 
+
+K 
+
+CB CLOUD AREAS 
+
+-Not expected on the chart 
+
+area at the forecast issue time 
+
+ICING AREAS 
+
+1   100/200 
+
+2   XXX/260 
+
+3   XXX/240 
+
+TURBULENCE AREAS 
+
+1   160/400 
+
+VOLCANIC ERUPTIONS & 
+
+TROPICAL CYCLONES 
+
+ETNA 37.7N 15.0E 
+
+SIGNIFICANT WEATHER 
+
+FIXED TIME PROGNOSTIC CHART 
+
+ROUTE LTFE - LSGG 
+
+FL 100-450 
+
+VALID 1800 UTC 18 AUG 2026 
+
+BASED ON WAFC LONDON DATA 
+
+1800 UTC 17 AUG 2026 
+
+Processed by AIR SUPPORT Denmark 
+
+Created: 18-08-26 04:58:54 UTC 
+
+Projection: Lambert 
+
+CB IMPLIES TS, GR, MOD OR SEV TURBULENCE AND ICE 
+
+UNITS USED: HEIGHT IN FLIGHT LEVELS 
+
+CHECK SIGMET, ADVISORIES, ASHTAM AND NOTAM 
+
+FOR VOLCANIC ASH AND TROPICAL CYCLONES 
+
+Page 23 of 25 Total Pages 
+12E 
+  
+12E 
+  
+12E 
+
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+  
+14E 
+
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+  
+22E 
+
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+  
+24E 
+
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+  
+26E 
+
+30N 
+
+30N 
+30N 
+30N 
+30N 
+30N 
+30N 
+
+30N 
+
+32N 
+
+32N 
+32N 
+32N 
+32N 
+32N 
+32N 
+
+32N 
+
+34N 
+
+34N 
+34N 
+34N 
+34N 
+34N 
+34N 
+
+34N 
+
+36N 
+
+36N 
+36N 
+36N 
+36N 
+36N 
+36N 
+
+36N 
+
+38N 
+
+38N 
+38N 
+38N 
+38N 
+38N 
+38N 
+
+38N 
+
+40N 
+
+40N 
+40N 
+40N 
+40N 
+40N 
+40N 
+
+40N 
+
+OBSERVED DATA (18-08-26 03:00 UTC) 
+
+SFC-FL150 MOV SE 25KT 
+
+FL050-200 MOV SE 20KT 
+
+LTFE 
+
+14E 
+  
+14E 
+  
+14E 
+
+16E 
+  
+16E 
+  
+16E 
+  
+16E 
+
+18E 
+  
+18E 
+  
+18E 
+  
+18E 
+
+20E 
+  
+20E 
+  
+20E 
+  
+20E 
+
+22E 
+  
+22E 
+  
+22E 
+
+34N 
+34N 
+34N 
+34N 
+
+36N 
+36N 
+36N 
+36N 
+
+36N 
+
+38N 
+38N 
+38N 
+38N 
+
+38N 
+
+FORECAST +06H (18-08-26 09:00 UTC) 
+
+SFC-FL150 
+
+FL050-200 
+
+14E 
+  
+14E 
+  
+14E 
+
+16E 
+  
+16E 
+  
+16E 
+
+18E 
+  
+18E 
+  
+18E 
+
+20E 
+  
+20E 
+  
+20E 
+
+22E 
+  
+22E 
+  
+22E 
+
+34N 
+34N 
+34N 
+34N 
+
+36N 
+36N 
+36N 
+36N 
+
+38N 
+38N 
+38N 
+38N 
+
+38N 
+
+FORECAST +12H (18-08-26 15:00 UTC) 
+
+SFC-FL150 
+
+LTFE 
+
+LSGG 
+
+14E 
+  
+14E 
+  
+14E 
+
+16E 
+  
+16E 
+  
+16E 
+
+18E 
+  
+18E 
+  
+18E 
+
+20E 
+  
+20E 
+  
+20E 
+
+22E 
+  
+22E 
+  
+22E 
+
+34N 
+34N 
+34N 
+34N 
+
+36N 
+36N 
+36N 
+36N 
+
+38N 
+38N 
+38N 
+38N 
+
+FORECAST +18H (18-08-26 21:00 UTC) 
+
+SFC-FL150 
+
+LSGG 
+
+VOLCANIC ASH ADVISORY CHART 
+
+ROUTE LTFE - LSGG 
+
+18 AUG 07:00 - 18 AUG 09:47 UTC 
+
+Processed by AIR SUPPORT A/S Denmark 
+
+Generated: 18-08-26 04:58:54 UTC 
+
+Projection: Lambert 
+
+VA ADVISORY 
+
+DTG: 20260818/0300Z 
+
+VAAC: TOULOUSE 
+
+VOLCANO: ETNA 211060 
+
+PSN: N3744 E01459 
+
+AREA: SICILY VOLCANIC PROVINCE 
+
+SOURCE ELEV: 3357M 
+
+ADVISORY NR: 2026/104 
+
+INFO SOURCE: VONA, INGV WEBCAMS, 
+
+SAT IMAGERY 
+
+AVIATION COLOUR CODE: RED 
+
+ERUPTION DETAILS: ERUPTION AT 
+
+20260816/1620Z ONGOING ERUPTION 
+
+DECREASING 
+
+OBS VA DTG: 18/0300Z 
+
+OBS VA CLD: SFC/FL150 N3748 E01503 - 
+
+N3645 E01841 - N3536 E01800 - N3736 
+
+E01500 - N3748 E01503 MOV SE 25KT 
+
+FL050/200 N3536 E01800 - N3645 E01839 - 
+
+N3521 E02315 - N3400 E02342 - N3200 
+
+E02130 - N3536 E01800 MOV SE 20KT 
+
+FCST VA CLD +6 HR: 18/0900Z SFC/FL150 
+
+N3757 E01503 - N3538 E02027 - N3408 
+
+E01856 - N3730 E01442 - N3757 E01503 
+
+FL050/200 NO VA EXP 
+
+FCST VA CLD +12 HR: 18/1500Z SFC/FL150 
+
+N3438 E02015 - N3342 E01824 - N3527 
+
+E01700 - N3733 E01445 - N3748 E01500 - 
+
+N3618 E01806 - N3438 E02015 
+
+FCST VA CLD +18 HR: 18/2100Z SFC/FL150 
+
+N3430 E02006 - N3351 E01815 - N3530 
+
+E01703 - N3736 E01448 - N3751 E01506 - 
+
+N3621 E01809 - N3430 E02006 
+
+RMK: ASH EMISSION DECREASING. ASH 
+
+CLOUD MAINLY COMPOSED OF WATER 
+
+AND SO2 AND EASTERN CLOUD 
+
+DISSIPATING. QVA NOT PROVIDED DUE 
+
+TO THE LOW INTENSITY OF THE EVENT. 
+
+NXT ADVISORY: NO LATER THAN 
+
+20260818/0900Z= = 
+
+Page 24 of 25 Total Pages 
+5W 
+
+-0- 
+  
+-0- 
+
+5E 
+  
+5E 
+  
+5E 
+
+10E 
+  
+10E 
+  
+10E 
+
+15E 
+  
+15E 
+  
+15E 
+
+20E 
+  
+20E 
+  
+20E 
+
+25E 
+  
+25E 
+  
+25E 
+
+30E 
+  
+30E 
+  
+30E 
+
+35E 
+  
+35E 
+
+30N 
+
+30N 
+30N 
+
+30N 
+
+35N 
+
+35N 
+35N 
+
+35N 
+
+40N 
+
+40N 
+40N 
+
+40N 
+
+45N 
+
+45N 
+45N 
+
+45N 
+
+50N 
+
+50N 
+50N 
+
+50N 
+
+MILAS/ BODRUM 
+
+GENEVA 
+
+Andorra la Vella 
+
+Tirana 
+
+Vienna 
+
+Sarajevo 
+
+Brussels 
+
+Sofia 
+
+Bern 
+
+Nicosia 
+
+Prague 
+
+Berlin 
+
+Algiers 
+
+Cairo 
+
+Paris 
+
+London 
+
+Saint Peter Port 
+
+Athens 
+
+Zagreb 
+
+Budapest 
+
+Rome 
+
+Pristina 
+
+Vaduz 
+
+Luxembourg 
+
+Tripoli 
+
+Monaco 
+
+Chisinau 
+
+Podgorica 
+
+Skopje 
+
+Valletta 
+
+Amsterdam 
+
+Warsaw 
+
+Bucharest Belgrade 
+
+Ljubljana 
+
+Bratislava 
+
+San Marino 
+
+Tunis 
+
+Ankara 
+
+Kyiv 
+
+Vatican City 
+
+Antwerpen 
+
+Homyel' 
+
+Stuttgart 
+
+Nuernberg 
+
+Munich 
+
+Leipzig 
+Koeln 
+
+Hannover 
+
+Wandsbek Hamburg 
+
+Frankfurt am Main 
+
+Essen 
+
+Duisburg 
+
+Dresden 
+
+Bremen 
+
+Boumerdas 
+
+Tebessa 
+
+Constantine 
+
+Tanta 
+
+Shubra al Khaymah 
+
+Port Said 
+
+Suez 
+
+Al Mansurah 
+
+Al Mahallah al Kubra 
+
+Giza 
+
+Ismailia 
+
+Alexandria 
+
+Palma 
+
+Barcelona 
+
+Toulouse 
+
+Marseille 
+
+Lyon 
+
+Leicester 
+
+Cardiff 
+
+Birmingham 
+
+Palermo 
+
+Turin 
+
+Naples 
+
+Milan 
+
+Genoa 
+
+Benghazi 
+
+The Hague   
+Rotterdam 
+
+Wroclaw 
+
+Szczecin 
+
+Poznan 
+
+Lodz 
+
+Krakow 
+
+Voronezh 
+
+Kursk 
+
+Konya 
+Izmir 
+
+Eskisehir 
+
+Antalya 
+
+UEskuedar Umraniye 
+
+Maltepe Istanbul 
+
+Bursa   
+Cankaya 
+
+Karabaglar 
+
+Muratpasa 
+
+Zaporizhzhya 
+
+Sevastopol 
+
+Odessa 
+
+Mykolayiv 
+
+Lviv 
+
+Kryvyy Rih 
+
+Kharkiv 
+
+Dnipro 
+
+Adriatic Sea 
+
+Aegean Sea 
+
+Black Sea 
+
+English Channel 
+
+Ionian Sea 
+
+Sea Of Azov 
+
+Sea Of Marmara 
+
+Tyrrhenian Sea 
+
+FLIGHT INFORMATION 
+
+Flight: TCREC 
+
+Aircraft: GLF4 
+
+Captain: ON DUTY PIC 
+
+First Officer: N/A 
+
+From: 
+
+MILAS/ BODRUM 
+
+Departure Time: 
+
+18 AUG 10:00 (18 AUG 07:00 UTC) 
+
+To: 
+
+GENEVA 
+
+Arrival Time: 
+
+18 AUG 11:47 (18 AUG 09:47 UTC) 
+
+Estimated Flying Time: 
+
+02 h 47 min 
+
+Distance: 
+
+2135 KM/ 1153 NM 
+
+Altitude: 
+
+12190 M/ 40000 FT 
+
+Average Speed: 
+
+767 KPH/ 476 MPH/ 414 KT 
+
+Average Temperature: 
+
+-36°C/ -33ºF 
+
+Generated: 18-08-26 04:58:56 UTC 
+
+Created on the PPS Flight Planning & CrewBriefing system from AIR SUPPORT, www.ppsflightplanning.com 
+
+Page 25 of 25 Total Pages 
