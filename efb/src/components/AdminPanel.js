@@ -5,6 +5,7 @@ import FTLPanel from './FTLPanel';
 import { toMin as ftlToMin, fmtMin as ftlFmtMin } from './FTLEngine';
 import { normTime, normDuration, up } from './inputFormat';
 import { supabase } from '../supabaseClient';
+import NotificationBell from './NotificationBell';
 import { RiskSurvey, AssessmentHistory } from './RiskSurvey';
 import PlanDocuments from './PlanDocuments';
 import Drawer from './Drawer';
@@ -1687,6 +1688,10 @@ export default function AdminPanel({onBack, customerId=null, companyName=null}){
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <span style={{ fontSize:10, color:C.t3 }}>{user?.email}</span>
+          {/* EGITIM UYARISI HER SEKMEDE GORUNUR (Serkan, 17 Agu): FTL sekmesinin
+              icinde kalsaydi yalniz oraya gireni uyarirdi. Sure bitisi ise
+              herhangi bir an farkedilmesi gereken bir sey. */}
+          <NotificationBell customerId={customerId} />
           <ThemeToggle />
           <FontControls /><button style={{ background:'none', color:'var(--t2)', border:`1px solid ${C.border2}`, borderRadius:6, padding:'7px 14px', fontSize:11, fontFamily:'var(--mono)', cursor:'pointer', letterSpacing:1 }} onClick={onBack}>{customerId ? '← SUPER ADMIN' : 'DASHBOARD'}</button>
         </div>
