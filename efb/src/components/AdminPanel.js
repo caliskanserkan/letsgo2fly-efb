@@ -576,9 +576,30 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
   );
 }
 
-export function AdminEditsHistory({archivedFlightId, readOnly=false}){
+export function AdminEditsHistory({archivedFlightId, planId=null, readOnly=false}){
   const [edits,setEdits]=useState([]);const[loading,setLoading]=useState(true);
-  useEffect(()=>{ if(!archivedFlightId)return; (async()=>{ setLoading(true); const{data}=await supabase.from('admin_edits').select('id,created_at,edit_type,field_name,old_value,new_value,reason').eq('archived_flight_id',archivedFlightId).order('created_at',{ascending:false}); setEdits(data||[]); setLoading(false); })(); },[archivedFlightId]);
+  // IKI KAYNAK, TEK EKRAN (18 Agu 2026 saha bulgusu — Serkan: "raporda gelmis,
+  // loglarda gelmedi"): sirket admininin duzeltmeleri `admin_edits`e, GO2/super
+  // admin duzeltmeleri ise gerekce kapisinin yazdigi `superadmin_log`a duser.
+  // Burasi yalniz birincisini okuyordu; o ucusun yakit degerleri arsivden SONRA
+  // duzeltilmisken ekran "NO ADMIN EDITS ON RECORD" diyordu. Denetci ucusu acip
+  // "hic duzenleme yok" okuyordu — Ilke 1 ihlali.
+  // EDIT REPORTS sekmesi bu birlestirmeyi zaten yapiyordu; cekmece geride kalmis.
+  useEffect(()=>{ if(!archivedFlightId)return; (async()=>{ setLoading(true);
+    const [{data:ae},{data:sa}] = await Promise.all([
+      supabase.from('admin_edits').select('id,created_at,edit_type,field_name,old_value,new_value,reason').eq('archived_flight_id',archivedFlightId).order('created_at',{ascending:false}),
+      planId
+        ? supabase.from('superadmin_log').select('id,at,op,field,old_value,new_value,reason,table_name').eq('row_id',planId).order('at',{ascending:false})
+        : Promise.resolve({data:[]}),
+    ]);
+    const jsonStr=(v)=>v==null?'':(typeof v==='string'?v:JSON.stringify(v)).replace(/^"|"$/g,'');
+    const birlesik=[
+      ...(ae||[]).map(r=>({...r,_go2:false})),
+      ...(sa||[]).map(r=>({ id:'sa_'+r.id, created_at:r.at, edit_type:r.op,
+        field_name:r.field, old_value:jsonStr(r.old_value), new_value:jsonStr(r.new_value),
+        reason:r.reason, _go2:true, _table:r.table_name })),
+    ].sort((x,y)=>new Date(y.created_at)-new Date(x.created_at));
+    setEdits(birlesik); setLoading(false); })(); },[archivedFlightId,planId]);
   if(loading)return<div style={{padding:'10px 16px',fontSize:11,color:C.t3,fontFamily:'var(--mono)'}}>LOADING EDIT HISTORY...</div>;
   if(!edits.length)return<div style={{padding:'10px 16px',fontSize:11,color:C.t3,fontFamily:'var(--mono)'}}>NO ADMIN EDITS ON RECORD</div>;
   return(
@@ -586,7 +607,7 @@ export function AdminEditsHistory({archivedFlightId, readOnly=false}){
       <div style={{padding:'8px 16px',background:C.bg3,borderBottom:`1px solid ${C.border}`,borderTop:`1px solid ${C.border}`}}><span style={{...S.label,color:readOnly?'var(--accent)':C.accent}}>{readOnly?'ADMIN EDIT HISTORY — READ ONLY':'EDIT HISTORY'}</span></div>
       {edits.map(e=>(
         <div key={e.id} style={{padding:'10px 16px',borderBottom:`1px solid ${C.border}`,borderLeft:`3px solid ${e.edit_type==='DELETE'?C.red:C.accent}`}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}><span style={S.badge(e.edit_type==='DELETE'?'red':'')}>{e.edit_type||'EDIT'}</span><span style={{fontSize:10,color:C.t3,fontFamily:'var(--mono)'}}>{new Date(e.created_at).toLocaleString('en-GB')}</span></div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}><span style={S.badge(e._go2?'amber':(e.edit_type==='DELETE'?'red':''))}>{e._go2?'GO2 SUPPORT':(e.edit_type||'EDIT')}</span><span style={{fontSize:10,color:C.t3,fontFamily:'var(--mono)'}}>{new Date(e.created_at).toLocaleString('en-GB')}</span></div>
           {e.field_name!=='RECORD_DELETED'&&(<div style={{fontSize:11,color:C.t1,fontFamily:'var(--mono)',marginBottom:3}}><span style={{color:C.accent}}>{e.field_name}</span>{' '}<span style={{color:C.t3}}>{String(e.old_value||'—').slice(0,25)}</span>{' > '}<span style={{color:'var(--green)'}}>{String(e.new_value||'—').slice(0,25)}</span></div>)}
           <div style={{fontSize:11,color:C.t2,fontFamily:'var(--mono)',lineHeight:1.5}}><span style={{color:C.t3}}>Reason: </span>{e.reason||'—'}</div>
         </div>
@@ -1013,7 +1034,7 @@ function ArchivedFlts({toast,user,customerId=null,readOnly=false}){
                 <CollapsibleEditBox title="NAV LOG" icon="NAV" color="var(--accent)" logs={logsByCategory.navlog} fields={[{key:'off_blocks',label:'Off Blocks (HH:MM)',type:'time'},{key:'takeoff_time',label:'T/O Time (HH:MM)',type:'time'},{key:'landing_time',label:'Landing (HH:MM)',type:'time'},{key:'on_blocks',label:'On Blocks (HH:MM)',type:'time'},{key:'takeoff_fuel',label:'T/O Fuel (lb)',type:'text'},{key:'remaining_fuel',label:'Rem Fuel (lb)',type:'text'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
                 <CollapsibleEditBox title="LND Data" icon="LND" color="var(--accent)" logs={logsByCategory.lnd} fields={[{key:'arr_rwy',label:'ARR RWY',type:'text'},{key:'arr_atis',label:'ARR ATIS',type:'text'},{key:'actual_lw',label:'Actual LW (lb)',type:'text'},{key:'vref',label:'Vref (kt)',type:'text'},{key:'req_landing_dist',label:'Req LND Dist',type:'text'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
               </div>
-              <AdminEditsHistory archivedFlightId={sel.id} readOnly={false}/>
+              <AdminEditsHistory archivedFlightId={sel.id} planId={sel.plan_id} readOnly={false}/>
             </>
           )}
 
