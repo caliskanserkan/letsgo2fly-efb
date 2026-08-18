@@ -488,7 +488,7 @@ function ModuleLogView({ planId, live=false }) {
   );
 }
 
-function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, toast, user, pilots=[] }) {
+function CollapsibleEditBox({ title, icon, color, logs, fields, derived=null, flight, onSave, toast, user, pilots=[] }) {
   const [open,setOpen]=useState(false);
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({});
@@ -548,6 +548,22 @@ function CollapsibleEditBox({ title, icon, color, logs, fields, flight, onSave, 
                   </div>
                 </div>
               ); })}
+            </div>
+          )}
+          {/* TURETILMIS DEGERLER — salt okunur, DUZENLENEMEZ.
+              Ilke 3: turetilebilen sey saklanmaz. FUEL USED = T/O yakiti - kalan;
+              blok/ucus suresi de damgalardan cikar. Bunlari duzenlenebilir alan
+              yapsaydik ikinci bir dogruluk kaynagi olusurdu ve er ya da gec
+              kaynagiyla celiserdi. Gosterilir, yazilmaz. */}
+          {derived && derived.length > 0 && (
+            <div style={{padding:'8px 16px',borderBottom:`1px solid ${C.border}`,background:'var(--bg2)'}}>
+              <div style={{fontSize:10,color:C.t3,fontWeight:700,letterSpacing:1,fontFamily:'var(--mono)',marginBottom:6}}>DERIVED — NOT EDITABLE</div>
+              {derived.filter(d=>d.value!=null&&d.value!=='').map(d=>(
+                <div key={d.label} style={{display:'flex',justifyContent:'space-between',padding:'3px 0'}}>
+                  <span style={{fontSize:11,color:C.t2,fontFamily:'var(--mono)'}}>{d.label}</span>
+                  <span style={{fontSize:11,color:d.color||C.t1,fontFamily:'var(--mono)',fontWeight:700}}>{d.value}</span>
+                </div>
+              ))}
             </div>
           )}
           {fields && fields.length > 0 && (
@@ -850,6 +866,12 @@ function ArchivedFlts({toast,user,customerId=null,readOnly=false}){
     tkof:      planLogs.filter(l=>['TKOF_RVSM_GROUND','TKOF_SPEEDS_ENTERED'].includes(l.action)).slice(-2),
     navlog:    planLogs.filter(l=>['OFF_BLOCKS','TAKEOFF','LANDING','ON_BLOCKS','FUEL_REMAINING'].includes(l.action)),
     lnd:       planLogs.filter(l=>['LND_PERF_DATA','LND_RWY_SELECTED'].includes(l.action)).slice(-2),
+    // END FLT izi ZATEN vardi (FIELD_ENTRY module='END FLT' + MODULE_COMPLETE +
+    // FLIGHT_ARCHIVED) — eksik olan yalniz cekmecede gosterilmesiydi.
+    endflt:    planLogs.filter(l=>
+                 l.action==='FLIGHT_ARCHIVED' ||
+                 (l.action==='MODULE_COMPLETE' && l.details?.module==='endflt') ||
+                 (l.action==='FIELD_ENTRY' && l.details?.module==='END FLT')),
   };
 
   const openEdit=f=>{
@@ -1034,6 +1056,39 @@ function ArchivedFlts({toast,user,customerId=null,readOnly=false}){
                 <CollapsibleEditBox title="T/O Data" icon="T/O" color="var(--amber)" logs={logsByCategory.tkof} fields={[{key:'dep_rwy',label:'DEP RWY',type:'text'},{key:'dep_atis',label:'DEP ATIS',type:'text'},{key:'sid',label:'SID',type:'text'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
                 <CollapsibleEditBox title="NAV LOG" icon="NAV" color="var(--accent)" logs={logsByCategory.navlog} fields={[{key:'off_blocks',label:'Off Blocks (HH:MM)',type:'time'},{key:'takeoff_time',label:'T/O Time (HH:MM)',type:'time'},{key:'landing_time',label:'Landing (HH:MM)',type:'time'},{key:'on_blocks',label:'On Blocks (HH:MM)',type:'time'},{key:'takeoff_fuel',label:'T/O Fuel (lb)',type:'text'},{key:'remaining_fuel',label:'Rem Fuel (lb)',type:'text'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
                 <CollapsibleEditBox title="LND Data" icon="LND" color="var(--accent)" logs={logsByCategory.lnd} fields={[{key:'arr_rwy',label:'ARR RWY',type:'text'},{key:'arr_atis',label:'ARR ATIS',type:'text'},{key:'actual_lw',label:'Actual LW (lb)',type:'text'},{key:'vref',label:'Vref (kt)',type:'text'},{key:'req_landing_dist',label:'Req LND Dist',type:'text'}]} flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
+                {/* END FLT — ucusun KAPANIS karti (Serkan, 18 Agu 2026:
+                    "burda birde end flt olsun details da ... {OFF BLOCK, T/O,
+                     LANDING, ON BLOCK, PAX, FUEL USED}").
+                    Iz zaten vardi (CYCLES / PAX / MODULE_COMPLETE / FLIGHT_ARCHIVED),
+                    eksik olan cekmecede gorunmesiydi.
+                    FUEL USED burada duruyor cunku End Flt "ucus kapandi" anidir:
+                    o an bilinen her sey burada toplanir. Plan ile gerceklesen yan
+                    yana olmazsa denetci iki sayiyi kendi hesaplamak zorunda kalir. */}
+                <CollapsibleEditBox title="End Flt" icon="END" color="var(--green)" logs={logsByCategory.endflt}
+                  derived={(()=>{ const hhmm=t=>t?new Date(t).toISOString().slice(11,16)+' Z':null;
+                    const dk=m=>m==null?null:`${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`;
+                    const n=v=>{const x=parseInt(String(v??'').replace(/[^\d-]/g,''),10);return Number.isFinite(x)?x:null;};
+                    const to=n(sel.takeoff_fuel), rem=n(sel.remaining_fuel);
+                    const used=(to!=null&&rem!=null)?to-rem:null;
+                    const plan=n(sel.plans?.trip_fuel);
+                    const dev=(used!=null&&plan!=null)?used-plan:null;
+                    return [
+                      {label:'OFF BLOCK', value:hhmm(sel.off_blocks)},
+                      {label:'T/O',       value:hhmm(sel.takeoff_time)},
+                      {label:'LANDING',   value:hhmm(sel.landing_time)},
+                      {label:'ON BLOCK',  value:hhmm(sel.on_blocks)},
+                      {label:'BLOCK TIME',  value:dk(sel.block_minutes)},
+                      {label:'FLIGHT TIME', value:dk(sel.airborne_minutes)},
+                      {label:'FUEL USED (T/O − REM)', value:used!=null?used.toLocaleString()+' lb':null},
+                      {label:'PLAN TRIP FUEL', value:plan!=null?plan.toLocaleString()+' lb':null},
+                      // Sapma: eksi = plandan FAZLA yanmis. Rapordaki "vs OFP Plan"
+                      // ile ayni yon, ayni kaynak — iki ekran ayni sayiyi soyler.
+                      {label:'FUEL DEV vs PLAN',
+                       value:dev!=null?(dev>0?'+':'')+dev.toLocaleString()+' lb':null,
+                       color:dev==null?null:(dev>0?'var(--green)':'var(--red)')},
+                    ]; })()}
+                  fields={[{key:'pax',label:'PAX',type:'text'},{key:'landing_count',label:'Cycles / Landings',type:'text'},{key:'divert_reason',label:'Divert Reason',type:'text'}]}
+                  flight={sel} onSave={load} toast={toast} user={user} pilots={pilots}/>
               </div>
               <AdminEditsHistory archivedFlightId={sel.id} planId={sel.plan_id} readOnly={false}/>
             </>
@@ -1351,7 +1406,7 @@ function Statistics({customerId=null}){
     let aq=supabase.from('aircraft').select('registration').order('registration');
     if(customerId){ pq=pq.eq('customer_id',customerId); aq=aq.eq('customer_id',customerId); }
     const[{data:f},{data:p},{data:a}]=await Promise.all([
-      supabase.from('archived_flights').select('*,plans(customer_id,dep,dest,reg,ac_type,pf_pilot,pm_pilot)').order('archived_at',{ascending:false}),
+      supabase.from('archived_flights').select('*,plans(customer_id,dep,dest,reg,ac_type,pf_pilot,pm_pilot,trip_fuel)').order('archived_at',{ascending:false}),
       pq, aq,
     ]);
     setFlights((f||[]).filter(x=>!customerId||!x.plans||x.plans.customer_id===customerId));
