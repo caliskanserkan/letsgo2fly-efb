@@ -109,6 +109,20 @@ export default function TrainingPanel({ toast, myProfile, pilots, customerId, re
   const pilotName = useCallback(
     (id) => { const p = crew.find(x => x.id === id); return p ? (p.code ? p.code + ' — ' : '') + (p.full_name || '') : '—'; },
     [crew]);
+  // KRONOLOJIK KURAL (Serkan, 19 Agu): hangi kaydin gecerli oldugunu `status`
+  // damgasi degil TARIH soyler. Damga giris sirasina gore yaziliyordu ve eski
+  // tarihli bir kaydin ikinci kez girilmesi daha yeni bir kaydi sessizce devre
+  // disi birakabiliyordu (AAK/LC, 19 Agu canli veri). Butun kayitlar listede
+  // DURUR — "girili butun kayitlar duracak sistemde, ama uyari esigi en
+  // guncele gore".
+  //
+  // ⚠️ BU HOOK ASAGIDAKI ERKEN RETURN'LERDEN ONCE DURMAK ZORUNDA. Ilk surumde
+  //    `visible`in yanina, return'lerin ALTINA konmustu: loading=true iken hic
+  //    calismiyor, veri gelince calisiyordu -> React "hook sayisi degisti" deyip
+  //    bileseni cokertiyor ve TRAINING sekmesi HIC ACILMIYORDU (19 Agu).
+  const gecerliIds = useMemo(
+    () => new Set(latestPerTraining(rows).map(r => r.id)), [rows]);
+
   const t = todayLocal();
 
   if (loading) return <div style={{ padding:24, color:C.t3, fontSize:11, fontFamily:'var(--mono)' }}>LOADING TRAINING DATA...</div>;
@@ -124,14 +138,6 @@ export default function TrainingPanel({ toast, myProfile, pilots, customerId, re
     );
   }
 
-  // KRONOLOJIK KURAL (Serkan, 19 Agu): hangi kaydin gecerli oldugunu `status`
-  // damgasi degil TARIH soyler. Damga giris sirasina gore yaziliyordu ve eski
-  // tarihli bir kaydin ikinci kez girilmesi daha yeni bir kaydi sessizce devre
-  // disi birakabiliyordu (AAK/LC, 19 Agu canli veri). Butun kayitlar listede
-  // DURUR — "girili butun kayitlar duracak sistemde, ama uyari esigi en
-  // guncele gore".
-  const gecerliIds = useMemo(
-    () => new Set(latestPerTraining(rows).map(r => r.id)), [rows]);
   const visible = rows.filter(r => showHistory || gecerliIds.has(r.id));
 
   return (
