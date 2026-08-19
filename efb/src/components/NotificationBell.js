@@ -130,6 +130,11 @@ export default function NotificationBell({ customerId }) {
         title={okunamadi
           ? `Training alerts not available${sonOkuma ? ` — last read ${sonOkuma}` : ''}`
           : (items.length ? `${items.length} training alert(s)` : 'No training alerts')}
+        // Canin o anki durumu OKUNABILIR sekilde isaretlenir. Renk `var(--red)`
+        // gibi degiskenlerle verildigi icin testten okunamiyor; bu isaret hem
+        // render testinin "en yuksek oncelik rengi belirliyor mu" sorusunu
+        // cevaplamasini saglar hem sahada hata ayiklamayi kolaylastirir.
+        data-durum={okunamadi ? 'NOT_AVAILABLE' : (worst || 'NONE')}
         style={{ position:'relative', width:34, height:34, background:'transparent',
                  border:`1px solid ${C.border2}`, borderRadius:6, color: renk || C.t3,
                  fontSize:15, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
@@ -206,7 +211,8 @@ export default function NotificationBell({ customerId }) {
               // Renk tek kaynaktan — canin kendi esleme tablosu YOK.
               const c = STATE_COLOR[x.st.state];
               return (
-                <div key={x.id} style={{ padding:'11px 16px', borderBottom:`1px solid ${C.border}`,
+                <div key={x.id} data-testid="training-alert" data-durum={x.st.state}
+                     style={{ padding:'11px 16px', borderBottom:`1px solid ${C.border}`,
                                          borderLeft:`3px solid ${c}`,
                                          opacity: okunamadi ? .45 : 1 }}>
                   {/* Suresi GECMIS kalem CRITICAL ile ayni kirmizidir; ayrimi

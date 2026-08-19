@@ -13,7 +13,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "DISABLE_ESLINT_PLUGIN=true react-scripts build",
+    "build": "react-scripts build",
+    "lint": "eslint src --ext .js",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
@@ -36,6 +37,8 @@
     ]
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "http-proxy-middleware": "^3.0.5"
   }
 }
