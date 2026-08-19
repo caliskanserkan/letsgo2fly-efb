@@ -31,7 +31,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import {
   computeExpiry, trainingStatus, medicalValidityMonths, ageAt,
-  STATE_COLOR, DEFAULT_ALERTS,
+  STATE_COLOR, ALERT_DAYS, todayLocal, latestPerTraining, previousRecord,
 } from './TrainingRules';
 // Serbest metin girisleri BUYUK HARF — TEK KAYNAK `up` (iOS: TextFormat.swift).
 // Kendi buyuk-harf mantigimizi yazmayiz; Turkce karakter donusumu de burada.
@@ -59,7 +59,9 @@ const S = {
   modal:{ background:C.bg2, border:`1px solid ${C.border2}`, borderRadius:12, width:540, maxWidth:'100%', maxHeight:'90vh', overflowY:'auto', boxShadow:'var(--shadow)' },
 };
 const PILOT_ROLES = ['pilot', 'admin_pilot'];
-const today = () => new Date().toISOString().slice(0, 10);
+// "Bugun" TrainingRules.todayLocal()'dan gelir — kendi kopyamizi yazmayiz.
+// Eskiden burada da canda da ayri birer toISOString() kopyasi vardi (UTC) ve
+// Turkiye'de gece 00:00-03:00 arasi gun bir geride kaliyordu.
 
 const stateBadge = (state, daysLeft) => {
   const c = STATE_COLOR[state] || C.t3;
@@ -107,7 +109,7 @@ export default function TrainingPanel({ toast, myProfile, pilots, customerId, re
   const pilotName = useCallback(
     (id) => { const p = crew.find(x => x.id === id); return p ? (p.code ? p.code + ' — ' : '') + (p.full_name || '') : '—'; },
     [crew]);
-  const t = today();
+  const t = todayLocal();
 
   if (loading) return <div style={{ padding:24, color:C.t3, fontSize:11, fontFamily:'var(--mono)' }}>LOADING TRAINING DATA...</div>;
 
@@ -122,7 +124,15 @@ export default function TrainingPanel({ toast, myProfile, pilots, customerId, re
     );
   }
 
-  const visible = rows.filter(r => showHistory || r.status === 'current');
+  // KRONOLOJIK KURAL (Serkan, 19 Agu): hangi kaydin gecerli oldugunu `status`
+  // damgasi degil TARIH soyler. Damga giris sirasina gore yaziliyordu ve eski
+  // tarihli bir kaydin ikinci kez girilmesi daha yeni bir kaydi sessizce devre
+  // disi birakabiliyordu (AAK/LC, 19 Agu canli veri). Butun kayitlar listede
+  // DURUR — "girili butun kayitlar duracak sistemde, ama uyari esigi en
+  // guncele gore".
+  const gecerliIds = useMemo(
+    () => new Set(latestPerTraining(rows).map(r => r.id)), [rows]);
+  const visible = rows.filter(r => showHistory || gecerliIds.has(r.id));
 
   return (
     <>
@@ -171,8 +181,8 @@ export default function TrainingPanel({ toast, myProfile, pilots, customerId, re
               }
               return mine.map((r, i) => {
                 const cat = catByCode[r.training_code];
-                const st = trainingStatus(r.expires_at, r.alert_days, t);
-                const sup = r.status === 'superseded';
+                const st = trainingStatus(r.expires_at, t);
+                const sup = !gecerliIds.has(r.id);   // gecerli DEGIL (tarihe gore)
                 return (
                   <tr key={r.id} style={sup ? { opacity:.5 } : undefined}>
                     <td style={S.td}>{i === 0 ? (p.code ? p.code + ' — ' : '') + (p.full_name || '').toUpperCase() : ''}</td>
@@ -205,6 +215,9 @@ export default function TrainingPanel({ toast, myProfile, pilots, customerId, re
         <div style={S.note}>
           BASIS: SHT-OPS EK-3 · ORO.FC.230 (g)(h) &nbsp;·&nbsp; AMC1 ORO.FC.230(b)(4) &nbsp;·&nbsp;
           SHT-FCL FCL.740 / FCL.055 &nbsp;·&nbsp; SHT-MED MED.A.045<br />
+          Alerts are fixed at {ALERT_DAYS.NOTICE} / {ALERT_DAYS.WARNING} / {ALERT_DAYS.CRITICAL} days
+          and count down on the local calendar day. Validity always follows the record with the
+          <b> latest completion date</b> — every record is kept, but only the newest one drives the alert.<br />
           An expired training does <b>not</b> block duty assignment — it raises a warning only.
           Trainings with no record produce no warning. Records are never deleted: a typo is
           corrected with EDIT (reason required, logged), a new event creates a new row and
@@ -263,28 +276,35 @@ function TrainingModal({ toast, myProfile, customerId, crew, catalog, rows, pilo
 
   const [pilotId, setPilotId]   = useState(row?.pilot_id || crew[0]?.id || '');
   const [code, setCode]         = useState(row?.training_code || catalog[0]?.code || '');
-  const [completed, setCompleted] = useState(row?.completed_date || today());
+  const [completed, setCompleted] = useState(row?.completed_date || todayLocal());
   const [months, setMonths]     = useState(row?.validity_months != null ? String(row.validity_months) : '');
   const [issuedBy, setIssuedBy] = useState(row?.issued_by || '');
   const [dob, setDob]           = useState(row?.date_of_birth || '');
   const [notes, setNotes]       = useState(row?.notes || '');
-  const [alerts, setAlerts]     = useState((row?.alert_days || DEFAULT_ALERTS).join(','));
   const [reason, setReason]     = useState('');
   const [saving, setSaving]     = useState(false);
 
   const cat = useMemo(() => catalog.find(c => c.code === code) || null, [catalog, code]);
 
-  // Ayni pilot+kod icin YURURLUKTEKI kayit -> yeni giriste bu bir YENILEMEDIR.
-  // Edit modunda kendisi haric bakariz.
-  const prev = useMemo(() => rows.find(r =>
-      r.pilot_id === pilotId && r.training_code === code &&
-      r.status === 'current' && r.id !== row?.id) || null,
+  // Ayni pilot+kod icin GIRILEN TARIHTEN ONCEKI kayit — devir capasi budur.
+  // Eskiden `status==='current'` satiri aranirdi; damga giris sirasina gore
+  // yazildigi icin geriye donuk bir kayit girildiginde YANLIS capa secilirdi.
+  // Simdi tarihten bulunur ve `superseded_by` baglantisina HIC bakilmaz —
+  // o baglanti kopsa bile hesap dogru kalir (19 Agu acik bulgusu kapandi).
+  const prev = useMemo(
+    () => previousRecord(rows, { pilotId, code, completed, excludeId: row?.id || null }),
+    [rows, pilotId, code, completed, row]);
+
+  // Ayni kalemin BUTUN kayitlari (kendisi haric) — geriye donuk giris tespiti.
+  const grup = useMemo(
+    () => rows.filter(r => r.pilot_id === pilotId && r.training_code === code && r.id !== row?.id),
     [rows, pilotId, code, row]);
 
-  // Edit'te capa, bu satiri ureten ONCEKI kayittir (superseded_by = bu satir).
-  const editPrevExpiry = useMemo(
-    () => (editing ? rows.find(r => r.superseded_by === row?.id)?.expires_at || null : null),
-    [editing, rows, row]);
+  // Girilen tarih grubun en yenisi mi? Degilse bu kayit UYARIYI BELIRLEMEZ —
+  // ama sistemde durur (Serkan: "girili butun kayitlar duracak sistemde").
+  const dahaYeniVar = useMemo(
+    () => grup.find(r => (r.completed_date || '') > (completed || '')) || null,
+    [grup, completed]);
 
   const prevDob = useMemo(
     () => rows.find(r => r.pilot_id === pilotId && r.training_code === code && r.date_of_birth && r.id !== row?.id)?.date_of_birth || '',
@@ -295,7 +315,6 @@ function TrainingModal({ toast, myProfile, customerId, crew, catalog, rows, pilo
   useEffect(() => {
     if (!cat || editing) return;
     setMonths(cat.default_validity_months != null ? String(cat.default_validity_months) : '');
-    setAlerts((cat.default_alert_days || DEFAULT_ALERTS).join(','));
   }, [cat, editing]);
 
   // MED: sure DOGUM TARIHINDEN — MED.A.045(a)(2); yas MUAYENE tarihindeki yas
@@ -309,8 +328,8 @@ function TrainingModal({ toast, myProfile, customerId, crew, catalog, rows, pilo
     completed,
     validityMonths: months === '' ? null : Number(months),
     cat,
-    prevExpiry: editing ? editPrevExpiry : (prev?.expires_at || null),
-  }), [completed, months, cat, prev, editing, editPrevExpiry]);
+    prevExpiry: prev?.expires_at || null,
+  }), [completed, months, cat, prev]);
 
   const dobWarn = cat?.age_dependent && dob && prevDob && dob !== prevDob;
 
@@ -322,7 +341,9 @@ function TrainingModal({ toast, myProfile, customerId, crew, catalog, rows, pilo
     if (editing && !reason.trim()) { toast?.('REASON REQUIRED FOR CORRECTION'); return; }
     setSaving(true);
 
-    const alertArr = alerts.split(',').map(x => parseInt(x.trim(), 10)).filter(Number.isFinite);
+    // alert_days ARTIK YAZILMAZ: esik 60/30/15 sabittir ve TrainingRules'ta
+    // tek yerde durur (Serkan, 19 Agu: "ayni kalsin, degismesin"). Kolon semada
+    // kalir, eski kayitlarin degeri silinmez (Ilke 4) — sadece okunmaz.
     const fields = {
       pilot_id: pilotId,
       training_code: code,
@@ -332,7 +353,6 @@ function TrainingModal({ toast, myProfile, customerId, crew, catalog, rows, pilo
       applied_rule: calc.appliedRule,
       anchor_date: calc.anchorDate,
       issued_by: issuedBy || null,
-      alert_days: alertArr,
       date_of_birth: cat?.age_dependent ? (dob || null) : null,
       notes: notes || null,
     };
@@ -365,26 +385,50 @@ function TrainingModal({ toast, myProfile, customerId, crew, catalog, rows, pilo
     }
 
     // ───────────── ADD / RENEW: yeni satir ─────────────
-    // Yenilemede once eskisini superseded yapariz (kismi unique index ayni anda
-    // iki 'current' satira izin vermez). Insert duserse GERI ALIRIZ — yarim
-    // durumda birakmayiz (Ilke 2: sessiz basarisizlik yok).
-    if (prev) {
+    // KRONOLOJIK KURAL: yeni kayit 'current' damgasini ANCAK grubun en yeni
+    // tarihlisiyse alir. Geriye donuk bir giris yururlukteki kaydi DEVIRMEZ
+    // — eskiden deviriyordu ve AAK/LC boyle bozulmustu (19 Agu).
+    // Not: hesap zaten damgaya degil tarihe bakiyor; damga veritabani
+    // seviyesinde tutarli kalsin diye dogru yaziliyor (kismi unique index
+    // ayni anda iki 'current' satira izin vermez).
+    const mevcutCurrent = grup.find(r => r.status === 'current') || null;
+    const gecerliOlacak = !dahaYeniVar;
+    let uyari = '';
+
+    // Yeni kayit gecerli olacaksa, damgayi tasiyan satiri ONCE dusurmeliyiz.
+    // Insert duserse GERI ALIRIZ — yarim durumda birakmayiz (Ilke 2).
+    if (gecerliOlacak && mevcutCurrent) {
       const { error } = await supabase.from('pilot_trainings')
-        .update({ status:'superseded', updated_at:new Date().toISOString() }).eq('id', prev.id);
+        .update({ status:'superseded', updated_at:new Date().toISOString() }).eq('id', mevcutCurrent.id);
       if (error) { setSaving(false); toast?.('SUPERSEDE FAILED — ' + error.message); return; }
     }
 
     const { data: ins, error } = await supabase.from('pilot_trainings')
-      .insert({ ...fields, customer_id: customerId, status:'current', created_by: myProfile?.id || null })
+      .insert({ ...fields, customer_id: customerId,
+                status: gecerliOlacak ? 'current' : 'superseded',
+                superseded_by: gecerliOlacak ? null : (dahaYeniVar?.id || null),
+                created_by: myProfile?.id || null })
       .select('id').single();
 
     if (error) {
-      if (prev) await supabase.from('pilot_trainings').update({ status:'current' }).eq('id', prev.id);
+      if (gecerliOlacak && mevcutCurrent) {
+        await supabase.from('pilot_trainings').update({ status:'current' }).eq('id', mevcutCurrent.id);
+      }
       setSaving(false); toast?.('SAVE FAILED — ' + error.message); return;
     }
-    if (prev) await supabase.from('pilot_trainings').update({ superseded_by: ins.id }).eq('id', prev.id);
 
-    await supabase.from('training_changes').insert({
+    // superseded_by yalnizca IZ'dir; hesap ona BAKMAZ (capa tarihten bulunur).
+    // Yine de duserse SESSIZ KALMAYIZ (Ilke 2) — eskiden bu satirin sonucu hic
+    // okunmuyordu.
+    if (gecerliOlacak && mevcutCurrent) {
+      const { error: linkErr } = await supabase.from('pilot_trainings')
+        .update({ superseded_by: ins.id }).eq('id', mevcutCurrent.id);
+      if (linkErr) uyari = ' · LINK NOT WRITTEN';
+    }
+
+    // Denetim izi de kontrolsuz yazilmayacak: iz dusmusse kullanici bilmeli,
+    // cunku kayit izsiz kalmis olur (Ilke 4).
+    const { error: izErr } = await supabase.from('training_changes').insert({
       customer_id: customerId, training_id: ins.id,
       action: prev ? 'TRN_RENEW' : 'TRN_ADD',
       field: 'expires_at',
@@ -393,9 +437,11 @@ function TrainingModal({ toast, myProfile, customerId, crew, catalog, rows, pilo
       reason: reason.trim() || calc.appliedRule,
       changed_by: myProfile?.id || null,
     });
+    if (izErr) uyari += ' · AUDIT NOT WRITTEN';
 
     setSaving(false);
-    toast?.(prev ? 'TRAINING RENEWED' : 'TRAINING ADDED');
+    toast?.((gecerliOlacak ? (prev ? 'TRAINING RENEWED' : 'TRAINING ADDED')
+                          : 'RECORD ADDED — NOT THE LATEST, ALERTS UNCHANGED') + uyari);
     onSaved();
   };
 
@@ -440,10 +486,23 @@ function TrainingModal({ toast, myProfile, customerId, crew, catalog, rows, pilo
             )}
           </div>
 
-          {!editing && prev && (
+          {!editing && prev && !dahaYeniVar && (
             <div style={{ ...S.note, borderLeftColor:C.amber }}>
               RENEWAL — previous record expires <b>{prev.expires_at || '—'}</b> and will be marked
               SUPERSEDED. Its dates are not modified.
+            </div>
+          )}
+
+          {/* GERIYE DONUK GIRIS — sistem susmaz (Ilke 1). Kayit kabul edilir ve
+              listede durur, ama uyari esigini BELIRLEMEZ; belirleyen en yeni
+              tarihli kayittir (Serkan, 19 Agu). Eskiden bu giris yururlukteki
+              kaydi SESSIZCE devirirdi. */}
+          {dahaYeniVar && (
+            <div style={{ ...S.note, borderLeftColor:C.red, color:C.t1 }}>
+              NOT THE LATEST RECORD — a newer {code} exists for this pilot
+              (completed <b>{dahaYeniVar.completed_date}</b>, expires <b>{dahaYeniVar.expires_at || '—'}</b>).
+              <br />This entry will be kept in the history, but the alert will continue to follow the
+              newer record. Nothing is overwritten.
             </div>
           )}
 
@@ -497,9 +556,25 @@ function TrainingModal({ toast, myProfile, customerId, crew, catalog, rows, pilo
                    placeholder="E.G. GOZEN AIR TRAINING ORG." />
           </div>
 
+          {/* Esik ARTIK GIRILMEZ, gosterilir. Serbest metin kutusu 19 Agu'da
+              kaldirildi: "60,30" yazilirsa CRITICAL hic olusmuyor, bitise 1 gun
+              kala bile uyari amber kaliyordu. Serkan: "ayni kalsin, degismesin."
+              Sayilar ve renkler TrainingRules'tan basilir — ekranda gorunen ile
+              hesabin kullandigi ayrisamaz (Ilke 3). */}
           <div>
-            <label style={S.label}>Alerts (days before)</label>
-            <input style={S.input} value={alerts} onChange={e => setAlerts(e.target.value)} placeholder="60,30,15" />
+            <label style={S.label}>Alerts <span style={{ color:C.t3 }}>— fixed</span></label>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              {[['NOTICE', `${ALERT_DAYS.NOTICE}\u2013${ALERT_DAYS.WARNING} D`],
+                ['WARNING', `${ALERT_DAYS.WARNING}\u2013${ALERT_DAYS.CRITICAL} D`],
+                ['CRITICAL', `${ALERT_DAYS.CRITICAL}\u20130 D`],
+                ['EXPIRED', 'EXPIRED']].map(([st, txt]) => (
+                <span key={st} style={{ padding:'2px 9px', fontSize:9, letterSpacing:1,
+                                        fontWeight:700, fontFamily:'var(--mono)',
+                                        border:`1px solid ${STATE_COLOR[st]}`, color:STATE_COLOR[st] }}>
+                  {txt}
+                </span>
+              ))}
+            </div>
           </div>
 
           <div>

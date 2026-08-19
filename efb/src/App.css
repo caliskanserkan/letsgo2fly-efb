@@ -15,6 +15,14 @@
   --orange: #f97316;
   --red:    #ef4444;
   --amber:  #fbbf24;
+  /* --yellow: EGITIM uyarilarinin EN HAFIF kademesi (60-30 gun kala).
+     19 Agu 2026'da eklendi. Sebep: token adlari yaniltici — --amber (#fbbf24)
+     ekranda SARI gorunur, --orange (#f97316) ise amber gorunur. Serkan'in
+     istedigi uc kademe (sari / amber / kirmizi) mevcut tokenlarla kurulunca
+     iki kademe ayirt edilemeyen iki sariya cokuyordu. Bu yuzden gercek sari
+     ayri token oldu; amber kademesi --orange'a baglandi.
+     Bkz. TrainingRules.js STATE_COLOR. */
+  --yellow: #facc15;
   /* --violet: trafik isigi paletinin DISINDA kalan tek renk. FTL limit
      cubuklarinda "planlanan pay" bununla cizilir: yesil/sari/kirmizi bir
      SEVIYE anlatir, mor ise SEVIYE degil BOYUT anlatir (henuz ucul-madi).
@@ -52,6 +60,7 @@
   --orange: #c2410c;
   --red:    #dc2626;
   --amber:  #b45309;
+  --yellow: #ca8a04;   /* acik temada koyu ton — bkz. koyu tema notu */
   --violet: #6d28d9;   /* acik temada koyu ton — bkz. koyu tema notu */
 
   --accent-soft: rgba(3, 105, 161, 0.10);

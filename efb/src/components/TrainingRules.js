@@ -69,6 +69,16 @@ export function addDays(dateStr, n) {
   return new Date(t).toISOString().slice(0, 10);
 }
 
+// ── BUGUN — CIHAZIN YEREL TAKVIM GUNU ───────────────────────────────
+// Serkan (19 Agu 2026): "bu sayac lokal gun takip etmeli."
+// Onceki surumde hem can hem TRAINING sekmesi kendi `toISOString()` kopyasini
+// kullaniyordu. O UTC gunudur: Turkiye'de (UTC+3) gece 00:00-03:00 arasi tarih
+// BIR GUN GERIDE kalir -> "kac gun kaldi" 1 fazla gorunur ve gun sinirinda
+// yanlis renk cikar (bitis gunu sabah 01:00'de hala "1 gun var" der).
+// 'sv-SE' yerel takvim gununu YYYY-MM-DD olarak verir.
+// TEK YARDIMCI: hem can hem panel bunu cagirir, ikinci kopya yazilmaz (Ilke 3).
+export const todayLocal = () => new Date().toLocaleDateString('sv-SE');
+
 /** a - b, GUN farki (ikisi de 'YYYY-MM-DD'). */
 export function diffDays(a, b) {
   if (!a || !b) return null;
@@ -173,29 +183,134 @@ export function computeExpiry({ completed, validityMonths, cat, prevExpiry = nul
   };
 }
 
-// ── ALARM DURUMU ────────────────────────────────────────────────────
-// Serkan: 60 / 30 / 15 gun kala uyari; esikler egitim basina degistirilebilir.
-// Gecerlilik BITIS GUNUNUN SONUNA kadar surer -> bitis gunu daysLeft = 0 ve
-// hala VALID sayilir; EXPIRED ertesi gun baslar.
-export const DEFAULT_ALERTS = [60, 30, 15];
+// ── HANGI KAYIT GECERLI — KRONOLOJIK ────────────────────────────────
+// Serkan (19 Agu 2026): "her zaman kronolojik siraya gore takip edecegiz,
+// en son tarih belirleyecek uyarinin ne olacagini" · "girili butun kayitlar
+// duracak sistemde tabii ki, ama uyari esigi en guncele gore".
+//
+// 🔴 ONCEKI SURUM SIRAYA BAKMIYORDU. "Gecerli olan" `status='current'`
+//    damgasiyla soyleniyordu ve damgayi TARIH degil GIRIS SIRASI belirliyordu:
+//    + ADD TRN ile ne girilirse 'current' oluyor, o anda yururlukte olan
+//    'superseded' ediliyordu. 19 Agu'da canli veride goruldu (AAK, LC):
+//      LC 2025-10-08 -> 2026-10-31  current      <- eski kayit, IKINCI KEZ girilmis
+//      LC 2025-10-08 -> 2026-10-31  superseded   <- birebir kopyasi
+//      LC 2026-03-02 -> 2027-03-31  superseded   <- GERCEK EN YENI KONTROL
+//    Ekranda LC 5 ay ERKEN bitiyor gorunuyordu ve HICBIR uyari cikmamisti.
+//
+// Artik "gecerli olan" SAKLANMIYOR, TURETILIYOR (Ilke 3): en buyuk
+// completed_date; esitlikte sonra girilen (created_at) kazanir. `status`
+// kolonu iz olarak durur ama HESAP ONA BAKMAZ — bu sayede damga kaysa da,
+// `superseded_by` baglantisi kopsa da sonuc dogru kalir.
 
-export function trainingStatus(expiresAt, alertDays, todayStr) {
+/** a, b'den daha guncel mi? (tarih; esitlikte sonra girilen) */
+function dahaGuncel(a, b) {
+  const ta = a.completed_date || '', tb = b.completed_date || '';
+  if (ta !== tb) return ta > tb;
+  return (a.created_at || '') > (b.created_at || '');
+}
+
+/**
+ * Her (pilot + egitim kodu) icin GECERLI kaydi dondurur — uyari esigi buna
+ * gore kurulur. Girilen diger kayitlar listede DURUR, sadece gecerli olan
+ * bu degildir.
+ */
+export function latestPerTraining(rows) {
+  const en = new Map();
+  for (const r of rows || []) {
+    const k = `${r.pilot_id}|${r.training_code}`;
+    const v = en.get(k);
+    if (!v || dahaGuncel(r, v)) en.set(k, r);
+  }
+  return [...en.values()];
+}
+
+/**
+ * Devir (carry-forward) hesabinin capasi: verilen tarihten ONCEKI en yakin
+ * kayit. `superseded_by` baglantisina BAKMAZ — baglanti kopsa bile dogru
+ * calisir; zaten o baglantinin kopmasi 19 Agu'da acik bulgu olarak duruyordu.
+ * @param excludeId  EDIT'te duzenlenen satirin kendisi haric tutulur
+ */
+export function previousRecord(rows, { pilotId, code, completed, excludeId = null }) {
+  let best = null;
+  for (const r of rows || []) {
+    if (r.pilot_id !== pilotId || r.training_code !== code) continue;
+    if (excludeId && r.id === excludeId) continue;
+    if (!r.completed_date || !completed || r.completed_date >= completed) continue;
+    if (!best || r.completed_date > best.completed_date) best = r;
+  }
+  return best;
+}
+
+// ── ALARM ESIKLERI — SABIT, DEGISTIRILEMEZ ──────────────────────────
+// Serkan (19 Agu 2026): "ayni kalsin 60/30/15 degismesin."
+//
+// Onceki surumde her kayitta serbest metin bir esik alani vardi
+// ("Alerts (days before)"). Iki ayri kusur uretiyordu:
+//   · "60,30" gibi IKI sayi yazilirsa CRITICAL kademesi hic olusmuyordu —
+//     bitise 1 gun kala bile uyari amber kaliyor, ASLA kirmiziya donmuyordu.
+//   · "90,60,30,15" gibi DORT sayi yazilirsa sonuncusu sessizce dusuyordu.
+//   · Can katalogun varsayilanini, TRAINING sekmesi koda gomulu varsayilani
+//     okudugu icin AYNI KAYIT icin farkli durum gosterebiliyorlardi (Ilke 3).
+// Artik tek kaynak burasi. `pilot_trainings.alert_days` kolonu semada DURUR
+// (yazilmis iz silinmez, Ilke 4) ama ARTIK OKUNMAZ ve yeni kayda YAZILMAZ.
+export const ALERT_DAYS = { NOTICE: 60, WARNING: 30, CRITICAL: 15 };
+
+/**
+ * Gecerlilik BITIS GUNUNUN SONUNA kadar surer -> bitis gunu daysLeft = 0 ve
+ * kayit hala GECERLIDIR (CRITICAL); EXPIRED ertesi gun baslar.
+ * Sinir hep SIKI tarafa duser: tam 60 -> NOTICE, tam 30 -> WARNING,
+ * tam 15 -> CRITICAL. Emniyet kapisi gevsek tarafa kacmaz (Ilke 7).
+ */
+export function trainingStatus(expiresAt, todayStr) {
   if (!expiresAt) return { state: 'NO_EXPIRY', daysLeft: null };
   const left = diffDays(expiresAt, todayStr);
-  if (left < 0) return { state: 'EXPIRED', daysLeft: left };
-  const a = [...(alertDays && alertDays.length ? alertDays : DEFAULT_ALERTS)].sort((x, y) => y - x);
-  const [notice, warning, critical] = [a[0], a[1], a[2]];
-  if (critical != null && left <= critical) return { state: 'CRITICAL', daysLeft: left };
-  if (warning != null && left <= warning) return { state: 'WARNING', daysLeft: left };
-  if (notice != null && left <= notice) return { state: 'NOTICE', daysLeft: left };
+  if (left < 0)                    return { state: 'EXPIRED',  daysLeft: left };
+  if (left <= ALERT_DAYS.CRITICAL) return { state: 'CRITICAL', daysLeft: left };
+  if (left <= ALERT_DAYS.WARNING)  return { state: 'WARNING',  daysLeft: left };
+  if (left <= ALERT_DAYS.NOTICE)   return { state: 'NOTICE',   daysLeft: left };
   return { state: 'VALID', daysLeft: left };
 }
 
+// ── RENK KADEMELERI ─────────────────────────────────────────────────
+// Serkan (19 Agu 2026): "60-30 arasi sari, 30-15 arasi amber, 15-0 kirmizi."
+//
+// 🔑 TOKEN ADLARI YANILTICI — sec-me hatasi buradan cikar:
+//    --amber (#fbbf24) ekranda SARI gorunur, --orange (#f97316) amber gorunur.
+//    Serkan'in "amber" dedigi kademeye --amber verilseydi iki kademe ayirt
+//    edilemeyen iki sariya coker ve ekranda UC degil IKI kademe kalirdi.
+//    O yuzden App.css'e gercek sari (--yellow) eklendi, amber kademesi
+//    --orange'a baglandi. Acik temada --amber (#b45309) zaten kahverengidir.
+//
+// EXPIRED, CRITICAL ile AYNI KIRMIZI (Serkan: "suresi gecmis egitimler kirmizi
+// uyari versin"). Ayrimi renk degil YAZI tasir: can listesinde satirin ustunde
+// EXPIRED rozeti cikar.
+//
+// TEK KAYNAK: hem TRAINING sekmesi hem can bu tablodan okur. Can eskiden kendi
+// iki renkli mantigini kuruyordu ve 45 gun ile 20 gun ayni sariyi gosteriyordu.
 export const STATE_COLOR = {
   VALID:     'var(--green)',
   NO_EXPIRY: 'var(--t3)',
-  NOTICE:    'var(--amber)',
-  WARNING:   'var(--orange)',
-  CRITICAL:  'var(--red)',
-  EXPIRED:   'var(--red)',
+  NOTICE:    'var(--yellow)',   // 60-30 gun  SARI
+  WARNING:   'var(--orange)',   // 30-15 gun  AMBER (ekranda amber gorunen token)
+  CRITICAL:  'var(--red)',      // 15-0  gun  KIRMIZI
+  EXPIRED:   'var(--red)',      // suresi gecmis  KIRMIZI
 };
+
+// ── ONCELIK ─────────────────────────────────────────────────────────
+// Dikkat isteyen kademeler, agirdan hafife. VALID ve NO_EXPIRY BURADA YOKTUR:
+// cana dusmezler, listeye hic girmezler.
+export const STATE_RANK = { EXPIRED: 4, CRITICAL: 3, WARNING: 2, NOTICE: 1 };
+
+/**
+ * Bir listedeki EN KOTU durum. Serkan: "en yuksek oncelik rengi belirler."
+ * Ornek (Serkan, 19 Agu): 50 gun + 43 gun + 5 gun -> can KIRMIZI.
+ * Sarinin icinde kirmiziyi saklamayiz. Hicbiri dikkat istemiyorsa null doner.
+ */
+export function worstState(states) {
+  let worst = null, rank = 0;
+  for (const s of states) {
+    const k = STATE_RANK[s] || 0;
+    if (k > rank) { rank = k; worst = s; }
+  }
+  return worst;
+}
