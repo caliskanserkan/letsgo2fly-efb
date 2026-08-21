@@ -459,23 +459,66 @@ Deno.serve(async (req) => {
     // ── 11) flt_report UPSERT — RAPORUN TEK KAYNAGI ─────────────────────────
 
     /** "400" / "FL400" -> "FL400"; "CLB" / "DSC" / "238ft" / "" -> null.
-     *  iOS `NavLogEngine.flLevel` ile AYNI kural (rapor neyse NavLog o). */
+     *  iOS `NavLogEngine.flLevel` ile AYNI kural (rapor neyse NavLog o).
+     *
+     *  🔴 21 AGU 2026 — DORT HANE VE UZERI SEVIYE DEGIL, FEET IRTIFADIR.
+     *  Saha (20 Agu, EGLF-LTAC): FMS fotografiyla alinan alcalma kisitlari
+     *  (`4700`, `3200`) ciplak sayi oldugu icin seviye sayiliyordu; hem
+     *  ekranda `FL4700` diye OLMAYAN seviye ciziliyor hem de asagidaki
+     *  `flActual` korumasi acilip alcalma noktasina SEYIR SEVIYESI (FL450)
+     *  damgalaniyordu — TOVNA'da ucak 4700 ft'teydi.
+     *  Serkan: "FMS FL'i sadece seviyelere koyuyor, bizim decoder uydurdu."
+     *  FL yuz feet birimidir, en fazla uc hane (FL510). */
     const flLevel = (s: unknown): string | null => {
       const t = String(s ?? "").trim().toUpperCase();
       if (!t) return null;
       const d = t.startsWith("FL") ? t.slice(2) : t;
-      return /^\d+$/.test(d) ? `FL${d}` : null;
+      if (!/^\d+$/.test(d)) return null;
+      return d.length <= 3 ? `FL${d}` : null;     // 4700 / 3200 -> IRTIFA
+    };
+    /** Sayisal ama seviye DEGIL: feet kot kisiti. Safha isareti sayilmaz. */
+    const isAltitudeFeet = (s: unknown): boolean => {
+      const t = String(s ?? "").trim();
+      return /^\d+$/.test(t) && t.length > 3;
+    };
+    const DSC = "DSC";
+    const isDSC = (s: unknown): boolean =>
+      String(s ?? "").trim().toUpperCase() === DSC;
+    /** ALCALMANIN BASLADIGI ilk indeks — iOS `descentStartIndex` ile ayni:
+     *  ilk sayisal seyir seviyesinden SONRA gelen ilk SAFHA ISARETI (metin).
+     *  Kot kisiti (4700) safha isareti DEGILDIR, atlanir. */
+    const descentStart = (): number | null => {
+      let sawCruise = false;
+      for (let i = 0; i < wpts.length; i++) {
+        const t = String(wpts[i].fl ?? "").trim();
+        if (flLevel(t)) { sawCruise = true; continue; }
+        if (isAltitudeFeet(t)) continue;
+        if (sawCruise && t) return i;
+      }
+      return null;
     };
     /** Bu noktada UCULAN seviye. iOS `NavLogEngine.effectiveFL` ile ayni sira:
      *  (1) noktanin KENDI girisi her zaman kazanir, (2) plan sayisal ise geriden
      *  gelen son giris tasinir, (3) safha isareti/kot ise seviye yazilmaz. */
+    const dscIdx = descentStart();
     const flActual = (i: number): string | null => {
-      const own = flLevel((entries[wpts[i].uid] ?? {}).cruiseFL);
+      const ownEntry = (entries[wpts[i].uid] ?? {}).cruiseFL;
+      const own = flLevel(ownEntry);
       if (own) return own;
+      // Pilot "USE DSC" ile alcalmayi isaretlediyse KAYDA DA DSC girer.
+      // Eskiden sunucu DSC'yi hic tanimiyordu (flLevel null donuyordu) ve
+      // asagidaki tasima devreye girip seyir seviyesini damgaliyordu.
+      if (isDSC(ownEntry)) return DSC;
       if (!flLevel(wpts[i].fl)) return null;          // CLB / DSC / kot -> dokunma
+      // 🔴 ALCALMA BASLADIYSA TASIMA YOK — iOS `effectiveFL` 3b kuralinin
+      // ayinisi (13 Agu saha). Alcalmanin ICINDEKI sayisal kot kisitlari
+      // "tasinabilir seviye" sanilip FL450 damgalanmasin.
+      if (dscIdx != null && i >= dscIdx) return null;
       for (let j = i - 1; j >= 0; j--) {
-        const lvl = flLevel((entries[wpts[j].uid] ?? {}).cruiseFL);
+        const e = (entries[wpts[j].uid] ?? {}).cruiseFL;
+        const lvl = flLevel(e);
         if (lvl) return lvl;
+        if (isDSC(e)) return DSC;                     // DSC de tasinir (15 Agu)
       }
       return null;
     };
@@ -621,7 +664,12 @@ Deno.serve(async (req) => {
      *  Doner: doldurulan alanlarin adlari (denetim izine yazilir; sessiz onarim
      *  YOK — Ilke 1, sistem yaptigi duzeltmeyi soyler). */
     async function repairFltReport(): Promise<string[]> {
-      const { data: cur } = await admin.from("flt_report")
+      // TIP NOTU (21 Agu): supabase-js `maybeSingle()` donusunu
+      // `Row | GenericStringError` birlesimi olarak yaziyor; kolon okumalari
+      // `deno check`te patliyordu. Calisma zamaninda etkisi yok ama KAPI hep
+      // kirmizi kalirsa sinyal olmaktan cikar (eslint bayragi dersi) — satir
+      // acikca `any` yaziliyor.
+      const { data: cur }: { data: any } = await admin.from("flt_report")
         .select("off_block, takeoff_time, landing_time, on_block, takeoff_fuel," +
                 " remaining_fuel, block_minutes, airborne_minutes, navlog")
         .eq("plan_id", planId).maybeSingle();
@@ -629,7 +677,7 @@ Deno.serve(async (req) => {
 
       const patch: Record<string, unknown> = {};
       const fillBlank = (col: string, val: unknown) => {
-        if ((cur as Record<string, unknown>)[col] == null && val != null) patch[col] = val;
+        if (cur[col] == null && val != null) patch[col] = val;
       };
       fillBlank("off_block", offBlock);
       fillBlank("takeoff_time", takeoffTime);
@@ -716,13 +764,13 @@ Deno.serve(async (req) => {
       // ve NavLog'da degerler dururken panel bos gosterdi.
       // Ayni disiplin: yalniz BOS kolon doldurulur, doluya ASLA yazilmaz.
       const afPatch: Record<string, unknown> = {};
-      const { data: curAf } = await admin.from("archived_flights")
+      const { data: curAf }: { data: any } = await admin.from("archived_flights")
         .select("takeoff_fuel, remaining_fuel, dep_rwy, sid, dep_atis, arr_rwy," +
                 " arr_atis, arr_qnh, rwy_condition, req_landing_dist, actual_lw, vref")
         .eq("plan_id", planId).maybeSingle();
       if (curAf) {
         const fillAf = (col: string, val: unknown) => {
-          if ((curAf as Record<string, unknown>)[col] == null && val != null) afPatch[col] = val;
+          if (curAf[col] == null && val != null) afPatch[col] = val;
         };
         fillAf("takeoff_fuel", toFuel);
         fillAf("remaining_fuel", remFuel);
@@ -1342,6 +1390,75 @@ Deno.serve(async (req) => {
             } catch (_e) { /* hesaplanamazsa eski deger kalir; tip yine de kaydedilir */ }
           }
 
+          // ── RAPOR SAATI GERCEK OFF-BLOCK'TAN TURER (21 Agu 2026) ──────────
+          // Serkan: "plan saatlerine degil ACTUAL saatlere bakacagiz. Plan
+          // 12:00 UTC cikar ama telefon ile one cekilir, eski planda actual
+          // saatler yazilir." ve "olmasi gereken: actual off-block -1h."
+          //
+          // 🔴 20 AGU SAHASI: gorev 18 Agu'da elle girilen bacaklarla acildi
+          // (etd 11:00 -> rapor 10:00), plan ucus SABAHI geldi (std 12:00),
+          // gercek off-block 11:10 oldu. Arsiv sektorleri, duty_end'i ve
+          // fdp_minutes'i guncelledi ama `report_time`'a HIC DOKUNMADI —
+          // 15 Tem karar metninde de o alan listede YOK, spec'te unutulmus.
+          // Gorev penceresi hicbir gercek saatle bagi olmayan degerde dondu.
+          //
+          // NEDEN GECIKME KORUMASI YOK: genel havacilikta ekip ucakta
+          // BEKLEMEZ; koordinasyonu pilotlar yapar, saat kayarsa gorev de
+          // kayar (Serkan). Havayolu mantigi (sabit rapor + bekleme) burada
+          // gecerli degil. Ucak basi yapildiktan SONRA cikan gecikme icin
+          // elle gorev EDIT'i (gerekceli, izli) acik duruyor.
+          const dutyDay = duty.duty_date ?? isoDate;
+          const firstOff = sectors[0]?.off_block ? ts(sectors[0].off_block, dutyDay) : null;
+          let effReport: string = duty.report_time;
+          if (firstOff) {
+            const snapC0 = duty.ruleset_snapshot?.company ?? {};
+            const snapR0 = duty.ruleset_snapshot?.regulation ?? {};
+            // Gorevin KENDI snapshot'i — bugunun kurali degil (Ilke 6).
+            const preMin = Math.max(snapC0.preFlightReportMin ?? 60,
+                                    snapR0.notification_times?.preflight_report_min ?? 60);
+            const candMs = new Date(firstOff).getTime() - preMin * 60000;
+            const cand = new Date(candMs).toISOString();
+            // 🔴 AN KARSILASTIRILIR, METIN DEGIL (21 Agu 2026).
+            // Ilk surumde `cand !== duty.report_time` yaziliyordu. Postgres
+            // timestamptz'i "2026-08-20T10:10:00+00:00" diye dondurur,
+            // toISOString() ise "2026-08-20T10:10:00.000Z" uretir — AYNI AN,
+            // FARKLI METIN. Karsilastirma her zaman "degismis" diyordu:
+            // ikinci REGEN ayni degeri tekrar yaziyor ve denetim tablosuna
+            // `10:10 -> 10:10` gibi BOS iz dusuyordu (22 izin 8'i boyleydi).
+            const prevMs = duty.report_time ? new Date(duty.report_time).getTime() : NaN;
+            if (prevMs !== candMs) {
+              upd.report_time = cand;
+              // AZAMI UGS RAPOR SAATINDEN OKUNUR (Tablo-1 bandi). Rapor kayinca
+              // bant da kayabilir; eski limiti birakmak sessiz bir yanlistir —
+              // asim ya kacar ya uydurulur.
+              const opNow = (upd.operation_type as string | null) ?? duty.operation_type ?? null;
+              const singleNow = [pfPilot, pmPilot, crzPilot].filter(Boolean).length === 1;
+              const newMax = recomputeMaxFdp({ ...duty, report_time: cand },
+                                             sectors.length, opNow, singleNow);
+              if (newMax != null) upd.max_fdp_minutes = newMax;
+            }
+            // IZ: denetim tablosunda saat SESSIZCE degismez. Elle duzenleme
+            // yolu (FTLPanel) her degisikligi `ftl_duty_edits`e gerekceyle
+            // yaziyor; arsivin turettigi degisiklik de ayni yere yazilir.
+            // Geriye donuk duzeltme REGEN ile yapilir (insan tetikler) —
+            // sessiz toplu yazma yok.
+            if (upd.report_time) {
+              await admin.from("ftl_duty_edits").insert({
+                duty_id: duty.id, customer_id: duty.customer_id, pilot_id: pid,
+                assignment_id: duty.assignment_id ?? null,
+                edit_type: "EDIT", field_name: "report_time",
+                old_value: String(duty.report_time ?? "").slice(0, 16),
+                new_value: String(cand).slice(0, 16),
+                reason: `Derived from actual off-block ${sectors[0].off_block} minus ${preMin} min (archive)`,
+              }).then(({ error }: any) => {
+                // Iz duserse SESSIZ GECMEYIZ ama arsivi de dusurmeyiz:
+                // saatler dogru yazildi, kayit izsiz kaldi -> gorunur olsun.
+                if (error) console.warn("[archive] duty report_time trace:", error.message);
+              });
+            }
+            effReport = cand;
+          }
+
           // tum sektorler actual aldiysa gorev penceresini gercek degerlerle kur
           const allActual = sectors.every((s: any) => s.off_block && s.on_block);
           if (allActual) {
@@ -1349,11 +1466,11 @@ Deno.serve(async (req) => {
             const postMin = snap.post_flight_duty_minutes ?? 30;
             const repHours = snap.mandatory_report_hours ?? 72;
             const lastOn = ts(sectors[sectors.length - 1].on_block, isoDate);
-            if (lastOn && duty.report_time) {
+            if (lastOn && effReport) {
               const endMs = new Date(lastOn).getTime() + postMin * 60000;
               const dutyEnd = new Date(endMs).toISOString();
               const fdpMin = Math.round((new Date(lastOn).getTime() -
-                new Date(duty.report_time).getTime()) / 60000);
+                new Date(effReport).getTime()) / 60000);
               // ASIM KONTROLU GUNCEL LIMITLE: faaliyet tipi bu arsivde
               // kesinlestiyse azami UGS yukarida YENIDEN hesaplandi; eski
               // degerle karsilastirmak asimi kacirir ya da uydurur.

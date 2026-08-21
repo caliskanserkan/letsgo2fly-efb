@@ -25,6 +25,55 @@ export const spanMin = (startHHMM, endHHMM) => {
   return e >= s ? e - s : e + 1440 - s;
 };
 
+// ── GEÇMİŞE GİRİLEN GÖREV (21 Ağu 2026, Serkan) ─────────────────────
+// Kural: *"görevin bitiş saati ON block + 30, şu anki andan geride ise"* ·
+//        *"görevin bitiş saati görevin girildiği saatten geride ise."*
+// Yani ölçü görevin BAŞLANGICI değil BİTİŞİdir. Sonucu: süregelen görev geçmiş
+// SAYILMAZ (bugün başlamış, henüz bitmemiş bir görev planlamadır); yalnız
+// tamamen bitmiş görev "olmuş bitmiş iş"tir ve actual olarak kaydedilir.
+// `duty_end` zaten son bacağın ETA'sına company.postFlightDutyMin (30 dk)
+// eklenerek kuruluyor — eşik burada uydurulmuyor, mevcut kuraldan geliyor.
+//
+// 🔴 AN KARŞILAŞTIRILIR, METİN DEĞİL. 21 Ağu sabahı archive-flight'ta tam
+//    tersi yapıldı ve koruma hiç çalışmadı: "…+00:00" ile "….000Z" AYNI ANdır,
+//    FARKLI METİNdir. Bu yüzden ikisi de ms'e çevrilip karşılaştırılır.
+export function isPastDuty(dutyEndISO, nowISO) {
+  const end = Date.parse(dutyEndISO);
+  const now = Date.parse(nowISO);
+  if (!Number.isFinite(end) || !Number.isFinite(now)) return false;
+  return end < now;
+}
+
+// Atama satırlarını geçmişe göre işaretler. SAF: girdiyi değiştirmez, yeni
+// dizi döner. `off` satırlarına DOKUNULMAZ — onların `duty_end`'i yoktur ve
+// durumları offPeriodStatuses'tan gelir. Sektörü olmayan görevde (ground)
+// `sectors` anahtarı AÇILMAZ; boş `sectors: []` yazmak 1b'deki hayalet satırın
+// ta kendisidir.
+export function backdateRows(rows, nowISO) {
+  const hit = (r) => r && r.duty_type !== 'off' && isPastDuty(r.duty_end, nowISO);
+  const list = rows || [];
+  if (!list.some(hit)) return { past: false, rows: list };
+  return {
+    past: true,
+    rows: list.map(r => {
+      if (!hit(r)) return r;
+      const out = { ...r, status: 'actual', duty_finished: true };
+      if (Array.isArray(r.sectors)) {
+        // GIRILEN SAATLER GERCEK SAATTIR (Serkan, 21 Agu) — ayrica off/on block
+        // sorulmaz. `entered_manually` ayrimi tasir: plan_id'si olan sektor
+        // ARSIVDEN olculmustur, bu ELLE yazilmistir.
+        out.sectors = r.sectors.map(sec => ({
+          ...sec,
+          off_block: sec.off_block ?? sec.etd,
+          on_block: sec.on_block ?? sec.eta,
+          entered_manually: true,
+        }));
+      }
+      return out;
+    }),
+  };
+}
+
 // ── etkin kurallar: regulation + company (override yalnız emniyetli yönde) ──
 // company.overrides = { "cumulative_limits.flt_28d_min": 5400, "min_rest.home_base_min": 780, ... }
 // Emniyetli yön: *_limit → yalnız DÜŞÜK kabul; min_rest/min_off → yalnız YÜKSEK kabul.

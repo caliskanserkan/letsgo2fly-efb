@@ -8,7 +8,7 @@ import {
   fitness, dutyWindow, tzOffsetMin, daysOffSummary,
   standbyBefore, standbyEffect, standbyLimits, standbyRef,
   skpkLimits, skpkRef, previousDuty, acclimatisation, bandReportHHMM,
-  offDayRelease, offDayReleaseText, offPeriodStatuses,
+  offDayRelease, offDayReleaseText, offPeriodStatuses, backdateRows,
 } from './FTLEngine';
 import { normTime, up } from './inputFormat';
 import FTLLimitsBar from './FTLLimitsBar';
@@ -1621,6 +1621,10 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
   const [gnd, setGnd] = useState({ kind:'office', start:'09:00', end:'17:00' });
   const [off, setOff] = useState({ subtype:'OFF', endDate:'' });
   const [saving, setSaving] = useState(false);
+  // GERIYE DONUK GIRIS ONAYI: satirlar hazir ama HENUZ YAZILMADI. Popup
+  // onaylanana kadar burada bekler (Serkan, 21 Agu: "bu gorev gecmise yonelik,
+  // emin misin diye sorsun").
+  const [backdated, setBackdated] = useState(null);
   // 3 PILOTLU OPS / CHECK RIDE (4 Agu, Serkan). extraMode:
   //   null → kapali · 'pick' → secim acik · 'crz' → CRZ CPT modu (listeden
   //   3. pilot secilir, EASA CS FTL.1.205(c) augmented FDP devreye girer) ·
@@ -1911,14 +1915,27 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
       const rows = [];
       // GECMISE GIRILEN GOREV 'planned' OLAMAZ (3 Agu, Serkan): genel havacilikta
       // planlama safhasi atlanabiliyor, ucus once yapilip kayda sonra giriliyor.
-      // Gecmis tarihli bir gorev "planlanmis" degil OLMUS BITMIS ucustur.
+      // Gecmis bir gorev "planlanmis" degil OLMUS BITMIS ucustur.
       //   gecmis  -> actual  (gorev kapali; girilen saatler gercek kabul edilir,
       //                       rest ve earliest_next_report onlardan hesaplanir)
       //   bugun/ileri -> planned
-      // NOT: bu, girilen saatlerin GERCEK off/on block oldugu varsayimina dayanir.
+      // NOT: bu, girilen saatlerin GERCEK off/on block oldugu varsayimina dayanir
+      // (Serkan, 21 Agu: "girilenler actual olur" — ayrica off/on block sorulmaz).
       // Ucus uygulamada arsivlenmisse dogrusu arsivden gelir; archive-flight'in
       // duzeltme yolu bu gorevi bulup uzerine yazar (sektordeki plan_id ile).
-      const isPast = date < new Date().toISOString().slice(0, 10);
+      //
+      // 🔴 20/21 AGU SAHA BULGUSU (Serkan): "21 Agustos aksami, 21 Agustos
+      //    sabahina gorev girdim, beni uyarmadi halbuki saat gecti."
+      //    Kok neden BURADAYDI — olcu TARIH METNIYDI:
+      //        const isPast = date < new Date().toISOString().slice(0, 10);
+      //    Ayni GUN icinde bitmis bir gorev "gecmis" sayilmiyordu; kayit
+      //    `planned` aciliyor, kumulatiflere planli saat olarak giriyor ve
+      //    sistem hicbir sey soylemiyordu (Ilke 1 ihlali).
+      //    Yeni olcu GOREVIN BITISI: `duty_end` (= son ETA + postFlightDutyMin)
+      //    su andan geride mi? Kural motorda: FTLEngine.isPastDuty (testli).
+      //    Satirlar kurulduktan SONRA uygulanir — cunku duty_end ancak orada
+      //    hesaplaniyor. `off` satirlarinin duty_end'i yoktur, dokunulmaz
+      //    (onlarin durumu offPeriodStatuses'tan gelir).
       // AYNI ATAMADAN DOGAN TUM PILOT SATIRLARI AYNI assignment_id'yi TASIR.
       // Bu olmadan "ucusu iptal et" tek islem degil N ayri islem olur; biri
       // duserse PF'in gorevi iptal, PM'inki ayakta kalir ve kimse fark etmez.
@@ -1937,8 +1954,7 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
         // meydaninin dilimidir — bandi/intibaki geriye donuk cozebilmek icin
         // saklanir (rapor da bunu kullaniyor). Ucusta asagida depTz ile ezilir.
         duty_date: date, report_tz: 'UTC',
-        status: isPast ? 'actual' : 'planned',
-        ...(isPast ? { duty_finished: true } : {}),
+        status: 'planned',   // gecmisse asagidaki post-pass 'actual'a cevirir
       };
       if (dutyType === 'flight') {
         if (!win || legs.some(l => !l.dep || !l.dest || !l.etd || !l.eta)) { toast('Complete all sector fields.', 'error'); setSaving(false); return; }
@@ -2001,7 +2017,6 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
             sectors: legs.map((l, i) => ({
               seq: i + 1, dep: l.dep.toUpperCase(), dest: l.dest.toUpperCase(),
               etd: l.etd, eta: l.eta, role: selected[pid],
-              ...(isPast ? { off_block: l.etd, on_block: l.eta, entered_manually: true } : {}),
             })),
             split_duty: pWin.split.isSplit, break_minutes: pWin.breakMin,
             accommodation: pWin.split.isSplit ? accommodation : null,
@@ -2071,12 +2086,45 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
                                          status: statuses[d] || 'planned' }));
         });
       }
-      const { error } = await supabase.from('crew_duties').insert(rows);
-      if (error) throw error;
-      toast(`${rows.length} duty row(s) created.`, 'success');
-      setSelected({}); setExtraMode(null); setExaminer(''); setSameDayTheory(false); reload();
+      // GECMIS MI? Olcu satirlarin `duty_end`'i (= son ETA + 30 dk), tarih metni
+      // DEGIL. Gecmisse satirlar actual'a cevrilir ve ONAY ISTENIR — sessizce
+      // yazilmaz.
+      const { past, rows: finalRows } = backdateRows(rows, new Date().toISOString());
+      if (past) { setBackdated({ rows: finalRows }); setSaving(false); return; }
+      await commitRows(finalRows, null);
     } catch (e) { toast(e.message, 'error'); }
     setSaving(false);
+  };
+
+  // TEK YAZMA YOLU (Ilke 2): normal atama da, onaylanmis geriye donuk giris de
+  // buradan gecer. Ayri iki yol olsaydi biri duzelirken oteki geride kalirdi.
+  const commitRows = async (rows, backdatedReason) => {
+    const { data: created, error } = await supabase.from('crew_duties')
+      .insert(rows).select('id,customer_id,pilot_id,assignment_id,duty_end');
+    if (error) throw error;
+    if (backdatedReason) {
+      // IZ SONRA — bilerek ve yalniz BURADA. Diger yollarda "iz once" gecerlidir
+      // cunku VAR OLAN satir degistirilir; burada satir INSERT ile DOGAR ve
+      // ftl_duty_edits.duty_id ancak o zaman bilinir. Iz yazilamazsa kullanici
+      // GORUR (10 Agu'daki `catch {}` ile yutulan hatanin tersi).
+      if (!created || !created.length) {
+        toast('Duty saved but the audit row could not be written (no row returned).', 'error');
+      } else {
+        const stamp = new Date().toISOString();
+        const { error: eErr } = await supabase.from('ftl_duty_edits').insert(created.map(r => ({
+          duty_id: r.id, customer_id: r.customer_id, pilot_id: r.pilot_id,
+          assignment_id: r.assignment_id || null, edit_type: 'EDIT',
+          field_name: 'backdated_entry', old_value: null,
+          new_value: `recorded as ACTUAL - duty ended ${r.duty_end} - entered ${stamp}`,
+          reason: backdatedReason, edited_by: myProfile?.id ?? null,
+        })));
+        if (eErr) toast(`Duty saved but the audit row FAILED: ${eErr.message}`, 'error');
+      }
+    }
+    toast(backdatedReason
+      ? `${rows.length} duty row(s) recorded as ACTUAL (backdated entry, logged).`
+      : `${rows.length} duty row(s) created.`, 'success');
+    setSelected({}); setExtraMode(null); setExaminer(''); setSameDayTheory(false); reload();
   };
 
   const seg = (t, label) => (
@@ -2238,7 +2286,11 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
                 {fitList.map(({ pilot, legal, reasons, cum, off, sb, accl, win: pWin }) => {
                   const sel = selected[pilot.id];
                   return (
-                    <tr key={pilot.id} onClick={() => legal && toggle(pilot.id)} style={{ cursor: legal ? 'pointer' : 'default', opacity: legal ? 1 : .65, background: sel ? `var(--accent-soft)` : 'transparent' }}>
+                    // data-testid: ekip satiri testten SURULEBILSIN diye
+                    // (NotificationBell'deki `data-durum` deseninin ayni sebebi
+                    // — kural ekranda duruyorsa ekrandan dogrulanabilmeli).
+                    <tr key={pilot.id} data-testid={`crew-${pilot.code}`}
+                        onClick={() => legal && toggle(pilot.id)} style={{ cursor: legal ? 'pointer' : 'default', opacity: legal ? 1 : .65, background: sel ? `var(--accent-soft)` : 'transparent' }}>
                       <td style={S.td}>{sel ? '☑' : '☐'}</td>
                       <td style={{ ...S.td, color: legal ? C.accent : C.t3, fontWeight:700 }}>{pilot.code} — {pilot.full_name}</td>
                       <td style={S.td}><span style={badge(legal ? 'green' : 'red')}>{legal ? 'LEGAL' : 'NOT LEGAL'}</span></td>
@@ -2369,6 +2421,19 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
       <div style={{ marginTop:22, display:'flex', gap:10 }}>
         <button style={S.btnP} disabled={saving} onClick={save}>{saving ? 'SAVING...' : 'ASSIGN DUTY'}</button>
       </div>
+
+      {backdated && (
+        <ReasonModal
+          title="BACKDATED DUTY — ARE YOU SURE?"
+          warn={`This duty is already over (it ended ${backdated.rows.find(r => r.duty_end)?.duty_end || '—'}). A duty in the past is not planning — it will be recorded as an ACTUAL, completed duty and the times you entered are taken as the real off/on block times.`}
+          confirmLabel="RECORD AS ACTUAL"
+          onCancel={() => setBackdated(null)}
+          onConfirm={async (reason) => {
+            try { await commitRows(backdated.rows, reason); setBackdated(null); }
+            catch (e) { toast(String(e.message || e), 'error'); }
+          }}
+        />
+      )}
     </div>
   );
 }

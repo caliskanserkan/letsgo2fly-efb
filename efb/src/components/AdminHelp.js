@@ -31,6 +31,12 @@ const CHAPTERS = [
         ['"A job is done completely or not at all."',
          'Every feature ships across all its layers — app UI, database, sync, web panel, report PDF, audit trail, help text — or it does not ship. If scope is narrowed on purpose, the gap is written into the backlog, never left silent.'],
       ]},
+      { h: 'WHAT AMBER MEANS', qa: [
+        ['A pilot says a value is shown in AMBER inside an empty cell.',
+         'AMBER means NOT FILLED IN — the same meaning it carries on the sidebar dots and the cell borders. Where the EFB already knows a likely value it prints it inside the empty cell in amber: TRIM from the loading plan PDF, TAKEOFF FUEL from the Fuel module (FOB minus taxi), PAX from the flight documents. It is a SUGGESTION, not an entry — nothing is recorded until the pilot types it or taps the USE chip, so an amber cell still counts as MISSING at the archive gate. Grey text in an empty cell is not a value at all; it only states the expected format (HH:MM, LB).'],
+        ['Until 21 Aug 2026 those suggestions were unreadable in day mode.',
+         'They were drawn with the system placeholder colour, which does not follow the app theme and washed out on a light background — TRIM could not be read at all in daylight, so the pilot had to take it off the loading plan PDF by hand. The app now draws them itself in amber and they read the same in both themes.'],
+      ]},
       { h: 'REFERENCE DOCUMENTS', qa: [
         ['Which documents govern this system?',
          'EASA AMC 20-25 (Type B EFB) for the app itself; SHT-FTL/HG (13.04.2018 Rev 00) for flight time limitations — its ruleset regulation layer is transcribed from it article by article; ICAO Doc 9859 for the safety-risk framework used by RAAQ; FOP-FRM-02 (Route and Aerodrome Qualification Training Form) for the RAAQ special items; and the internal System & Module Handbook for module-level detail.'],
@@ -108,6 +114,8 @@ const CHAPTERS = [
       { h: 'ASSIGN DUTY', qa: [
         ['How is the duty window computed?',
          'From the sectors\' UTC times: report = first ETD minus the pre-flight report period; FDP = report → last on-block; duty end = +post-flight period; Max FDP comes from SHT-FTL/HG Md.22(2) Table 1: report-time band (06:00-15:00 / 15:01-18:00 / 18:01-05:59) × sector group (1-4 / 5 / 6+) × single-or-dual pilot; long-range duties (≥4h timezone crossing) are capped at 14:00 (Md.22(3)). The wizard shows every pilot\'s fitness (rest, 7/14/28-day and year cumulatives) against the duty before you assign — NOT LEGAL rows cannot be selected.'],
+        ['I entered a duty that has already happened — why did it ask me to confirm?',
+         'Because a duty that is already over is not planning. The panel measures the duty END (last on-block plus the post-flight duty period) against the moment you are entering it: if that end is behind now, you are recording something that has been flown, and it is saved as an ACTUAL, completed duty rather than a plan. The times you typed are taken as the real off/on block times, the day is closed (no "did it happen?" question later), and the entry is written to the immutable audit log with the reason you gave. A duty that has STARTED but not yet finished is still planning and saves silently as usual. This is deliberately about the end and not the date: a duty flown this morning and typed in this evening is in the past even though the date is today.'],
         ['Are the times UTC or local?',
          'UTC — every time you type and every time shown here, exactly like the rest of the EFB, the flight report and the archive. Local time is never asked for and never displayed. Where the regulation genuinely needs a LOCAL time, the panel derives it itself from the aerodrome timezone: the Table-1 band (Md.22/2, read in the local time of the aerodrome the crew is acclimatised to), the free-day windows (Md.4/ü, the home base\'s local night) and long-range detection (Md.4/ee).'],
         ['What do airport timezones change then?',
