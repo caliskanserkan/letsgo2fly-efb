@@ -1637,6 +1637,25 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
   //    `duty_type === 'flight'` sayar (Serkan: "flt time limitlerini belirlemez").
   const [dhLegs, setDhLegs] = useState([{ dep:'', dest:'', start:'', end:'', flt:'' }]);
   const setDhLeg = (i, k, v) => setDhLegs(ls => ls.map((l, j) => j === i ? { ...l, [k]: v } : l));
+  /// DH + ARDINDAN UCUS (Serkan, 22 Agu): *"DH arkasina DH sektor ekleme veya
+  /// FLT duty ekleme opsiyonu koyacagiz — ADD SECTOR / ADD FLT DUTY."*
+  /// `+ ADD FLT DUTY` gorev tipini UCUSA cevirir; DH bacaklari korunur ve
+  /// sektor listesinin BASINA `deadhead: true` olarak eklenir. Md.14(1)(b):
+  /// ucus oncesi konumlandirma UGS'ye girer ama SEKTOR sayilmaz — motor bunu
+  /// `deadhead` bayragindan okur (FTLEngine.dutyWindow / fltMin).
+  const [dhBeforeFlight, setDhBeforeFlight] = useState(false);
+  const dhPrefix = useMemo(() => (
+    (dutyType === 'flight' && dhBeforeFlight)
+      // NOT: `timeOk` bu memo'dan SONRA tanimlaniyor (gecici olu bolge) —
+      // kontrol burada yerinde yapilir.
+      ? dhLegs.filter(l => l.dep && l.dest && /^\d{2}:\d{2}$/.test(l.start || '') && /^\d{2}:\d{2}$/.test(l.end || ''))
+              .map(l => ({ dep: l.dep.toUpperCase(), dest: l.dest.toUpperCase(),
+                           etd: l.start, eta: l.end,
+                           flight_no: (l.flt || '').toUpperCase() || null, deadhead: true }))
+      : []
+  ), [dutyType, dhBeforeFlight, dhLegs]);
+  /// Motorun ve kaydin gordugu TAM liste: once konumlandirma, sonra ucus.
+  const legsAll = useMemo(() => [...dhPrefix, ...legs], [dhPrefix, legs]);
   const [off, setOff] = useState({ subtype:'OFF', endDate:'' });
   const [saving, setSaving] = useState(false);
   // GERIYE DONUK GIRIS ONAYI: satirlar hazir ama HENUZ YAZILMADI. Popup
@@ -1786,11 +1805,14 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
     if (dutyType !== 'flight') return null;
     const complete = legs.filter(l => timeOk(l.etd) && timeOk(l.eta));
     if (complete.length !== legs.length) return null;
-    const w0 = dutyWindow(complete, accommodation, ruleset, winOpts);
+    // DH oneki VARSA pencere onunla baslar (Md.14/1/b) — motor `deadhead`
+    // bayragini gorup rapor payini eklemez ve sektor saymaz.
+    const tumu = [...dhPrefix, ...complete];
+    const w0 = dutyWindow(tumu, accommodation, ruleset, winOpts);
     if (!w0 || depOffsetMin == null) return w0;   // tz yoksa bant çözülmez (uydurma yok)
     const band = bandReportHHMM(w0.report, 0, depOffsetMin);
-    return band ? dutyWindow(complete, accommodation, ruleset, { ...winOpts, bandReport: band }) : w0;
-  }, [legs, accommodation, ruleset, dutyType, winOpts, depOffsetMin]);
+    return band ? dutyWindow(tumu, accommodation, ruleset, { ...winOpts, bandReport: band }) : w0;
+  }, [legs, dhPrefix, accommodation, ruleset, dutyType, winOpts, depOffsetMin]);
 
   const { rules } = useMemo(() => effectiveRules(ruleset), [ruleset]);
   const lim = rules.cumulative_limits || {};
@@ -2032,9 +2054,14 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
             // ARSIVDEN olculmustur, olmayan ELLE yazilmistir. archive-flight
             // elle yazilmis sektorun uzerine hala yazabilir; "gerceklesen ucus
             // atanmis gorevin ustune HER ZAMAN yazar" kurali boylece korunur.
-            sectors: legs.map((l, i) => ({
+            // SEKTOR LISTESI: once konumlandirma (deadhead: true), sonra ucus.
+            // Motor DH'yi sektor saymaz ve ucus saatine yazmaz; ama UGS onunla
+            // baslar (Md.14/1/b) ve gorev suresine girer (Md.14/1/a).
+            sectors: legsAll.map((l, i) => ({
               seq: i + 1, dep: l.dep.toUpperCase(), dest: l.dest.toUpperCase(),
-              etd: l.etd, eta: l.eta, role: selected[pid],
+              etd: l.etd, eta: l.eta,
+              ...(l.deadhead ? { deadhead: true, flight_no: l.flight_no || null }
+                             : { role: selected[pid] }),
             })),
             split_duty: pWin.split.isSplit, break_minutes: pWin.breakMin,
             accommodation: pWin.split.isSplit ? accommodation : null,
@@ -2269,6 +2296,48 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
           Gorev suresi ILK KALKIS ... SON INIS arasidir; aradaki bekleme de
           gorevdir (Md.14/1/a "harcanan tum zaman"). Ucus numarasi kayda girer:
           konumlandirmanin HANGI ucusla yapildigi denetimde sorulur. */}
+      {/* UCUS MODUNDA DH ONEKI: bacaklar gorunur kalir, kaldirilabilir.
+          Gorunmeseydi pilot UGS'nin neden 60 dk once degil de konumlandirma
+          kalkisinda basladigini ekrandan okuyamazdi (Ilke 1). */}
+      {dutyType === 'flight' && dhBeforeFlight && (
+        <div style={{ marginBottom:14 }}>
+          <span style={S.label}>Positioning before this flight (SHT-FTL/HG Md.14)</span>
+          {dhLegs.map((l, i) => (
+            <div key={i} style={{ display:'grid', gridTemplateColumns:'26px 1fr 1fr 1fr 1fr 1.2fr 38px',
+                                  gap:8, marginBottom:6, alignItems:'center' }}>
+              <div style={{ fontSize:9, color:C.accent, textAlign:'center', fontFamily:'var(--mono)', fontWeight:700 }}>DH</div>
+              <input style={S.input} placeholder="DEP" maxLength={4} value={l.dep}
+                     onChange={e => setDhLeg(i, 'dep', up(e.target.value))} />
+              <input style={S.input} placeholder="DEST" maxLength={4} value={l.dest}
+                     onChange={e => setDhLeg(i, 'dest', up(e.target.value))} />
+              <input style={S.input} placeholder="DEP UTC" value={l.start}
+                     onChange={e => setDhLeg(i, 'start', normTime(e.target.value))} />
+              <input style={S.input} placeholder="ARR UTC" value={l.end}
+                     onChange={e => setDhLeg(i, 'end', normTime(e.target.value))} />
+              <input style={S.input} placeholder="FLIGHT NO" maxLength={10} value={l.flt}
+                     onChange={e => setDhLeg(i, 'flt', up(e.target.value))} />
+              <button style={{ ...S.btnS, padding:'8px 10px' }}
+                      onClick={() => setDhLegs(ls => {
+                        const kalan = ls.filter((_, j) => j !== i);
+                        if (!kalan.length) { setDhBeforeFlight(false); return [{ dep:'', dest:'', start:'', end:'', flt:'' }]; }
+                        return kalan;
+                      })}>✕</button>
+            </div>
+          ))}
+          <div style={{ display:'flex', gap:8, marginTop:2 }}>
+            <button style={S.btnS} onClick={() => setDhLegs(ls => [...ls, { dep:'', dest:'', start:'', end:'', flt:'' }])}>
+              + ADD DH SECTOR
+            </button>
+          </div>
+          <div style={{ ...S.note, marginTop:8 }}>
+            Md.14(1)(b): positioning BEFORE a flight operation counts as FDP — the duty window
+            starts at the first positioning departure, with no pre-flight report period
+            (Md.4/n: local transport is not positioning). It is NOT a sector, so the Table-1
+            sector column is unchanged, and it is not flight time.
+          </div>
+        </div>
+      )}
+
       {dutyType === 'ground' && gnd.kind === 'dh' && (
         <div style={{ marginTop:4, marginBottom:14 }}>
           <span style={S.label}>Deadhead sectors — all times UTC</span>
@@ -2291,9 +2360,18 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
                       onClick={() => setDhLegs(ls => ls.filter((_, j) => j !== i))}>✕</button>
             </div>
           ))}
-          <button style={S.btnS} onClick={() => setDhLegs(ls => [...ls, { dep:'', dest:'', start:'', end:'', flt:'' }])}>
-            + ADD SECTOR
-          </button>
+          <div style={{ display:'flex', gap:8 }}>
+            <button style={S.btnS} onClick={() => setDhLegs(ls => [...ls, { dep:'', dest:'', start:'', end:'', flt:'' }])}>
+              + ADD SECTOR
+            </button>
+            {/* Md.14(1)(b): ucus operasyonu ONCESINDEKI konumlandirma UGS'ye
+                girer. Bu buton gorevi UCUS gorevine cevirir; DH bacaklari
+                sektor listesinin basinda `deadhead` olarak kalir. */}
+            <button style={S.btnS}
+                    onClick={() => { setDhBeforeFlight(true); setDutyType('flight'); }}>
+              + ADD FLT DUTY
+            </button>
+          </div>
           <div style={{ ...S.note, marginTop:8 }}>
             SHT-FTL/HG Md.14(1)(a): ALL time spent positioning is recorded as DUTY —
             the wait between connecting sectors counts too. Md.14(1)(b): positioning is

@@ -840,7 +840,13 @@ export function cumulatives(baseline, duties, asOf, rules = null) {
   const fltMin = (d) => {
     if (d.duty_type !== 'flight') return 0;
     let sum = 0;
-    (d.sectors || []).forEach(s => {
+    // 🔴 KONUMLANDIRMA UCUS SAATI DEGILDIR (SHT-FTL/HG Md.14, 22 Agu 2026).
+    // Serkan: *"duty time devamindaki resti belirler ama flight duty gibi flt
+    // time limitlerini belirlemez."* DH bacaklari ayni gorevin sektor
+    // listesinde durur (FDP'ye girmeleri gerektigi icin) ama UCUS SAATI
+    // kumulatiflerine (28 gun / 12 ay) girmezler. Suzgec konmazsa pozisyon
+    // ucusu pilotun ucus saatine yazilirdi — tam olarak olmamasi gereken sey.
+    (d.sectors || []).filter(s => !s.deadhead).forEach(s => {
       if (s.off_block && s.on_block) sum += spanMin(s.off_block, s.on_block) || 0;
       else if (s.etd && s.eta) sum += spanMin(s.etd, s.eta) || 0;
     });
@@ -986,14 +992,29 @@ export function dutyWindow(legs, accommodation, ruleset, opts = {}) {
   const postFlightMin = Math.max(
     company.postFlightDutyMin ?? 30,
     opType === 'training' ? (nt.postflight_sim_training_min ?? 60) : (nt.postflight_min ?? 30));
-  const reportMin = toMin(legs[0].etd) - preFlightMin;
+  // ── KONUMLANDIRMA (DH) BACAKLARI (SHT-FTL/HG Md.14, 22 Agu 2026) ────
+  // Md.14(1)(b): *"Uçuş görev başlangıç ve sonrasındaki konumlandırmalar
+  // SEKTÖR SAYILMAYACAKTIR. Ancak, uçuş operasyonu öncesindeki konumlandırma
+  // UGS OLARAK SAYILACAKTIR."* Yani DH bacagi:
+  //   · UGS'nin (FDP) ICINDEDIR — pencere onunla baslar
+  //   · SEKTOR DEGILDIR — Tablo-1'in sektor kolonunu artirmaz
+  //   · UCUS SURESI degildir — Md.27 gunluk ucus siniri onu saymaz
+  // Md.4(n): yerel ulasim konumlandirma DEGILDIR -> DH ile baslayan gorevde
+  // ucus oncesi RAPOR PAYI (60 dk) EKLENMEZ; gorev konumlandirma ucusunun
+  // kalkisiyla baslar.
+  const flightLegs = legs.filter(l => !l.deadhead);
+  const startsWithDh = !!legs[0]?.deadhead;
+  const reportMin = startsWithDh ? toMin(legs[0].etd) : toMin(legs[0].etd) - preFlightMin;
   const report = fmtMin((reportMin + 1440) % 1440);
-  // en büyük ardışık mola
+  // en büyük ardışık mola — YALNIZ UCUS BACAKLARI ARASINDA.
+  // Acik mesai (Md.15) uzatmasi bir UGS UZATMASIDIR; konumlandirma aktarma
+  // beklemesini "mola" sayip UGS uzatmak emniyet kapisini GEVSETIRDI (Ilke 7).
+  // Belirsizlikte uzatma VERMEYEN taraf secilir.
   let maxBreak = null;
-  for (let i = 1; i < legs.length; i++) {
-    const brk = spanMin(legs[i - 1].eta, legs[i].etd);
+  for (let i = 1; i < flightLegs.length; i++) {
+    const brk = spanMin(flightLegs[i - 1].eta, flightLegs[i].etd);
     if (brk != null && (maxBreak == null || brk > maxBreak.min)) {
-      maxBreak = { min: brk, start: legs[i - 1].eta, end: legs[i].etd };
+      maxBreak = { min: brk, start: flightLegs[i - 1].eta, end: flightLegs[i].etd };
     }
   }
   // ACIK MESAI (Md.15) yalniz uygulanabilir faaliyet tiplerinde (applies_to).
@@ -1007,7 +1028,9 @@ export function dutyWindow(legs, accommodation, ruleset, opts = {}) {
   // Çağıran ofset farkını çözüp `bandReport`'u geçirir (motor TZ sorgusu yapmaz).
   // Geçilmezse bandı kalkış saati belirler — eski davranış (tek dilimli operasyon).
   const bandReport = opts.bandReport || report;
-  const baseFdp = maxFdpMinutes(bandReport, legs.length, rules,
+  // SEKTOR SAYISI: DH haric (Md.14/1/b). Saf DH gorevinde (ucus bacagi yok)
+  // Tablo-1 okunamaz — o zaten UCUS gorevi degildir, yer gorevi olarak yazilir.
+  const baseFdp = maxFdpMinutes(bandReport, flightLegs.length, rules,
     { singlePilot: opts.singlePilot, operationType: opType });
   let maxFdp = baseFdp != null ? baseFdp + split.extensionMin : null;
   // ARTIRILMIS UCUS EKIBI — SHT-FTL/HG Md.11(4): azami gunluk UGS, ucus
@@ -1021,7 +1044,8 @@ export function dutyWindow(legs, accommodation, ruleset, opts = {}) {
     const ac = rules.augmented_crew || {};
     const ext = opts.fourPilot ? ac.extension_two_additional_min : ac.extension_one_additional_min;
     maxFdp = (baseFdp != null && ext != null) ? baseFdp + ext : null;  // split BILEREK haric
-    if (legs.length > (ac.max_sectors ?? 3)) augmentedSectorLimitExceeded = true;
+    // Md.11(2) sektor siniri de DH'siz sayilir (Md.14/1/b).
+    if (flightLegs.length > (ac.max_sectors ?? 3)) augmentedSectorLimitExceeded = true;
     augmented = true;
   }
   // UZUN MENZIL (HG Md.22(3)): >=4 saatlik dilim farki gecilen gorevde standart
@@ -1041,13 +1065,17 @@ export function dutyWindow(legs, accommodation, ruleset, opts = {}) {
     standbyReducedMin = opts.standbyReductionMin;
     maxFdp = Math.max(0, maxFdp - standbyReducedMin);
   }
-  const lastEta = legs[legs.length - 1].eta;
+  // UGS SON UCUSUN INISINDE BITER. Ucustan SONRAKI konumlandirma UGS'ye
+  // girmez (Md.14/1/b yalniz ucus OPERASYONU ONCESI icin UGS der); Md.14/1/c
+  // geregi hak edilen DINLENMEDE dikkate alinir — gorev suresi asagida
+  // butun bacaklardan turer.
+  const lastEta = (flightLegs[flightLegs.length - 1] || legs[legs.length - 1]).eta;
   const fdpMin = spanMin(report, lastEta);              // FDP = report → son on block
   const dutyEndMin = toMin(lastEta) + postFlightMin;    // duty = ... + ucus sonrasi
   const dutyMin = fdpMin != null ? fdpMin + postFlightMin : null;
   const latestFdpEnd = maxFdp != null ? fmtMin((reportMin + maxFdp + 2880) % 1440) : null;
   // UCUS SURESI (blok) — Md.27 egitim gunluk siniri icin gerekli.
-  const flightMin = legs.reduce((a, l) => a + (spanMin(l.etd, l.eta) || 0), 0);
+  const flightMin = flightLegs.reduce((a, l) => a + (spanMin(l.etd, l.eta) || 0), 0);
   const flightLimitMin = opType === 'training'
     ? trainingFlightLimitMin(rules, opts.trainingKind, opts.sameDayTheory) : null;
   return {
