@@ -854,6 +854,7 @@ function EditNonFlightModal({ group, pilots, offTypes, myProfile, toast, onClose
                 <option value="sim">SIM</option><option value="theoretical">THEORETICAL TRAINING (Md.27/c)</option>
                 <option value="airport_standby">AIRPORT STANDBY (Md.17/1)</option>
                 <option value="other_standby">OTHER STANDBY (Md.17/2)</option>
+                <option value="dh">DH — DEADHEAD / POSITIONING (Md.14)</option>
               </select>
             )}
           </div>
@@ -1619,6 +1620,23 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
   const [accommodation, setAccommodation] = useState('hotel');
   const [selected, setSelected] = useState({}); // pilotId -> 'PF'|'PM'|'CREW'
   const [gnd, setGnd] = useState({ kind:'office', start:'09:00', end:'17:00' });
+  // ── DH / KONUMLANDIRMA (SHT-FTL/HG Md.14, 22 Agu 2026) ─────────────
+  // Serkan: *"DH girilirse bunun da bir baslangic ve bitis saati ve dep/dest
+  // meydani ve ucalacak ucusun flt number girilir; coklu sektorlu bir DH
+  // olabilir, ADD SECTOR ile aktarmali ucuslari da ekleyebilmemiz lazim."*
+  //
+  // 🔑 Md.14(1)(a): *"Konumlandirmalarda harcanan TUM ZAMAN, gorev suresi
+  //    olarak kayit altina alinacaktir."* -> gorev = ILK KALKIS ... SON INIS,
+  //    aradaki bekleme DAHIL. "Ucus suresi kadar" degil.
+  // 🔑 Md.14(1)(b): konumlandirma SEKTOR SAYILMAZ -> Tablo-1'in sektor
+  //    kolonunu etkilemez. `duty_type: 'ground'` oldugu icin bu kendiliginden
+  //    saglanir: `maxFdpMinutes` yalniz ucus gorevinden okunur.
+  // 🔑 Md.4(n): yerel ulasim (dinlenme yerinden meydana gidis) konumlandirma
+  //    DEGILDIR -> rapor payi YOKTUR, gorev ucusun kendisiyle baslar.
+  // 🔑 Ucus SAATI kumulatiflerine girmez: `FTLEngine.fltMin` yalniz
+  //    `duty_type === 'flight'` sayar (Serkan: "flt time limitlerini belirlemez").
+  const [dhLegs, setDhLegs] = useState([{ dep:'', dest:'', start:'', end:'', flt:'' }]);
+  const setDhLeg = (i, k, v) => setDhLegs(ls => ls.map((l, j) => j === i ? { ...l, [k]: v } : l));
   const [off, setOff] = useState({ subtype:'OFF', endDate:'' });
   const [saving, setSaving] = useState(false);
   // GERIYE DONUK GIRIS ONAYI: satirlar hazir ama HENUZ YAZILMADI. Popup
@@ -2035,6 +2053,53 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
             mandatory_report_due: pWin.fdpExceeded ? addMin(endISO, (effectiveRules(ruleset).company.mandatoryReportHours) * 60) : null,
           });
         });
+      } else if (dutyType === 'ground' && gnd.kind === 'dh') {
+        // ── DH / KONUMLANDIRMA (Md.14) ─────────────────────────────────
+        // Gorev = ILK KALKIS ... SON INIS. Aradaki bekleme de gorevdir
+        // (Md.14/1/a: "harcanan TUM ZAMAN"). Sektor SAYILMAZ (Md.14/1/b) —
+        // `duty_type: 'ground'` oldugu icin Tablo-1'e zaten girmez.
+        const legs = dhLegs.filter(l => l.dep || l.dest || l.start || l.end || l.flt);
+        if (!legs.length || legs.some(l => !l.dep || !l.dest || !l.start || !l.end)) {
+          toast('Deadhead: DEP, DEST and both times are required on every sector.', 'error');
+          setSaving(false); return;
+        }
+        // GUN DEVRI: geriye giden her saat ertesi gundur (ucus yolundaki kural).
+        let gun = date, onceki = null;
+        const damgali = legs.map(l => {
+          const out = {};
+          for (const k of ['start', 'end']) {
+            const m = toMin(l[k]);
+            if (onceki != null && m < onceki) gun = nextDay(gun);
+            onceki = m;
+            out[k] = utcISO(gun, l[k]);
+          }
+          return { ...l, ...out };
+        });
+        const startISO = damgali[0].start;
+        const endISO   = damgali[damgali.length - 1].end;
+        const dMin = Math.round((new Date(endISO) - new Date(startISO)) / 60000);
+        const minRest = Math.max(dMin, rules.min_rest?.home_base_min ?? 720);
+        ids.forEach(pid => {
+          rows.push({
+            ...base, pilot_id: pid, duty_type: 'ground', ground_kind: 'dh',
+            report_time: startISO, duty_end: endISO,
+            // FDP URETMEZ (Serkan: "flt duty gibi flt time limitlerini
+            // belirlemez"). Ucus saati kumulatifine de girmez — `fltMin`
+            // yalniz `duty_type === 'flight'` sayar.
+            fdp_minutes: null,
+            // Sektorler KAYIT icin tutulur: hangi ucusla konumlandirildigi
+            // denetimde sorulur. `duty_type` ground oldugu icin bunlar
+            // sektor sayilmaz, uçuş saatine de girmez.
+            sectors: damgali.map((l, i) => ({
+              seq: i + 1, dep: l.dep.toUpperCase(), dest: l.dest.toUpperCase(),
+              etd: l.start.slice(11, 16), eta: l.end.slice(11, 16),
+              flight_no: (l.flt || '').toUpperCase() || null,
+              deadhead: true,
+            })),
+            min_rest_minutes: minRest,
+            earliest_next_report: addMin(endISO, minRest),
+          });
+        });
       } else if (dutyType === 'ground') {
         const startISO = utcISO(date, gnd.start);
         const endISO = utcISO(toMin(gnd.end) < toMin(gnd.start) ? nextDay(date) : date, gnd.end);
@@ -2190,12 +2255,53 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
               <option value="sim">SIM</option><option value="theoretical">THEORETICAL TRAINING (Md.27/c)</option>
                 <option value="airport_standby">AIRPORT STANDBY (Md.17/1)</option>
                 <option value="other_standby">OTHER STANDBY (Md.17/2)</option>
+                <option value="dh">DH — DEADHEAD / POSITIONING (Md.14)</option>
             </select>
           </div>
-          <div style={{ width:110 }}><span style={S.label}>Start (UTC)</span><input style={S.input} value={gnd.start} onChange={e => setGnd(g => ({ ...g, start: normTime(e.target.value) }))} /></div>
-          <div style={{ width:110 }}><span style={S.label}>End (UTC)</span><input style={S.input} value={gnd.end} onChange={e => setGnd(g => ({ ...g, end: normTime(e.target.value) }))} /></div>
+          {gnd.kind !== 'dh' && (<>
+            <div style={{ width:110 }}><span style={S.label}>Start (UTC)</span><input style={S.input} value={gnd.start} onChange={e => setGnd(g => ({ ...g, start: normTime(e.target.value) }))} /></div>
+            <div style={{ width:110 }}><span style={S.label}>End (UTC)</span><input style={S.input} value={gnd.end} onChange={e => setGnd(g => ({ ...g, end: normTime(e.target.value) }))} /></div>
+          </>)}
         </>)}
       </div>
+
+      {/* ── DH SEKTORLERI (SHT-FTL/HG Md.14) ─────────────────────────────
+          Gorev suresi ILK KALKIS ... SON INIS arasidir; aradaki bekleme de
+          gorevdir (Md.14/1/a "harcanan tum zaman"). Ucus numarasi kayda girer:
+          konumlandirmanin HANGI ucusla yapildigi denetimde sorulur. */}
+      {dutyType === 'ground' && gnd.kind === 'dh' && (
+        <div style={{ marginTop:4, marginBottom:14 }}>
+          <span style={S.label}>Deadhead sectors — all times UTC</span>
+          {dhLegs.map((l, i) => (
+            <div key={i} style={{ display:'grid', gridTemplateColumns:'26px 1fr 1fr 1fr 1fr 1.2fr 38px',
+                                  gap:8, marginBottom:6, alignItems:'center' }}>
+              <div style={{ fontSize:11, color:C.t3, textAlign:'center', fontFamily:'var(--mono)' }}>{i + 1}</div>
+              <input style={S.input} placeholder="DEP" maxLength={4} value={l.dep}
+                     onChange={e => setDhLeg(i, 'dep', up(e.target.value))} />
+              <input style={S.input} placeholder="DEST" maxLength={4} value={l.dest}
+                     onChange={e => setDhLeg(i, 'dest', up(e.target.value))} />
+              <input style={S.input} placeholder="DEP UTC" value={l.start}
+                     onChange={e => setDhLeg(i, 'start', normTime(e.target.value))} />
+              <input style={S.input} placeholder="ARR UTC" value={l.end}
+                     onChange={e => setDhLeg(i, 'end', normTime(e.target.value))} />
+              <input style={S.input} placeholder="FLIGHT NO" maxLength={10} value={l.flt}
+                     onChange={e => setDhLeg(i, 'flt', up(e.target.value))} />
+              <button style={{ ...S.btnS, padding:'8px 10px', opacity: dhLegs.length > 1 ? 1 : .35 }}
+                      disabled={dhLegs.length <= 1}
+                      onClick={() => setDhLegs(ls => ls.filter((_, j) => j !== i))}>✕</button>
+            </div>
+          ))}
+          <button style={S.btnS} onClick={() => setDhLegs(ls => [...ls, { dep:'', dest:'', start:'', end:'', flt:'' }])}>
+            + ADD SECTOR
+          </button>
+          <div style={{ ...S.note, marginTop:8 }}>
+            SHT-FTL/HG Md.14(1)(a): ALL time spent positioning is recorded as DUTY —
+            the wait between connecting sectors counts too. Md.14(1)(b): positioning is
+            NOT a sector, so it does not change the Table-1 sector column. It does not
+            count as flight time; it does set the rest that follows.
+          </div>
+        </div>
+      )}
 
       {/* ── NOBETIN SONUCU ONCEDEN GORUNSUN (Md.17) ──────────────────────
             Nobet kaydi tek basina zararsiz gorunur ama AYNI GUN atanacak ucusun
@@ -2466,6 +2572,23 @@ function PlannedOutcomeModal({ duty, rows, myProfile, offTypes, toast, onClose, 
     off_block: l.off_block || '', takeoff_time: l.takeoff_time || '',
     landing_time: l.landing_time || '', on_block: l.on_block || '',
   })));
+  // ── YER GOREVI "OLDU" YOLU (22 Agu 2026 saha) ──────────────────────
+  // 🔴 Serkan: *"Ahmet kaptanin sim ve training planlamalari hala PLAN
+  //    gorunuyor; o gorevler tanimlandi ve gerceklesti, geride kaldi."*
+  //    Sebep: "YES — IT TOOK PLACE" butonu ucus OLMAYAN gorevde `notflown`
+  //    adimina gidiyordu — yani IPTAL ekranina. Yer gorevinin "oldu" diyecek
+  //    HICBIR yolu yoktu: ne otomatik donusum, ne elle. Bes gun PLN kaldi ve
+  //    raporun toplamlarina girmedi ("PLN excluded from totals").
+  // 🔑 Serkan'in karari: saatler SORULUR ama PLANLANDIGI GIBI dolu gelir —
+  //    degismediyse onaylayip gecersin, degistiyse duzeltirsin.
+  const isoToHHMM = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return isNaN(d) ? '' : `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;
+  };
+  const [gStart, setGStart] = useState(() => isoToHHMM(duty.report_time));
+  const [gEnd,   setGEnd]   = useState(() => isoToHHMM(duty.duty_end));
+
   const [nature, setNature] = useState('empty');    // empty | stby | off
   const [sbKind, setSbKind] = useState('airport_standby');
   const [sbStart, setSbStart] = useState('');
@@ -2556,6 +2679,54 @@ function PlannedOutcomeModal({ duty, rows, myProfile, offTypes, toast, onClose, 
       const { error } = await supabase.from('crew_duties').update(upd).eq('id', duty.id);
       if (error) throw error;
       toast('Duty recorded as flown.', 'success');
+      onSaved();
+    } catch (e) { toast(String(e.message || e), 'error'); }
+    setBusy(false);
+  };
+
+  // ── YES (YER GOREVI): OLDU ─────────────────────────────────────────
+  // Ucus gorevinden farki: FDP YOKTUR. Yer gorevi GOREV suresi uretir,
+  // ucus gorev suresi uretmez — bu yuzden `fdp_minutes` bos birakilir ve
+  // `fdp_exceeded` hesaplanmaz. Dinlenme atama yolundaki formulun aynisiyla
+  // yeniden kurulur (tek kaynak: ruleset_snapshot).
+  const saveGround = async () => {
+    if (!hhmmOK(gStart) || !hhmmOK(gEnd)) {
+      toast('Start and end are required (HH:MM).', 'error'); return;
+    }
+    if (toMin(gStart) === toMin(gEnd)) {
+      toast('Start and end cannot be the same.', 'error'); return;
+    }
+    setBusy(true);
+    try {
+      const startISO = utcISO(duty.duty_date, gStart);
+      // GUN DEVRI: bitis baslangictan kucukse ertesi gundur (atama yolundaki kural).
+      const endISO = utcISO(toMin(gEnd) < toMin(gStart) ? nextDay(duty.duty_date) : duty.duty_date, gEnd);
+      const dMin = Math.round((new Date(endISO) - new Date(startISO)) / 60000);
+
+      const rules = duty.ruleset_snapshot?.regulation || {};
+      const minRest = Math.max(dMin, rules.min_rest?.home_base_min ?? 720);
+
+      const upd = {
+        status: 'actual', duty_finished: true,
+        report_time: startISO, duty_end: endISO,
+        fdp_minutes: null,                       // yer gorevi FDP URETMEZ
+        min_rest_minutes: minRest,
+        earliest_next_report: new Date(new Date(endISO).getTime() + minRest * 60000).toISOString(),
+      };
+
+      // Iz ONCE (silme/iptal/edit ile ayni ilke).
+      const why = `Ground duty confirmed as done: ${isoToHHMM(duty.report_time) || '—'}–`
+                + `${isoToHHMM(duty.duty_end) || '—'} → ${gStart}–${gEnd}`;
+      const { error: eErr } = await supabase.from('ftl_duty_edits').insert([
+        auditRow(duty, 'status', duty.status, 'actual', 'EDIT', why),
+        auditRow(duty, 'duty_window', `${isoToHHMM(duty.report_time)}–${isoToHHMM(duty.duty_end)}`,
+                 `${gStart}–${gEnd}`, 'EDIT', why),
+      ]);
+      if (eErr) { toast(`Audit write failed: ${eErr.message}`, 'error'); setBusy(false); return; }
+
+      const { error } = await supabase.from('crew_duties').update(upd).eq('id', duty.id);
+      if (error) throw error;
+      toast('Ground duty recorded as done.', 'success');
       onSaved();
     } catch (e) { toast(String(e.message || e), 'error'); }
     setBusy(false);
@@ -2656,7 +2827,11 @@ function PlannedOutcomeModal({ duty, rows, myProfile, offTypes, toast, onClose, 
                 <button style={S.btnS} onClick={onClose}>CLOSE</button>
                 <button style={{ ...S.btnS, borderColor:C.red, color:C.red }}
                         onClick={() => setStep('notflown')}>NO — IT DID NOT HAPPEN</button>
-                <button style={S.btnP} onClick={() => setStep(isFlight && legs.length ? 'flown' : 'notflown')}>
+                {/* 🔴 22 Agu: burasi `isFlight && legs.length ? 'flown' : 'notflown'`
+                    idi — yani ucus olmayan gorevde EVET demek IPTAL ekranina
+                    goturuyordu. Olumlu buton olumsuz sonuca cikiyordu. */}
+                <button style={S.btnP}
+                        onClick={() => setStep(isFlight && legs.length ? 'flown' : 'ground')}>
                   YES — IT TOOK PLACE
                 </button>
               </div>
@@ -2700,6 +2875,41 @@ function PlannedOutcomeModal({ duty, rows, myProfile, offTypes, toast, onClose, 
                 <button style={S.btnS} onClick={() => setStep('ask')} disabled={busy}>BACK</button>
                 <button style={{ ...S.btnP, opacity: busy ? .45 : 1 }} disabled={busy}
                         onClick={saveFlown}>{busy ? 'SAVING...' : 'SAVE AS FLOWN'}</button>
+              </div>
+            </>
+          )}
+
+          {/* ── YER GOREVI OLDU (22 Agu 2026) ────────────────────────────
+              Saatler PLANLANDIGI GIBI dolu gelir (Serkan: "AS IS olmasi
+              gerekir, planlandigi gibi"); degismediyse onaylayip gecilir.
+              Ucus gorevindeki gibi GERCEK saatler sorulur — SIM 09:00 yerine
+              09:30'da basladiysa kayit onu gostersin. */}
+          {step === 'ground' && (
+            <>
+              <div style={S.note}>
+                All times UTC, HH:MM. The times below are the PLANNED ones — if the duty ran
+                as planned, just save. Duty window and the next earliest report are calculated
+                from what you confirm here.
+              </div>
+              <div style={{ display:'flex', gap:16, marginTop:12, alignItems:'flex-end' }}>
+                <div>
+                  <span style={S.label}>Start *</span>
+                  <input style={tIn} placeholder="HH:MM" maxLength={5} value={gStart}
+                         onChange={e => setGStart(normTime(e.target.value))} />
+                </div>
+                <div>
+                  <span style={S.label}>End *</span>
+                  <input style={tIn} placeholder="HH:MM" maxLength={5} value={gEnd}
+                         onChange={e => setGEnd(normTime(e.target.value))} />
+                </div>
+                <div style={{ fontSize:10, color:C.t3, fontFamily:'var(--mono)', paddingBottom:9 }}>
+                  PLN {isoToHHMM(duty.report_time) || '—'}–{isoToHHMM(duty.duty_end) || '—'}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:14 }}>
+                <button style={S.btnS} onClick={() => setStep('ask')} disabled={busy}>BACK</button>
+                <button style={{ ...S.btnP, opacity: busy ? .45 : 1 }} disabled={busy}
+                        onClick={saveGround}>{busy ? 'SAVING...' : 'SAVE AS DONE'}</button>
               </div>
             </>
           )}
