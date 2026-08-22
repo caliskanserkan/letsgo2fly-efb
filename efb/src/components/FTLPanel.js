@@ -1616,7 +1616,12 @@ function EditReport({ pilots, edits, duties }) {
 function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offTypes, homeBases, reload }) {
   const [dutyType, setDutyType] = useState('flight');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [legs, setLegs] = useState([{ dep:'', dest:'', etd:'', eta:'' }]);
+  // BACAK BASINA FAALIYET TIPI (Serkan, 22 Agu): *"cok bacakli bir planlamada
+  // ucusun tipini secerken her bacak icin ayri ayri secelim."* Her bacak kendi
+  // planindan tipini ceker (RMK/BUSINESS -> hava taksi, RMK/PRIVATE -> genel
+  // havacilik); elle degistirilebilir, kaynagi kayda gecer. Gorevin YONETICI
+  // tipi bacaklarin EN KISITLAYICISIDIR (motor hesaplar).
+  const [legs, setLegs] = useState([{ dep:'', dest:'', etd:'', eta:'', operation_type:'', opSrc:'' }]);
   const [accommodation, setAccommodation] = useState('hotel');
   const [selected, setSelected] = useState({}); // pilotId -> 'PF'|'PM'|'CREW'
   const [gnd, setGnd] = useState({ kind:'office', start:'09:00', end:'17:00' });
@@ -1705,7 +1710,41 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
   // Ayni tarih+DEP+DEST'te plan varsa tip ONDAN gelir; elle secim yine mumkun
   // ama kaynak kayda gecer — hangi limitin NEDEN uygulandigi belgelenir.
   const [planOp, setPlanOp] = useState(null);   // {type, source, planId}
-  const [opManual, setOpManual] = useState(false);
+  const [opManual] = useState(false);   // eski gorev-basi secim izi (bacak basina gecildi)
+  // ── BACAK BASINA PLAN ARAMASI (22 Agu) ─────────────────────────────
+  // Eski arama gorev BASINA tekti: ilk bacagin dep'i + son bacagin dest'i.
+  // Cok bacakli gorevde o kombinasyon zaten hicbir planla eslesmiyordu
+  // (LTAC→LFMN diye bir plan yok; LTAC→LTFE ve LTFE→LFMN var). Artik her
+  // bacak KENDI planindan tipini okur — 22 Agu'da bir gorevin bir bacagi
+  // BUSINESS, oteki PRIVATE cikti ve bu ancak arsivde fark edildi.
+  useEffect(() => {
+    if (dutyType !== 'flight') return;
+    let dead = false;
+    (async () => {
+      for (let i = 0; i < legs.length; i++) {
+        const l = legs[i];
+        if (!l.dep || l.dep.length !== 4 || !l.dest || l.dest.length !== 4 || !date) continue;
+        if (l.opSrc === 'manual') continue;              // elle secildiyse DOKUNMA
+        const { data } = await supabase.from('plans')
+          .select('id,dep,dest,date,operation_type,operation_type_source')
+          .eq('dep', l.dep.toUpperCase()).eq('dest', l.dest.toUpperCase())
+          .not('operation_type', 'is', null).limit(20);
+        if (dead) return;
+        const hedef = new Date(date + 'T12:00:00Z');
+        const hit = (data || []).find(pl => {
+          const d = new Date(String(pl.date || '').replace(/(\d{1,2}) (\w{3}) (\d{4})/, '$2 $1, $3'));
+          return !isNaN(d) && d.getUTCFullYear() === hedef.getUTCFullYear()
+            && d.getUTCMonth() === hedef.getUTCMonth() && d.getUTCDate() === hedef.getUTCDate();
+        }) || (data || [])[0];
+        if (!hit) continue;
+        setLegs(ls => ls.map((x, j) => (j === i && x.opSrc !== 'manual' && x.operation_type !== hit.operation_type)
+          ? { ...x, operation_type: hit.operation_type, opSrc: hit.operation_type_source || 'flight plan' }
+          : x));
+      }
+    })();
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dutyType, date, legs.map(l => `${l.dep}>${l.dest}`).join('|')]);
   useEffect(() => {
     if (dutyType !== 'flight') { setPlanOp(null); return; }
     const dep = legs[0]?.dep, dest = legs[legs.length - 1]?.dest;
@@ -1998,6 +2037,13 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
       };
       if (dutyType === 'flight') {
         if (!win || legs.some(l => !l.dep || !l.dest || !l.etd || !l.eta)) { toast('Complete all sector fields.', 'error'); setSaving(false); return; }
+        // FAALIYET TIPI HER BACAKTA OLMALI (Md.9): hangi hukmun uygulanacagi
+        // ondan cikiyor. Bos birakip varsayilan uydurmak, yanlis limitle ucus
+        // planlamak demektir — kayit ENGELLENIR.
+        if (legs.some(l => !l.operation_type)) {
+          toast('Every sector needs an operation type (SHT-FTL/HG Md.9) — the limit comes from it.', 'error');
+          setSaving(false); return;
+        }
         // SAATLER UTC (6 Agu, Serkan ilkesi): girilen ETD/ETA zaten UTC oldugu
         // icin mutlaklastirma DUZDUR — meydan dilimine ihtiyac YOK ve "tz yok →
         // admin dilimi" yamasi da gereksizlesti. Meydan tz'si artik yalniz
@@ -2036,13 +2082,17 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
           const minRest = Math.max(pWin.dutyMin || 0, atBase ? (rules.min_rest?.home_base_min ?? 720) : (rules.min_rest?.out_of_base_min ?? 600));
           rows.push({
             ...base, pilot_id: pid, duty_type: 'flight',
-            operation_type: opType,
-            operation_type_source: planOp
-              ? (opManual && planOp.type !== opType
-                  ? `manual override (flight plan: ${planOp.type} — ${planOp.source})`
-                  : planOp.source)
-              : 'manual selection (no matching flight plan)',
-            ...(opType === 'training' ? { training_kind: trainingKind, same_day_theory: sameDayTheory } : {}),
+            // GOREVIN YONETICI TIPI = bacaklarin EN KISITLAYICISI (motor hesaplar).
+            // Karisik gorevde bunu kaydin ICINE yazmak sart: denetci "13:30
+            // nereden geldi" diye sorunca cevap kayitta olsun (Md.9).
+            operation_type: win.operationType,
+            operation_type_source: win.mixedOperation
+              ? `mixed duty — most restrictive applies (${win.operationTypes.join(' + ')})`
+              : (legs[0]?.opSrc && legs[0].opSrc !== 'manual'
+                  ? legs[0].opSrc
+                  : 'manual selection (per sector)'),
+            ...(legs.some(l => l.operation_type === 'training')
+                ? { training_kind: trainingKind, same_day_theory: sameDayTheory } : {}),
             report_tz: depTz || base.report_tz,
             report_time: reportISO, duty_end: endISO,
             // GECMIS TARIHTE ELLE GIRILEN SAAT = GERCEK SAAT (Serkan, 3 Agu):
@@ -2060,8 +2110,13 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
             sectors: legsAll.map((l, i) => ({
               seq: i + 1, dep: l.dep.toUpperCase(), dest: l.dest.toUpperCase(),
               etd: l.etd, eta: l.eta,
-              ...(l.deadhead ? { deadhead: true, flight_no: l.flight_no || null }
-                             : { role: selected[pid] }),
+              ...(l.deadhead
+                  ? { deadhead: true, flight_no: l.flight_no || null }
+                  : { role: selected[pid],
+                      // HER SEKTOR KENDI TIPINI TASIR: denetimde hangi bacagin
+                      // hangi hukme tabi oldugu okunabilsin (Md.9).
+                      ...(l.operation_type ? { operation_type: l.operation_type,
+                                               operation_type_source: l.opSrc || null } : {}) }),
             })),
             split_duty: pWin.split.isSplit, break_minutes: pWin.breakMin,
             accommodation: pWin.split.isSplit ? accommodation : null,
@@ -2231,23 +2286,18 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
         </div>
         {dutyType === 'flight' && (<>
           <div><span style={S.label}>Operation (SHT-FTL/HG Md.9)</span>
-            <select style={{ ...S.input, width:210 }} value={opType}
-                    onChange={e => { setOpType(e.target.value); setOpManual(true); }}>
-              <option value="air_taxi">AIR TAXI — Md.22</option>
-              <option value="aerial_work">AERIAL WORK — Md.26</option>
-              <option value="general_aviation">GENERAL AVIATION — Md.25</option>
-              <option value="training">TRAINING — Md.27</option>
-            </select>
-            {planOp && (
-              <div style={{ fontSize:9, color: opManual && planOp.type !== opType ? (C.amber || 'var(--amber)') : C.t3,
-                            fontFamily:'var(--mono)', marginTop:3, maxWidth:230, lineHeight:1.5 }}>
-                {opManual && planOp.type !== opType
-                  ? `MANUAL OVERRIDE — flight plan says ${planOp.type} (${planOp.source})`
-                  : `FROM FLIGHT PLAN — ${planOp.source}`}
-              </div>
-            )}
+            {/* 22 Agu: tip artik SEKTOR SATIRINDA secilir. Burasi gorevin
+                YONETICI tipini gosterir — karisik gorevde EN KISITLAYICI olan.
+                Secici birakilsaydi iki ayri gercek kaynak olurdu (Ilke 2). */}
+            <div style={{ ...S.input, width:210, display:'flex', alignItems:'center',
+                          background:C.bg3, cursor:'default' }}>
+              {opLabel(win?.operationType || opType)}
+            </div>
+            <div style={{ fontSize:9, color:C.t3, fontFamily:'var(--mono)', marginTop:3, maxWidth:230, lineHeight:1.5 }}>
+              PER SECTOR — SET IT ON EACH LEG BELOW
+            </div>
           </div>
-          {opType === 'training' && (<>
+          {legs.some(l => l.operation_type === 'training') && (<>
             <div><span style={S.label}>Training kind</span>
               <select style={{ ...S.input, width:230 }} value={trainingKind} onChange={e => setTrainingKind(e.target.value)}>
                 {Object.entries(effectiveRules(ruleset).rules.fdp_limits?.training?.kinds || {})
@@ -2381,6 +2431,20 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
         </div>
       )}
 
+      {/* ── KARISIK FAALIYET TIPI UYARISI (Serkan, 22 Agu) ───────────────
+          *"mutlaka uyari olarak verilmeli: mix bir gorev olarak planlandi,
+           kapsam dar olana gore belirlenecek desin PLANLAMA YAPILIRKEN."*
+          Arsivde degil, ATAMA sirasinda — cunku limit o an belirleniyor. */}
+      {dutyType === 'flight' && win?.mixedOperation && (
+        <div data-testid="mixed-op-warning"
+             style={{ ...S.note, borderLeftColor:C.accent, color:C.t1, marginBottom:12 }}>
+          <b style={{ color:C.accent }}>MIXED OPERATION DUTY</b> — this duty is planned with more
+          than one operation type ({win.operationTypes.map(opLabel).join(' + ')}).
+          The limit is set by the MOST RESTRICTIVE one: <b>{opLabel(win.operationType)}</b>
+          {win.maxFdpMin != null && <> — MAX FDP {fmtMin(win.maxFdpMin)}</>}. (SHT-FTL/HG Md.9)
+        </div>
+      )}
+
       {/* ── NOBETIN SONUCU ONCEDEN GORUNSUN (Md.17) ──────────────────────
             Nobet kaydi tek basina zararsiz gorunur ama AYNI GUN atanacak ucusun
             azami UGS'sini kisaltir. Dispatcher bunu ucusa gelince degil, nobeti
@@ -2405,12 +2469,24 @@ function AssignDuty({ toast, myProfile, pilots, duties, baselines, ruleset, offT
       {dutyType === 'flight' && (<>
         <span style={S.label}>Sectors</span>
         {legs.map((l, i) => (
-          <div key={i} style={{ display:'grid', gridTemplateColumns:'30px 1fr 1fr 1fr 1fr 40px', gap:10, marginBottom:8, alignItems:'center' }}>
+          <div key={i} style={{ display:'grid', gridTemplateColumns:'30px 1fr 1fr 1fr 1fr 1.6fr 40px', gap:10, marginBottom:8, alignItems:'center' }}>
             <div style={{ fontSize:11, color:C.t3, textAlign:'center', fontFamily:'var(--mono)' }}>{i + 1}</div>
             <input style={S.input} placeholder="DEP" maxLength={4} value={l.dep} onChange={e => setLeg(i, 'dep', e.target.value.toUpperCase())} />
             <input style={S.input} placeholder="DEST" maxLength={4} value={l.dest} onChange={e => setLeg(i, 'dest', e.target.value.toUpperCase())} />
             <input style={S.input} placeholder="ETD UTC (06:30)" value={l.etd} onChange={e => setLeg(i, 'etd', normTime(e.target.value))} />
             <input style={S.input} placeholder="ETA UTC (07:45)" value={l.eta} onChange={e => setLeg(i, 'eta', normTime(e.target.value))} />
+            {/* BACAK BASINA FAALIYET TIPI (Md.9). Bos birakilamaz diye
+                zorlanmaz — plandan gelmezse ve secilmezse gorev tipi
+                belirlenemez ve kayit engellenir (asagida). */}
+            <select style={{ ...S.input, fontSize:11 }} value={l.operation_type || ''}
+                    onChange={e => setLegs(ls => ls.map((x, j) => j === i
+                      ? { ...x, operation_type: e.target.value, opSrc: 'manual' } : x))}>
+              <option value="">— OPERATION —</option>
+              <option value="air_taxi">AIR TAXI — Md.22</option>
+              <option value="aerial_work">AERIAL WORK — Md.26</option>
+              <option value="general_aviation">GENERAL AVIATION — Md.25</option>
+              <option value="training">TRAINING — Md.27</option>
+            </select>
             <button style={{ ...S.btnS, padding:'8px 10px', color:C.red }} onClick={() => setLegs(ls => ls.length > 1 ? ls.filter((_, j) => j !== i) : ls)}>✕</button>
           </div>
         ))}

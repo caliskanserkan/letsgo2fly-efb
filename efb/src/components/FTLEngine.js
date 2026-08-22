@@ -149,6 +149,39 @@ export function ruleAppliesTo(block, operationType = 'air_taxi') {
   return block.applies_to.includes(operationType);
 }
 
+/// KARIŞIK FAALİYET TİPLİ GÖREV — EN KISITLAYICI BELİRLER (22 Ağu 2026)
+///
+/// 🔴 SAHA: 22 Ağu'da tek görevin iki bacağı FARKLI faaliyet tipindeydi —
+///    LTAC→LTFE `RMK/BUSINESS FLIGHT` (hava taksi), LTFE→LFMN `RMK/PRIVATE
+///    FLIGHT` (genel havacılık). Serkan doğruladı: *"birinci bacak business,
+///    ikinci bacak general aviation, bu şekilde uçuldu."* Görev tek tip
+///    taşıdığı için arşiv çelişkiyi görüp `match_review` kaldırmıştı.
+///
+/// Md.9 *"gerçekleştirmekte olduğu operasyon faaliyetine ilişkin hükümler
+/// geçerli"* der ama KARIŞIK görev için hüküm koymaz.
+/// 🔑 Serkan'ın kuralı: *"en dar kapsamlı belirler görev süresi limitini."*
+/// Gerekçesi İlke 7: bir bacağı hava taksiyse, o bacağı da kapsayan TEK bir
+/// UGS penceresine genel havacılığın daha uzun limitini uygulamak emniyet
+/// kapısını GEVŞETİRDİ.
+///
+/// SIRALAMA KODA GÖMÜLMEZ: hangi tipin daha dar olduğu ruleset'ten ÖLÇÜLÜR —
+/// aynı bant ve aynı sektör sayısıyla her tipin azami UGS'si hesaplanır, en
+/// küçüğü kazanır. Böylece ruleset değişirse kural kendiliğinden doğru kalır.
+/// Ölçülemeyen (limit dönmeyen) tip belirleyici sayılmaz; hiçbiri ölçülemezse
+/// ilk tip döner (uydurma yok).
+export function governingOperation(types, bandReportHHMM, sectorCount, rules, opts = {}) {
+  const liste = [...new Set((types || []).filter(Boolean))];
+  if (liste.length <= 1) return liste[0] ?? null;
+  let kazanan = null, enDar = null;
+  for (const t of liste) {
+    const m = maxFdpMinutes(bandReportHHMM, sectorCount, rules,
+                            { singlePilot: opts.singlePilot, operationType: t });
+    if (m == null) continue;
+    if (enDar == null || m < enDar) { enDar = m; kazanan = t; }
+  }
+  return kazanan ?? liste[0];
+}
+
 export function maxFdpMinutes(reportLocalHHMM, sectors, rules, opts = {}) {
   const t = toMin(reportLocalHHMM);
   const set = fdpLimitSet(rules, opts.operationType);
@@ -984,14 +1017,25 @@ export function dutyWindow(legs, accommodation, ruleset, opts = {}) {
   //   meydan tz'lerinden tespit edip gecirir; motor tz sorgusu YAPMAZ (saf kalir).
   const { rules, company } = effectiveRules(ruleset);
   if (!legs?.length) return null;
-  const opType = opts.operationType || 'air_taxi';
+  // BACAK BASINA FAALIYET TIPI (Serkan, 22 Agu): *"cok bacakli bir planlamada
+  // ucusun tipini secerken her bacak icin ayri ayri secelim."* Bacaklar kendi
+  // `operation_type`'ini tasiyorsa gorevin YONETICI tipi EN KISITLAYICI olandir
+  // (Md.9 + Ilke 7). Tasimiyorlarsa eski davranis: `opts.operationType`.
+  const bacakTipleri = [...new Set(
+    (legs || []).filter(l => !l.deadhead).map(l => l.operation_type).filter(Boolean))];
+  const mixedOperation = bacakTipleri.length > 1;
   // BILDIRIM SURELERI (Md.10): sirket degeri regulasyon TABANININ altina inemez.
   // Egitim/simulator gorevinde ucus sonrasi taban 60 dk (Md.10(c)).
   const nt = rules.notification_times || {};
   const preFlightMin = Math.max(company.preFlightReportMin ?? 60, nt.preflight_report_min ?? 60);
+  // Bildirim sureleri icin tip: karisik gorevde EGITIM varsa egitim tabani
+  // uygulanir (daha uzun olan, yani emniyetli yon).
+  const onTip = bacakTipleri.length
+    ? (bacakTipleri.includes('training') ? 'training' : bacakTipleri[0])
+    : (opts.operationType || 'air_taxi');
   const postFlightMin = Math.max(
     company.postFlightDutyMin ?? 30,
-    opType === 'training' ? (nt.postflight_sim_training_min ?? 60) : (nt.postflight_min ?? 30));
+    onTip === 'training' ? (nt.postflight_sim_training_min ?? 60) : (nt.postflight_min ?? 30));
   // ── KONUMLANDIRMA (DH) BACAKLARI (SHT-FTL/HG Md.14, 22 Agu 2026) ────
   // Md.14(1)(b): *"Uçuş görev başlangıç ve sonrasındaki konumlandırmalar
   // SEKTÖR SAYILMAYACAKTIR. Ancak, uçuş operasyonu öncesindeki konumlandırma
@@ -1006,6 +1050,16 @@ export function dutyWindow(legs, accommodation, ruleset, opts = {}) {
   const startsWithDh = !!legs[0]?.deadhead;
   const reportMin = startsWithDh ? toMin(legs[0].etd) : toMin(legs[0].etd) - preFlightMin;
   const report = fmtMin((reportMin + 1440) % 1440);
+  const bandReport = opts.bandReport || report;
+  // YONETICI TIP: karisik gorevde EN KISITLAYICI olan. Sira koda gomulmez,
+  // ayni bant ve sektor sayisiyla ruleset'ten OLCULUR.
+  const opType = bacakTipleri.length
+    ? (mixedOperation
+        ? governingOperation(bacakTipleri, bandReport, flightLegs.length, rules,
+                             { singlePilot: opts.singlePilot })
+        : bacakTipleri[0])
+    : (opts.operationType || 'air_taxi');
+
   // en büyük ardışık mola — YALNIZ UCUS BACAKLARI ARASINDA.
   // Acik mesai (Md.15) uzatmasi bir UGS UZATMASIDIR; konumlandirma aktarma
   // beklemesini "mola" sayip UGS uzatmak emniyet kapisini GEVSETIRDI (Ilke 7).
@@ -1027,7 +1081,6 @@ export function dutyWindow(legs, accommodation, ruleset, opts = {}) {
   // ikisi ayrışır ve yanlış bant, azami UGS'yi olduğundan büyük/küçük gösterir.
   // Çağıran ofset farkını çözüp `bandReport`'u geçirir (motor TZ sorgusu yapmaz).
   // Geçilmezse bandı kalkış saati belirler — eski davranış (tek dilimli operasyon).
-  const bandReport = opts.bandReport || report;
   // SEKTOR SAYISI: DH haric (Md.14/1/b). Saf DH gorevinde (ucus bacagi yok)
   // Tablo-1 okunamaz — o zaten UCUS gorevi degildir, yer gorevi olarak yazilir.
   const baseFdp = maxFdpMinutes(bandReport, flightLegs.length, rules,
@@ -1087,6 +1140,10 @@ export function dutyWindow(legs, accommodation, ruleset, opts = {}) {
     fdpExceeded: fdpMin != null && maxFdp != null && fdpMin > maxFdp,
     augmented, augmentedSectorLimitExceeded, longRangeCapped,
     operationType: opType, preFlightMin, postFlightMin,
+    // KARISIK GOREV: ekran bunu SOYLEMEK zorunda (Serkan: "mutlaka uyari olarak
+    // verilmeli ... planlama yapilirken"). `operationTypes` bacaklarda gecen
+    // tipler, `operationType` ise uygulanan (en kisitlayici) tiptir.
+    mixedOperation, operationTypes: bacakTipleri,
     flightMin, flightLimitMin,
     flightLimitExceeded: flightLimitMin != null && flightMin > flightLimitMin,
     standbyReducedMin,

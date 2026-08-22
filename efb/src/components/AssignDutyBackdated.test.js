@@ -91,11 +91,21 @@ const gecmisGoreviGir = async () => {
   fireEvent.change(dest[0], { target: { value: 'LTAC' } });
   fireEvent.change(etd[0], { target: { value: '08:00' } });
   fireEvent.change(eta[0], { target: { value: '13:00' } });
+  // 22 Agu: faaliyet tipi artik BACAK BASINA ve zorunlu (Md.9) — hangi hukmun
+  // uygulanacagi ondan cikiyor, bos birakilip varsayilan uydurulmuyor.
+  sektorTipi(0, 'air_taxi');
   return pilotSec();
 };
 
 // Meydan dilimi ASENKRON cekiliyor (intibak Md.22/1); gelmeden once satir
 // NOT LEGAL ve tiklanamaz. O yuzden LEGAL olmasi BEKLENIR.
+// Bir sektorun faaliyet tipini sec.
+const sektorTipi = (i, tip) => {
+  const secim = screen.getAllByRole('combobox').filter(
+    s => within(s).queryByText('— OPERATION —'));
+  fireEvent.change(secim[i], { target: { value: tip } });
+};
+
 const pilotSec = async () => {
   const satir = screen.getByTestId('crew-AAK');
   await waitFor(() => expect(within(satir).getByText('LEGAL')).toBeInTheDocument());
@@ -188,6 +198,7 @@ describe('GECMISE GOREV ATAMA — popup', () => {
     fireEvent.change(screen.getAllByPlaceholderText('DEST')[0], { target: { value: 'LTAC' } });
     fireEvent.change(etd[0], { target: { value: '22:30' } });   // simdi 21:57 — ileride
     fireEvent.change(eta[0], { target: { value: '23:40' } });
+    sektorTipi(0, 'air_taxi');
     await pilotSec();
     fireEvent.click(screen.getByText('ASSIGN DUTY'));
 
